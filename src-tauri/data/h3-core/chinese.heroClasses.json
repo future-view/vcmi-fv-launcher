@@ -1,0 +1,164 @@
+{
+  "class0": {
+    "name": "骑士",
+    "stats": {
+      "attack": 2,
+      "defense": 2,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class1": {
+    "name": "牧师",
+    "stats": {
+      "attack": 1,
+      "defense": 0,
+      "spellPower": 2,
+      "knowledge": 2
+    }
+  },
+  "class2": {
+    "name": "巡逻兵",
+    "stats": {
+      "attack": 1,
+      "defense": 3,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class3": {
+    "name": "德鲁伊",
+    "stats": {
+      "attack": 0,
+      "defense": 2,
+      "spellPower": 1,
+      "knowledge": 2
+    }
+  },
+  "class4": {
+    "name": "炼金术士",
+    "stats": {
+      "attack": 1,
+      "defense": 1,
+      "spellPower": 2,
+      "knowledge": 2
+    }
+  },
+  "class5": {
+    "name": "术士",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "spellPower": 2,
+      "knowledge": 3
+    }
+  },
+  "class6": {
+    "name": "魔鬼",
+    "stats": {
+      "attack": 2,
+      "defense": 2,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class7": {
+    "name": "异教徒",
+    "stats": {
+      "attack": 1,
+      "defense": 1,
+      "spellPower": 2,
+      "knowledge": 1
+    }
+  },
+  "class8": {
+    "name": "死亡骑士",
+    "stats": {
+      "attack": 1,
+      "defense": 2,
+      "spellPower": 2,
+      "knowledge": 1
+    }
+  },
+  "class9": {
+    "name": "巫师",
+    "stats": {
+      "attack": 1,
+      "defense": 0,
+      "spellPower": 2,
+      "knowledge": 2
+    }
+  },
+  "class10": {
+    "name": "地下领主",
+    "stats": {
+      "attack": 2,
+      "defense": 2,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class11": {
+    "name": "妖术师",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "spellPower": 3,
+      "knowledge": 2
+    }
+  },
+  "class12": {
+    "name": "野蛮人",
+    "stats": {
+      "attack": 4,
+      "defense": 0,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class13": {
+    "name": "战斗法师",
+    "stats": {
+      "attack": 2,
+      "defense": 1,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class14": {
+    "name": "驯兽师",
+    "stats": {
+      "attack": 0,
+      "defense": 4,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class15": {
+    "name": "女巫",
+    "stats": {
+      "attack": 0,
+      "defense": 1,
+      "spellPower": 2,
+      "knowledge": 2
+    }
+  },
+  "class16": {
+    "name": "元素人",
+    "stats": {
+      "attack": 3,
+      "defense": 1,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class17": {
+    "name": "元素使",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "spellPower": 3,
+      "knowledge": 3
+    }
+  }
+}

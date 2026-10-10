@@ -1,0 +1,12 @@
+{
+  "bundle": {
+    "targets": ["nsis"],
+    "resources": {
+      "data/h3-core": "data/h3-core",
+      "resources/vcmi-schemas": "resources/vcmi-schemas",
+      "resources/mod-cache-protocol.json": "resources/mod-cache-protocol.json",
+      "resources/runtime/ai": ".vcmi-fv-launcher/runtime/ai",
+      "resources/release-preset/launcher.patch.ai.json": ".vcmi-fv-launcher/launcher.patch.json"
+    }
+  }
+}

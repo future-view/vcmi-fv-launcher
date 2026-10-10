@@ -1,0 +1,71 @@
+---
+description: 代码风格与命名约定：TypeScript/React/Tailwind/Rust/i18n 的书写规范、文件组织、注释与错误处理。编写或修改代码时必须遵守。
+globs: ["**/*.{ts,tsx,rs,mjs,json,js,css,html}"]
+---
+
+# 代码风格约定
+
+## 通用
+
+- **缩进**：TS/TSX/JSON 用 2 空格；Rust 用 4 空格（cargo fmt 默认）。
+- **引号**：TS/TSX/JSON 统一**双引号** `"`；字符串用反引号做模板。
+- **分号**：TS/TSX 语句以分号结尾。
+- **换行**：项目在 Windows 下开发，遵循 `.editorconfig`（CRLF）。提交前保证 `insert_final_newline`。
+- **最大行宽**：120 列左右，超长表达式换行对齐。
+
+## TypeScript / React
+
+- 组件用**命名导出**（`export function Xxx(...)`），不用 default export 混用。
+- Props 类型用 `interface XxxProps`，定义在组件同文件顶部。
+- **Path alias**：**跨目录一律用 `@/`**（如 `import { cn } from "@/lib/utils"`），**禁止 `../` 连写**；只有**同一目录内**的兄弟文件才用 `./X`（如 `import { SettingCard } from "./SettingCard"`）。别名已在 `vite.config.ts`（`resolve.alias`）与 `tsconfig.json`（`paths`）配好，资产同样可写 `@/assets/x.png`。
+- class 合并用 `cn(...)` 工具函数（clsx + tailwind-merge）。
+- 优先函数式组件 + Hooks；状态提升到最贴近的父组件，避免无谓的重渲染。
+- 纯逻辑（扫描/编码/解析/预设/store）**一律放 `src/lib/`**，不掺入 React 组件；新组件按 `01-project-overview` 的「目录归属」判定落点。
+- 浏览器/Tauri 环境区分：通过 `src/lib/tauri.ts` 的 `isTauri()` 判断，纯前端 mock 返回假数据。
+
+## 类型
+
+- 优先 `interface` 描述对象结构；联合类型用 `type`。
+- 用 `import type { ... }` 导入纯类型，避免运行时副作用（`verbatimModuleSyntax:false` 下允许，但保持整洁）。
+- 避免 `any`；确需时用 `unknown` + 收窄。
+
+## Tailwind / 样式
+
+- 玻璃拟态暗色主题色板定义在 `tailwind.config.js`：`background:#0F172A`、`primary:#3B82F6`、`secondary:#6366F1`、`muted:#94A3B8`、`success:#22C55E`、`destructive:#EF4444`、`warning:#F59E0B`。
+- 通用玻璃类在 `src/index.css`：`.glass` / `.glass-strong`。
+- 优先使用 Tailwind 原子类；重复样式封装为组件或 CSS class，不硬编码颜色值。
+
+## Rust（Tauri）
+
+- 命名：结构体/枚举 `PascalCase`，函数/变量 `snake_case`，常量 `SCREAMING_SNAKE`。
+- 文档注释用 `///`；错误处理用 `Result<T, String>`，`map_err(|e| format!("...: {e}"))` 返回中文描述给前端。
+- 命令函数用 `#[tauri::command]`，入参通过 `State<...>` 注入共享状态。
+- 文件操作注意 Windows 路径分隔符与存在性检查；写文件前先备份。
+
+## 注释与文案
+
+- 代码注释**用简体中文**，说明「为什么」而非「做了什么」。
+- 面向用户的字符串走 i18n，不硬编码中文；**也不允许在数据结构里摆 `{ chinese, english }` 双语字段**
+  （把语言数量写进了类型，加第三门语言必然错位）—— 一页文案只给当前语言一条，其余语言靠各自词典补译。
+
+## i18n
+
+- UI 词典：`src/i18n/zh-CN.ts` / `src/i18n/en.ts` / `src/i18n/ru.ts` / `src/i18n/pl.ts` / `src/i18n/de.ts`，键结构在 `types.ts` 定义（`LangDict`）；
+  支持哪几种界面语言只由 `src/i18n/langs.ts` 的 `UI_LANG_IDS` 登记（`UiLang = typeof UI_LANG_IDS[number]`），
+  词典注册表写成 `Record<UiLang, LangDict>`，登记了却没写词典 = 编译失败。
+- 通过 `useI18n()` 取 `t.xxx`；切语言即时生效。
+- **大面文案按段分文件、不按语言分体系**：设置面板正文在 `src/i18n/settingsText.<lang>.ts`，
+  仅作为 `LangDict.settings` 的 `tags / items / enums / valueWords / words` 五段被展开合并（取词入口 `features/settings/text.ts`）。
+  结构表（如 `lib/settingsSchema.ts`）**只存结构不存文案**；文案键域由 `npm run gen:setting-keys` 穷举，
+  新增设置项/新增语言缺译都会被 `tsc` 逐条列出。
+- **运行时内容的多语言是另一条轴**，不要混进 `LangDict`：mod / realm / wiki 自带译本（`i18n.<lang>` 块 + 顶层默认），
+  取词走 `lib/modScanner` 的 `localizedName` / `lib/realm/intro.ts` 的 `pickRealmText`；各语言的显示名是语言无关数据，取 `lib/vcmiLangs.ts` 的 `vcmiLangName()`。
+- **VCMI 语言映射**：`uiLangFor()`（`src/i18n/index.ts`）把 VCMI 语言 identifier（如 `chinese` / `russian` / `polish` / `german`）映射到界面词典（未登记语言回退：`tchinese → chinese`、其余 → `UI_LANG_FALLBACK`）；`lib/vcmiLangs.ts` 的 `vcmiLangName()` 提供语言展示名。
+
+## 错误处理 / 容错（本项目铁律）
+
+- 读取 mod.json 编码：先 utf-8，非法字节回退 gbk/cp1252（见 `src/lib/enc.ts`）。
+- JSON 解析：先标准 `JSON.parse`，失败剥离尾逗号重试（`parseJsonLenient`）。
+- zip 背景图提取：加密/损坏 zip 捕获异常**回退色块**并缓存 `backgroundError`，**绝不崩溃**。
+- 写 modSettings 前自动备份 `.backup`。
+- 不要为了「通过」而绕过容错逻辑；缺失/依赖/冲突要在 UI 中标红 + 启动时模态说明原因。

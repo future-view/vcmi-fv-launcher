@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "VCMI-FV-Launcher",
+  "version": "0.1.0",
+  "identifier": "com.vcmi.fv-launcher",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "VCMI-FV-Launcher",
+        "width": 1280,
+        "height": 720,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "center": true,
+        "visible": false,
+        "decorations": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "resources": {
+      "data/h3-core": "data/h3-core",
+      "resources/vcmi-schemas": "resources/vcmi-schemas",
+      "resources/mod-cache-protocol.json": "resources/mod-cache-protocol.json",
+      "resources/release-preset/launcher.patch.json": ".vcmi-fv-launcher/launcher.patch.json"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ]
+  }
+}

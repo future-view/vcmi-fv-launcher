@@ -1,0 +1,1708 @@
+{
+  "castle.special1": {
+    "ore": 10,
+    "gold": 2000
+  },
+  "castle.horde1": {
+    "gold": 1000
+  },
+  "castle.horde1Upgr": {
+    "gold": 1000
+  },
+  "castle.special2": {
+    "wood": 10,
+    "gold": 2000
+  },
+  "castle.special3": {
+    "wood": 5,
+    "gold": 500
+  },
+  "rampart.special1": {
+    "wood": 2,
+    "mercury": 2,
+    "ore": 2,
+    "sulfur": 2,
+    "crystal": 2,
+    "gems": 2,
+    "gold": 2000
+  },
+  "rampart.horde1": {
+    "gold": 1000
+  },
+  "rampart.horde1Upgr": {
+    "gold": 1000
+  },
+  "rampart.special2": {
+    "crystal": 10,
+    "gold": 1500
+  },
+  "rampart.special3": {
+    "wood": 5,
+    "ore": 10,
+    "gold": 5000
+  },
+  "rampart.horde2": {
+    "gold": 2000
+  },
+  "rampart.horde2Upgr": {
+    "gold": 2000
+  },
+  "tower.special1": {
+    "gold": 10000
+  },
+  "tower.horde1": {
+    "gold": 1000
+  },
+  "tower.horde1Upgr": {
+    "gold": 1000
+  },
+  "tower.special2": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "tower.special3": {
+    "wood": 5,
+    "mercury": 5,
+    "ore": 5,
+    "sulfur": 5,
+    "crystal": 5,
+    "gems": 5,
+    "gold": 1500
+  },
+  "tower.special4": {
+    "ore": 5,
+    "gold": 1000
+  },
+  "inferno.horde1": {
+    "gold": 1000
+  },
+  "inferno.horde1Upgr": {
+    "gold": 1000
+  },
+  "inferno.special2": {
+    "sulfur": 5,
+    "gold": 1000
+  },
+  "inferno.special3": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 10000
+  },
+  "inferno.special4": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "inferno.horde2": {
+    "gold": 1000
+  },
+  "inferno.horde2Upgr": {
+    "gold": 1000
+  },
+  "necropolis.special1": {
+    "gold": 1000
+  },
+  "necropolis.horde1": {
+    "gold": 1000
+  },
+  "necropolis.horde1Upgr": {
+    "gold": 1000
+  },
+  "necropolis.special2": {
+    "gold": 1000
+  },
+  "necropolis.special3": {
+    "gold": 1000
+  },
+  "dungeon.special1": {
+    "gold": 10000
+  },
+  "dungeon.horde1": {
+    "gold": 1000
+  },
+  "dungeon.horde1Upgr": {
+    "gold": 1000
+  },
+  "dungeon.special2": {
+    "gold": 1000
+  },
+  "dungeon.special3": {
+    "ore": 5,
+    "gold": 2500
+  },
+  "dungeon.special4": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 1000
+  },
+  "stronghold.special1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "stronghold.horde1": {
+    "gold": 1000
+  },
+  "stronghold.horde1Upgr": {
+    "gold": 1000
+  },
+  "stronghold.special2": {
+    "gold": 1000
+  },
+  "stronghold.special3": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "stronghold.special4": {
+    "gold": 1000
+  },
+  "fortress.special1": {
+    "gold": 1000
+  },
+  "fortress.horde1": {
+    "gold": 1000
+  },
+  "fortress.horde1Upgr": {
+    "gold": 1000
+  },
+  "fortress.special2": {
+    "gold": 1000
+  },
+  "fortress.special3": {
+    "gold": 1000
+  },
+  "conflux.special1": {
+    "gold": 10000
+  },
+  "conflux.horde1": {
+    "gold": 1000
+  },
+  "conflux.horde1Upgr": {
+    "gold": 1000
+  },
+  "conflux.special2": {
+    "wood": 10,
+    "ore": 10,
+    "gold": 5000
+  },
+  "common.mageGuild1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "castle.mageGuild1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "rampart.mageGuild1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "tower.mageGuild1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "inferno.mageGuild1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "necropolis.mageGuild1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "dungeon.mageGuild1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "stronghold.mageGuild1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "fortress.mageGuild1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "conflux.mageGuild1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "common.mageGuild2": {
+    "wood": 5,
+    "mercury": 4,
+    "ore": 5,
+    "sulfur": 4,
+    "crystal": 4,
+    "gems": 4,
+    "gold": 1000
+  },
+  "castle.mageGuild2": {
+    "wood": 5,
+    "mercury": 4,
+    "ore": 5,
+    "sulfur": 4,
+    "crystal": 4,
+    "gems": 4,
+    "gold": 1000
+  },
+  "rampart.mageGuild2": {
+    "wood": 5,
+    "mercury": 4,
+    "ore": 5,
+    "sulfur": 4,
+    "crystal": 4,
+    "gems": 4,
+    "gold": 1000
+  },
+  "tower.mageGuild2": {
+    "wood": 5,
+    "mercury": 4,
+    "ore": 5,
+    "sulfur": 4,
+    "crystal": 4,
+    "gems": 4,
+    "gold": 1000
+  },
+  "inferno.mageGuild2": {
+    "wood": 5,
+    "mercury": 4,
+    "ore": 5,
+    "sulfur": 4,
+    "crystal": 4,
+    "gems": 4,
+    "gold": 1000
+  },
+  "necropolis.mageGuild2": {
+    "wood": 5,
+    "mercury": 4,
+    "ore": 5,
+    "sulfur": 4,
+    "crystal": 4,
+    "gems": 4,
+    "gold": 1000
+  },
+  "dungeon.mageGuild2": {
+    "wood": 5,
+    "mercury": 4,
+    "ore": 5,
+    "sulfur": 4,
+    "crystal": 4,
+    "gems": 4,
+    "gold": 1000
+  },
+  "stronghold.mageGuild2": {
+    "wood": 5,
+    "mercury": 4,
+    "ore": 5,
+    "sulfur": 4,
+    "crystal": 4,
+    "gems": 4,
+    "gold": 1000
+  },
+  "fortress.mageGuild2": {
+    "wood": 5,
+    "mercury": 4,
+    "ore": 5,
+    "sulfur": 4,
+    "crystal": 4,
+    "gems": 4,
+    "gold": 1000
+  },
+  "conflux.mageGuild2": {
+    "wood": 5,
+    "mercury": 4,
+    "ore": 5,
+    "sulfur": 4,
+    "crystal": 4,
+    "gems": 4,
+    "gold": 1000
+  },
+  "common.mageGuild3": {
+    "wood": 5,
+    "mercury": 6,
+    "ore": 5,
+    "sulfur": 6,
+    "crystal": 6,
+    "gems": 6,
+    "gold": 1000
+  },
+  "castle.mageGuild3": {
+    "wood": 5,
+    "mercury": 6,
+    "ore": 5,
+    "sulfur": 6,
+    "crystal": 6,
+    "gems": 6,
+    "gold": 1000
+  },
+  "rampart.mageGuild3": {
+    "wood": 5,
+    "mercury": 6,
+    "ore": 5,
+    "sulfur": 6,
+    "crystal": 6,
+    "gems": 6,
+    "gold": 1000
+  },
+  "tower.mageGuild3": {
+    "wood": 5,
+    "mercury": 6,
+    "ore": 5,
+    "sulfur": 6,
+    "crystal": 6,
+    "gems": 6,
+    "gold": 1000
+  },
+  "inferno.mageGuild3": {
+    "wood": 5,
+    "mercury": 6,
+    "ore": 5,
+    "sulfur": 6,
+    "crystal": 6,
+    "gems": 6,
+    "gold": 1000
+  },
+  "necropolis.mageGuild3": {
+    "wood": 5,
+    "mercury": 6,
+    "ore": 5,
+    "sulfur": 6,
+    "crystal": 6,
+    "gems": 6,
+    "gold": 1000
+  },
+  "dungeon.mageGuild3": {
+    "wood": 5,
+    "mercury": 6,
+    "ore": 5,
+    "sulfur": 6,
+    "crystal": 6,
+    "gems": 6,
+    "gold": 1000
+  },
+  "stronghold.mageGuild3": {
+    "wood": 5,
+    "mercury": 6,
+    "ore": 5,
+    "sulfur": 6,
+    "crystal": 6,
+    "gems": 6,
+    "gold": 1000
+  },
+  "fortress.mageGuild3": {
+    "wood": 5,
+    "mercury": 6,
+    "ore": 5,
+    "sulfur": 6,
+    "crystal": 6,
+    "gems": 6,
+    "gold": 1000
+  },
+  "conflux.mageGuild3": {
+    "wood": 5,
+    "mercury": 6,
+    "ore": 5,
+    "sulfur": 6,
+    "crystal": 6,
+    "gems": 6,
+    "gold": 1000
+  },
+  "common.mageGuild4": {
+    "wood": 5,
+    "mercury": 8,
+    "ore": 5,
+    "sulfur": 8,
+    "crystal": 8,
+    "gems": 8,
+    "gold": 1000
+  },
+  "castle.mageGuild4": {
+    "wood": 5,
+    "mercury": 8,
+    "ore": 5,
+    "sulfur": 8,
+    "crystal": 8,
+    "gems": 8,
+    "gold": 1000
+  },
+  "rampart.mageGuild4": {
+    "wood": 5,
+    "mercury": 8,
+    "ore": 5,
+    "sulfur": 8,
+    "crystal": 8,
+    "gems": 8,
+    "gold": 1000
+  },
+  "tower.mageGuild4": {
+    "wood": 5,
+    "mercury": 8,
+    "ore": 5,
+    "sulfur": 8,
+    "crystal": 8,
+    "gems": 8,
+    "gold": 1000
+  },
+  "inferno.mageGuild4": {
+    "wood": 5,
+    "mercury": 8,
+    "ore": 5,
+    "sulfur": 8,
+    "crystal": 8,
+    "gems": 8,
+    "gold": 1000
+  },
+  "necropolis.mageGuild4": {
+    "wood": 5,
+    "mercury": 8,
+    "ore": 5,
+    "sulfur": 8,
+    "crystal": 8,
+    "gems": 8,
+    "gold": 1000
+  },
+  "dungeon.mageGuild4": {
+    "wood": 5,
+    "mercury": 8,
+    "ore": 5,
+    "sulfur": 8,
+    "crystal": 8,
+    "gems": 8,
+    "gold": 1000
+  },
+  "stronghold.mageGuild4": {
+    "wood": 5,
+    "mercury": 8,
+    "ore": 5,
+    "sulfur": 8,
+    "crystal": 8,
+    "gems": 8,
+    "gold": 1000
+  },
+  "fortress.mageGuild4": {
+    "wood": 5,
+    "mercury": 8,
+    "ore": 5,
+    "sulfur": 8,
+    "crystal": 8,
+    "gems": 8,
+    "gold": 1000
+  },
+  "conflux.mageGuild4": {
+    "wood": 5,
+    "mercury": 8,
+    "ore": 5,
+    "sulfur": 8,
+    "crystal": 8,
+    "gems": 8,
+    "gold": 1000
+  },
+  "common.mageGuild5": {
+    "wood": 5,
+    "mercury": 10,
+    "ore": 5,
+    "sulfur": 10,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 1000
+  },
+  "castle.mageGuild5": {
+    "wood": 5,
+    "mercury": 10,
+    "ore": 5,
+    "sulfur": 10,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 1000
+  },
+  "rampart.mageGuild5": {
+    "wood": 5,
+    "mercury": 10,
+    "ore": 5,
+    "sulfur": 10,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 1000
+  },
+  "tower.mageGuild5": {
+    "wood": 5,
+    "mercury": 10,
+    "ore": 5,
+    "sulfur": 10,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 1000
+  },
+  "inferno.mageGuild5": {
+    "wood": 5,
+    "mercury": 10,
+    "ore": 5,
+    "sulfur": 10,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 1000
+  },
+  "necropolis.mageGuild5": {
+    "wood": 5,
+    "mercury": 10,
+    "ore": 5,
+    "sulfur": 10,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 1000
+  },
+  "dungeon.mageGuild5": {
+    "wood": 5,
+    "mercury": 10,
+    "ore": 5,
+    "sulfur": 10,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 1000
+  },
+  "stronghold.mageGuild5": {
+    "wood": 5,
+    "mercury": 10,
+    "ore": 5,
+    "sulfur": 10,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 1000
+  },
+  "fortress.mageGuild5": {
+    "wood": 5,
+    "mercury": 10,
+    "ore": 5,
+    "sulfur": 10,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 1000
+  },
+  "conflux.mageGuild5": {
+    "wood": 5,
+    "mercury": 10,
+    "ore": 5,
+    "sulfur": 10,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 1000
+  },
+  "common.tavern": {
+    "wood": 5,
+    "gold": 500
+  },
+  "castle.tavern": {
+    "wood": 5,
+    "gold": 500
+  },
+  "rampart.tavern": {
+    "wood": 5,
+    "gold": 500
+  },
+  "tower.tavern": {
+    "wood": 5,
+    "gold": 500
+  },
+  "inferno.tavern": {
+    "wood": 5,
+    "gold": 500
+  },
+  "necropolis.tavern": {
+    "wood": 5,
+    "gold": 500
+  },
+  "dungeon.tavern": {
+    "wood": 5,
+    "gold": 500
+  },
+  "stronghold.tavern": {
+    "wood": 5,
+    "gold": 500
+  },
+  "fortress.tavern": {
+    "wood": 5,
+    "gold": 500
+  },
+  "conflux.tavern": {
+    "wood": 5,
+    "gold": 500
+  },
+  "common.shipyard": {
+    "wood": 20,
+    "gold": 2000
+  },
+  "castle.shipyard": {
+    "wood": 20,
+    "gold": 2000
+  },
+  "rampart.shipyard": {
+    "wood": 20,
+    "gold": 2000
+  },
+  "tower.shipyard": {
+    "wood": 20,
+    "gold": 2000
+  },
+  "inferno.shipyard": {
+    "wood": 20,
+    "gold": 2000
+  },
+  "necropolis.shipyard": {
+    "wood": 20,
+    "gold": 2000
+  },
+  "dungeon.shipyard": {
+    "wood": 20,
+    "gold": 2000
+  },
+  "stronghold.shipyard": {
+    "wood": 20,
+    "gold": 2000
+  },
+  "fortress.shipyard": {
+    "wood": 20,
+    "gold": 2000
+  },
+  "conflux.shipyard": {
+    "wood": 20,
+    "gold": 2000
+  },
+  "common.fort": {
+    "wood": 20,
+    "ore": 20,
+    "gold": 5000
+  },
+  "castle.fort": {
+    "wood": 20,
+    "ore": 20,
+    "gold": 5000
+  },
+  "rampart.fort": {
+    "wood": 20,
+    "ore": 20,
+    "gold": 5000
+  },
+  "tower.fort": {
+    "wood": 20,
+    "ore": 20,
+    "gold": 5000
+  },
+  "inferno.fort": {
+    "wood": 20,
+    "ore": 20,
+    "gold": 5000
+  },
+  "necropolis.fort": {
+    "wood": 20,
+    "ore": 20,
+    "gold": 5000
+  },
+  "dungeon.fort": {
+    "wood": 20,
+    "ore": 20,
+    "gold": 5000
+  },
+  "stronghold.fort": {
+    "wood": 20,
+    "ore": 20,
+    "gold": 5000
+  },
+  "fortress.fort": {
+    "wood": 20,
+    "ore": 20,
+    "gold": 5000
+  },
+  "conflux.fort": {
+    "wood": 20,
+    "ore": 20,
+    "gold": 5000
+  },
+  "common.citadel": {
+    "ore": 5,
+    "gold": 2500
+  },
+  "castle.citadel": {
+    "ore": 5,
+    "gold": 2500
+  },
+  "rampart.citadel": {
+    "ore": 5,
+    "gold": 2500
+  },
+  "tower.citadel": {
+    "ore": 5,
+    "gold": 2500
+  },
+  "inferno.citadel": {
+    "ore": 5,
+    "gold": 2500
+  },
+  "necropolis.citadel": {
+    "ore": 5,
+    "gold": 2500
+  },
+  "dungeon.citadel": {
+    "ore": 5,
+    "gold": 2500
+  },
+  "stronghold.citadel": {
+    "ore": 5,
+    "gold": 2500
+  },
+  "fortress.citadel": {
+    "ore": 5,
+    "gold": 2500
+  },
+  "conflux.citadel": {
+    "ore": 5,
+    "gold": 2500
+  },
+  "common.castle": {
+    "wood": 10,
+    "ore": 10,
+    "gold": 5000
+  },
+  "castle.castle": {
+    "wood": 10,
+    "ore": 10,
+    "gold": 5000
+  },
+  "rampart.castle": {
+    "wood": 10,
+    "ore": 10,
+    "gold": 5000
+  },
+  "tower.castle": {
+    "wood": 10,
+    "ore": 10,
+    "gold": 5000
+  },
+  "inferno.castle": {
+    "wood": 10,
+    "ore": 10,
+    "gold": 5000
+  },
+  "necropolis.castle": {
+    "wood": 10,
+    "ore": 10,
+    "gold": 5000
+  },
+  "dungeon.castle": {
+    "wood": 10,
+    "ore": 10,
+    "gold": 5000
+  },
+  "stronghold.castle": {
+    "wood": 10,
+    "ore": 10,
+    "gold": 5000
+  },
+  "fortress.castle": {
+    "wood": 10,
+    "ore": 10,
+    "gold": 5000
+  },
+  "conflux.castle": {
+    "wood": 10,
+    "ore": 10,
+    "gold": 5000
+  },
+  "common.villageHall": {
+    "gold": 1
+  },
+  "castle.villageHall": {
+    "gold": 1
+  },
+  "rampart.villageHall": {
+    "gold": 1
+  },
+  "tower.villageHall": {
+    "gold": 1
+  },
+  "inferno.villageHall": {
+    "gold": 1
+  },
+  "necropolis.villageHall": {
+    "gold": 1
+  },
+  "dungeon.villageHall": {
+    "gold": 1
+  },
+  "stronghold.villageHall": {
+    "gold": 1
+  },
+  "fortress.villageHall": {
+    "gold": 1
+  },
+  "conflux.villageHall": {
+    "gold": 1
+  },
+  "common.townHall": {
+    "gold": 2500
+  },
+  "castle.townHall": {
+    "gold": 2500
+  },
+  "rampart.townHall": {
+    "gold": 2500
+  },
+  "tower.townHall": {
+    "gold": 2500
+  },
+  "inferno.townHall": {
+    "gold": 2500
+  },
+  "necropolis.townHall": {
+    "gold": 2500
+  },
+  "dungeon.townHall": {
+    "gold": 2500
+  },
+  "stronghold.townHall": {
+    "gold": 2500
+  },
+  "fortress.townHall": {
+    "gold": 2500
+  },
+  "conflux.townHall": {
+    "gold": 2500
+  },
+  "common.cityHall": {
+    "gold": 5000
+  },
+  "castle.cityHall": {
+    "gold": 5000
+  },
+  "rampart.cityHall": {
+    "gold": 5000
+  },
+  "tower.cityHall": {
+    "gold": 5000
+  },
+  "inferno.cityHall": {
+    "gold": 5000
+  },
+  "necropolis.cityHall": {
+    "gold": 5000
+  },
+  "dungeon.cityHall": {
+    "gold": 5000
+  },
+  "stronghold.cityHall": {
+    "gold": 5000
+  },
+  "fortress.cityHall": {
+    "gold": 5000
+  },
+  "conflux.cityHall": {
+    "gold": 5000
+  },
+  "common.capitol": {
+    "gold": 10000
+  },
+  "castle.capitol": {
+    "gold": 10000
+  },
+  "rampart.capitol": {
+    "gold": 10000
+  },
+  "tower.capitol": {
+    "gold": 10000
+  },
+  "inferno.capitol": {
+    "gold": 10000
+  },
+  "necropolis.capitol": {
+    "gold": 10000
+  },
+  "dungeon.capitol": {
+    "gold": 10000
+  },
+  "stronghold.capitol": {
+    "gold": 10000
+  },
+  "fortress.capitol": {
+    "gold": 10000
+  },
+  "conflux.capitol": {
+    "gold": 10000
+  },
+  "common.marketplace": {
+    "wood": 5,
+    "gold": 500
+  },
+  "castle.marketplace": {
+    "wood": 5,
+    "gold": 500
+  },
+  "rampart.marketplace": {
+    "wood": 5,
+    "gold": 500
+  },
+  "tower.marketplace": {
+    "wood": 5,
+    "gold": 500
+  },
+  "inferno.marketplace": {
+    "wood": 5,
+    "gold": 500
+  },
+  "necropolis.marketplace": {
+    "wood": 5,
+    "gold": 500
+  },
+  "dungeon.marketplace": {
+    "wood": 5,
+    "gold": 500
+  },
+  "stronghold.marketplace": {
+    "wood": 5,
+    "gold": 500
+  },
+  "fortress.marketplace": {
+    "wood": 5,
+    "gold": 500
+  },
+  "conflux.marketplace": {
+    "wood": 5,
+    "gold": 500
+  },
+  "common.resourceSilo": {
+    "ore": 5,
+    "gold": 5000
+  },
+  "castle.resourceSilo": {
+    "ore": 5,
+    "gold": 5000
+  },
+  "rampart.resourceSilo": {
+    "ore": 5,
+    "gold": 5000
+  },
+  "tower.resourceSilo": {
+    "ore": 5,
+    "gold": 5000
+  },
+  "inferno.resourceSilo": {
+    "ore": 5,
+    "gold": 5000
+  },
+  "necropolis.resourceSilo": {
+    "ore": 5,
+    "gold": 5000
+  },
+  "dungeon.resourceSilo": {
+    "ore": 5,
+    "gold": 5000
+  },
+  "stronghold.resourceSilo": {
+    "ore": 5,
+    "gold": 5000
+  },
+  "fortress.resourceSilo": {
+    "ore": 5,
+    "gold": 5000
+  },
+  "conflux.resourceSilo": {
+    "ore": 5,
+    "gold": 5000
+  },
+  "common.blacksmith": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "castle.blacksmith": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "rampart.blacksmith": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "tower.blacksmith": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "inferno.blacksmith": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "necropolis.blacksmith": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "dungeon.blacksmith": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "stronghold.blacksmith": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "fortress.blacksmith": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "conflux.blacksmith": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "castle.dwellingLvl1": {
+    "ore": 10,
+    "gold": 500
+  },
+  "castle.dwellingLvl2": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 1000
+  },
+  "castle.dwellingLvl3": {
+    "ore": 5,
+    "gold": 1000
+  },
+  "castle.dwellingLvl4": {
+    "ore": 5,
+    "gold": 2000
+  },
+  "castle.dwellingLvl5": {
+    "wood": 5,
+    "mercury": 2,
+    "ore": 5,
+    "sulfur": 2,
+    "crystal": 2,
+    "gems": 2,
+    "gold": 3000
+  },
+  "castle.dwellingLvl6": {
+    "wood": 20,
+    "gold": 5000
+  },
+  "castle.dwellingLvl7": {
+    "mercury": 10,
+    "sulfur": 10,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 20000
+  },
+  "castle.dwellingUpLvl1": {
+    "ore": 5,
+    "gold": 1000
+  },
+  "castle.dwellingUpLvl2": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 1000
+  },
+  "castle.dwellingUpLvl3": {
+    "ore": 5,
+    "gold": 1000
+  },
+  "castle.dwellingUpLvl4": {
+    "ore": 5,
+    "crystal": 5,
+    "gold": 2000
+  },
+  "castle.dwellingUpLvl5": {
+    "wood": 2,
+    "mercury": 2,
+    "ore": 2,
+    "sulfur": 2,
+    "crystal": 2,
+    "gems": 2,
+    "gold": 1000
+  },
+  "castle.dwellingUpLvl6": {
+    "wood": 10,
+    "gold": 3000
+  },
+  "castle.dwellingUpLvl7": {
+    "mercury": 10,
+    "sulfur": 10,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 20000
+  },
+  "rampart.dwellingLvl1": {
+    "wood": 10,
+    "gold": 500
+  },
+  "rampart.dwellingLvl2": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "rampart.dwellingLvl3": {
+    "wood": 10,
+    "gold": 1500
+  },
+  "rampart.dwellingLvl4": {
+    "crystal": 10,
+    "gold": 2000
+  },
+  "rampart.dwellingLvl5": {
+    "gold": 2500
+  },
+  "rampart.dwellingLvl6": {
+    "wood": 5,
+    "ore": 5,
+    "gems": 10,
+    "gold": 4000
+  },
+  "rampart.dwellingLvl7": {
+    "ore": 30,
+    "crystal": 20,
+    "gold": 10000
+  },
+  "rampart.dwellingUpLvl1": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "rampart.dwellingUpLvl2": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "rampart.dwellingUpLvl3": {
+    "wood": 10,
+    "gold": 1500
+  },
+  "rampart.dwellingUpLvl4": {
+    "crystal": 5,
+    "gold": 2000
+  },
+  "rampart.dwellingUpLvl5": {
+    "gold": 1500
+  },
+  "rampart.dwellingUpLvl6": {
+    "gems": 5,
+    "gold": 3000
+  },
+  "rampart.dwellingUpLvl7": {
+    "ore": 30,
+    "crystal": 20,
+    "gold": 20000
+  },
+  "tower.dwellingLvl1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 300
+  },
+  "tower.dwellingLvl2": {
+    "ore": 10,
+    "gold": 1000
+  },
+  "tower.dwellingLvl3": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "tower.dwellingLvl4": {
+    "wood": 5,
+    "mercury": 5,
+    "ore": 5,
+    "sulfur": 5,
+    "crystal": 5,
+    "gems": 5,
+    "gold": 2500
+  },
+  "tower.dwellingLvl5": {
+    "wood": 5,
+    "ore": 5,
+    "crystal": 6,
+    "gems": 6,
+    "gold": 3000
+  },
+  "tower.dwellingLvl6": {
+    "wood": 5,
+    "mercury": 2,
+    "ore": 5,
+    "sulfur": 2,
+    "crystal": 2,
+    "gems": 2,
+    "gold": 4000
+  },
+  "tower.dwellingLvl7": {
+    "wood": 10,
+    "ore": 10,
+    "gems": 10,
+    "gold": 5000
+  },
+  "tower.dwellingUpLvl1": {
+    "gold": 1000
+  },
+  "tower.dwellingUpLvl2": {
+    "ore": 5,
+    "gold": 1500
+  },
+  "tower.dwellingUpLvl3": {
+    "wood": 5,
+    "mercury": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "tower.dwellingUpLvl4": {
+    "wood": 5,
+    "gold": 2000
+  },
+  "tower.dwellingUpLvl5": {
+    "wood": 5,
+    "gold": 2000
+  },
+  "tower.dwellingUpLvl6": {
+    "mercury": 3,
+    "sulfur": 3,
+    "crystal": 3,
+    "gems": 3,
+    "gold": 3000
+  },
+  "tower.dwellingUpLvl7": {
+    "wood": 5,
+    "ore": 5,
+    "gems": 30,
+    "gold": 25000
+  },
+  "inferno.dwellingLvl1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 300
+  },
+  "inferno.dwellingLvl2": {
+    "ore": 5,
+    "gold": 1000
+  },
+  "inferno.dwellingLvl3": {
+    "wood": 10,
+    "gold": 1500
+  },
+  "inferno.dwellingLvl4": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "inferno.dwellingLvl5": {
+    "gold": 3000
+  },
+  "inferno.dwellingLvl6": {
+    "mercury": 3,
+    "ore": 10,
+    "sulfur": 3,
+    "gems": 3,
+    "gold": 4000
+  },
+  "inferno.dwellingLvl7": {
+    "wood": 10,
+    "mercury": 20,
+    "ore": 10,
+    "gold": 15000
+  },
+  "inferno.dwellingUpLvl1": {
+    "gold": 1000
+  },
+  "inferno.dwellingUpLvl2": {
+    "mercury": 5,
+    "gold": 1000
+  },
+  "inferno.dwellingUpLvl3": {
+    "sulfur": 5,
+    "gold": 1500
+  },
+  "inferno.dwellingUpLvl4": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "inferno.dwellingUpLvl5": {
+    "mercury": 5,
+    "sulfur": 5,
+    "gold": 3000
+  },
+  "inferno.dwellingUpLvl6": {
+    "mercury": 5,
+    "ore": 5,
+    "sulfur": 5,
+    "gems": 5,
+    "gold": 3000
+  },
+  "inferno.dwellingUpLvl7": {
+    "wood": 5,
+    "mercury": 20,
+    "ore": 5,
+    "gold": 20000
+  },
+  "necropolis.dwellingLvl1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 400
+  },
+  "necropolis.dwellingLvl2": {
+    "ore": 5,
+    "gold": 1000
+  },
+  "necropolis.dwellingLvl3": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 1500
+  },
+  "necropolis.dwellingLvl4": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "necropolis.dwellingLvl5": {
+    "ore": 10,
+    "sulfur": 10,
+    "gold": 2000
+  },
+  "necropolis.dwellingLvl6": {
+    "wood": 10,
+    "ore": 10,
+    "gold": 6000
+  },
+  "necropolis.dwellingLvl7": {
+    "wood": 5,
+    "mercury": 5,
+    "ore": 5,
+    "sulfur": 5,
+    "crystal": 5,
+    "gems": 5,
+    "gold": 10000
+  },
+  "necropolis.dwellingUpLvl1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 1000
+  },
+  "necropolis.dwellingUpLvl2": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 1000
+  },
+  "necropolis.dwellingUpLvl3": {
+    "mercury": 5,
+    "gold": 1500
+  },
+  "necropolis.dwellingUpLvl4": {
+    "wood": 5,
+    "crystal": 10,
+    "gems": 10,
+    "gold": 2000
+  },
+  "necropolis.dwellingUpLvl5": {
+    "ore": 5,
+    "sulfur": 5,
+    "gold": 2000
+  },
+  "necropolis.dwellingUpLvl6": {
+    "wood": 5,
+    "mercury": 2,
+    "ore": 5,
+    "sulfur": 2,
+    "crystal": 2,
+    "gems": 2,
+    "gold": 3000
+  },
+  "necropolis.dwellingUpLvl7": {
+    "wood": 5,
+    "mercury": 20,
+    "ore": 5,
+    "gold": 15000
+  },
+  "dungeon.dwellingLvl1": {
+    "wood": 10,
+    "gold": 400
+  },
+  "dungeon.dwellingLvl2": {
+    "gold": 1000
+  },
+  "dungeon.dwellingLvl3": {
+    "wood": 1,
+    "mercury": 1,
+    "ore": 1,
+    "sulfur": 1,
+    "crystal": 1,
+    "gems": 1,
+    "gold": 1000
+  },
+  "dungeon.dwellingLvl4": {
+    "wood": 5,
+    "ore": 10,
+    "gold": 2000
+  },
+  "dungeon.dwellingLvl5": {
+    "ore": 10,
+    "gems": 10,
+    "gold": 4000
+  },
+  "dungeon.dwellingLvl6": {
+    "wood": 5,
+    "mercury": 5,
+    "ore": 5,
+    "sulfur": 5,
+    "gold": 5000
+  },
+  "dungeon.dwellingLvl7": {
+    "wood": 15,
+    "ore": 15,
+    "sulfur": 20,
+    "gold": 15000
+  },
+  "dungeon.dwellingUpLvl1": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "dungeon.dwellingUpLvl2": {
+    "sulfur": 2,
+    "crystal": 2,
+    "gold": 1000
+  },
+  "dungeon.dwellingUpLvl3": {
+    "wood": 1,
+    "mercury": 1,
+    "ore": 1,
+    "sulfur": 1,
+    "crystal": 1,
+    "gems": 1,
+    "gold": 1000
+  },
+  "dungeon.dwellingUpLvl4": {
+    "wood": 5,
+    "gold": 1500
+  },
+  "dungeon.dwellingUpLvl5": {
+    "ore": 5,
+    "gems": 5,
+    "gold": 3000
+  },
+  "dungeon.dwellingUpLvl6": {
+    "wood": 5,
+    "mercury": 5,
+    "ore": 5,
+    "sulfur": 5,
+    "gold": 3000
+  },
+  "dungeon.dwellingUpLvl7": {
+    "wood": 15,
+    "ore": 15,
+    "sulfur": 20,
+    "gold": 15000
+  },
+  "stronghold.dwellingLvl1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 200
+  },
+  "stronghold.dwellingLvl2": {
+    "wood": 10,
+    "ore": 5,
+    "gold": 1000
+  },
+  "stronghold.dwellingLvl3": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 1000
+  },
+  "stronghold.dwellingLvl4": {
+    "wood": 20,
+    "gold": 2000
+  },
+  "stronghold.dwellingLvl5": {
+    "ore": 10,
+    "gold": 2500
+  },
+  "stronghold.dwellingLvl6": {
+    "ore": 20,
+    "crystal": 20,
+    "gold": 3500
+  },
+  "stronghold.dwellingLvl7": {
+    "wood": 10,
+    "ore": 10,
+    "crystal": 10,
+    "gold": 10000
+  },
+  "stronghold.dwellingUpLvl1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 1000
+  },
+  "stronghold.dwellingUpLvl2": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 1000
+  },
+  "stronghold.dwellingUpLvl3": {
+    "wood": 2,
+    "ore": 2,
+    "gold": 1000
+  },
+  "stronghold.dwellingUpLvl4": {
+    "wood": 5,
+    "ore": 5,
+    "gems": 5,
+    "gold": 2000
+  },
+  "stronghold.dwellingUpLvl5": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "stronghold.dwellingUpLvl6": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 3000
+  },
+  "stronghold.dwellingUpLvl7": {
+    "wood": 10,
+    "ore": 10,
+    "crystal": 20,
+    "gold": 15000
+  },
+  "fortress.dwellingLvl1": {
+    "wood": 10,
+    "gold": 400
+  },
+  "fortress.dwellingLvl2": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "fortress.dwellingLvl3": {
+    "wood": 5,
+    "mercury": 2,
+    "sulfur": 2,
+    "gold": 1000
+  },
+  "fortress.dwellingLvl4": {
+    "wood": 5,
+    "ore": 10,
+    "gold": 2000
+  },
+  "fortress.dwellingLvl5": {
+    "wood": 10,
+    "mercury": 5,
+    "ore": 10,
+    "sulfur": 5,
+    "gold": 2500
+  },
+  "fortress.dwellingLvl6": {
+    "wood": 15,
+    "gold": 3500
+  },
+  "fortress.dwellingLvl7": {
+    "wood": 10,
+    "ore": 10,
+    "sulfur": 10,
+    "gold": 10000
+  },
+  "fortress.dwellingUpLvl1": {
+    "wood": 10,
+    "gold": 1000
+  },
+  "fortress.dwellingUpLvl2": {
+    "wood": 5,
+    "gold": 1000
+  },
+  "fortress.dwellingUpLvl3": {
+    "mercury": 2,
+    "sulfur": 2,
+    "gold": 1000
+  },
+  "fortress.dwellingUpLvl4": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "fortress.dwellingUpLvl5": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "fortress.dwellingUpLvl6": {
+    "wood": 10,
+    "mercury": 10,
+    "gold": 3000
+  },
+  "fortress.dwellingUpLvl7": {
+    "wood": 10,
+    "ore": 10,
+    "sulfur": 20,
+    "gold": 15000
+  },
+  "conflux.dwellingLvl1": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 300
+  },
+  "conflux.dwellingLvl2": {
+    "ore": 5,
+    "gold": 1500
+  },
+  "conflux.dwellingLvl3": {
+    "ore": 5,
+    "gold": 1500
+  },
+  "conflux.dwellingLvl4": {
+    "wood": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "conflux.dwellingLvl5": {
+    "ore": 10,
+    "gold": 2000
+  },
+  "conflux.dwellingLvl6": {
+    "wood": 5,
+    "mercury": 2,
+    "ore": 5,
+    "sulfur": 2,
+    "crystal": 2,
+    "gems": 2,
+    "gold": 3000
+  },
+  "conflux.dwellingLvl7": {
+    "wood": 10,
+    "mercury": 10,
+    "ore": 10,
+    "gold": 10000
+  },
+  "conflux.dwellingUpLvl1": {
+    "gold": 1000
+  },
+  "conflux.dwellingUpLvl2": {
+    "wood": 2,
+    "mercury": 2,
+    "gems": 2,
+    "gold": 1500
+  },
+  "conflux.dwellingUpLvl3": {
+    "mercury": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "conflux.dwellingUpLvl4": {
+    "mercury": 5,
+    "ore": 5,
+    "gold": 2000
+  },
+  "conflux.dwellingUpLvl5": {
+    "sulfur": 5,
+    "gold": 1000
+  },
+  "conflux.dwellingUpLvl6": {
+    "mercury": 3,
+    "sulfur": 3,
+    "crystal": 3,
+    "gems": 3,
+    "gold": 3000
+  },
+  "conflux.dwellingUpLvl7": {
+    "wood": 10,
+    "mercury": 20,
+    "ore": 10,
+    "gold": 15000
+  }
+}

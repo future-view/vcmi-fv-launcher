@@ -1,0 +1,914 @@
+// This is schema for checking game settings from settings.json
+// Any new settings should be added in this file for correct serialization and initialization
+{
+	"type" : "object",
+	"$schema" : "http://json-schema.org/draft-04/schema",
+	"required" : [ "general", "video", "adventure", "battle", "input", "server", "logging", "launcher", "lobby", "gameTweaks", "mods", "ai" ],
+	"definitions" : {
+		"logLevelEnum" : {
+			"type" : "string",
+			"enum" : [ "trace", "debug", "info", "warn", "error" ]
+		}
+	},
+	"additionalProperties" : false,
+	"properties" :
+	{
+		"general" : {
+			"type" : "object",
+			"default" : {},
+			"additionalProperties" : false,
+			"required" : [
+				"playerName",
+				"multiPlayerNames",
+				"music",
+				"sound",
+				"saveRandomMaps",
+				"lastMap",
+				"language",
+				"gameDataLanguage",
+				"lastSave",
+				"lastSettingsTab",
+				"lastCampaign",
+				"lastDifficulty",
+				"saveFrequency",
+				"notifications",
+				"extraDump",
+				"userRelativePointer",
+				"relativePointerSpeedMultiplier",
+				"hapticFeedback",
+				"longTouchTimeMilliseconds",
+				"autosaveCountLimit",
+				"useSavePrefix",
+				"savePrefix",
+				"saveBeforeVisit",
+				"startTurnAutosave",
+				"enableUiEnhancements",
+				"audioMuteFocus",
+				"enableOverlay",
+				"lastKindomInterface",
+				"enableSubtitle",
+				"ignoreMuteSwitch",
+				"highscoreEntriesCap",
+				"highscoreStatisticEntriesCap",
+				"enableDiscordRichPresence"
+			],
+			"properties" : {
+				"playerName" : {
+					"type" : "string",
+					"default" : "Player"
+				},
+				"multiPlayerNames" : {
+					"type" : "array",
+					"default" : []
+				},
+				"music" : {
+					"type" : "number",
+					"default" : 88
+				},
+				"sound" : {
+					"type" : "number",
+					"default" : 88
+				},
+				"saveRandomMaps" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"lastMap" : {
+					"type" : "string",
+					"default" : "Maps/Arrogance"
+				},
+				"language" : {
+					"type" : "string",
+					"enum" : [ "english", "belarusian", "bulgarian", "czech", "chinese", "tchinese", "dutch", "filipino", "finnish", "french", "german", "greek", "hungarian", "italian", "japanese", "korean", "latvian", "lithuanian", "norwegian", "polish", "portuguese", "romanian", "russian", "serbian", "spanish", "swedish", "turkish", "ukrainian", "vietnamese" ],
+					"default" : "english"
+				},
+				"gameDataLanguage" : {
+					"type" : "string",
+					"enum" : [ "auto", "english", "belarusian", "bulgarian", "czech", "chinese", "tchinese", "dutch", "filipino", "finnish", "french", "german", "greek", "hungarian", "italian", "japanese", "korean", "latvian", "lithuanian", "norwegian", "polish", "portuguese", "romanian", "russian", "serbian", "spanish", "swedish", "turkish", "ukrainian", "vietnamese" ],
+					"default" : "auto"
+				},
+				"lastSave" : {
+					"type" : "string",
+					"default" : "NEWGAME"
+				},
+				"lastSettingsTab" : {
+					"type" : "number",
+					"default" : 0
+				},
+				"lastCampaign" : {
+					"type" : "string",
+					"default" : ""
+				},
+				"lastDifficulty" : {
+					"type" : "number",
+					"default" : 1
+				},
+				"saveFrequency" : {
+					"type" : "number",
+					"default" : 1
+				},
+				"notifications" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"extraDump" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"saveBeforeVisit" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"userRelativePointer" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"relativePointerSpeedMultiplier" : {
+					"type" : "number",
+					"default" : 1
+				},
+				"longTouchTimeMilliseconds" : {
+					"type" : "number",
+					"default" : 1000
+				},
+				"hapticFeedback" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"autosaveCountLimit" : {
+					"type" : "number",
+					"default": 5
+				},
+				"useSavePrefix" : {
+					"type": "boolean",
+					"default": true
+				},
+				"savePrefix" : {
+					"type": "string",
+					"default": ""
+				},
+				"startTurnAutosave" : {
+					"type": "boolean",
+					"default": false
+				},
+				"enableUiEnhancements" : {
+					"type": "boolean",
+					"default": true
+				},
+				"audioMuteFocus" : {
+					"type": "boolean",
+					"default": false
+				},
+				"enableOverlay" : {
+					"type": "boolean",
+					"default": true
+				},
+				"lastKindomInterface" : {
+					"type" : "number",
+					"default" : 0
+				},
+				"enableSubtitle" : {
+					"type": "boolean",
+					"default": true
+				},
+				"ignoreMuteSwitch" : {
+					"type": "boolean",
+					"default": true
+				},
+				"highscoreEntriesCap" : {
+					"type" : "number",
+					"default" : 100
+				},
+				"highscoreStatisticEntriesCap" : {
+					"type" : "number",
+					"default" : 15
+				},
+				"enableDiscordRichPresence" : {
+					"type" : "boolean",
+					"default" : true
+				}
+			}
+		},
+		
+		"mods" : {
+			"type" : "object",
+			"additionalProperties" : false,
+			"default" : {},
+			"required" : [ 
+				"validation"
+			],
+			"properties" : {
+				"validation" : {
+					"type" : "string",
+					"enum" : [ "off", "basic", "full" ],
+					"default" : "basic"
+				}
+			}
+		},
+		
+		"video" : {
+			"type" : "object",
+			"additionalProperties" : false,
+			"default" : {},
+			"required" : [ 
+				"resolution",
+				"reservedWidth",
+				"fullscreen",
+				"realFullscreen",
+				"cursor",
+				"showIntro",
+				"spellbookAnimation",
+				"driver",
+				"displayIndex",
+				"performanceOverlay",
+				"targetfps",
+				"vsync",
+				"fontsType",
+				"cursorScalingFactor",
+				"fontScalingFactor",
+				"upscalingFilter",
+				"fontUpscalingFilter",
+				"downscalingFilter",
+				"allowPortrait",
+				"asyncUpscaling",
+				"useHdTextures"
+			],
+			"properties" : {
+				"resolution" : {
+					"type" : "object",
+					"additionalProperties" : false,
+					"required" : [ "width", "height", "scaling" ],
+					"properties" : {
+						"width"  :  { "type" : "number", "default" : 1280 },
+						"height" :  { "type" : "number", "default" :  720 },
+						"scaling" : { "type" : "number", "default" :    0 }
+					}
+				},
+				"reservedWidth" : {
+					"type" : "number",
+					"default" : 0
+				},
+				"fullscreen" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"realFullscreen" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"cursor" :  {
+					"type" : "string",
+					"enum" : [ "hardware", "software" ],
+					"default" : "hardware"
+				},
+				"showIntro" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"spellbookAnimation" :  {
+					"type" : "boolean",
+					"default" : true
+				},
+				"driver" : {
+					"type" : "string",
+					"defaultWindows" : "",
+					"default" : "opengl",
+					"description" : "preferred graphics backend driver name for SDL2"
+				},
+				"displayIndex" : {
+					"type" : "number",
+					"default" : 0
+				},
+				"performanceOverlay" : {
+					"type" : "object",
+					"additionalProperties" : false,
+					"required" : [ "show", "edge", "marginTopBottom", "marginLeftRight" ],
+					"properties" : {
+						"show" : { "type" : "boolean", "default" : false },
+						"edge" : { "type" : "string",  "enum" : [ "topleft", "topright", "bottomleft", "bottomright" ], "default" : "bottomleft" },
+						"marginTopBottom" : { "type" : "number",  "default" : 5 },
+						"marginLeftRight" : { "type" : "number",  "default" : 7 }
+					}
+				},
+				"targetfps" : {
+					"type" : "number",
+					"default" : 60
+				},
+				"vsync" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"fontsType" : {
+					"type" : "string",
+					"enum" : [ "auto", "original", "scalable" ],
+					"default" : "auto"
+				},
+				"cursorScalingFactor" : {
+					"type" : "number",
+					"default" : 1
+				},
+				"fontScalingFactor" : {
+					"type" : "number",
+					"default" : 1
+				},
+				"fontUpscalingFilter" : {
+					"type" : "string",
+					"enum" : [ "nearest", "bilinear", "xbrz" ],
+					"default" : "nearest"
+				},
+				"upscalingFilter" : {
+					"type" : "string",
+					"enum" : [ "auto", "none", "xbrz2", "xbrz3", "xbrz4" ],
+					"default" : "auto"
+				},
+				"downscalingFilter" : {
+					"type" : "string",
+					"enum" : [ "nearest", "linear", "best" ],
+					"default" : "best"
+				},
+				"allowPortrait" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"asyncUpscaling" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"useHdTextures" : {
+					"type" : "boolean",
+					"default" : true
+				}
+			}
+		},
+		"input" : {
+			"type" : "object",
+			"additionalProperties" : false,
+			"default" : {},
+			"required" : [ 
+				"radialWheelGarrisonSwipe",
+				"touchToleranceDistance",
+				"mouseToleranceDistance",
+				"shortcutToleranceDistance",
+				"enableMouse",
+				"enableTouch",
+				"enableController",
+				"controllerTriggerTreshold",
+				"controllerAxisDeadZone",
+				"controllerAxisFullZone",
+				"controllerAxisSpeed",
+				"controllerAxisScale",
+				"handleBackRightMouseButton"
+			],
+			"properties" : {
+				"radialWheelGarrisonSwipe" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"touchToleranceDistance" : {
+					"type" : "number",
+					"default" : 20
+				},
+				"mouseToleranceDistance" : {
+					"type" : "number",
+					"default" : 0
+				},
+				"shortcutToleranceDistance" : {
+					"type" : "number",
+					"default" : 0
+				},
+				"enableMouse" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"enableTouch" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"enableController" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"controllerTriggerTreshold" : {
+					"type" : "number",
+					"default" : 0.3
+				},
+				"controllerAxisDeadZone" : {
+					"type" : "number",
+					"default" : 0.2
+				},
+				"controllerAxisFullZone" : {
+					"type" : "number",
+					"default" : 1.0
+				},
+				"controllerAxisSpeed" : {
+					"type" : "number",
+					"default" : 1000
+				},
+				"controllerAxisScale" : {
+					"type" : "number",
+					"default" : 2
+				},
+				"handleBackRightMouseButton" : {
+					"type" : "boolean",
+					"default" : false
+				}
+			}
+		},
+		"adventure" : {
+			"type" : "object",
+			"additionalProperties" : false,
+			"default" : {},
+			"required" : [ "heroMoveTime", "enemyMoveTime", "scrollSpeedPixels", "heroReminder", "quickCombat", "objectAnimation", "terrainAnimation", "forceQuickCombat", "borderScroll", "leftButtonDrag", "rightButtonDrag", "smoothDragging", "backgroundDimLevel", "hideBackground", "backgroundDimSmallWindows", "tileZoom", "minimapShowHeroes", "showMovePath", "replayShowBattles" ],
+			"properties" : {
+				"heroMoveTime" : {
+					"type" : "number",
+					"default" : 150
+				},
+				"enemyMoveTime" : {
+					"type" : "number",
+					"default" : 150
+				},
+				"scrollSpeedPixels" : {
+					"type" : "number",
+					"default" : 800
+				},
+				"heroReminder" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"quickCombat" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"objectAnimation" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"terrainAnimation" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"forceQuickCombat" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"borderScroll" : 
+				{
+					"type" : "boolean",
+					"defaultIOS" : false,
+					"defaultAndroid" : false,
+					"default" : true
+				},
+				"leftButtonDrag" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"rightButtonDrag" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"smoothDragging" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"backgroundDimLevel" : {
+					"type" : "number",
+					"default" : 128
+				},
+				"hideBackground" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"backgroundDimSmallWindows" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"minimapShowHeroes" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"tileZoom" : {
+					"type" : "number",
+					"default" : 32
+				},
+				"showMovePath" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"replayShowBattles" : {
+					"type" : "boolean",
+					"default" : true
+				}
+			}
+		},
+		"battle" : {
+			"type" : "object",
+			"additionalProperties" : false,
+			"default" : {},
+			"required" : [ "speedFactor", "mouseShadow", "cellBorders", "stackRange", "movementHighlightOnHover", "rangeLimitHighlightOnHover", "showQueue", "swipeAttackDistance", "queueSize", "stickyHeroInfoWindows", "stackInfoBasicPanel", "enableAutocombatSpells", "endWithAutocombat", "queueSmallSlots", "queueSmallOutside", "enableQuickSpellPanel", "showHealthBar" ],
+			"properties" : {
+				"speedFactor" : {
+					"type" : "number",
+					"default" : 2
+				},
+				"mouseShadow" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"cellBorders" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"stackRange" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"movementHighlightOnHover" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"rangeLimitHighlightOnHover" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"showQueue" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"swipeAttackDistance" : {
+					"type" : "number",
+					"default" : 250
+				},
+				"queueSize" : {
+					"type" : "string",
+					"default" : "auto",
+					"enum" : [ "auto", "small", "big" ]
+				},
+				"stickyHeroInfoWindows" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"stackInfoBasicPanel" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"enableAutocombatSpells" : {
+					"type": "boolean",
+					"default": true
+				},
+				"endWithAutocombat" : {
+					"type": "boolean",
+					"default": false
+				},
+				"queueSmallSlots" : {
+					"type": "number",
+					"default": 10
+				},
+				"queueSmallOutside" : {
+					"type": "boolean",
+					"default": false
+				},
+				"enableQuickSpellPanel" : {
+					"type": "boolean",
+					"default": true
+				},
+				"showHealthBar" : {
+					"type" : "boolean",
+					"default" : false
+				}
+			}
+		},
+		"server" : {
+			"type" : "object",
+			"additionalProperties" : false,
+			"default" : {},
+			"required" : [ "localHostname", "localPort", "remoteHostname", "remotePort", "seed", "replayRoundsKept"],
+			"properties" : {
+				"localHostname" : {
+					"type" : "string",
+					"default" : "127.0.0.1"
+				},
+				"localPort" : {
+					"type" : "number",
+					"default" : 3030
+				},
+				"remoteHostname" : {
+					"type" : "string",
+					"default" : ""
+				},
+				"remotePort" : {
+					"type" : "number",
+					"default" : 3030
+				},
+				"seed" : {
+					"type" : "number",
+					"default" : 0
+				},
+				// number of past game days that stay replayable on top of the current one
+				"replayRoundsKept" : {
+					"type" : "number",
+					"default" : 1
+				}
+			}
+		},
+		"ai" : {
+			"type" : "object",
+			"additionalProperties" : false,
+			"default" : {},
+			"required" : [ "adventureAlliedAI", "adventureEnemyAI", "combatEnemyAI", "combatAlliedAI", "combatNeutralAI" ],
+			"properties" : {
+				"adventureAlliedAI" : {
+					"type" : "string",
+					"enum" : [ "EmptyAI", "Nullkiller2" ],
+					"default" : "Nullkiller2"
+				},
+				"adventureEnemyAI" : {
+					"type" : "string",
+					"enum" : [ "EmptyAI", "Nullkiller2" ],
+					"default" : "Nullkiller2"
+				},
+				"combatEnemyAI" : {
+					"type" : "string",
+					"enum" : [ "EmptyAI", "StupidAI", "BattleAI", "MMAI" ],
+					"default" : "BattleAI"
+				},
+				"combatAlliedAI" : {
+					"type" : "string",
+					"enum" : [ "EmptyAI", "StupidAI", "BattleAI", "MMAI" ],
+					"default" : "BattleAI"
+				},
+				"combatNeutralAI" : {
+					"type" : "string",
+					"enum" : [ "EmptyAI", "StupidAI", "BattleAI", "MMAI" ],
+					"default" : "BattleAI"
+				}
+			}
+		},
+		"logging" : {
+			"type" : "object",
+			"additionalProperties" : false,
+			"default" : {},
+			"required" : [ "console", "file", "loggers" ],
+			"properties" : {
+				"console" : {
+					"type" : "object",
+					"default" : {},
+					"required" : [ "format", "threshold", "coloredOutputEnabled", "colorMapping" ],
+					"properties" : {
+						"format" : {
+							"type" : "string",
+							"default" : "%m"
+						},
+						"threshold" : {
+							"$ref" : "#/definitions/logLevelEnum",
+							"default" : "info"
+						},
+						"coloredOutputEnabled" : {
+							"type" : "boolean",
+							"default" : true
+						},
+						"colorMapping" : {
+							"type" : "array",
+							"default" : [
+								{ "domain" : "global", "level" : "trace", "color" : "gray"},
+								{ "domain" : "global", "level" : "debug", "color" : "white"},
+								{ "domain" : "global", "level" : "info", "color" : "green"},
+								{ "domain" : "global", "level" : "warn", "color" : "yellow"},
+								{ "domain" : "global", "level" : "error", "color" : "red"}
+							],
+							"items" : {
+								"type" : "object",
+								"additionalProperties" : false,
+								"default" : {},
+								"required" : [ "domain", "level", "color" ],
+								"properties" : {
+									"domain" : { "type" : "string" },
+									"level" : { "$ref" : "#/definitions/logLevelEnum" },
+									"color" : { "type" : "string", "enum" : [ "default", "green", "red", "magenta", "yellow", "white", "gray", "teal" ] }
+								}
+							}
+						}
+					}
+				},
+				"file" : {
+					"type" : "object",
+					"additionalProperties" : false,
+					"default" : {},
+					"required" : [ "format" ],
+					"properties" : {
+						"format" : {
+							"type" : "string",
+							"default" : "[%c] %l [%t] %n - %m"
+						}
+					}
+				},
+				"loggers" : {
+					"type" : "array",
+					"default" : [ { "domain" : "global", "level" : "trace" }, { "domain" : "rng", "level" : "info" } ],
+					"items" : {
+						"type" : "object",
+						"additionalProperties" : false,
+						"required" : [ "level", "domain" ],
+						"properties" : {
+							"domain" : { "type" : "string" },
+							"level" : { "$ref" : "#/definitions/logLevelEnum" }
+						}
+
+					}
+				}
+			}
+		},
+		"launcher" : {
+			"type" : "object",
+			"default" : {},
+			"additionalProperties" : false,
+			"required" : [ 
+				"mainWindow",
+				"setupCompleted", 
+				"defaultRepositoryEnabled",
+				"defaultRepositoryURL",
+				"extraRepositoryURL",
+				"extraRepositoryEnabled",
+				"autoCheckRepositories",
+				"fullModExtraction",
+				"ignoreSslErrors",
+				"updateOnStartup",
+				"updateConfigUrl",
+				"trackClipboardState"
+			],
+			"properties" : {
+				"defaultRepositoryEnabled" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"defaultRepositoryURL" : {
+					"type" : "string",
+					"default" : "https://raw.githubusercontent.com/vcmi/vcmi-mods-repository/develop/vcmi-1.8.json"
+				},
+				"extraRepositoryEnabled" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"extraRepositoryURL" : {
+					"type" : "string",
+					"default" : ""
+				},
+				"setupCompleted" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"ignoreSslErrors" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"autoCheckRepositories" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"fullModExtraction" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"updateOnStartup" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"updateConfigUrl" : {
+					"type" : "string",
+					"default" : "https://raw.githubusercontent.com/vcmi/vcmi-updates/master/vcmi-updates.json"
+				},
+				"trackClipboardState" : {
+					"type" : "boolean",
+					"default" : true,
+					"defaultIOS": false,
+					"defaultAndroid": false,
+					"defaultDesktop" : true
+
+				},
+				"mainWindow" : {
+					"type" : "object",
+					"default" : {},
+					"additionalProperties" : false,
+					"required" : [ "geometry" ],
+					"properties" : {
+						"geometry" : {
+							"type" : "object",
+							"default" : {},
+							"additionalProperties" : false,
+							"required" : [ "x", "y", "width", "height" ],
+							"properties" : {
+								"x" : { "type" : "integer", "default" : 0 },
+								"y" : { "type" : "integer", "default" : 0 },
+								"width" : { "type" : "integer", "default" : 0 },
+								"height" : { "type" : "integer", "default" : 0 }
+							}
+						}
+					}
+				}
+			}
+		},
+		"lobby" : {
+			"type" : "object",
+			"additionalProperties" : false,
+			"default" : {},
+			"required" : [ "mapPreview", "hostname", "port", "roomPlayerLimit", "roomType", "roomMode", "languageRooms" ],
+			"properties" : {
+				"mapPreview" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"hostname" : {
+					"type" : "string",
+					"default" : "lobby.vcmi.eu"
+				},
+				"port" : {
+					"type" : "number",
+					"default" : 3031
+				},
+				"roomPlayerLimit" : {
+					"type" : "number",
+					"default" : 2
+				},
+				"roomType" : {
+					"type" : "number",
+					"default" : 0
+				},
+				"roomMode" : {
+					"type" : "number",
+					"default" : 0
+				},
+				"languageRooms" : {
+					"type" : "array",
+					"default" : []
+				}
+			}
+		},
+		"gameTweaks" : {
+			"type" : "object",
+			"default" : {},
+			"additionalProperties" : false,
+			"required" : [
+				"showGrid",
+				"forceMovementInfo",
+				"numericCreaturesQuantities",
+				"availableCreaturesAsDwellingLabel",
+				"compactTownCreatureInfo",
+				"infoBarPick",
+				"skipBattleIntroMusic",
+				"infoBarCreatureManagement",
+				"enableLargeSpellbook",
+				"simpleObjectSelection",
+				"skipAdventureMapAnimations"
+			],
+			"properties" : {
+				"showGrid" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"forceMovementInfo" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"numericCreaturesQuantities" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"availableCreaturesAsDwellingLabel" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"compactTownCreatureInfo" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"infoBarPick" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"skipBattleIntroMusic" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"infoBarCreatureManagement": {
+					"type" : "boolean",
+					"default" : true
+				},
+				"enableLargeSpellbook" : {
+					"type": "boolean",
+					"default": true
+				},
+				"simpleObjectSelection" : {
+					"type": "boolean",
+					"default": true,
+					"defaultIOS": true,
+					"defaultAndroid": true,
+					"defaultDesktop" : false
+				},
+				"skipAdventureMapAnimations": {
+					"type": "boolean",
+					"default": false
+				}
+			}
+		}
+	}
+}

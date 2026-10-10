@@ -1,0 +1,1667 @@
+{
+  "spellBook": {
+    "name": "魔法书",
+    "event": "你被一本魔法书绊了一下，你拾起了它，放进包里。",
+    "value": 0,
+    "slots": [
+      "SPELLBOOK"
+    ],
+    "class": "SPECIAL",
+    "description": "{魔法书}\n\n用鼠标左击魔法书可以查看你的魔法。"
+  },
+  "spellScroll": {
+    "name": "魔法卷轴",
+    "event": "你发现一只刻着古代文字的精美的罐子，里面放着个古老的卷轴。拿出卷轴后，你感觉浑身充满了神奇的法力。",
+    "value": 2500,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "SPECIAL",
+    "description": "{魔法卷轴}\n\n只要你携带魔法卷轴，卷轴上的魔法就会加入你的魔法书。"
+  },
+  "grail": {
+    "name": "神器",
+    "event": "你发现了神器并将它放入行囊。",
+    "value": 0,
+    "slots": [],
+    "class": "SPECIAL",
+    "description": "{神器}\n\n带着神器前往某个城镇，那儿的居民会为它建造一座奇迹，从而给该城的主人带来极大的好处。"
+  },
+  "catapult": {
+    "name": "投石车",
+    "event": "你发现了投石车并将它收归己有。",
+    "value": 1000,
+    "slots": [
+      "MACH4"
+    ],
+    "class": "SPECIAL",
+    "description": "{投石车}\n\n战斗中可以用投石车破坏敌人的防御工事。"
+  },
+  "ballista": {
+    "name": "弩车",
+    "event": "你发现了弩石车并将它收归己有。",
+    "value": 2500,
+    "slots": [
+      "MACH1"
+    ],
+    "class": "SPECIAL",
+    "description": "{弩车}\n\n战斗中可以用弩车攻击敌人的部队。"
+  },
+  "ammoCart": {
+    "name": "补给车",
+    "event": "你发现了补给车并将它收归己有。",
+    "value": 1000,
+    "slots": [
+      "MACH2"
+    ],
+    "class": "SPECIAL",
+    "description": "{补给车}\n\n补给车可以在战斗中为你的远程攻击部队提供无限量的弹药。"
+  },
+  "firstAidTent": {
+    "name": "急救帐篷",
+    "event": "你发现了急救帐篷并将它收归己有。",
+    "value": 750,
+    "slots": [
+      "MACH3"
+    ],
+    "class": "SPECIAL",
+    "description": "{急救帐篷}\n\n每一轮战斗过后，都可以用急救帐篷医治你的部队。"
+  },
+  "centaurAxe": {
+    "name": "人马战斧",
+    "event": "你发现一把巨斧深深嵌入地面。几经努力，你终于把它拔了出来。",
+    "value": 2000,
+    "slots": [
+      "RIGHT_HAND"
+    ],
+    "class": "TREASURE",
+    "description": "{人马战斧}\n\n这件右手武器可使你的攻击力+2。"
+  },
+  "blackshardOfTheDeadKnight": {
+    "name": "黑魔剑",
+    "event": "一个寡妇被你的英勇行为所打动，她送你一把以前丈夫使用的宝剑。",
+    "value": 3000,
+    "slots": [
+      "RIGHT_HAND"
+    ],
+    "class": "MINOR",
+    "description": "{黑魔剑}\n\n这件右手武器可使你的攻击力+3。"
+  },
+  "greaterGnollsFlail": {
+    "name": "狼人连枷",
+    "event": "一个愚蠢的狼人用连枷了结了自己的生命。你走近尸体，取下这能使你功力倍增的连枷。",
+    "value": 4000,
+    "slots": [
+      "RIGHT_HAND"
+    ],
+    "class": "MINOR",
+    "description": "{狼人连枷}\n\n这件右手武器可使你的攻击力+4。"
+  },
+  "ogresClubOfHavoc": {
+    "name": "恶魔之棒",
+    "event": "在路边的酒馆，一个喝醉的食人魔向你发出挑战。为避免陷入更大的麻烦，你夺去了他的巨棒。",
+    "value": 5000,
+    "slots": [
+      "RIGHT_HAND"
+    ],
+    "class": "MAJOR",
+    "description": "{恶魔之棒}\n\n这件右手武器可使你的攻击力+5。"
+  },
+  "swordOfHellfire": {
+    "name": "火神剑",
+    "event": "你从一棵被雷电劈断的树中找到一把神秘的宝剑。",
+    "value": 6000,
+    "slots": [
+      "RIGHT_HAND"
+    ],
+    "class": "MAJOR",
+    "description": "{火神剑}\n\n这件右手武器可使你的攻击力+6。"
+  },
+  "titansGladius": {
+    "name": "泰坦之剑",
+    "event": "一个泰坦巨人挡在你面前说道：“给我5000个金币，否则将你生吞活剥。”你不屑一顾，巨人从腰间拔出利剑，但你以灵巧的身法从他两腿间躲闪过去并将他杀死，他的宝剑留在了自己的血泊中。",
+    "value": 10000,
+    "slots": [
+      "RIGHT_HAND"
+    ],
+    "class": "RELIC",
+    "description": "{泰坦之剑}\n\n拿在右手，这件圣物可使你的攻击力+12，但会使你的防御力-3。"
+  },
+  "shieldOfTheDwarvenLords": {
+    "name": "矮人王盾",
+    "event": "在搜索碎石矿的过程中，你解救出一群被困的矮人。出于感激，他们的首领送你一面精制的盾牌。 ",
+    "value": 2000,
+    "slots": [
+      "LEFT_HAND"
+    ],
+    "class": "TREASURE",
+    "description": "{矮人王盾}\n\n这件左手防具可使你的防御力+2。"
+  },
+  "shieldOfTheYawningDead": {
+    "name": "亡灵盾",
+    "event": "你发现了神秘的圣殿。你在圣殿中祈祷，殿中的祭坛突然开裂，露出一面盾牌。你拿起这面盾牌，决心与邪恶战斗到底。",
+    "value": 3000,
+    "slots": [
+      "LEFT_HAND"
+    ],
+    "class": "MINOR",
+    "description": "{亡灵盾}\n\n这件左手防具可使你的防御力+3。"
+  },
+  "bucklerOfTheGnollKing": {
+    "name": "狼人王盾",
+    "event": "一个战士的石像手持银盾。当你移开盾牌，石像立即灰飞烟灭。",
+    "value": 4000,
+    "slots": [
+      "LEFT_HAND"
+    ],
+    "class": "MINOR",
+    "description": "{狼人王盾}\n\n这件左手防具可使你的防御力+4。"
+  },
+  "targOfTheRampagingOgre": {
+    "name": "狂魔盾",
+    "event": "你走上一座小桥，一个巨大的食人魔从对岸咆哮而至。你杀了他，并以他的盾牌作为战利品。",
+    "value": 5000,
+    "slots": [
+      "LEFT_HAND"
+    ],
+    "class": "MAJOR",
+    "description": "{狂魔盾}\n\n这件左手防具可使你的防御力+5。"
+  },
+  "shieldOfTheDamned": {
+    "name": "邪盾 ",
+    "event": "登上小丘，你看到一幅可笑的画面：一个精灵正试图搬运一面与自己身体大小相当的盾牌。你问道：“需要帮忙吗？”精灵却对你怒目而视，说道：“很有趣吗？如果你能搬动它，我现在就飞走。”  ",
+    "value": 6000,
+    "slots": [
+      "LEFT_HAND"
+    ],
+    "class": "MAJOR",
+    "description": "{邪盾 }\n\n这件左手防具可使你的防御力+6。"
+  },
+  "sentinelsShield": {
+    "name": "守护神之盾",
+    "event": "一只奇异的盒子引起了你的兴趣。你伸手刚碰到它，盒子便自动打开，露出一面闪光的盾牌。",
+    "value": 10000,
+    "slots": [
+      "LEFT_HAND"
+    ],
+    "class": "RELIC",
+    "description": "{守护神之盾}\n\n拿在左手，这件圣物可使你的防御力+12，但会使你的攻击力-3。"
+  },
+  "helmOfTheAlabasterUnicorn": {
+    "name": "神兽之冠",
+    "event": "一个饥饿的工匠要求用一个装饰有独角兽角的头盔跟你换些食物。出于好奇，你接受了。不久后你发现这个头盔拥有神奇的魔力。",
+    "value": 1000,
+    "slots": [
+      "HEAD"
+    ],
+    "class": "TREASURE",
+    "description": "{神兽之冠}\n\n戴上此头盔可使你的知识+1。"
+  },
+  "skullHelmet": {
+    "name": "骷髅冠",
+    "event": "你在乡村小酒馆做短暂的停留，不经意拿错了行囊，并从中意外地发现了一顶神奇的头盔。",
+    "value": 3000,
+    "slots": [
+      "HEAD"
+    ],
+    "class": "TREASURE",
+    "description": "{骷髅冠}\n\n戴上此头盔可使你的知识+2。"
+  },
+  "helmOfChaos": {
+    "name": "混沌之冠",
+    "event": "你的部队遭到一群半兽人的伏击，你轻易地把他们打得四散逃窜，得到一顶精美的带角头盔。",
+    "value": 4000,
+    "slots": [
+      "HEAD"
+    ],
+    "class": "MINOR",
+    "description": "{混沌之冠}\n\n戴上此头盔可使你的知识+3。"
+  },
+  "crownOfTheSupremeMagi": {
+    "name": "智慧之冠",
+    "event": "一个疯狂的巫师愚蠢之极，竟然把你作为他的攻击目标。原来他的力量来自他头顶上的皇冠。你拉开弓箭，射下皇冠，使他恢复正常。出于感激，他以皇冠相赠。",
+    "value": 5000,
+    "slots": [
+      "HEAD"
+    ],
+    "class": "MINOR",
+    "description": "{知识之冠}\n\n戴上此头盔可使你的知识+4。"
+  },
+  "hellstormHelmet": {
+    "name": "地狱王冠",
+    "event": "你的部队遭到一群半兽人的伏击，你轻易地把他们打得四散逃窜，得到一顶精美的带角头盔。",
+    "value": 6000,
+    "slots": [
+      "HEAD"
+    ],
+    "class": "MAJOR",
+    "description": "{地狱王冠}\n\n戴上此头盔可使你的知识+5。"
+  },
+  "thunderHelmet": {
+    "name": "雷神之盔",
+    "event": "一道金光掠过。经过搜索后，你在矮树丛中找到一顶金色的头盔。",
+    "value": 10000,
+    "slots": [
+      "HEAD"
+    ],
+    "class": "RELIC",
+    "description": "{雷神之盔}\n\n戴在头上，这件圣物可使你的知识+10，但会使你的力量-2。"
+  },
+  "breastplateOfPetrifiedWood": {
+    "name": "藤木甲",
+    "event": "一伙流氓在死去勇士的遗物中搜索，你将他们赶走后，发现了一个奇异的胸甲。",
+    "value": 1000,
+    "slots": [
+      "TORSO"
+    ],
+    "class": "TREASURE",
+    "description": "{藤木甲}\n\n穿上此胸甲可使你的力量+1。"
+  },
+  "ribCage": {
+    "name": "骨质胸甲",
+    "event": "你发现了一只大型生物的骨架。进一步检查后，发现它竟是一副盔甲。",
+    "value": 3000,
+    "slots": [
+      "TORSO"
+    ],
+    "class": "MINOR",
+    "description": "{骨质胸甲}\n\n穿上此胸甲可使你的力量+2。"
+  },
+  "scalesOfTheGreaterBasilisk": {
+    "name": "大蛇神胸甲",
+    "event": "途中遇见一位年迈的兵器制造者，他以前受过你的恩惠。于是，他用蛇鳞做了一个精美的胸甲送给你。",
+    "value": 4000,
+    "slots": [
+      "TORSO"
+    ],
+    "class": "MINOR",
+    "description": "{大蛇神胸甲}\n\n穿上此胸甲可使你的力量+3。"
+  },
+  "tunicOfTheCyclopsKing": {
+    "name": "巨人战甲",
+    "event": "你看到一个独眼巨人正在游泳，就恶作剧地偷了它的外衣。之后才发现，它的外衣拥有魔力。",
+    "value": 5000,
+    "slots": [
+      "TORSO"
+    ],
+    "class": "MAJOR",
+    "description": "{巨人战甲}\n\n穿上此胸甲可使你的力量+4。"
+  },
+  "breastplateOfBrimstone": {
+    "name": "黄金甲",
+    "event": "你遇上一位通过熔化废旧兵器来回收金属材料的铁匠。他对你非常钦佩，便拿出一个胸甲送给你。这只胸甲无法熔解，对他也就没有任何意义。",
+    "value": 6000,
+    "slots": [
+      "TORSO"
+    ],
+    "class": "MAJOR",
+    "description": "{黄金甲}\n\n穿上此胸甲可使你的力量+5。"
+  },
+  "titansCuirass": {
+    "name": "泰坦战甲",
+    "event": "一个泰坦巨人挡在你面前说道：“给我5000个金币，否则将你生吞活剥。”你不屑一顾，巨人从腰间拔出利剑，但你以灵巧的身法从他两腿间躲闪过去并将他杀死，他的宝剑留在了自己的血泊中。",
+    "value": 10000,
+    "slots": [
+      "TORSO"
+    ],
+    "class": "RELIC",
+    "description": "{泰坦战甲}\n\n穿在身上，这件圣物可使你的力量+10，但会使你的知识-2。"
+  },
+  "armorOfWonder": {
+    "name": "神奇战甲",
+    "event": "一伙流氓在死去勇士的遗物中搜索，你将他们赶走后，发现了一个奇异的胸甲。",
+    "value": 4000,
+    "slots": [
+      "TORSO"
+    ],
+    "class": "MINOR",
+    "description": "{神奇战甲}\n\n穿上神奇战甲可使你的四项基本技能各+1。"
+  },
+  "sandalsOfTheSaint": {
+    "name": "圣靴",
+    "event": "一个游牧民害怕恶鬼部落，便来寻求你的保护。他用柔软的皮毛制作了一双鞋子作为回报。凑近一看，你在鞋面上发现了漂亮的花纹。",
+    "value": 8000,
+    "slots": [
+      "FEET"
+    ],
+    "class": "RELIC",
+    "description": "{圣靴}\n\n穿上圣靴可使你的四项基本技能各+2。"
+  },
+  "celestialNecklaceOfBliss": {
+    "name": "天使项链",
+    "event": "你从被诅咒过的坟墓中救出一个女巫。她送你一条精制的宝石项链。",
+    "value": 12000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "RELIC",
+    "description": "{天使项链}\n\n戴上天使项链可使你的四项基本技能各+3。"
+  },
+  "lionsShieldOfCourage": {
+    "name": "狮王盾",
+    "event": "有个巫师欲置一位游侠于死地。在邪恶的巫师即将得手之际，你出手救下了游侠。游侠感激万分，把自己心爱的盾牌送了给你。",
+    "value": 16000,
+    "slots": [
+      "LEFT_HAND"
+    ],
+    "class": "RELIC",
+    "description": "{狮王盾}\n\n拿在左手，狮王盾可使你的四项基本技能各+4。"
+  },
+  "swordOfJudgement": {
+    "name": "先知剑",
+    "event": "你在途中遇到一名游侠和一群僵尸的激战。游侠被打得奄奄一息。他让你接过宝剑。当你举起利剑，那些僵尸都瘫倒在地。你得到了一把利剑。",
+    "value": 20000,
+    "slots": [
+      "RIGHT_HAND"
+    ],
+    "class": "RELIC",
+    "description": "{先知剑}\n\n拿在右手，先知剑可使你的四项基本技能各+5。"
+  },
+  "helmOfHeavenlyEnlightenment": {
+    "name": "神谕之冠",
+    "event": "你发现远处的地面金光闪烁，便让随从去看个究竟。不久，他便捧着一顶金色的头盔回来了，原来是神谕之冠。",
+    "value": 24000,
+    "slots": [
+      "HEAD"
+    ],
+    "class": "RELIC",
+    "description": "{神谕之冠}\n\n戴上神喻之冠可使你的四项基本技能各+6。"
+  },
+  "quietEyeOfTheDragon": {
+    "name": "龙眼戒",
+    "event": "走进一间破败的茅屋，里面躺着一具女巫的遗骸。搜寻之后，你找到一枚嵌有龙眼的戒指。",
+    "value": 2000,
+    "slots": [
+      "LEFT_RING",
+      "RIGHT_RING"
+    ],
+    "class": "TREASURE",
+    "description": "{龙眼戒}\n\n将龙眼戒戴在手上可使你的攻击力和防御力各+1。"
+  },
+  "redDragonFlameTongue": {
+    "name": "赤龙剑",
+    "event": "你走在一条幽静的小道上，路旁的矮树丛中突然光芒万丈，一个风情万种的女人出现在你的面前，送你一把利剑。",
+    "value": 4000,
+    "slots": [
+      "RIGHT_HAND"
+    ],
+    "class": "MINOR",
+    "description": "{赤龙剑}\n\n拿在右手，赤龙剑可使你的攻击力和防御力各+2。"
+  },
+  "dragonScaleShield": {
+    "name": "龙盾",
+    "event": "途中遇见一位年迈的兵器制造者，他以前受过你的恩惠。于是，他用一些龙鳞拼成一个造型精美的盾牌。",
+    "value": 6000,
+    "slots": [
+      "LEFT_HAND"
+    ],
+    "class": "MAJOR",
+    "description": "{龙盾}\n\n拿在左手，龙盾可使你的攻击力和防御力各+3。"
+  },
+  "dragonScaleArmor": {
+    "name": "龙甲",
+    "event": "途中遇见一位年迈的兵器制造者，他以前受过你的恩惠。于是，他用一些龙鳞拼成一个造型精美的胸甲。",
+    "value": 8000,
+    "slots": [
+      "TORSO"
+    ],
+    "class": "RELIC",
+    "description": "{龙甲} \n\n穿上龙甲可使你的攻击力和防御力各+4。"
+  },
+  "dragonboneGreaves": {
+    "name": "龙骨胫甲",
+    "event": "你发现一块巨龙的骨头。经过仔细的搜查，才发现原来是一副龙骨胫甲。",
+    "value": 2000,
+    "slots": [
+      "FEET"
+    ],
+    "class": "TREASURE",
+    "description": "{龙骨胫甲}\n\n穿上龙骨胫甲可使你的知识与力量各+1。"
+  },
+  "dragonWingTabard": {
+    "name": "龙翼袍",
+    "event": "在你的帮助下，一群骑士得以从恶龙口中逃脱。他们授予你一件龙翼袍。",
+    "value": 4000,
+    "slots": [
+      "SHOULDERS"
+    ],
+    "class": "MINOR",
+    "description": "{龙翼袍}\n\n穿上龙翼袍可使你的知识与力量各+2。"
+  },
+  "necklaceOfDragonteeth": {
+    "name": "龙牙项链",
+    "event": "一位年迈的巫师阻止了你的前行，对你讲了一通莫名其妙的话。一阵清烟飘来，使你睁不开双眼。烟雾散尽，巫师已不知去向，只留下一串龙牙。",
+    "value": 6000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "MAJOR",
+    "description": "{龙牙项链}\n\n戴上龙牙项链可使你的知识与力量各+3。"
+  },
+  "crownOfDragontooth": {
+    "name": "龙牙冠",
+    "event": "你的队伍无坚不摧，士气高涨。行进途中，不远处悬在半空的一顶神秘王冠引起了你的注意。随从们取下来献给了你。王冠上刻着：“智慧胜于蛮力，魔法强于攻击＂。记住这句话，你将百战不殆。",
+    "value": 8000,
+    "slots": [
+      "HEAD"
+    ],
+    "class": "RELIC",
+    "description": "{龙牙冠}\n\n戴上龙牙冠可使你的知识与力量各+4。"
+  },
+  "stillEyeOfTheDragon": {
+    "name": "龙眼指环",
+    "event": "走进一间破败的茅屋，里面躺着一具女巫的遗骸。搜寻之后，你找到一枚嵌有龙眼的戒指。",
+    "value": 2000,
+    "slots": [
+      "LEFT_RING",
+      "RIGHT_RING"
+    ],
+    "class": "TREASURE",
+    "description": "{龙眼指环}\n\n将龙眼指环戴在手上可使你的幸运值与士气各+1。"
+  },
+  "cloverOfFortune": {
+    "name": "幸运三叶草",
+    "event": "在穿越干枯草地的途中，你发现一种三叶草。",
+    "value": 1000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{幸运三叶草}\n\n幸运三叶草可使你的幸运值+1。"
+  },
+  "cardsOfProphecy": {
+    "name": "预言卡",
+    "event": "一位旅行者要求你在他的牌中抽取一张，可你回绝了他。他便自行抽了一张。瞬间，他脸色苍白，手中的纸牌尽数散落。你拾起牌，转身离去。",
+    "value": 1000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{预言卡}\n\n预言卡可使你的幸运值+1。"
+  },
+  "ladybirdOfLuck": {
+    "name": "幸运鸟",
+    "event": "有个女巫一直在等你，她交给你一个雕像，一转身，便消失在路的尽头。",
+    "value": 1000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{幸运鸟}\n\n幸运鸟可使你的幸运值+1。"
+  },
+  "badgeOfCourage": {
+    "name": "勇气勋章",
+    "event": "你从一群恶狼口中夺回了一个小男孩的生命。小男孩的父亲感激万分，送你一枚勇气徽章。",
+    "value": 1000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{勇气勋章}\n\n勇气勋章可使你的士气+1并且免疫对方所有精神类魔法。"
+  },
+  "crestOfValor": {
+    "name": "勇士勋章",
+    "event": "你从人贩子手中救下了邻国的公主。公主为了表示感谢，送你一枚勇士勋章。",
+    "value": 1000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{勇士勋章}\n\n勇士勋章可使你的士气+1。"
+  },
+  "glyphOfGallantry": {
+    "name": "勇士令",
+    "event": "在你的帮助下，乡下村民得以从牛头怪手中逃脱。他们给你一枚勇士令。",
+    "value": 1000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{勇士令}\n\n勇士令可使你的士气+1。"
+  },
+  "speculum": {
+    "name": "窥镜",
+    "event": "你从异国商贾那儿换得一个新的发明，它能使远处的物体看起来近在眼前。他们管它叫窥镜。",
+    "value": 1000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{窥镜}\n\n窥镜可使你的侦察范围+1。"
+  },
+  "spyglass": {
+    "name": "望远镜",
+    "event": "一位自称是发明家的长者让你试一下他的最新成果。随即给你一只望远镜。",
+    "value": 1000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{望远镜}\n\n望远镜可使你的侦察范围+1。"
+  },
+  "amuletOfTheUndertaker": {
+    "name": "亡灵护身符",
+    "event": "坟墓边放着一只沾满泥垢的护身符。仔细观察后，你发现它竟是亡灵护身符。",
+    "value": 2000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "TREASURE",
+    "description": "{亡灵护身符}\n\n佩带亡灵护身符可使你的招魂术提高5%。"
+  },
+  "vampiresCowl": {
+    "name": "吸血鬼披风",
+    "event": "你发现了吸血鬼白天的栖息地，将之杀死后，你得到了他的蒙头斗篷。",
+    "value": 4000,
+    "slots": [
+      "SHOULDERS"
+    ],
+    "class": "MINOR",
+    "description": "{吸血鬼披风}\n\n穿上吸血鬼披风可使你的招魂术提高10%。"
+  },
+  "deadMansBoots": {
+    "name": "死神靴",
+    "event": "陌生人送了你一双靴子，它由上等的皮革制成，你立刻收了起来。",
+    "value": 6000,
+    "slots": [
+      "FEET"
+    ],
+    "class": "MAJOR",
+    "description": "{死神靴}\n\n穿上死神靴可使你的招魂术提高15%。"
+  },
+  "garnitureOfInterference": {
+    "name": "抗魔链",
+    "event": "有个巫师欲置一位游侠于死地。在邪恶的巫师即将得手之际，你出手救下了游侠。游侠感激万分，把自己心爱的项链送了给你。",
+    "value": 2000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "MAJOR",
+    "description": "{抗魔链}\n\n佩带抗魔链可使你的魔法抵抗力提高5%。"
+  },
+  "surcoatOfCounterpoise": {
+    "name": "抗魔披风",
+    "event": "有个巫师欲置一位游侠于死地。在邪恶的巫师即将得手之际，你出手救下了游侠。游侠感激万分，把自己心爱的斗篷送了给你。",
+    "value": 4000,
+    "slots": [
+      "SHOULDERS"
+    ],
+    "class": "MAJOR",
+    "description": "{抗魔披风}\n\n穿上抗魔披风可使你的魔法抵抗力提高10%。"
+  },
+  "bootsOfPolarity": {
+    "name": "抗魔靴",
+    "event": "一个游牧民害怕恶鬼部落，便来寻求你的保护。他用柔软的皮毛制作了一双鞋子作为回报。凑近一看，你在鞋面上发现了漂亮的花纹。",
+    "value": 6000,
+    "slots": [
+      "FEET"
+    ],
+    "class": "RELIC",
+    "description": "{抗魔靴}\n\n穿上抗魔靴可使你的魔法抵抗力提高15%。"
+  },
+  "bowOfElvenCherrywood": {
+    "name": "树精灵之弓",
+    "event": "在一场与著名射手的较量中，你获得了胜利。",
+    "value": 2000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{树精灵之弓}\n\n树精灵之弓可使你的箭术提高5%。"
+  },
+  "bowstringOfTheUnicornsMane": {
+    "name": "神兽之鬃",
+    "event": "一只独角兽被猎人的陷井困住了，撕心裂肺的叫声令你顿生怜意。你设法救出了它。独角兽顿了顿脚，飞奔而去，留下一根精致的弓弦。",
+    "value": 4000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MINOR",
+    "description": "{神兽之鬃}\n\n神兽之鬃可使你的箭术提高10%。"
+  },
+  "angelFeatherArrows": {
+    "name": "天羽箭",
+    "event": "地上有几支天使羽毛制成的箭。你拾了起来，旋即离开。",
+    "value": 6000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{天羽箭}\n\n天羽箭可使你的箭术提高15%。"
+  },
+  "birdOfPerception": {
+    "name": "神目鸟",
+    "event": "有个女巫一直在等你，她交给你一个雕像，一转身，便消失在路的尽头。",
+    "value": 1000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{神目鸟}\n\n神目鸟可使你的鹰眼术提高5%。"
+  },
+  "stoicWatchman": {
+    "name": "火眼人",
+    "event": "有个女巫一直在等你，她交给你一个雕像，一转身，便消失在路的尽头。",
+    "value": 2000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{火眼人}\n\n火眼人可使你的鹰眼术提高10%。"
+  },
+  "emblemOfCognizance": {
+    "name": "真理徽章",
+    "event": "有个女巫一直在等你，她交给你一个护身符，一转身，便消失在路的尽头。",
+    "value": 3000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MINOR",
+    "description": "{真理徽章}\n\n真理徽章可使你的鹰眼术提高15%。"
+  },
+  "statesmansMedal": {
+    "name": "政治家勋章",
+    "event": "你帮助外交官修好了他的车轴。他赠你一枚勋章，说道：“它能帮助你说服别人”。",
+    "value": 5000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "MAJOR",
+    "description": "{政治家勋章}\n\n佩带政治家勋章可大大减少你的投降费用。"
+  },
+  "diplomatsRing": {
+    "name": "礼仪之戒",
+    "event": "你帮助外交官修好了他的车轴。他赠你一枚戒指，说道：“它能帮助你说服别人”。",
+    "value": 5000,
+    "slots": [
+      "LEFT_RING",
+      "RIGHT_RING"
+    ],
+    "class": "MAJOR",
+    "description": "{礼仪之戒}\n\n佩带礼仪之戒可大大减少你的投降费用。"
+  },
+  "ambassadorsSash": {
+    "name": "大使勋带",
+    "event": "你帮助外交官修好了他的车轴。他赠你一条腰带，说道：“它能帮助你说服别人”。",
+    "value": 5000,
+    "slots": [
+      "SHOULDERS"
+    ],
+    "class": "MAJOR",
+    "description": "{大使勋带}\n\n佩带大使勋带可大大减少你的投降费用。"
+  },
+  "ringOfTheWayfarer": {
+    "name": "旅行者之戒",
+    "event": "你造访了一位当地的智者，交谈中，你叙述了旅途中的种种艰辛。他回转身，从口袋中掏出一枚奇怪的戒指送给你。",
+    "value": 5000,
+    "slots": [
+      "LEFT_RING",
+      "RIGHT_RING"
+    ],
+    "class": "MAJOR",
+    "description": "{旅行者之戒}\n\n佩带旅行者之戒可使你的部队的战斗速度+1。"
+  },
+  "equestriansGloves": {
+    "name": "骑士手套",
+    "event": "你在乡村小酒馆做短暂的停留。不经意间，拿错了行囊。从中你意外发现了一双神奇的手套。",
+    "value": 3000,
+    "slots": [
+      "LEFT_RING",
+      "RIGHT_RING"
+    ],
+    "class": "MINOR",
+    "description": "{骑士手套}\n\n戴上骑士手套可增加你的英雄在陆地上的移动点数。"
+  },
+  "necklaceOfOceanGuidance": {
+    "name": "海神项链",
+    "event": "一群食人魔正拷打一位老船长。你出手救下船长。作为回报，他送你一串项链，说这串项链能在海上指引方向。",
+    "value": 10000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "MAJOR",
+    "description": "{海神项链}\n\n佩带海神项链可增加你的英雄在大海上的移动点数。"
+  },
+  "angelWings": {
+    "name": "炽天之翼",
+    "event": "地上有一些物品。你拾了起来，旋即离开。",
+    "value": 20000,
+    "slots": [
+      "SHOULDERS"
+    ],
+    "class": "RELIC",
+    "description": "{炽天之翼}\n\n炽天之翼可让你飞起来。"
+  },
+  "charmOfMana": {
+    "name": "魔力护符",
+    "event": "途中遇到一群吉普赛人正举行宴会，酒池肉林，旁若无人。他们把你叫到跟前，“为我们跳支草裙舞吧，我们会给你奖赏。＂你并不会，但还是笨拙地扭动起身体。大伙笑得前俯后仰，但还是很欣赏你的勇气，给你一个奇怪的护符。",
+    "value": 500,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{魔力护符}\n\n魔力护符每天可帮你多恢复1点魔法值。"
+  },
+  "talismanOfMana": {
+    "name": "魔法护符",
+    "event": "途中遇到一群吉普赛人正举行宴会，酒池肉林，旁若无人。他们把你叫到跟前，“为我们跳支草裙舞吧，我们会给你奖赏。＂你并不会，但还是笨拙地扭动起身体。大伙笑得前俯后仰，但还是很欣赏你的勇气，给你一个奇怪的护身符。",
+    "value": 1000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{魔法护符}\n\n魔法护符每天可帮你多恢复2点魔法值。"
+  },
+  "mysticOrbOfMana": {
+    "name": "魔力球",
+    "event": "途中遇到一群吉普赛人正举行宴会，酒池肉林，旁若无人。他们把你叫到跟前，“为我们跳支草裙舞吧，我们会给你奖赏。＂你并不会，但还是笨拙地扭动起身体。大伙笑得前俯后仰，但还是很欣赏你的勇气，给你一个奇怪的水晶球。",
+    "value": 1500,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{魔力球}\n\n魔力球每天可帮你多恢复3点魔法值。"
+  },
+  "collarOfConjuring": {
+    "name": "魔力项圈",
+    "event": "在你面前悬浮着一只水晶匣，暗红的天鹅绒底座上摆着金色的项圈。刚想伸手去碰，匣盖突然打开，它飞到了你的手心里。",
+    "value": 500,
+    "slots": [
+      "NECK"
+    ],
+    "class": "TREASURE",
+    "description": "{魔力项圈}\n\n魔力项圈可使你的魔法持续时间+1。"
+  },
+  "ringOfConjuring": {
+    "name": "魔戒",
+    "event": "你发现一棵小树，样子酷似某个伟大的妖术师，枝头挂着一枚戒指。树上破烂的衣服和腐败的皮革令你怀疑它就是妖术师变的。但你也无能为力，只能取下戒指。",
+    "value": 1000,
+    "slots": [
+      "LEFT_RING",
+      "RIGHT_RING"
+    ],
+    "class": "TREASURE",
+    "description": "{魔戒}\n\n魔戒可使你的魔法持续时间+2。"
+  },
+  "capeOfConjuring": {
+    "name": "魔法披风",
+    "event": "在你面前悬浮着一只水晶匣，暗红的天鹅绒底座上摆着一件斗蓬。刚想伸手去碰，匣盖突然打开，斗蓬飞到了你的手心里。",
+    "value": 1500,
+    "slots": [
+      "SHOULDERS"
+    ],
+    "class": "TREASURE",
+    "description": "{魔法披风}\n\n魔法披风可使你的魔法持续时间+3。"
+  },
+  "orbOfTheFirmament": {
+    "name": "气灵球",
+    "event": "一位魔术师恳求你的保护。你同意了，他便拿出一个奇怪的元素之球作为酬劳。",
+    "value": 6000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{气灵球}\n\n气灵球可使你的气系魔法的杀伤力提高50%。"
+  },
+  "orbOfSilt": {
+    "name": "土灵球",
+    "event": "一位魔术师恳求你的保护。你同意了，他便拿出一个奇怪的元素之球作为酬劳。",
+    "value": 6000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{土灵球}\n\n土灵球可使你的土系魔法的杀伤力提高50%。"
+  },
+  "orbOfTempestuousFire": {
+    "name": "火灵球",
+    "event": "一位魔术师恳求你的保护。你同意了，他便拿出一个奇怪的元素之球作为酬劳。",
+    "value": 6000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{火灵球}\n\n火灵球可使你的火系魔法的杀伤力提高50%。"
+  },
+  "orbOfDrivingRain": {
+    "name": "水灵球",
+    "event": "一位魔术师恳求你的保护。你同意了，他便拿出一个奇怪的元素之球作为酬劳。",
+    "value": 6000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{水灵球}\n\n水灵球可使你的水系魔法的杀伤力提高50%。"
+  },
+  "recantersCloak": {
+    "name": "禁魔披风",
+    "event": "你从一头凶恶的黑熊爪下救出了可怜的村姑。感激之余，村姑用熊皮为你缝制了一件魔法披风。",
+    "value": 8000,
+    "slots": [
+      "SHOULDERS"
+    ],
+    "class": "MAJOR",
+    "description": "{禁魔披风}\n\n穿戴禁魔披风参加战斗时，你和你的对手都无法使用3级以上的魔法。"
+  },
+  "spiritOfOppression": {
+    "name": "禁锢之灵",
+    "event": "你来到一座远古城堡的废墟。在里面发现了摧毁这座城堡的工具----禁锢之灵。",
+    "value": 2000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{禁锢之灵}\n\n禁锢之灵在战斗中可同时降低你和你的对手的士气。"
+  },
+  "hourglassOfTheEvilHour": {
+    "name": "恶运沙漏",
+    "event": "前方的景象令你毛骨悚然，成百只秃鹫正啄食着战争留下的尸体。你拾起一个沙漏，便匆匆离开了。",
+    "value": 2000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{恶运沙漏}\n\n恶运沙漏在战斗中可同时降低你和你的对手的运气。"
+  },
+  "tomeOfFireMagic": {
+    "name": "火系魔法书",
+    "event": "一位魔术师恳求你的保护。你同意了，他便拿出一本元素魔法书作为酬劳。",
+    "value": 20000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{火系魔法书}\n\n这本厚书记载了所有的火系魔法，但只有装备之后才能运用上面的魔法。"
+  },
+  "tomeOfAirMagic": {
+    "name": "气系魔法书",
+    "event": "一位魔术师恳求你的保护。你同意了，他便拿出一本元素魔法书作为酬劳。",
+    "value": 20000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{气系魔法书}\n\n这本厚书记载了所有的气系魔法，但只有装备之后才能运用上面的魔法。"
+  },
+  "tomeOfWaterMagic": {
+    "name": "水系魔法书",
+    "event": "一位魔术师恳求你的保护。你同意了，他便拿出一本元素魔法书作为酬劳。",
+    "value": 20000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{水系魔法书}\n\n这本厚书记载了所有的水系魔法，但只有装备之后才能运用上面的魔法。"
+  },
+  "tomeOfEarthMagic": {
+    "name": "土系魔法书",
+    "event": "一位魔术师恳求你的保护。你同意了，他便拿出一本元素魔法书作为酬劳。",
+    "value": 20000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{土系魔法书}\n\n这本厚书记载了所有的土系魔法，但只有装备之后才能运用上面的魔法。"
+  },
+  "bootsOfLevitation": {
+    "name": "水神靴",
+    "event": "你造访了一位当地的智者，交谈中，你叙述了旅途中的种种艰辛。他回转身，从口袋中拿出一双奇异的靴子。",
+    "value": 10000,
+    "slots": [
+      "FEET"
+    ],
+    "class": "RELIC",
+    "description": "{水神靴}\n\n水神靴可让你在水面上行走。"
+  },
+  "goldenBow": {
+    "name": "黄金弓",
+    "event": "在一场与著名射手的较量中，你获得了胜利。",
+    "value": 8000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{黄金弓}\n\n黄金弓使你的部队射击时可以穿越障碍，不受任何约束。"
+  },
+  "sphereOfPermanence": {
+    "name": "永恒之球",
+    "event": "对面走来的正是与你相识多年的术士。一通寒暄之后，他给你一个水晶球，说它能防止敌人对你的驱魔大法。",
+    "value": 7500,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{永恒之球}\n\n永恒之球可以使你的部队免受驱魔大法的影响。"
+  },
+  "orbOfVulnerability": {
+    "name": "毁灭之球",
+    "event": "对面走来的正是与你相识多年的术士。一通寒暄之后，他给你一个水晶球，说它能使附近具有抗魔能力的生物同样被魔法伤害。",
+    "value": 25000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{毁灭之球}\n\n在战斗中，毁灭之球可以消除战场上所有生物的魔法抵抗力。"
+  },
+  "ringOfVitality": {
+    "name": "活力之戒",
+    "event": "漫长的旅途令你困乏，于是坐在路边的石块上休息起来。树丛中的声响引起了你的注意。一只山猫趴在树杈上，正想去掏枝头的乌鸦巢。你赶走山猫，在巢里发现了几颗闪光的石子和一枚戒指。",
+    "value": 5000,
+    "slots": [
+      "LEFT_RING",
+      "RIGHT_RING"
+    ],
+    "class": "TREASURE",
+    "description": "{活力之戒}\n\n活力之戒可以使你的部队的生命值+1。"
+  },
+  "ringOfLife": {
+    "name": "生命之戒",
+    "event": "漫长的旅途令你困乏，于是坐在路边的石块上休息起来。树丛中的声响引起了你的注意。一只山猫趴在树杈上，正想去掏枝头的乌鸦巢。你赶走山猫，在巢里发现了几颗闪光的石子和一枚戒指。",
+    "value": 5000,
+    "slots": [
+      "LEFT_RING",
+      "RIGHT_RING"
+    ],
+    "class": "MINOR",
+    "description": "{生命之戒}\n\n生命之戒可以使你的部队的生命值+1。"
+  },
+  "vialOfLifeblood": {
+    "name": "活力圣瓶",
+    "event": "树丛里神秘的寺庙吸引了你的视线。祭坛上摆着一瓶生命之血。你拿起瓶子转身离去。",
+    "value": 10000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{活力圣瓶}\n\n活力圣瓶可以使你的部队的生命值+2。"
+  },
+  "necklaceOfSwiftness": {
+    "name": "极速项链",
+    "event": "你造访了一位当地的智者，交谈中，你叙述了旅途中的种种艰辛。他回转身，从口袋中掏出一串奇异的项链。",
+    "value": 5000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "TREASURE",
+    "description": "{极速项链}\n\n佩带极速项链可以使你所有的部队的战斗速度+1。"
+  },
+  "bootsOfSpeed": {
+    "name": "神行靴",
+    "event": "你造访了一位当地的智者，交谈中，你叙述了旅途中的种种艰辛。他回转身，从口袋中拿出一双奇怪的靴子。",
+    "value": 6000,
+    "slots": [
+      "FEET"
+    ],
+    "class": "MINOR",
+    "description": "{神行靴}\n\n穿上神行靴可增加你的英雄在陆地上的移动点数。"
+  },
+  "capeOfVelocity": {
+    "name": "极速披风",
+    "event": "你在乡村小酒馆做短暂的停留。不经意间，拿错了行囊。从中你意外发现了一个神奇的披风。",
+    "value": 10000,
+    "slots": [
+      "SHOULDERS"
+    ],
+    "class": "MAJOR",
+    "description": "{极速披风}\n\n穿上极速披风可以使你所有的部队的战斗速度+2。"
+  },
+  "pendantOfDispassion": {
+    "name": "冷静挂件",
+    "event": "远处传来兵甲金戈之声，你不禁上前一看究竟。一个野蛮人正同一条九头龙展开殊死的搏斗。幸得你及时出手，野蛮人才躲过一劫。感激之余，他把用来在战斗中保持镇定的挂件送了给你。",
+    "value": 1000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "TREASURE",
+    "description": "{冷静挂件}\n\n佩带冷静挂件可使你的部队免受丧心病狂魔法的影响。"
+  },
+  "pendantOfSecondSight": {
+    "name": "光明挂件",
+    "event": "一位老妇失明多年，临死前还是举目无亲，无人照料。你答应她最后的愿望，将在她死后帮她下葬。老妇感激万分，拿出了一个魔法挂件。镶在上面的眼睛能使你闭目而知天下。",
+    "value": 5000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "MAJOR",
+    "description": "{光明挂件}\n\n佩带光明挂件可使你的部队免受双目失明魔法的影响。"
+  },
+  "pendantOfHoliness": {
+    "name": "神圣挂件",
+    "event": "你造访了一位隐士，他的屋子狭小简陋却也一尘不染。你的执著追求令他感动，他冥思良久，拿出一个抗魔咒符。",
+    "value": 1000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "TREASURE",
+    "description": "{神圣挂件}\n\n佩带神圣挂件可使你的部队免受恶咒附身魔法的影响。"
+  },
+  "pendantOfLife": {
+    "name": "生命挂件",
+    "event": "暴风过后，路边露出一条小道，径直通向坟墓。你发现此处曾有盗贼光顾，却留下一个嵌在金色链条上的T形十字章。",
+    "value": 2500,
+    "slots": [
+      "NECK"
+    ],
+    "class": "TREASURE",
+    "description": "{生命挂件}\n\n佩带生命挂件可使你的部队免受死亡波纹魔法的影响。"
+  },
+  "pendantOfDeath": {
+    "name": "死神挂件",
+    "event": "在与一个巫师的战斗中，你夺走了他的魔法挂件。",
+    "value": 2500,
+    "slots": [
+      "NECK"
+    ],
+    "class": "TREASURE",
+    "description": "{死神挂件}\n\n佩带死神挂件可使你的部队免受亡灵杀手魔法的影响。"
+  },
+  "pendantOfFreeWill": {
+    "name": "自由挂件",
+    "event": "在一场同一只小商队的摭骨游戏中，你赢得一个魔法挂件。从前的主人告诉你，它能驱走睡眠。",
+    "value": 1000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "TREASURE",
+    "description": "{自由挂件}\n\n佩带自由挂件可使你的部队免受蛊惑人心魔法的影响。"
+  },
+  "pendantOfNegativity": {
+    "name": "电神挂件",
+    "event": "你从一间被闪电摧毁的小屋里找到一枚挂件。",
+    "value": 5000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "MAJOR",
+    "description": "{电神挂件}\n\n佩带电神挂件可使你的部队免受霹雳闪电和连锁闪电的影响。"
+  },
+  "pendantOfTotalRecall": {
+    "name": "清醒挂件",
+    "event": "前面有一具女巫的尸体，旁边是一个漂亮的挂件。你走上前去，拾起挂件放入行囊中。 ",
+    "value": 3000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "TREASURE",
+    "description": "{清醒挂件}\n\n佩带清醒挂件可使你的部队免受失忆大法的影响。"
+  },
+  "pendantOfCourage": {
+    "name": "勇气挂件",
+    "event": "远处传来求救的哀号，一群水精灵正戏弄一位溺水老者。你救出老人，并把一个水精灵拖上岸来。干燥的空气使精灵痛苦不堪，只得拿出一个魔法挂件来求你饶命。",
+    "value": 7000,
+    "slots": [
+      "NECK"
+    ],
+    "class": "MAJOR",
+    "description": "{勇气挂件}\n\n佩带勇气挂件可使你的部队的士气和幸运值各+3。"
+  },
+  "everflowingCrystalCloak": {
+    "name": "水晶披风",
+    "event": "大雨不期而至，你的队伍只得在山洞躲雨。洞中一角的亮光引起了你的注意。进前一看，是一件披风。",
+    "value": 5000,
+    "slots": [
+      "SHOULDERS"
+    ],
+    "class": "MAJOR",
+    "description": "{水晶披风}\n\n穿上水晶披风可使每天的水晶产量+1。"
+  },
+  "ringOfInfiniteGems": {
+    "name": "宝石戒指",
+    "event": "你救出了一个中了猎人陷井的半人马。作为回报，他送你一只小钱袋。打开钱袋，里面竟是一枚戒指。",
+    "value": 5000,
+    "slots": [
+      "LEFT_RING",
+      "RIGHT_RING"
+    ],
+    "class": "MAJOR",
+    "description": "{宝石戒指}\n\n佩带宝石戒指可使每天的宝石产量+1。"
+  },
+  "everpouringVialOfMercury": {
+    "name": "水银瓶",
+    "event": "你来到一座被术士弃用的塔楼，里面桌上摆着一个魔法水银瓶。这样的宝物自然不容错过。趁四下无人，你抓起瓶子放进口袋。",
+    "value": 5000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{水银瓶}\n\n装备水银瓶可使每天的水银产量+1。"
+  },
+  "inexhaustibleCartOfOre": {
+    "name": "矿石车",
+    "event": "你发现了一处大耳怪为对付人类而制造兵器的营房。你大叫一声，埋伏在四下的队伍心领神会，蜂拥而上，赶走了大耳怪。在营房里，你找到了一辆永远装满矿石的推车。",
+    "value": 5000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MINOR",
+    "description": "{矿石车}\n\n装备矿石车可使每天的矿石产量+1。"
+  },
+  "eversmokingRingOfSulfur": {
+    "name": "硫磺指环",
+    "event": "你造访一位炼金术士。他被你部队的正气所折服，给你一枚硫磺指环，以帮你成就大业。",
+    "value": 5000,
+    "slots": [
+      "LEFT_RING",
+      "RIGHT_RING"
+    ],
+    "class": "MAJOR",
+    "description": "{硫磺指环}\n\n佩带硫磺指环可使每天的硫磺产量+1。"
+  },
+  "inexhaustibleCartOfLumber": {
+    "name": "木材车",
+    "event": "路边一辆装满木材的推车使你记起队伍已很久没有生火做饭。从推车里拿了许多次，可车里的木材丝毫没有减少。你欣喜异常，带上了这辆推车。",
+    "value": 5000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MINOR",
+    "description": "{木材车}\n\n装备木材车可使每天的木材产量+1。"
+  },
+  "endlessSackOfGold": {
+    "name": "黄金囊",
+    "event": "一个小妖精神色慌张，守卫着一个魔法袋。一见到你，他一声尖叫，便已消失在空气中。他好象就是那位老妖精曾告诉你的“失物守护者”。你拾起袋子，转身离去。",
+    "value": 10000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{黄金囊}\n\n装备黄金囊可使你每天的金币收入增加1000。"
+  },
+  "endlessBagOfGold": {
+    "name": "黄金袋",
+    "event": "一位与同伴走散的贵妇寻求你的帮助。在你把她安全护送回家后，她拿出一个黄金袋作为对你的酬劳。",
+    "value": 7500,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{黄金袋}\n\n装备黄金袋可使你每天的金币收入增加750。"
+  },
+  "endlessPurseOfGold": {
+    "name": "黄金包",
+    "event": "旅途中，你拾到一只装满黄金的皮包。它曾一度属于一位能够点石成金的国王。",
+    "value": 5000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{黄金包}\n\n装备黄金包可使你每天的金币收入增加500。"
+  },
+  "legsOfLegion": {
+    "name": "天赐神足",
+    "event": "你来到一处遗址，并在废墟之中找到一个雕像。你小心翼翼地拾了起来，擦去灰尘，放进包里。",
+    "value": 5000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "TREASURE",
+    "description": "{天赐神足}\n\n当驻守英雄装备此物时，可以使该城的2级生物每星期多增加5个。"
+  },
+  "loinsOfLegion": {
+    "name": "天赐神胯",
+    "event": "你来到一处遗址，并在废墟之中找到一个雕像。你小心翼翼地拾了起来，擦去灰尘，放进包里。",
+    "value": 5000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MINOR",
+    "description": "{天赐神胯}\n\n当驻守英雄装备此物时，可以使该城的3级生物每星期多增加4个。"
+  },
+  "torsoOfLegion": {
+    "name": "天赐神躯",
+    "event": "你来到一处遗址，并在废墟之中找到一个雕像。你小心翼翼地拾了起来，擦去灰尘，放进包里。",
+    "value": 5000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MINOR",
+    "description": "{天赐神躯}\n\n当驻守英雄装备此物时，可以使该城的4级生物每星期多增加3个。"
+  },
+  "armsOfLegion": {
+    "name": "天赐神臂",
+    "event": "你来到一处遗址，并在废墟之中找到一个雕像。你小心翼翼地拾了起来，擦去灰尘，放进包里。",
+    "value": 5000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{天赐神臂}\n\n当驻守英雄装备此物时，可以使该城的5级生物每星期多增加2个。"
+  },
+  "headOfLegion": {
+    "name": "天赐神首",
+    "event": "你来到一处遗址，并在废墟之中找到一个雕像。你小心翼翼地拾了起来，擦去灰尘，放进包里。",
+    "value": 5000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{天赐神首}\n\n当驻守英雄装备此物时，可以使该城的6级生物每星期多增加1个。"
+  },
+  "seaCaptainsHat": {
+    "name": "航海家之帽",
+    "event": "一位老船长告诉你，他年青时曾有一顶被施予魔法的帽子能令他的所有船员充满勇气。说罢，拿出一张褪了色的地图，指出那顶帽子的所在。历尽艰辛，你终于在一块巨大岩石下找到了帽子。",
+    "value": 15000,
+    "slots": [
+      "HEAD"
+    ],
+    "class": "RELIC",
+    "description": "{航海家之帽}\n\n戴上航海家之帽不仅大大增加你在海上的移动点数，还可使你免受漩涡的伤害，更可赋予你召唤及摧坏船只的能力。"
+  },
+  "spellbindersHat": {
+    "name": "魔法师之帽",
+    "event": "一条巨龙正在追赶一个术士。术士推开山脚下隐蔽的石门，一个猫腰钻了进去，然后石门又自行闭合，地上却留下了术士的帽子。巨龙无奈，扬长而去。你拾起帽子，转身离去。",
+    "value": 30000,
+    "slots": [
+      "HEAD"
+    ],
+    "class": "RELIC",
+    "description": "{魔法师之帽}\n\n戴上魔法师之帽可让你使用所有的5级魔法。"
+  },
+  "shacklesOfWar": {
+    "name": "战争枷锁",
+    "event": "你来到一座远古城堡的废墟。在里面发现了摧毁这座城堡的东西，战争枷锁。",
+    "value": 5000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "MAJOR",
+    "description": "{战争枷锁}\n\n在战斗中使用此物，你和你的对手都不能撤退或投降。"
+  },
+  "orbOfInhibition": {
+    "name": "禁魔球",
+    "event": "你帮助农夫追回了他的马匹。为表示感激，他送你一只小球。一握住它，便有一股不可思议的力量注入体内。",
+    "value": 20000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{禁魔球}\n\n禁魔球禁止在战斗中使用魔法。"
+  },
+  "vialOfDragonBlood": {
+    "name": "龙之血瓶",
+    "event": "你发现了一个洞穴，洞口有一条巨龙在守卫。经过一场生死搏斗，你杀死了巨龙，然后拿出一个瓶子，把珍贵的龙之血装在里面。",
+    "value": 20000,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{龙之血瓶}\n\n让手下的龙攻击力+5，防御力+5。"
+  },
+  "armageddonsBlade": {
+    "name": "末日之刃",
+    "event": "在地底的最深处，你发现了一幢历史久远的建筑物，里面放着一个诡异的盒子。你毫不犹豫的挥刀斩断了封印，得到了末日之刃。",
+    "value": 50000,
+    "slots": [
+      "RIGHT_HAND"
+    ],
+    "class": "RELIC",
+    "description": "{末日之刃}\n\n攻击力+3，防御力+3，知识+6，力量+3。可以使用高级末日审判魔法，同时不会受到对方的末日审判魔法的伤害。"
+  },
+  "angelicAlliance": {
+    "name": "天使联盟",
+    "event": "你得到了天使联盟。",
+    "value": 0,
+    "slots": [
+      "RIGHT_HAND"
+    ],
+    "class": "RELIC",
+    "description": "{天使联盟}\n\n使壁垒城、塔楼城、要塞城和据点城的兵种混合时不会士气下降。在战斗开始后立即施放“祈祷”魔法。"
+  },
+  "cloakOfTheUndeadKing": {
+    "name": "鬼王斗蓬",
+    "event": "你得到了鬼王斗蓬。",
+    "value": 0,
+    "slots": [
+      "SHOULDERS"
+    ],
+    "class": "RELIC",
+    "description": "{鬼王斗蓬}\n\n招魂术增强30%。此外，招魂术等级越高，招出的亡灵等级也越高。初级：僵尸。中级：幽灵。高级：尸巫。"
+  },
+  "elixirOfLife": {
+    "name": "神圣血瓶",
+    "event": "你得到了神圣血瓶。",
+    "value": 0,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{神圣血瓶}\n\n所有生物生命值增加25%，并且获得恢复能力。对亡灵和无生命的部队无效。"
+  },
+  "armorOfTheDamned": {
+    "name": "诅咒铠甲",
+    "event": "你得到了诅咒铠甲。",
+    "value": 0,
+    "slots": [
+      "TORSO"
+    ],
+    "class": "RELIC",
+    "description": "{诅咒铠甲}\n\n所有敌方部队受到迟缓大法、恶咒附身、虚弱无力和大难临头这四个魔法的影响，持续五轮。"
+  },
+  "statueOfLegion": {
+    "name": "天赐神兵",
+    "event": "你得到了天赐神兵。",
+    "value": 0,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{天赐神兵}\n\n所有城镇里的生物产量每周增加50%，但野外生物巢穴不受影响。"
+  },
+  "powerOfTheDragonFather": {
+    "name": "龙王神力",
+    "event": "你得到了龙王神力。",
+    "value": 0,
+    "slots": [
+      "TORSO"
+    ],
+    "class": "RELIC",
+    "description": "{龙王神力}\n\n所有属性+6，所有部队不受1-4级魔法的影响。"
+  },
+  "titansThunder": {
+    "name": "泰坦之箭",
+    "event": "你得到了泰坦之箭。",
+    "value": 0,
+    "slots": [
+      "RIGHT_HAND"
+    ],
+    "class": "RELIC",
+    "description": "{泰坦之箭}\n\n英雄永久获得魔法书，能在不消耗魔法值的情况下施放杀伤力为600的泰坦之箭魔法。"
+  },
+  "admiralsHat": {
+    "name": "海洋之帽",
+    "event": "你得到了海洋之帽。",
+    "value": 0,
+    "slots": [
+      "HEAD"
+    ],
+    "class": "RELIC",
+    "description": "{海洋之帽}\n\n自由上下船，在陆地和海洋上行动不受影响。"
+  },
+  "bowOfTheSharpshooter": {
+    "name": "幻影神弓",
+    "event": "你得到了幻影神弓。",
+    "value": 0,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{幻影神弓}\n\n远程部队在敌人近身时也能发射，弓箭不受距离和地形的影响。"
+  },
+  "wizardsWell": {
+    "name": "魔力源泉",
+    "event": "你得到了魔力源泉。",
+    "value": 0,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{魔力源泉}\n\n每天恢复所有的魔法值。"
+  },
+  "ringOfTheMagi": {
+    "name": "法师之戒",
+    "event": "你得到了法师之戒。",
+    "value": 0,
+    "slots": [
+      "LEFT_RING",
+      "RIGHT_RING"
+    ],
+    "class": "RELIC",
+    "description": "{法师之戒}\n\n魔法持续时间增加50回合。"
+  },
+  "cornucopia": {
+    "name": "丰收之角",
+    "event": "你得到了富饶之器。",
+    "value": 0,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{丰收之角}\n\n水银、宝石、水晶和硫磺的产量每天增加4。"
+  },
+  "unusedArtifact1": {
+    "name": "法师之杖",
+    "event": "你得到了法师之杖。",
+    "value": 0,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{法师之杖}\n\n每日变换英雄装备的宝物。（该版本无此宝物，如果你得到，可能是bug。）\n{第一格}：头盔和项链；\n{第二格}：武器和盾；\n{第三格}：左右手指环；\n{第四格}：盔甲和鞋子；\n{第五格}：披风和杂物栏第四格的杂物。"
+  },
+  "unusedArtifact2": {
+    "name": "金城箭",
+    "event": "你得到了金城箭。",
+    "value": 0,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{金城箭}\n\n赋予箭塔额外的能力。攻城时守方箭塔无法攻击，守城时箭塔视英雄弹道术的级别而增加攻击次数：（该版本无此宝物，如果你得到，可能是bug。）\n无弹道术：连射2次；\n初级弹道术：连射3次；\n高级弹道术：连射4次；\n专家弹道术：连射5次。\n如果攻守城双方都带有金箭，则攻方金箭无效。"
+  },
+  "unusedArtifact3": {
+    "name": "水滴",
+    "event": "你得到了怪物神力。",
+    "value": 0,
+    "slots": [
+      "MISC5",
+      "MISC4",
+      "MISC3",
+      "MISC2",
+      "MISC1"
+    ],
+    "class": "RELIC",
+    "description": "{水滴}\n\n这个奇怪的水滴状物体可能来自于某个神秘的星球，学者说这是那里来的探测器，以我们目前的认知，完全不能获知它的秘密。"
+  }
+}

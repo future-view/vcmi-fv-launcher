@@ -1,0 +1,360 @@
+{
+	"type" : "object",
+	"$schema" : "http://json-schema.org/draft-04/schema",
+	"title" : "VCMI mod file format",
+	"description" : "Format used to define main mod file (mod.json) in VCMI",
+	"required" : [ "name", "modType", "version", "author" ],
+	"definitions" : {
+		"fileListOrObject" : {
+			"oneOf" : [
+				{
+					"type" : "array",
+					"items" : { "type" : "string", "format" : "textFile" }
+				},
+				{
+					"type" : "object"
+				}
+			]
+		},
+		"localizable" : {
+			"type" : "object",
+			"additionalProperties" : false,
+			"properties" : {
+				"name" : {
+					"type" : "string",
+					"description" : "Short name of your mod. No more than 2-3 words"
+				},
+				"description" : {
+					"type" : "string",
+					"description" : "More lengthy description of mod. No hard limit"
+				},
+				"author" : {
+					"type" : "string",
+					"description" : "Author of the mod. Can be nickname, real name or name of team"
+				},
+				"changelog" : {
+					"type" : "object",
+					"description" : "List of changes/new features in each version",
+					"additionalProperties" : {
+						"type" : "array",
+						"items" : { "type" : "string" }
+					}
+				},
+				"skipValidation" : {
+					"type" : "boolean",
+					"description" : "If set to true, vcmi will skip validation of current translation json files"
+				},
+				"translations" : {
+					"description" : "List of files with translations for this language",
+					"$ref" : "#/definitions/fileListOrObject"
+				}
+			}
+		}
+	},
+	
+	"additionalProperties" : false,
+	"properties" : {
+		"name" : {
+			"type" : "string",
+			"description" : "Short name of your mod. No more than 2-3 words"
+		},
+		"description" : {
+			"type" : "string",
+			"description" : "More lengthy description of mod. No hard limit"
+		},
+		"descriptionURL" : {
+			"type" : "string",
+			"description" : "URL to location of external description of mod. No hard limit"
+		},
+		"modType" : {
+			"type" : "string",
+			"enum" : [ "Translation", "Town", "Test", "Templates", "Spells", "Music", "Maps", "Sounds", "Skills", "Other", "Objects", "Mechanics", "Interface", "Heroes", "Graphical", "Expansion", "Creatures", "Compatibility", "Campaigns", "Artifacts", "AI", "Resources", "Demo" ],
+			"description" : "Type of mod, e.g. Town, Artifacts, Graphical."
+		},
+		"author" : {
+			"type" : "string",
+			"description" : "Author of the mod. Can be nickname, real name or name of team"
+		},
+		"downloadSize": {
+			"type" : "number",
+			"description" : "Approximate size of mod, compressed by zip algorithm, in Mb"
+		},
+		"contact" : {
+			"type" : "string",
+			"description" : "Home page of mod or link to forum thread"
+		},
+		"licenseName" : {
+			"type" : "string",
+			"description" : "Name of the license, recommended is Creative Commons Attribution-ShareAlike"
+		},
+		"licenseURL" : {
+			"type" : "string",
+			"description" : "Url to license text, e.g. http://creativecommons.org/licenses/by-sa/4.0/deed"
+		},
+		"version" : {
+			"type" : "string",
+			"format" : "version",
+			"description" : "Current mod version, up to 3 numbers, dot-separated. Format: A.B.C"
+		},
+		"changelog" : {
+			"type" : "object",
+			"description" : "List of changes/new features in each version",
+			"additionalProperties" : {
+				"type" : "array",
+				"items" : { "type" : "string" }
+			}
+		},
+		"compatibility" : {
+			"type" : "object",
+			"description" : "Supported versions of vcmi engine",
+			"additionalProperties" : false,
+			"properties" : {
+				"min" : {
+					"type" : "string",
+					"description" : "minimal compatible vcmi engine version in a format major.minor.patch. When specified, earlier versions won't be supported"
+					//"pattern" : "^\\d+\\.\\d+\\.\\d+$" // Not implemented in schema support
+				},
+				"max" : {
+					"type" : "string",
+					"description" : "maximum compatible vcmi engine version in a format major.minor.patch. When specified, later versions won't be supported"
+					//"pattern" : "^\\d+\\.\\d+\\.\\d+$" // Not implemented in schema support
+				}
+			}
+		},
+		"depends" : {
+			"type" : "array",
+			"description" : "List of mods that are required to run this one",
+			"items" : { "type" : "string" }
+		},
+		"softDepends" : {
+			"type" : "array",
+			"description" : "List of mods if they are enabled, should be loaded before this one. This mod will overwrite any conflicting items from its soft dependency mods",
+			"items" : { "type" : "string" }
+		},
+		"conflicts" : {
+			"type" : "array",
+			"description" : "List of mods that can't be enabled in the same time as this one",
+			"items" : { "type" : "string" }
+		},
+		"keepDisabled" : {
+			"type" : "boolean",
+			"description" : "If set to true, mod will not be enabled automatically on install"
+		},
+		"settings" : {
+			"description" : "List of changed game settings by mod",
+			"oneOf" : [
+				{
+					"type" : "object",
+					"$ref" : "gameSettings.json"
+				},
+				{
+					"type" : "array",
+					"items" : { "type" : "string", "format" : "textFile" }
+				}
+			]
+		},
+		"filesystem" : {
+			"type" : "object",
+			"description" : "Optional, description on how files are organized in your mod. In most cases you do not need to use this field",
+			"additionalProperties" : {
+				"type" : "array",
+				"description" : "list of data sources attached to this mount point",
+				"items" : {
+					"type" : "object",
+					"additionalProperties" : false,
+					"properties" : {
+						"path" : {
+							"type" : "string",
+							"description" : "Path to data source"
+						},
+						"type" : {
+							"type" : "string",
+							"enum" : [ "dir", "lod", "snd", "vid", "map", "zip" ],
+							"description" : "Type of data source"
+						}
+					}
+				}
+			}
+		},
+		"language" : {
+			"type" : "string",
+			"description" : "Base language of the mod, before applying localizations. By default vcmi assumes English",
+			"enum" : [ "belarusian", "bulgarian", "czech", "chinese", "tchinese", "dutch", "english", "filipino", "finnish", "french", "german", "greek", "hungarian", "italian", "japanese", "korean", "latvian", "lithuanian", "norwegian", "polish", "portuguese", "romanian", "russian", "serbian", "spanish", "swedish", "turkish", "ukrainian", "vietnamese" ]
+		},
+		"belarusian" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"bulgarian" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"czech" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"chinese" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"tchinese" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"dutch" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"english" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"filipino" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"finnish" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"french" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"german" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"greek" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"hungarian" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"italian" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"japanese" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"korean" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"latvian" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"lithuanian" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"norwegian" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"polish" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"portuguese" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"romanian" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"russian" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"serbian" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"spanish" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"swedish" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"turkish" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"ukrainian" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"vietnamese" : {
+			"$ref" : "#/definitions/localizable"
+		},
+		"translations" : {
+			"description" : "List of files with translations for this language",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"factions" : {
+			"description" : "List of configuration files for towns/factions",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"heroClasses" : {
+			"description" : "List of configuration files for hero classes",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"heroes" : {
+			"description" : "List of configuration files for heroes",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"skills" : {
+			"description" : "List of configuration files for skills",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"creatures" : {
+			"description" : "List of configuration files for creatures",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"campaignRegions" : {
+			"description" : "List of configuration files for campaign regions",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"artifacts" : {
+			"description" : "List of configuration files for artifacts",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"spellSchools" : {
+			"description" : "List of configuration files for spell schools",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"spellEffects" : {
+			"description" : "List of configuration files for spell effects",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"spells" : {
+			"description" : "List of configuration files for spells",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"objects" : {
+			"description" : "List of configuration files for objects",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"biomes" : {
+			"description" : "List of configuration files for biomes",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"bonuses" : {
+			"description" : "List of configuration files for bonuses",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"terrains" : {
+			"description" : "List of configuration files for terrains",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"resources" : {
+			"description" : "List of configuration files for resources",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"roads" : {
+			"description" : "List of configuration files for roads",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"rivers" : {
+			"description" : "List of configuration files for rivers",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"battlefields" : {
+			"description" : "List of configuration files for battlefields",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"obstacles" : {
+			"description" : "List of configuration files for obstacles",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"mapLayers" : {
+			"description" : "List of configuration files for map layers",
+			"$ref" : "#/definitions/fileListOrObject"
+		},
+		"templates" : {
+			"description" : "List of configuration files for RMG templates",
+			"$ref" : "#/definitions/fileListOrObject"
+		}
+	}
+}

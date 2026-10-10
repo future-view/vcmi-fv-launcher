@@ -1,0 +1,25 @@
+# Change Log
+
+See [How to write this file](docs/guides/release.zh-CN.md#changelog-syntax) for the syntax.
+
+## v0.1.0
+
+### english
+- **Mod view**: split panel with town backgrounds — left gallery with search & category, right panel groups selected mods by type; dependencies auto-checked, conflicts flagged red
+- **Preset manager**: searchable dropdown to switch presets, save-on-change, and a "more" menu (new with inherit / rename / import-export VCMI native format / delete / Markdown enable report)
+- **Wiki**: offline browsable reference with per-category detail pages (buildings, creatures, heroes, factions, artifacts, spells, skills, mods, terrains)
+- **Realms**: isolated mod-combo environments that separate the user-data `Mods/` from the game directory
+- **Launcher auto-update**: in-app update checks and one-click upgrade
+- **Settings**: official 12-section schema rendered as a searchable panel with sticky search
+- **Multi-language UI**: launcher in 5 languages (zh / en / ru / pl / de); mod text resolved by VCMI language id
+- **Portable single-folder deployment**: all data lives in `.vcmi-fv-launcher/` next to the exe
+
+### chinese
+- **模组视图**：带城镇背景图的左右分栏——左侧画廊（搜索/分类），右侧按类型分组已选模组；依赖自动勾选、冲突标红
+- **预设管理**：可搜索下拉切换预设、遇变动即保存，更多菜单（新建含继承 / 重命名 / 导入导出 VCMI 原生格式 / 删除 / Markdown 启用报告）
+- **百科**：离线可浏览参考，按类别分发详情页（建筑/生物/英雄/城镇/神器/法术/技能/Mod/地形）
+- **领域系统**：隔离用户目录 `Mods/` 的模组组合环境
+- **启动器自动更新**：应用内检查更新、一键升级
+- **设置面板**：官方 12 节 schema，可搜索、搜索栏置顶
+- **多语言界面**：启动器支持 5 种语言（中/英/俄/波/德），模组文本按 VCMI 语言标识取词
+- **便携单文件夹部署**：全部数据位于 exe 同级的 `.vcmi-fv-launcher/`

@@ -1,0 +1,848 @@
+{
+  "summonBoat": {
+    "name": "Summon Boat",
+    "level": 1,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Summon Boat}\n\nSummons an existing, friendly, unoccupied boat from anywhere in the world to your location.\n\nChances for success are 50%.\n",
+      "advanced": "{Advanced Summon Boat}\n\nSummons an existing, friendly, unoccupied boat from anywhere in the world to your location.  If no boats exist, one is created.\n\nChances for success are 75%.\n",
+      "expert": "{Expert Summon Boat}\n\nSummons an existing, friendly, unoccupied boat from anywhere in the world to your location.  If no boats exist, one is created.\n"
+    }
+  },
+  "scuttleBoat": {
+    "name": "Scuttle Boat",
+    "level": 2,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Scuttle Boat}\n\nDestroys a boat you own.  Use with caution, the effects are permanent.\n\nChances for success are 50%.\n",
+      "advanced": "{Advanced Scuttle Boat}\n\nDestroys a boat you own.  Use with caution, the effects are permanent.\n\nChances for success are 75%.\n",
+      "expert": "{Expert Scuttle Boat}\n\nDestroys a boat you own.  Use with caution, the effects are permanent.\n"
+    }
+  },
+  "visions": {
+    "name": "Visions",
+    "level": 2,
+    "schools": [
+      "earth",
+      "water",
+      "fire",
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Visions}\n\nGives you a basic idea of the strength of an opposing hero or garrison.  In the case of nearby wandering monsters, gives you exact numbers of troops and tells you if they would be willing to join your hero.\n",
+      "advanced": "{Advanced Visions}\n\nGives you a basic idea of the strength of an opposing garrison.  In the case of nearby wandering monsters, gives you exact numbers of troops and tells you if they would be willing to join your hero.  Allows you to view a nearby enemy hero's primary skill statistics, creature type and quantity, as if the hero was part of your kingdom.\n",
+      "expert": "{Expert Visions}\n\nGives you exact numbers of wandering monsters and tells you if they would be willing to join your hero.  Allows you to view a nearby enemy hero's primary skill statistics, creature type and quantity, as if the hero was part of your kingdom, as well as a nearby town's statistics, garrison creatures and quantity.\n"
+    }
+  },
+  "viewEarth": {
+    "name": "View Earth",
+    "level": 1,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic View Earth}\n\nReveals the location of all resources to the caster.\n",
+      "advanced": "{Advanced View Earth}\n\nReveals the location of all resources and mines to the caster.\n",
+      "expert": "{Expert View Earth}\n\nReveals the location of all resources and mines and reveals all terrain to the caster.\n"
+    }
+  },
+  "disguise": {
+    "name": "Disguise",
+    "level": 2,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Disguise}\n\nMakes all units in your army look like your most powerful unit to enemies trying to view your hero.  Numbers in each group are unchanged.\n",
+      "advanced": "{Advanced Disguise}\n\nMakes all units in your army look like your most powerful unit to enemies trying to view your hero.  Numbers in each group appear as zero.\n",
+      "expert": "{Expert Disguise}\n\nMakes all units in your army look like the most powerful unit affiliated to your hero type to enemies trying to view your hero.  Numbers in each group appear as zero.\n"
+    }
+  },
+  "viewAir": {
+    "name": "View Air",
+    "level": 1,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic View Air}\n\nReveals the location of all unclaimed artifacts to the caster.\n",
+      "advanced": "{Advanced View Air}\n\nReveals the location of all unclaimed artifacts, plus enemy heroes to the caster.\n",
+      "expert": "{Expert View Air}\n\nReveals the location of all unclaimed artifacts, plus enemy heroes and towns to the caster.\n"
+    }
+  },
+  "fly": {
+    "name": "Fly",
+    "level": 5,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Fly}\n\nAllows your army to use part of its movement to fly over obstacles.  You must land at the end of the turn.\n",
+      "advanced": "{Advanced Fly}\n\nAllows your army to use most of its movement to fly over obstacles.  You must land at the end of the turn.\n",
+      "expert": "{Expert Fly}\n\nAllows your army to use up to all of its movement to fly over obstacles.  You must land at the end of the turn.\n"
+    }
+  },
+  "waterWalk": {
+    "name": "Water Walk",
+    "level": 4,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Water Walk}\n\nAllows your army to use part of its movement to walk across bodies of water.  You must end your movement on dry land.\n",
+      "advanced": "{Advanced Water Walk}\n\nAllows your army to use most of its movement to walk across bodies of water.  You must end your movement on dry land.\n",
+      "expert": "{Expert Water Walk}\n\nAllows your army to use up to all of its movement to walk across bodies of water.  You must end your movement on dry land.\n"
+    }
+  },
+  "dimensionDoor": {
+    "name": "Dimension Door",
+    "level": 5,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Dimension Door}\n\nTwice per day, you may teleport your hero to a visible, unoccupied location on the adventure map.\n",
+      "advanced": "{Advanced Dimension Door}\n\nThree times per day, you may teleport your hero to a visible, unoccupied location on the adventure map.\n",
+      "expert": "{Expert Dimension Door}\n\nFour times per day, you may teleport your hero to a visible, unoccupied location on the adventure map.\n"
+    }
+  },
+  "townPortal": {
+    "name": "Town Portal",
+    "level": 4,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Town Portal}\n\nTeleports your hero to the nearest friendly town.  The town must be unoccupied.\n",
+      "advanced": "{Advanced Town Portal}\n\nTeleports your hero to any friendly town.  The town must be unoccupied.\n",
+      "expert": "{Expert Town Portal}\n\nTeleports your hero to any friendly town.  The town must be unoccupied.\n"
+    }
+  },
+  "quicksand": {
+    "name": "Quicksand",
+    "level": 2,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Quicksand}\n\nRandomly places four small patches of quicksand on the battlefield which are only visible to the caster and creatures native to the terrain.  Walking into quicksand ends a unit's movement for the turn and makes it visible to all.\n",
+      "advanced": "{Advanced Quicksand}\n\nRandomly places six small patches of quicksand on the battlefield which are only visible to the caster and creatures native to the terrain.  Walking into quicksand ends a unit's movement for the turn and makes it visible to all.\n",
+      "expert": "{Expert Quicksand}\n\nRandomly places eight small patches of quicksand on the battlefield which are only visible to the caster and creatures native to the terrain.  Walking into quicksand ends a unit's movement for the turn and makes it visible to all.\n"
+    }
+  },
+  "landMine": {
+    "name": "Land Mine",
+    "level": 3,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Land Mine}\n\nRandomly places four small areas of landmines on the battlefield which are only visible to the caster and creatures native to the terrain.  It inflicts damage to any unit walking over it.\n",
+      "advanced": "{Advanced Land Mine}\n\nRandomly places six small areas of landmines on the battlefield which are only visible to the caster and creatures native to the terrain.  It inflicts damage to any unit walking over it.\n\nInflicted damage 25 points more than Basic Land Mine.\n",
+      "expert": "{Expert Land Mine}\n\nRandomly places eight small areas of landmines on the battlefield which are only visible to the caster and creatures native to the terrain.  It inflicts damage to any unit walking over it.\n\nInflicted damage 75 points more than Basic Land Mine.\n"
+    }
+  },
+  "forceField": {
+    "name": "Force Field",
+    "level": 3,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Force Field}\n\nPlaces a small Force Field on the battlefield at a point specified by the caster. \n",
+      "advanced": "{Advanced Force Field}\n\nPlaces a medium sized Force Field on the battlefield at a point specified by the caster.\n",
+      "expert": "{Expert Force Field}\n\nPlaces a medium sized Force Field on the battlefield at a point specified by the caster.\n"
+    }
+  },
+  "fireWall": {
+    "name": "Fire Wall",
+    "level": 2,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Fire Wall}\n\nPlaces a small wildfire on the battlefield at a point specified by the caster.  Any units passing through the wall take damage.\n",
+      "advanced": "{Advanced Fire Wall}\n\nPlaces a medium sized wildfire on the battlefield at a point specified by the caster.  Any units passing through the wall take damage.\n",
+      "expert": "{Expert Fire Wall}\n\nPlaces a medium sized wildfire on the battlefield at a point specified by the caster.  Any units passing through the wall take damage.\n"
+    }
+  },
+  "earthquake": {
+    "name": "Earthquake",
+    "level": 3,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Earthquake}\n\nRandomly damages two sections of castle wall in combat.\n",
+      "advanced": "{Advanced Earthquake}\n\nRandomly damages three sections of castle wall in combat.\n",
+      "expert": "{Expert Earthquake}\n\nRandomly damages four sections of castle wall in combat.\n"
+    }
+  },
+  "magicArrow": {
+    "name": "Magic Arrow",
+    "level": 1,
+    "schools": [
+      "earth",
+      "water",
+      "fire",
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Magic Arrow}\n\nCauses a bolt of magical energy to strike the selected unit.\n",
+      "advanced": "{Advanced Magic Arrow}\n\nCauses a bolt of magical energy to strike the selected unit.\n\nDamage inflicted is 10 points more than Basic Magic Arrow.\n",
+      "expert": "{Expert Magic Arrow}\n\nCauses a bolt of magical energy to strike the selected unit.\n\nDamage inflicted is 20 points more than Basic Magic Arrow.\n"
+    }
+  },
+  "iceBolt": {
+    "name": "Ice Bolt",
+    "level": 2,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Ice Bolt}\n\nDrains the body heat from the selected enemy unit.\n",
+      "advanced": "{Advanced Ice Bolt}\n\nDrains the body heat from the selected enemy unit.\n\nDamage inflicted is 10 points more than Basic Ice Bolt.\n",
+      "expert": "{Expert Ice Bolt}\n\nDrains the body heat from the selected enemy unit.\n\nDamage inflicted is 40 points more than Basic Ice Bolt.\n"
+    }
+  },
+  "lightningBolt": {
+    "name": "Lightning Bolt",
+    "level": 2,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Lightning Bolt}\n\nCauses a bolt of lightning to strike the selected unit.\n",
+      "advanced": "{Advanced Lightning Bolt}\n\nCauses a bolt of lightning to strike the selected unit.\n\nDamage inflicted is 10 points more than Basic Lightning Bolt.\n",
+      "expert": "{Expert Lightning Bolt}\n\nCauses a bolt of lightning to strike the selected unit.\n\nDamage inflicted is 40 points more than Basic Lightning Bolt.\n"
+    }
+  },
+  "implosion": {
+    "name": "Implosion",
+    "level": 5,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Implosion}\n\nInflicts massive damage to a single creature stack.\n",
+      "advanced": "{Advanced Implosion}\n\nInflicts massive damage to a single creature stack.\n\nDamage inflicted is 100 points more than Basic Implosion.\n",
+      "expert": "{Expert Implosion}\n\nInflicts massive damage to a single creature stack.\n\nDamage inflicted 200 points more than Basic Implosion.\n"
+    }
+  },
+  "chainLightning": {
+    "name": "Chain Lightning",
+    "level": 4,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Chain Lightning}\n\nFires a bolt of lightning at the selected unit which then travels to the nearest adjacent unit, inflicting half damage before traveling to the next adjacent unit, again inflicting half damage, etc.  Strikes four units.\n",
+      "advanced": "{Advanced Chain Lightning}\n\nFires a bolt of lightning at the selected unit which then travels to the nearest adjacent unit, inflicting half damage before traveling to the next adjacent unit, again inflicting half damage, etc.  Strikes five units.\n\nBase Damage inflicted is 25 points more than Basic Chain Lightning.\n",
+      "expert": "{Expert Chain Lightning}\n\nFires a bolt of lightning at the selected unit which then travels to the nearest adjacent unit, inflicting half damage before traveling to the next adjacent unit, again inflicting half damage, etc.  Strikes five units.\n\nBase Damage inflicted is 75 points more than Basic Chain Lightning.\n"
+    }
+  },
+  "frostRing": {
+    "name": "Frost Ring",
+    "level": 3,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Frost Ring}\n\nDrains the body heat of any units adjacent to the target location, without inflicting damage on the target.\n",
+      "advanced": "{Advanced Frost Ring}\n\nDrains the body heat of any units adjacent to the target location, without inflicting damage on the target.\n\nDamage inflicted is 15 points more than Basic Frost Ring.\n",
+      "expert": "{Expert Frost Ring}\n\nDrains the body heat of any units adjacent to the target location, without inflicting damage on the target.\n\nDamage inflicted is 45 points more than Basic Frost Ring.\n"
+    }
+  },
+  "fireball": {
+    "name": "Fireball",
+    "level": 3,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Fireball}\n\nCauses the selected target to burst into flames, inflicting fire damage to the target and any adjacent units.\n",
+      "advanced": "{Advanced Fireball}\n\nCauses the selected target to burst into flames, inflicting fire damage to the target and any adjacent units.\n\nDamage inflicted is 15 points more than Basic Fireball.\n",
+      "expert": "{Expert Fireball}\n\nCauses the selected target to burst into flames, inflicting fire damage to the target and any adjacent units.\n\nDamage inflicted is 45 points more than Basic Fireball.\n"
+    }
+  },
+  "inferno": {
+    "name": "Inferno",
+    "level": 4,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Inferno}\n\nCauses a huge blast of fire to strike the selected target.  Don't be near this when it goes off!\n",
+      "advanced": "{Advanced Inferno}\n\nCauses a huge blast of fire to strike the selected target.  Don't be near this when it goes off!\n\nDamage inflicted is 20 points more than Basic Inferno.\n",
+      "expert": "{Expert Inferno}\n\nCauses a huge blast of fire to strike the selected target.  Don't be near this when it goes off!\n\nDamage inflicted is 60 points more than Basic Inferno.\n"
+    }
+  },
+  "meteorShower": {
+    "name": "Meteor Shower",
+    "level": 4,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Meteor Shower}\n\nCauses a meteor shower to rain down on the selected target and any adjacent units.\n",
+      "advanced": "{Advanced Meteor Shower}\n\nCauses a meteor shower to rain down on the selected target and any adjacent units.\n\nDamage inflicted is 25 points more than Basic Meteor Shower.\n",
+      "expert": "{Expert Meteor Shower}\n\nCauses a meteor shower to rain down on the selected target and any adjacent units.\n\nDamage inflicted is 75 points more than Basic Meteor Shower.\n"
+    }
+  },
+  "deathRipple": {
+    "name": "Death Ripple",
+    "level": 2,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Death Ripple}\n\nSends a wave of death across the battlefield which damages all non-undead units.\n",
+      "advanced": "{Advanced Death Ripple}\n\nSends a wave of death across the battlefield which damages all non-undead units.\n\nDamage inflicted is 10 points more than Basic Death Ripple.\n",
+      "expert": "{Expert Death Ripple}\n\nSends a wave of death across the battlefield which damages all non-undead units.\n\nDamage inflicted is 20 points more than Basic Death Ripple.\n"
+    }
+  },
+  "destroyUndead": {
+    "name": "Destroy Undead",
+    "level": 3,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Destroy Undead}\n\nAttempts to destroy any undead creatures on the battlefield.\n",
+      "advanced": "{Advanced Destroy Undead}\n\nAttempts to destroy any undead creatures on the battlefield.\n\nDamage inflicted is 10 points more than Basic Destroy Undead.\n",
+      "expert": "{Expert Destroy Undead}\n\nAttempts to destroy any undead creatures on the battlefield.\n\nDamage inflicted is 40 points more than Basic Destroy Undead.\n"
+    }
+  },
+  "armageddon": {
+    "name": "Armageddon",
+    "level": 4,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Armageddon}\n\nRains fire down upon the battlefield, damaging all units.\n",
+      "advanced": "{Advanced Armageddon}\n\nRains fire down upon the battlefield, damaging all units.\n\nDamage inflicted is 30 points more than Basic Armageddon.\n",
+      "expert": "{Expert Armageddon}\n\nRains fire down upon the battlefield, damaging all units.\n\nDamage inflicted is 90 points more than Basic Armageddon.\n"
+    }
+  },
+  "shield": {
+    "name": "Shield",
+    "level": 1,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Shield}\n\nShields a selected unit, reducing the amount of damage received from hand-to-hand attacks.\n",
+      "advanced": "{Advanced Shield}\n\nShields a selected unit, reducing the amount of damage received from hand-to-hand attacks.\n\nProtection is twice that of Basic Shield.\n",
+      "expert": "{Expert Shield}\n\nShields all friendly units, reducing the amount of damage received from hand-to-hand attacks.\n\nProtection is twice that of Basic Shield.\n"
+    }
+  },
+  "airShield": {
+    "name": "Air Shield",
+    "level": 3,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Air Shield}\n\nShields a selected unit, reducing the amount of damage received from ranged attacks.\n",
+      "advanced": "{Advanced Air Shield}\n\nShields a selected unit, reducing the amount of damage received from ranged attacks.\n\nProtection is twice that of Basic Air Shield.\n",
+      "expert": "{Expert Air Shield}\n\nShields all friendly units, reducing the amount of damage received from ranged attacks.\n\nProtection is twice that of Basic Air Shield.\n"
+    }
+  },
+  "fireShield": {
+    "name": "Fire Shield",
+    "level": 4,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Fire Shield}\n\nCast on a friendly unit, it does not provide any additional protection, but any enemy attacking through the fire shield will suffer damage equal to a portion of what it inflicts.\n",
+      "advanced": "{Advanced Fire Shield}\n\nCast on a friendly unit, it does not provide any additional protection, but any enemy attacking through the fire shield will suffer damage equal to a portion of what it inflicts.\n\nDamage to attacking enemy units is 5% more than Basic Fire Shield.\n",
+      "expert": "{Expert Fire Shield}\n\nCast on a friendly unit, it does not provide any additional protection, but any enemy attacking through the fire shield will suffer damage equal to a portion of what it inflicts.\n\nDamage to attacking enemy units is 10% more than Basic Fire Shield.\n"
+    }
+  },
+  "protectAir": {
+    "name": "Protection from Air",
+    "level": 2,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Protection from Air}\n\nProtects the selected unit, reducing damage received from Air spells.\n",
+      "advanced": "{Advanced Protection from Air}\n\nProtects the selected unit, reducing damage received from Air spells.\n\nProtection is nearly twice that of Basic Protection from Air.\n",
+      "expert": "{Expert Protection from Air}\n\nProtects the selected unit, reducing damage received from Air spells.\n\nProtection is nearly twice that of Basic Protection from Air.\n"
+    }
+  },
+  "protectFire": {
+    "name": "Protection from Fire",
+    "level": 1,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Protection from Fire}\n\nProtects the selected unit, reducing damage received from Fire spells.\n",
+      "advanced": "{Advanced Protection from Fire}\n\nProtects the selected unit, reducing damage received from Fire spells.\n\nProtection is nearly twice that of Basic Protection from Fire.\n",
+      "expert": "{Expert Protection from Fire}\n\nProtects the selected unit, reducing damage received from Fire spells.\n\nProtection is nearly twice that of Basic Protection from Fire.\n"
+    }
+  },
+  "protectWater": {
+    "name": "Prot. from Water",
+    "level": 1,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Protection from Water}\n\nProtects the selected unit, reducing damage received from Water spells.\n",
+      "advanced": "{Advanced Protection from Water}\n\nProtects the selected unit, reducing damage received from Water spells.\n\nProtection is nearly twice that of Basic Protection from Water.\n",
+      "expert": "{Expert Protection from Water}\n\nProtects the selected unit, reducing damage received from Water spells.\n\nProtection is nearly twice that of Basic Protection from Water.\n"
+    }
+  },
+  "protectEarth": {
+    "name": "Prot. from Earth",
+    "level": 3,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Protection from Earth}\n\nProtects the selected unit, reducing damage received from Earth spells.\n",
+      "advanced": "{Advanced Protection from Earth}\n\nProtects the selected unit, reducing damage received from Earth spells.\n\nProtection is  nearly twice that of Basic Protection from Earth.\n",
+      "expert": "{Expert Protection from Earth}\n\nProtects the selected unit, reducing damage received from Earth spells.\n\nProtection is  nearly twice that of Basic Protection from Earth.\n"
+    }
+  },
+  "antiMagic": {
+    "name": "Anti-Magic",
+    "level": 3,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Anti-magic}\n\nProtects the selected unit from all low level spells.\n",
+      "advanced": "{Advanced Anti-magic}\n\nProtects the selected unit all but the most powerful spells.\n",
+      "expert": "{Expert Anti-magic}\n\nProtects the selected unit from all spells.\n"
+    }
+  },
+  "dispel": {
+    "name": "Dispel",
+    "level": 1,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Dispel}\n\nRemoves all spell effects from a friendly creature.\n",
+      "advanced": "{Advanced Dispel}\n\nRemoves all spell effects from a friendly or hostile creature.\n",
+      "expert": "{Expert Dispel}\n\nRemoves all spell effects from all units on the battlefield.\n"
+    }
+  },
+  "magicMirror": {
+    "name": "Magic Mirror",
+    "level": 5,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Magic Mirror}\n\nReflects hostile spells towards a random enemy creature 20% of the time.\n",
+      "advanced": "{Advanced Magic Mirror}\n\nReflects hostile spells towards a random enemy creature 30% of the time.\n",
+      "expert": "{Expert Magic Mirror}\n\nReflects hostile spells towards a random enemy creature 40% of the time.\n"
+    }
+  },
+  "cure": {
+    "name": "Cure",
+    "level": 1,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Cure}\n\nRemoves all negative spell effects and heals a small number of hit points on the selected unit.\n",
+      "advanced": "{Advanced Cure}\n\nRemoves all negative spell effects and heals a small number of hit points on all friendly units.\n\nDamage healed is 10 points more than Basic Cure.\n",
+      "expert": "{Expert Cure}\n\nRemoves all negative spell effects and heals a small number of hit points on all friendly units.\n\nDamage healed is 20 points more than Basic Cure.\n"
+    }
+  },
+  "resurrection": {
+    "name": "Resurrection",
+    "level": 4,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Resurrection}\n\nResurrects units in the selected group by restoring a fixed number of hit points to the target.\n",
+      "advanced": "{Advanced Resurrection}\n\nResurrects units in the selected group by restoring a fixed number of hit points to the target.\n\nProvides an additional 40 hit points over Basic Resurrection.\n",
+      "expert": "{Expert Resurrection}\n\nResurrects units in the selected group by restoring a fixed number of hit points to the target. \n\nProvides an additional 120 hit points over Basic Resurrection.\n"
+    }
+  },
+  "animateDead": {
+    "name": "Animate Dead",
+    "level": 3,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Animate Dead}\n\nRe-animates any destroyed undead in the selected group by restoring a fixed number of hit points to the target.\n",
+      "advanced": "{Advanced Animate Dead}\n\nRe-animates any destroyed undead in the selected group by restoring a fixed number of hit points to the target.\n\nProvides an additional 30 hit points over Basic Animate Dead.\n",
+      "expert": "{Expert Animate Dead}\n\nRe-animates any destroyed undead in the selected group by restoring a fixed number of hit points to the target.\n\nProvides an additional 130  hit points over Basic Animate Dead.\n"
+    }
+  },
+  "sacrifice": {
+    "name": "Sacrifice",
+    "level": 5,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Sacrifice}\n\nDestroys a friendly creature group in order to resurrect a dead group.  Number of resurrected creatures depends on the caster's spell power and the health of the destroyed stack.\n",
+      "advanced": "{Advanced Sacrifice}\n\nDestroys a friendly creature group in order to resurrect a dead group.  Number of resurrected creatures depends on the caster's spell power and the health of the destroyed stack.\n\nRestores more creature health than Basic Sacrifice.\n",
+      "expert": "{Expert Sacrifice}\n\nDestroys a friendly creature group in order to resurrect a dead group.  Number of resurrected creatures depends on the caster's spell power and the health of the destroyed stack.\n\nRestores more creature health than Advanced Sacrifice.\n"
+    }
+  },
+  "bless": {
+    "name": "Bless",
+    "level": 1,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Bless}\n\nCauses the selected unit to inflict maximum damage in combat.\n",
+      "advanced": "{Advanced Bless}\n\nCauses the selected unit to inflict greater than their normal maximum damage in combat.\n",
+      "expert": "{Expert Bless}\n\nCauses all friendly units to inflict greater than their normal maximum damage in combat.\n"
+    }
+  },
+  "curse": {
+    "name": "Curse",
+    "level": 1,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Curse}\n\nCauses the selected enemy unit to inflict minimum damage in combat.\n",
+      "advanced": "{Advanced Curse}\n\nCauses the selected enemy unit to inflict less than their normal minimum damage in combat.\n",
+      "expert": "{Expert Curse}\n\nCauses all enemy units to inflict less than their normal minimum damage in combat.\n"
+    }
+  },
+  "bloodlust": {
+    "name": "Bloodlust",
+    "level": 1,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Bloodlust}\n\nIncreases the hand-to-hand damage inflicted by the selected unit.\n",
+      "advanced": "{Advanced Bloodlust}\n\nIncreases the hand-to-hand damage inflicted by the selected unit.\n\nEffect is twice that of Basic Bloodlust.\n",
+      "expert": "{Expert Bloodlust}\n\nIncreases the hand-to-hand damage inflicted by all friendly units.\n\nEffect is twice that of Basic Bloodlust.\n"
+    }
+  },
+  "precision": {
+    "name": "Precision",
+    "level": 2,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Precision}\n\nIncreases the ranged attack damage inflicted by the selected unit.\n",
+      "advanced": "{Advanced Precision}\n\nIncreases the ranged attack damage inflicted by the selected unit.\n\nEffect is twice that of Basic Precision.\n",
+      "expert": "{Expert Precision}\n\nIncreases the ranged attack damage inflicted by all friendly units.\n\nEffect is twice that of Basic Precision.\n"
+    }
+  },
+  "weakness": {
+    "name": "Weakness",
+    "level": 2,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Weakness}\n\nReduces the selected enemy unit's attack strength.\n",
+      "advanced": "{Advanced Weakness}\n\nReduces the selected enemy unit's attack strength.\n\nEffect is twice that of Basic Weakness.\n",
+      "expert": "{Expert Weakness}\n\nReduces the attack strength of all enemy units.\n\nEffect is twice that of Basic Weakness.\n"
+    }
+  },
+  "stoneSkin": {
+    "name": "Stone Skin",
+    "level": 1,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Stone Skin}\n\nIncreases the selected unit's defense strength.\n",
+      "advanced": "{Advanced Stone Skin}\n\nIncreases the selected unit's defense strength.\n\nEffect is twice that of Basic Stone Skin.\n",
+      "expert": "{Expert Stone Skin}\n\nIncreases the defense strength of all friendly units.\n\nEffect is twice that of Basic Stone Skin.\n"
+    }
+  },
+  "disruptingRay": {
+    "name": "Disrupting Ray",
+    "level": 2,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Disrupting Ray}\n\nReduces the selected enemy unit's defense strength.  A single enemy may be targeted multiple times by this spell.\n",
+      "advanced": "{Advanced Disrupting Ray}\n\nReduces the selected enemy unit's defense strength.  A single enemy may be targeted multiple times by this spell.\n\nEffect is greater than that of Basic Disrupting Ray.\n",
+      "expert": "{Expert Disrupting Ray}\n\nReduces the selected enemy unit's defense strength.  A single enemy may be targeted multiple times by this spell.\n\nEffect is greater than that of Advanced Disrupting Ray.\n"
+    }
+  },
+  "prayer": {
+    "name": "Prayer",
+    "level": 4,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Prayer}\n\nBestows a bonus to the attack strength, defense strength and speed of the selected unit.\n",
+      "advanced": "{Advanced Prayer}\n\nBestows a bonus to the attack strength, defense strength and speed of the selected unit.\n\nEffect is twice that of Basic Prayer.\n",
+      "expert": "{Expert Prayer}\n\nBestows a bonus to the attack strength, defense strength and speed of all friendly units.\n\nEffect is twice that of Basic Prayer.\n"
+    }
+  },
+  "mirth": {
+    "name": "Mirth",
+    "level": 3,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Mirth}\n\nIncreases the selected unit's morale.\n",
+      "advanced": "{Advanced Mirth}\n\nIncreases the selected unit's morale.\n\nEffect is twice that of Basic Mirth.\n",
+      "expert": "{Expert Mirth}\n\nIncreases the morale of all friendly units.\n\nEffect is twice that of Basic Mirth.\n"
+    }
+  },
+  "sorrow": {
+    "name": "Sorrow",
+    "level": 4,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Sorrow}\n\nReduces the morale of the selected enemy unit.\n",
+      "advanced": "{Advanced Sorrow}\n\nReduces the morale of the selected enemy unit.\n\nEffect is twice that of Basic Sorrow.\n",
+      "expert": "{Expert Sorrow}\n\nReduces the morale of all enemy units.\n\nEffect is twice that of Basic Sorrow.\n"
+    }
+  },
+  "fortune": {
+    "name": "Fortune",
+    "level": 2,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Fortune}\n\nIncreases the selected unit's luck.\n",
+      "advanced": "{Advanced Fortune}\n\nIncreases the selected unit's luck.\n\nEffect is twice that of Basic Fortune.\n",
+      "expert": "{Expert Fortune}\n\nIncreases the luck of all friendly units.\n\nEffect is twice that of Basic Fortune.\n"
+    }
+  },
+  "misfortune": {
+    "name": "Misfortune",
+    "level": 3,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Misfortune}\n\nReduces the luck of the selected enemy unit.\n\nSpell Point cost is half that of Normal Misfortune.\n",
+      "advanced": "{Advanced Misfortune}\n\nReduces the luck of the selected enemy unit.\n\nEffect is twice that of Basic Misfortune.\n",
+      "expert": "{Expert Misfortune}\n\nReduces the luck of all enemy units.\n\nEffect is twice that of Basic Misfortune.\n"
+    }
+  },
+  "haste": {
+    "name": "Haste",
+    "level": 1,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Haste}\n\nIncreases the speed of the selected unit.\n",
+      "advanced": "{Advanced Haste}\n\nIncreases the speed of the selected unit.\n\nEffect is nearly twice that of Basic Haste.\n",
+      "expert": "{Expert Haste}\n\nIncreases the speed of all friendly units.\n\nEffect is nearly twice that of Basic Haste.\n"
+    }
+  },
+  "slow": {
+    "name": "Slow",
+    "level": 1,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Slow}\n\nReduces the speed of the selected enemy unit.\n",
+      "advanced": "{Advanced Slow}\n\nReduces the speed of the selected enemy unit.\n\nEffect is twice that of Basic Slow.\n",
+      "expert": "{Expert Slow}\n\nReduces the speed of all enemy units.\n\nEffect is twice that of Basic Slow.\n"
+    }
+  },
+  "slayer": {
+    "name": "Slayer",
+    "level": 4,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Slayer}\n\nIncreases the amount of damage inflicted by a unit when fighting against Dragons, Behemoths and Hydras.\n",
+      "advanced": "{Advanced Slayer}\n\nIncreases the amount of damage inflicted by a unit when fighting against Dragons, Behemoths, Hydras, Devils and Angels.\n",
+      "expert": "{Expert Slayer}\n\nIncreases the amount of damage inflicted by a unit when fighting against Dragons, Behemoths, Hydras, Devils, Angels and Titans.\n"
+    }
+  },
+  "frenzy": {
+    "name": "Frenzy",
+    "level": 4,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Frenzy}\n\nSelected troop intentionally lowers its defenses to increase the ferocity of its attack.\n",
+      "advanced": "{Advanced Frenzy}\n\nSelected troop intentionally lowers its defenses to increase the ferocity of its attack.\n\nBonus to attack is 50% greater than Basic Frenzy.\n",
+      "expert": "{Expert Frenzy}\n\nSelected troop intentionally lowers its defenses to increase the ferocity of its attack.\n\nBonus to attack is double Basic Frenzy.\n"
+    }
+  },
+  "titanBolt": {
+    "name": "Titan's Lightning Bolt",
+    "level": 5,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Titan's Lightning Bolt}\n\nDoes 600 points of damage at no spell cost to the spellcaster.",
+      "advanced": "{Titan's Lightning Bolt}\n\nDoes 600 points of damage at no spell cost to the spellcaster.",
+      "expert": "{Titan's Lightning Bolt}\n\nDoes 600 points of damage at no spell cost to the spellcaster."
+    }
+  },
+  "counterstrike": {
+    "name": "Counterstrike",
+    "level": 4,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Counterstrike}\n\nThe selected unit will retaliate against one additional attack each round.\n",
+      "advanced": "{Advanced Counterstrike}\n\nThe selected unit will retaliate against two additional attacks each round.\n",
+      "expert": "{Expert Counterstrike}\n\nAll friendly units will retaliate against two additional attacks each round.\n"
+    }
+  },
+  "berserk": {
+    "name": "Berserk",
+    "level": 4,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Berserk}\n\nThe targeted unit will randomly attack the nearest unit, be it friend or foe.\n",
+      "advanced": "{Advanced Berserk}\n\nThe targeted unit will randomly attack the nearest unit, be it friend or foe.\n\nArea of effect is six hexes greater than Basic Berserk.\n",
+      "expert": "{Expert Berserk}\n\nThe targeted unit will randomly attack the nearest unit, be it friend or foe.\n\nArea of effect is eighteen hexes greater than Basic Berserk.\n"
+    }
+  },
+  "hypnotize": {
+    "name": "Hypnotize",
+    "level": 3,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Hypnotize}\n\nPuts an enemy unit temporarily under your control.\n",
+      "advanced": "{Advanced Hypnotize}\n\nPuts an enemy unit temporarily under your control.\n\nAllows you to control an additional 10 hit points of enemies over Basic Hypnotize.\n",
+      "expert": "{Expert Hypnotize}\n\nPuts an enemy unit temporarily under your control.\n\nAllows you to control an additional 40 hit points of enemies over Basic Hypnotize.\n"
+    }
+  },
+  "forgetfulness": {
+    "name": "Forgetfulness",
+    "level": 3,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Forgetfulness}\n\nHalf of the selected enemy unit forgets to use its ranged attack.\n",
+      "advanced": "{Advanced Forgetfulness}\n\nCauses the selected enemy unit to forget to use its ranged attack in combat.\n",
+      "expert": "{Expert Forgetfulness}\n\nCauses all enemy troops to forget to use their ranged attack in combat.\n"
+    }
+  },
+  "blind": {
+    "name": "Blind",
+    "level": 2,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Blind}\n\nBlinds a creature so that it cannot move and causes it to counterattack at half its normal attack strength.  Blindness persists until the unit is attacked or dispelled.\n",
+      "advanced": "{Advanced Blind}\n\nBlinds a creature so that it cannot move and causes it to counterattack at one-quarter of its normal attack strength.  Blindness persists until the unit is attacked or dispelled.\n",
+      "expert": "{Expert Blind}\n\nBlinds a creature so that it cannot move or counterattack.  Blindness persists until the unit is attacked or dispelled.\n"
+    }
+  },
+  "teleport": {
+    "name": "Teleport",
+    "level": 3,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Teleport}\n\nTeleports any friendly unit to an unoccupied spot on the battlefield.\n\nTroop cannot teleport over walls or moats.\n",
+      "advanced": "{Advanced Teleport}\n\nTeleports any friendly unit to an unoccupied spot on the battlefield.\n\nTroop cannot teleport over walls.\n",
+      "expert": "{Expert Teleport}\n\nTeleports any friendly unit to any unoccupied spot on the battlefield.\n"
+    }
+  },
+  "removeObstacle": {
+    "name": "Remove Obstacle",
+    "level": 2,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Remove Obstacle}\n\nRemoves any normal obstacle (trees, rocks, etc.) of the caster's choice from the battlefield.\n",
+      "advanced": "{Advanced Remove Obstacle}\n\nRemoves any normal obstacle (trees, rocks, etc.) or Fire Wall of the caster's choice from the battlefield.\n",
+      "expert": "{Expert Remove Obstacle}\n\nRemoves any normal or magical obstacle of the caster's choice from the battlefield.\n"
+    }
+  },
+  "clone": {
+    "name": "Clone",
+    "level": 4,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Clone}\n\nCreates a duplicate of the selected unit stack.  The image is dispelled if it is attacked.\n\nClones creatures of levels 1-5.\n",
+      "advanced": "{Advanced Clone}\n\nCreates a duplicate of the selected unit stack.  The image is dispelled if it is attacked.\n\nClones creatures of levels 1-6.\n",
+      "expert": "{Expert Clone}\n\nCreates a duplicate of the selected unit stack.  The image is dispelled if it is attacked.\n\nClones creatures of any level.\n"
+    }
+  },
+  "fireElemental": {
+    "name": "Fire Elemental",
+    "level": 5,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Summon Fire Elemental}\n\nAllows you to summon fire elementals.  Once cast, no other elemental types may be summoned.\n",
+      "advanced": "{Advanced Summon Fire Elemental}\n\nAllows you to summon fire elementals.  Once cast, no other elemental types may be summoned.\n\nSummons approximately one-and-a-half times the number of units as Basic Summon Fire Elemental.\n",
+      "expert": "{Expert Summon Fire Elemental}\n\nAllows you to summon fire elementals.  Once cast, no other elemental types may be summoned.\n\nSummons approximately twice the number of units as Basic Summon Fire Elemental.\n"
+    }
+  },
+  "earthElemental": {
+    "name": "Earth Elemental",
+    "level": 5,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Summon Earth Elemental}\n\nAllows you to summon earth elementals.  Once cast, no other elemental types may be summoned.\n",
+      "advanced": "{Advanced Summon Earth Elemental}\n\nAllows you to summon earth elementals.  Once cast, no other elemental types may be summoned.\n\nSummons approximately one-and-a-half times the number of units as Basic Summon Creature.\n",
+      "expert": "{Expert Summon Earth Elemental}\n\nAllows you to summon earth elementals.  Once cast, no other elemental types may be summoned.\n\nSummons approximately twice the number of units as Basic Summon Creature.\n"
+    }
+  },
+  "waterElemental": {
+    "name": "Water Elemental",
+    "level": 5,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Summon Water Elemental}\n\nAllows you to summon water elementals.  Once cast, no other elemental types may be summoned.\n",
+      "advanced": "{Advanced Summon Water Elemental}\n\nAllows you to summon water elementals.  Once cast, no other elemental types may be summoned.\n\nSummons approximately one-and-a-half times the number of units as Basic Summon Water Elemental.\n",
+      "expert": "{Expert Summon Water Elemental}\n\nAllows you to summon water elementals.  Once cast, no other elemental types may be summoned.\n\nSummons approximately twice the number of units as Basic Summon Water Elemental.\n"
+    }
+  },
+  "airElemental": {
+    "name": "Air Elemental",
+    "level": 5,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{Basic Summon Air Elemental}\n\nAllows you to summon air elementals.  Once cast, no other elemental types may be summoned.\n",
+      "advanced": "{Advanced Summon Air Elemental}\n\nAllows you to summon air elementals.  Once cast, no other elemental types may be summoned.\n\nSummons approximately one-and-a-half times the number of units as Basic Summon Air Elemental.\n",
+      "expert": "{Expert Summon Air Elemental}\n\nAllows you to summon air elementals.  Once cast, no other elemental types may be summoned.\n\nSummons approximately twice the number of units as Basic Summon Air Elemental.\n"
+    }
+  }
+}

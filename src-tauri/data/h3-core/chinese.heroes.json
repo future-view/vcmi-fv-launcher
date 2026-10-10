@@ -1,0 +1,4058 @@
+{
+  "orrin": {
+    "name": "欧灵",
+    "biography": "欧灵在刚加入军队时就受训于埃拉西亚最优秀的攻城战术家。在他的指导下，任何弓箭手都能很快做到百步穿杨。",
+    "specialty": {
+      "name": "箭术",
+      "tooltip": "辅助技能奖励：箭术",
+      "description": "在箭术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "valeska": {
+    "name": "威尔斯凯",
+    "biography": "威尔斯凯在首次加入埃拉西亚军队时就作为一个神射手而出名了。现在她不仅能率领自己的部队，她还利用个人时间去训练弩手部队。",
+    "specialty": {
+      "name": "弓箭手",
+      "tooltip": "生物奖励：弓箭手",
+      "description": "达到2级以后提高弓箭手或神射手的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      }
+    ]
+  },
+  "edric": {
+    "name": "艾得力克",
+    "biography": "艾得力克的祖父是埃拉西亚第一个驯服狮鹫的人，如今，艾得力克家族专门负责驯服狮鹫并将它们提供给国王的军队。",
+    "specialty": {
+      "name": "狮鹫",
+      "tooltip": "生物奖励：狮鹫",
+      "description": "达到3级以后提高狮鹫或皇家狮鹫的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "sylvia": {
+    "name": "斯尔维亚",
+    "biography": "斯尔维亚曾经在雷格那当了几年的海盗。当她意识到海盗生活不适合她时，她加入了埃拉西亚海岸边防军，与当年一起出海的海盗弟兄作战。",
+    "specialty": {
+      "name": "航海术",
+      "tooltip": "辅助技能奖励：航海术",
+      "description": "在航海术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "lordHaart": {
+    "name": "罗德-哈特",
+    "biography": "有人认为罗德-哈特离开恩洛斯是因为他与一个亡灵教派有关。但这应该只是谣言，他对埃拉西亚王室的忠诚就像继承战争前对罗兰德-艾恩法斯特的一样。",
+    "specialty": {
+      "name": "理财术",
+      "tooltip": "辅助技能奖励：理财术",
+      "description": "在理财术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "sorsha": {
+    "name": "索萨",
+    "biography": "由于崇拜凯瑟琳王后，索萨加入了埃拉西亚军队，并很快证明自己是一位剑术大师。在与克里根人的战争中，她屡立奇功，成为凯瑟琳王后的高级指挥官。",
+    "specialty": {
+      "name": "剑士",
+      "tooltip": "生物奖励：剑士",
+      "description": "达到4级以后提高剑士或十字军的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "christian": {
+    "name": "克里斯丁",
+    "biography": "克里斯丁不但是个英勇的骑士，还是个伟大的探险家。在加入埃拉西亚军队以前，他的足迹踏遍了恩洛斯的每一寸土地。尽管平时克里斯丁放荡不羁，但他卓越的战术技巧在战场上所有敌人都害怕。",
+    "specialty": {
+      "name": "弩车",
+      "tooltip": "炮术奖励：弩车",
+      "description": "达到4级以后提高弩车的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "ballista",
+        "min": 1,
+        "max": 1
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "tyris": {
+    "name": "塔里斯",
+    "biography": "塔里斯加入埃拉西亚骑兵部队后，很快就成为了高级军官。这不仅是因为她具有高超的马术技巧，还由于她对骑兵战术了然于胸。正因如此，她从未在马上枪术比赛中失败过。",
+    "specialty": {
+      "name": "骑兵",
+      "tooltip": "生物奖励：骑兵",
+      "description": "达到6级以后提高骑兵或骑士的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "rion": {
+    "name": "瑞恩",
+    "biography": "瑞恩本来是埃拉西亚军队的战地医师，在一次与克里根族的战斗中，他的队长阵亡。正是由于他的机智和杰出的指挥才能，才使得部队能够一直坚持到援军到达并赢得了胜利。",
+    "specialty": {
+      "name": "急救术",
+      "tooltip": "辅助技能奖励：急救术",
+      "description": "在急救术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "firstAidTent",
+        "min": 1,
+        "max": 1
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "adela": {
+    "name": "阿德拉",
+    "biography": "阿德拉和其他军人不同，她不喜欢以武力解决问题，她被授予白石城卫戍区的指挥权，最喜欢说的一句话是“胜负在战斗之前已经决定了。”",
+    "specialty": {
+      "name": "圣灵佑佐",
+      "tooltip": "魔法奖励：圣灵佑佐",
+      "description": "使用圣灵佑佐魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "cuthbert": {
+    "name": "库斯伯特",
+    "biography": "库斯伯特在年轻时，热衷于黑暗魔法。由于一次魔法出错，他的妻子撒手人寰，在那之后库斯伯特永远摒弃了黑暗魔法，即使他对黑暗魔法的天赋无人能及。",
+    "specialty": {
+      "name": "虚弱无力",
+      "tooltip": "魔法奖励：虚弱无力",
+      "description": "使用虚弱无力魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "adelaide": {
+    "name": "阿德莱德",
+    "biography": "在一次海上风暴中，阿德莱德的船在沃里海岸边沉没，那里是沃里精灵的领地。在那里，她接受了沃里精灵二十多年的训练。回到埃拉西亚后，她发现时间仍在二十多年前。",
+    "specialty": {
+      "name": "霹雳寒冰",
+      "tooltip": "魔法奖励：霹雳寒冰",
+      "description": "使用霹雳寒冰魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "ingham": {
+    "name": "因海姆",
+    "biography": "因海姆在克里根人袭击前生活在一座破旧的修道院中。但形势逼人，他不得不带着他的修道士们参加战斗。",
+    "specialty": {
+      "name": "僧侣",
+      "tooltip": "生物奖励：僧侣",
+      "description": "达到5级以后提高僧侣或祭司的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "sanya": {
+    "name": "塞亚",
+    "biography": "塞亚学习东西一直很快，对魔法更是有天赋，有时仅仅只是看看别人施用魔法，她就能够学会。",
+    "specialty": {
+      "name": "鹰眼术",
+      "tooltip": "辅助技能奖励：鹰眼术",
+      "description": "在鹰眼术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "loynis": {
+    "name": "罗尼斯",
+    "biography": "罗尼斯认为任何问题都可以通过魔法来解决，这种想法令人惊讶，但事实上他法术的确非常高强，是一个卓越的魔法师。",
+    "specialty": {
+      "name": "祈祷",
+      "tooltip": "魔法奖励：祈祷",
+      "description": "使用祈祷魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "caitlin": {
+    "name": "凯特琳",
+    "biography": "在被委以重任之前，有人说凯特琳被来自地狱的恶魔附身了。尽管流言蜚语不断，也不能否认她对教会作出了巨大的贡献。",
+    "specialty": {
+      "name": "+350个金币",
+      "tooltip": "每天增加350个金币",
+      "description": "为王国每天额外提供350个金币。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "LightCrossbowman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "mephala": {
+    "name": "孟斐拉",
+    "biography": "在埃拉西亚军队中接受训练时，孟斐拉就显露出利用地形赢得胜利的天赋。几年前孟斐拉辞去了埃拉西亚的军职，她更喜欢阿维利的宁静，而不是埃拉西亚的喧嚣。",
+    "specialty": {
+      "name": "防御术",
+      "tooltip": "辅助技能奖励：防御术",
+      "description": "在防御术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "ufretin": {
+    "name": "尤佛瑞汀",
+    "biography": "尤佛瑞汀是个少见的矮人族游侠。他英勇善战，很快就成为了矮人族的领袖。",
+    "specialty": {
+      "name": "矮人",
+      "tooltip": "生物奖励：矮人",
+      "description": "达到2级以后提高矮人或战斗矮人的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      }
+    ]
+  },
+  "jenova": {
+    "name": "杰诺娃",
+    "biography": "杰诺瓦是个心地善良的好人，这使她在埃拉西亚极为受欢迎。杰诺瓦的迷人魅力使她无论用什么理由，都能轻易募集到大量金钱。",
+    "specialty": {
+      "name": "+350个金币",
+      "tooltip": "每天增加350个金币",
+      "description": "为王国每天额外提供350个金币。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "ryland": {
+    "name": "罗伊德",
+    "biography": "迄今为止，罗伊德是唯一一个被森林长老会完全认可的人类阿维利游侠，他的行动极为敏捷，以至于有人认为他是精灵的转世。",
+    "specialty": {
+      "name": "枯木卫士",
+      "tooltip": "生物奖励：枯木卫士",
+      "description": "达到5级以后提高枯木卫士或枯木战士的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "thorgrim": {
+    "name": "索格灵",
+    "biography": "索格灵从小就是孤儿，在阿维利最北方的森林里长大。他以对魔法的超凡抵抗力而闻名于世。",
+    "specialty": {
+      "name": "抵抗力",
+      "tooltip": "辅助技能奖励：抵抗力",
+      "description": "在抵抗力上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "ivor": {
+    "name": "伊沃",
+    "biography": "伊沃的家族非常古老，几乎可以追溯到寂静时期。虽然出身贵族，但他一点也没有高贵的气质，为人非常鲁莽。",
+    "specialty": {
+      "name": "精灵",
+      "tooltip": "生物奖励：精灵",
+      "description": "达到3级以后提高木精灵或大精灵的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "clancy": {
+    "name": "克兰",
+    "biography": "克兰偶然发现自己有能与独角兽交流的能力，这一特殊能力使他成为了阿维利军队的精锐。",
+    "specialty": {
+      "name": "独角兽",
+      "tooltip": "生物奖励：独角兽",
+      "description": "达到6级以后提高独角兽或独角神兽的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "kyrre": {
+    "name": "凯琳",
+    "biography": "凯琳在克里根进攻阿维利的最初阶段只是一个侦察兵，但她可以在崎岖地形中快速移动的能力很快就让她立下了赫赫战功，成为军队的统帅。",
+    "specialty": {
+      "name": "后勤学",
+      "tooltip": "辅助技能奖励：后勤学",
+      "description": "在后勤学上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "coronius": {
+    "name": "克洛尼斯",
+    "biography": "克洛尼斯曾在埃拉西亚的魔法学院中学习过，但他很快就厌倦了那呆板的教学方式。他离开了埃拉西亚，到阿维利拜一名隐士为师。",
+    "specialty": {
+      "name": "屠戮成性",
+      "tooltip": "魔法奖励：屠戮成性",
+      "description": "使用屠戮成性魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "uland": {
+    "name": "尤兰德",
+    "biography": "在成为一名德鲁伊之前，尤兰德曾经花费了生命的大半时间学习战场治疗的魔法。",
+    "specialty": {
+      "name": "疗伤",
+      "tooltip": "魔法奖励：疗伤",
+      "description": "使用疗伤魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "elleshar": {
+    "name": "艾丽莎",
+    "biography": "艾里沙可能是阿维利有史以来最聪明的德鲁伊，在未来的几十年里，如果他能持之以恒地学习，他就会成为最年轻的森林长老会成员。",
+    "specialty": {
+      "name": "智力",
+      "tooltip": "辅助技能奖励：智力",
+      "description": "在智力技能上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "gem": {
+    "name": "珍尼",
+    "biography": "珍尼是恩洛斯最优秀的女巫，在继承战争中为罗兰德-艾恩法斯特效力。当罗兰德加冕为王后，珍尼来到了恩塔格瑞大陆，并在阿维利找到了新家。",
+    "specialty": {
+      "name": "急救术",
+      "tooltip": "辅助技能奖励：急救术",
+      "description": "在急救术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "firstAidTent",
+        "min": 1,
+        "max": 1
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "malcom": {
+    "name": "马尔凯姆",
+    "biography": "马尔凯姆是少数几个有魔法天赋的矮人，有时仅仅只是看看别人施用一次魔法，他就能学会。很快，他就被派上战场，保护阿维利免遭抗克里根的入侵。",
+    "specialty": {
+      "name": "鹰眼术",
+      "tooltip": "辅助技能奖励：鹰眼术",
+      "description": "在鹰眼术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "melodia": {
+    "name": "马洛迪亚",
+    "biography": "马洛迪亚有可能并不是阿维利所有德鲁伊中最具才能的一个，但她肯定是最幸运的那个。就算是在劣势中，她也能不可思议地获得胜利。士兵们非常愿意加入她的军队。",
+    "specialty": {
+      "name": "幸运之神",
+      "tooltip": "魔法奖励：幸运之神",
+      "description": "使用幸运之神魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "alagar": {
+    "name": "艾拉戈",
+    "biography": "据说艾拉戈曾经与沃里雪精灵居住在一起，所以他对水元素的掌控能力无人可比。在克里根人入侵后，他毅然参与了保卫阿维利的战斗中。",
+    "specialty": {
+      "name": "霹雳寒冰",
+      "tooltip": "魔法奖励：霹雳寒冰",
+      "description": "使用霹雳寒冰魔法时效果大增，与英雄等级同攻击目标单位等级的比值有关(对于越弱的部队施加的效果越好) "
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "aeris": {
+    "name": "艾丽斯",
+    "biography": "艾丽斯是阿维利最好的驯兽师，也是大陆上最出色的德鲁伊之一。他能通过直觉将飞马与精灵相配合。",
+    "specialty": {
+      "name": "飞马",
+      "tooltip": "生物奖励：飞马",
+      "description": "达到4级以后提高飞马或银飞马的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "centaur",
+        "min": 12,
+        "max": 24
+      },
+      {
+        "creature": "dwarf",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "woodElf",
+        "min": 3,
+        "max": 6
+      }
+    ]
+  },
+  "piquedram": {
+    "name": "匹克杰姆",
+    "biography": "匹克杰姆在魔法学院中花了大量的时间去研究炼金术。在为布拉卡达的效力过程中，他改造出了许多战斗力非凡的石像鬼。",
+    "specialty": {
+      "name": "石像鬼",
+      "tooltip": "生物奖励：石像鬼",
+      "description": "达到2级以后提高石像鬼或石像怪的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      }
+    ]
+  },
+  "thane": {
+    "name": "塞恩",
+    "biography": "没有人知道塞恩的真正来历，但他在布拉卡达教授炼金术已经很长时间了。但不少老术士甚至不记得布拉卡达是否有这么一位教师。",
+    "specialty": {
+      "name": "神怪",
+      "tooltip": "生物奖励：神怪",
+      "description": "达到5级以后提高神怪或神怪主的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "josephine": {
+    "name": "琼斯菲尔",
+    "biography": "琼斯菲尔基于自己先前的实验，制造出了比石像鬼复杂而且精妙的魔像。她也是第一个成功创造并成功使用它们的人。",
+    "specialty": {
+      "name": "石人",
+      "tooltip": "生物奖励：人偶",
+      "description": "达到3级以后提高石人或铁人的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 2
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "neela": {
+    "name": "妮拉",
+    "biography": "妮拉从小就非常强壮，在战场上受伤再严重也绝不会倒下。不知为何，她还能把这种抵抗伤害的能力灌输给她指挥的部队。",
+    "specialty": {
+      "name": "防御术",
+      "tooltip": "辅助技能奖励：防御术",
+      "description": "在防御术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 4,
+        "max": 4
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "torosar": {
+    "name": "特洛萨",
+    "biography": "虽然特洛萨学习的是炼金术，但他对战地战术和攻城战术有强烈的兴趣，看的有关战争方面的书要比炼金术方面的书多得多。",
+    "specialty": {
+      "name": "弩车",
+      "tooltip": "炮术奖励：弩车",
+      "description": "达到4级以后提高弩车的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "ballista",
+        "min": 1,
+        "max": 1
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "fafner": {
+    "name": "法佛纳",
+    "biography": "有人说法佛纳成为神怪已经有一千年了。一千年前，他捡到了一个神怪宝瓶，他许愿可以变成一个强大的神怪，愿望实现了。从那时起，法佛纳就一直为加文·马格努斯效力。",
+    "specialty": {
+      "name": "蛇女",
+      "tooltip": "生物奖励：蛇女",
+      "description": "达到6级以后提高蛇女或蛇妖的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "rissa": {
+    "name": "瑞萨",
+    "biography": "瑞萨是第一个能将破铁转化成水银的炼金术士。现在现在她成为了一名指挥官，但瑞萨还是花大量空闲时间试验其它的材料。",
+    "specialty": {
+      "name": "+1水银",
+      "tooltip": "每天增加1水银",
+      "description": "为王国每天额外提供1水银。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "iona": {
+    "name": "罗娜",
+    "biography": "很早以前，罗娜就凭实力证明她所拥有的恐怖的力量。但她谦逊的个性，让她的手下都觉得她平易近人。",
+    "specialty": {
+      "name": "神怪",
+      "tooltip": "生物奖励：神怪",
+      "description": "达到5级以后提高神怪或神怪主的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "astral": {
+    "name": "艾斯却尔",
+    "biography": "艾斯却尔大约十年前到了埃拉西亚大陆，他很快就成为布拉卡达魔法师行会的首领。有些人开玩笑说，是他的魔法给他短时间里带来了这么多的成就。",
+    "specialty": {
+      "name": "蛊惑人心",
+      "tooltip": "魔法奖励：蛊惑人心",
+      "description": "使用蛊惑人心魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "halon": {
+    "name": "海伦",
+    "biography": "哈龙是恩洛斯广受爱戴的英雄，但在继承战争后，他感到非常无聊，于是出去探险。最近，他同意了布拉卡达军队的邀请，希望新的工作能让他感受到一点乐趣。",
+    "specialty": {
+      "name": "神秘术",
+      "tooltip": "辅助技能奖励：神秘术",
+      "description": "在神秘术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "serena": {
+    "name": "塞瑞纳",
+    "biography": "塞瑞纳第一次释放魔法时差点杀了自己，她把过多的能量聚焦于魔法当中，甚至引起了邻近城镇的魔法师的注意。之后，她被那位魔法师送到了魔法师行会，学习如何控制自己的力量。",
+    "specialty": {
+      "name": "鹰眼术",
+      "tooltip": "辅助技能奖励：鹰眼术",
+      "description": "在鹰眼术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "daremyth": {
+    "name": "黛瑞丝",
+    "biography": "黛瑞丝很早之前就应该死了，她随心所欲的做法本该让她无法活下来，没想到她竟然毫发无损地回来了。",
+    "specialty": {
+      "name": "幸运之神",
+      "tooltip": "魔法奖励：幸运之神",
+      "description": "使用幸运之神魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "theodorus": {
+    "name": "塞德洛斯",
+    "biography": "塞德洛斯是布拉卡达最强大的魔法师之一。他的弟子遍布天下，并且把他当作信仰以朝圣，希望能从他的智慧中习得一些什么。",
+    "specialty": {
+      "name": "法师",
+      "tooltip": "生物奖励：法师",
+      "description": "达到4级以后提高法师或大法师的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "solmyr": {
+    "name": "索姆拉",
+    "biography": "索姆拉被关入一个妖瓶里超过一千年了。他非常感谢把他放出来的那个人，发誓将永远为他效命。也许是命中注定，那人就是布拉卡达高地不朽的统治者，加文-马格努斯。",
+    "specialty": {
+      "name": "连锁闪电",
+      "tooltip": "魔法奖励：连锁闪电",
+      "description": "使用连锁闪电魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "cyra": {
+    "name": "塞瑞",
+    "biography": "塞瑞一开始学习魔法的目地是想施咒让男人们爱上她，当她发现她在其他魔法上的天赋后，她打消了这一念头。",
+    "specialty": {
+      "name": "攻击加速",
+      "tooltip": "魔法奖励：攻击加速",
+      "description": "使用攻击加速魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "aine": {
+    "name": "埃尔尼",
+    "biography": "埃尔尼在布拉卡达生活的时间超越了大部分人的记忆，据说她是这个国家最富有的英雄之一。她出手十分阔绰且乐善好施，让人们怀疑她是否有财富藏在某个地方。",
+    "specialty": {
+      "name": "+350个金币",
+      "tooltip": "每天增加350个金币",
+      "description": "为王国每天额外提供350个金币。"
+    },
+    "army": [
+      {
+        "creature": "ApprenticeGremlin",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "stoneGargoyle",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "ironGolem",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "fiona": {
+    "name": "斐欧纳",
+    "biography": "在大战之前，斐欧纳在埃拉西亚东部做马戏团的训兽师。很快她就发现自己不仅能控制猛兽，还能控制那些喜怒无常的地狱猎犬。伊欧弗的将军看中了这一点，很快将她接纳进了军队。",
+    "specialty": {
+      "name": "地狱猎犬",
+      "tooltip": "生物奖励：地狱猎犬",
+      "description": "达到3级以后提高地狱猎犬或三首猎犬的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "rashka": {
+    "name": "瑞斯卡",
+    "biography": "瑞斯卡是所有火怪中最强大最可怕的一个，他的领导方法是采用威吓作为激励的手段，目前为止，非常起作用。",
+    "specialty": {
+      "name": "火精灵",
+      "tooltip": "生物奖励：火精灵",
+      "description": "达到6级以后提高火精灵或烈火精灵的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "marius": {
+    "name": "玛利斯",
+    "biography": "玛利斯制定了“掌控者计划”，她想要消灭这个世界上所有的森林生物。她与卡尔是多年的夫妻，最终分手是因为卡尔并不同意玛利斯的计划。",
+    "specialty": {
+      "name": "恶鬼",
+      "tooltip": "生物奖励：恶鬼",
+      "description": "达到4级以后提高恶鬼或长角恶鬼的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "ignatius": {
+    "name": "伊格纳蒂斯",
+    "biography": "在克里根人到达埃拉西亚后，伊格纳蒂斯认为他唯一的生存希望就是加入他们。他总是想出一些建议来使恶魔们相信自己的忠心，他对未来特别恐惧，生怕有一天恶魔的军队不再需要人类的帮助。",
+    "specialty": {
+      "name": "小怪物",
+      "tooltip": "生物奖励：小怪物",
+      "description": "达到1级以后提高小怪物或怪物的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      }
+    ]
+  },
+  "octavia": {
+    "name": "奥格塔维亚",
+    "biography": "据说奥格塔维亚可以从沉睡的巨龙身上偷走金子，她必须这么做，因为她总是要在她感兴趣的东西上投入大笔的金钱。",
+    "specialty": {
+      "name": "+350个金币",
+      "tooltip": "每天增加350个金币",
+      "description": "为王国每天额外提供350个金币。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "calh": {
+    "name": "卡尔",
+    "biography": "卡尔与玛利斯是多年的夫妻，最终分手是因为卡尔发现玛利斯痴迷于毁灭所有事物。分手之后，卡尔继续他的军事生涯。",
+    "specialty": {
+      "name": "歌革",
+      "tooltip": "生物奖励：歌革",
+      "description": "达到2级以后提高歌革或玛各的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      }
+    ]
+  },
+  "pyre": {
+    "name": "斐瑞",
+    "biography": "没有人知道斐瑞的真正名字。有传闻说她曾经加入了一个邪教组织，致力于根除埃拉西亚所有的非人类生物。只有她自己知道她现在为什么要为伊欧弗的侵略者效命。",
+    "specialty": {
+      "name": "弩车",
+      "tooltip": "炮术奖励：弩车",
+      "description": "达到4级以后提高弩车的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "ballista",
+        "min": 1,
+        "max": 1
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "nymus": {
+    "name": "纳美斯",
+    "biography": "纳美斯负责训练深渊恶魔，为进攻埃拉西亚做好准备。她的战争技巧几乎让伊欧弗获得了彻底的胜利，可克里根人与地下领主间的交易却使战争早早收场。",
+    "specialty": {
+      "name": "邪神",
+      "tooltip": "生物奖励：邪神",
+      "description": "达到5级以后提高邪神或邪神王的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "ayden": {
+    "name": "艾登",
+    "biography": "艾登是个萨满，他效忠于克里根人，希望有一天能拥有自己的王国。",
+    "specialty": {
+      "name": "智力",
+      "tooltip": "辅助技能奖励：智力",
+      "description": "在智力技能上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "xyron": {
+    "name": "希瑞尔",
+    "biography": "希瑞尔甚至比火精灵还要喜好火，他只有面对与火或者岩浆有关的东西时，才会兴奋起来。",
+    "specialty": {
+      "name": "地狱烈焰",
+      "tooltip": "魔法奖励：地狱烈焰",
+      "description": "使用地狱烈焰魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "axsis": {
+    "name": "艾西斯",
+    "biography": "和一般的恶魔不同，艾西斯很小就显露出对魔法的天赋，这很奇怪，因为恶魔很少表现出对任何需要思考事物的天赋。",
+    "specialty": {
+      "name": "神秘术",
+      "tooltip": "辅助技能奖励：神秘术",
+      "description": "在神秘术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "olema": {
+    "name": "奥力马",
+    "biography": "奥力马一直生活在伊欧弗，克里根人到来之后，她说服克里根人让她成为他们的向导，引导他们进入这片大陆。",
+    "specialty": {
+      "name": "虚弱无力",
+      "tooltip": "魔法奖励：虚弱无力",
+      "description": "使用虚弱无力魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "calid": {
+    "name": "卡利德",
+    "biography": "卡利德有一种非常特殊(但有用)的能力，她能嗅到隐藏的硫磺矿。地下领主们雇佣她为凶猛的龙族收集硫磺。",
+    "specialty": {
+      "name": "+1硫磺",
+      "tooltip": "每天增加1硫磺",
+      "description": "为王国每天额外提供1硫磺。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "ash": {
+    "name": "艾许",
+    "biography": "艾许在第一次进攻埃拉西亚的时候闻名。她的部队成功地把几十个精灵和矮人困在一个巨大的木制堡垒里。她用咒语将堡垒炸得粉碎，整个建筑瞬间化为灰烬，只剩下几十个非常震惊的守卫者。",
+    "specialty": {
+      "name": "嗜血奇术",
+      "tooltip": "魔法奖励：嗜血奇术",
+      "description": "使用嗜血奇术魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "zydar": {
+    "name": "泽达",
+    "biography": "当泽达不在领导军队的时候，他肯定在研究一个能够增强魔法效果的新方法。虽然他不是最伟大的魔法师，但他却是恶魔中最有前途的那个。",
+    "specialty": {
+      "name": "魔力",
+      "tooltip": "辅助技能奖励：魔力",
+      "description": "在魔力技能上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "xarfax": {
+    "name": "夏洛克斯",
+    "biography": "夏洛克斯一直在埃拉西亚军队中服役，直到1162A.S.“寂静纪元”被克里根人俘虏。克里根人非常欣赏他的才能，把他改造成了一个忠诚的追随者。",
+    "specialty": {
+      "name": "连珠火球",
+      "tooltip": "魔法奖励：连珠火球",
+      "description": "使用连珠火球魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "imp",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "gog",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "hellHound",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "straker": {
+    "name": "斯强克",
+    "biography": "斯强克选择了巫术这一黑暗道路，但很快人们发现他的格斗技巧远远超过他的魔法能力。他现在在迪雅的不死军团中服役，梦想着有一天能加入到真正的亡灵巫师行列中。",
+    "specialty": {
+      "name": "行尸",
+      "tooltip": "生物奖励：行尸",
+      "description": "达到2级以后提高行尸或僵尸的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "vokial": {
+    "name": "德加尔",
+    "biography": "四百年前德加尔统治着他自己的王国，随着时间的推移，他渐渐厌烦了平淡的生活，最后他终于放弃了一切，回到自己所喜爱的冒险生涯中。他是所有吸血鬼中最年长的。",
+    "specialty": {
+      "name": "吸血鬼",
+      "tooltip": "生物奖励：吸血鬼",
+      "description": "达到4级以后提高吸血鬼或吸血鬼王的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "moandor": {
+    "name": "摩多",
+    "biography": "摩多的超凡魅力在他变成尸巫以后依然存在。奇怪的是，这竟然让他比其他任何英雄在招募和领导新尸巫上更有效率。",
+    "specialty": {
+      "name": "尸巫",
+      "tooltip": "生物奖励：尸巫",
+      "description": "达到5级以后提高尸巫或尸巫王的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "charna": {
+    "name": "查玛",
+    "biography": "查玛被黑暗力量所诱惑，为追求权力而不择手段。尽管她的魔法能力不足以让她变成一个真正的巫师，但是她是一个非常优秀的战士。",
+    "specialty": {
+      "name": "幽灵",
+      "tooltip": "生物奖励：幽灵",
+      "description": "达到3级以后提高幽灵或阴魂的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "tamika": {
+    "name": "塔米克",
+    "biography": "塔米克高超的战术技巧使她在迪雅的军队中倍受尊敬。除了领导军队之外，她还负责训练暗黑骑士和恐怖骑士。",
+    "specialty": {
+      "name": "暗黑骑士",
+      "tooltip": "生物奖励：暗黑骑士",
+      "description": "达到6级以后提高暗黑骑士或恐怖骑士的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "isra": {
+    "name": "艾莎",
+    "biography": "艾莎可能不是迪雅最伟大的魔法师，但她制造骷髅兵的本领确实无人可比。",
+    "specialty": {
+      "name": "招魂术",
+      "tooltip": "辅助技能奖励：招魂术",
+      "description": "在招魂术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "clavius": {
+    "name": "克劳维斯",
+    "biography": "克劳维斯的家族是迪雅数一数二的存在，他们拥有庞大的领地和权力。作为长子，克劳维斯被送到军队中服役，就象他的家族中每一代的长子所做过的一样。他很愿意这样做，而且做得很好。",
+    "specialty": {
+      "name": "+350个金币",
+      "tooltip": "每天增加350个金币",
+      "description": "为王国每天额外提供350个金币。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "galthran": {
+    "name": "凯瑟瑞",
+    "biography": "多年以来，凯瑟瑞发明了许多新方法来制造和指挥骷髅兵，这也使他在战斗中取得了优势。",
+    "specialty": {
+      "name": "骷髅兵",
+      "tooltip": "生物奖励：骷髅兵",
+      "description": "达到1级以后提高骷髅兵或骷髅勇士的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      }
+    ]
+  },
+  "septienna": {
+    "name": "史蒂芬",
+    "biography": "史蒂芬懂得从敌人们身上吸取生命能量，这就是为什么她总不会老的原因，但同时她也被一种名为“虚弱术”的魔法所折磨。",
+    "specialty": {
+      "name": "死亡波纹",
+      "tooltip": "魔法奖励：死亡波纹",
+      "description": "使用死亡波纹魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "aislinn": {
+    "name": "艾斯瑞",
+    "biography": "艾斯瑞喜欢大地胜于天空，有很多人认为她只需要保持与大地的接触，就能从大地上吸取生命力量。",
+    "specialty": {
+      "name": "流星火雨",
+      "tooltip": "魔法奖励：流星火雨",
+      "description": "使用流星火雨魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "sandro": {
+    "name": "山德鲁",
+    "biography": "山德鲁曾在巫师埃特里克的指导下学习巫术，并最终变成了一个亡灵巫师。他也是个探险家，足迹遍布整个恩洛斯及埃拉西亚，现在他为迪雅的亡灵巫师首领菲尼斯-威尔玛效力。",
+    "specialty": {
+      "name": "魔力",
+      "tooltip": "辅助技能奖励：魔力",
+      "description": "在魔力技能上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "nimbus": {
+    "name": "尼姆巴斯",
+    "biography": "在尼姆巴斯还是一个小孩时，他发现他可以使用其他生物来让心爱的小狗复活，他几乎没有意识到他已经在探索巫术的起源。",
+    "specialty": {
+      "name": "鹰眼术",
+      "tooltip": "辅助技能奖励：鹰眼术",
+      "description": "在鹰眼术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "thant": {
+    "name": "山特",
+    "biography": "没人知道山特活了多久。有人说他曾经在木材战争中为埃拉西亚而战，但在一次彻夜穿越菲纳西亚的行军中成为了吸血鬼的猎物。",
+    "specialty": {
+      "name": "聚灵奇术",
+      "tooltip": "魔法奖励：聚灵奇术",
+      "description": "使用聚灵奇术魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "xsi": {
+    "name": "希斯",
+    "biography": "希斯是所有女性尸巫中的佼佼者。她有一种独特的能力，可以抵抗物理伤害。这种能力不只一次救了她的命。",
+    "specialty": {
+      "name": "护体石肤",
+      "tooltip": "魔法奖励：护体石肤",
+      "description": "使用护体石肤魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "vidomina": {
+    "name": "维德尼娜",
+    "biography": "年轻时，维德尼娜显示出成为一个伟大的炼金术士的潜力，但当人们发现她开始使用亡灵巫术时，她被赶出了布拉卡达。",
+    "specialty": {
+      "name": "招魂术",
+      "tooltip": "辅助技能奖励：招魂术",
+      "description": "在招魂术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "nagash": {
+    "name": "纳格斯",
+    "biography": "纳格斯曾是一个极其强大的巫师，但他为了获得“永恒的生命”而成为了尸巫。他拥有大片土地，尽管大多数在迪雅的边境荒野。",
+    "specialty": {
+      "name": "+350个金币",
+      "tooltip": "每天增加350个金币",
+      "description": "为王国每天额外提供350个金币。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "lorelei": {
+    "name": "罗勒雷",
+    "biography": "罗勒雷小时候在她家附近迷了路，进入了一个洞穴迷宫，被一个鹰身女巫发现并抚养长大。在战争爆发后，她加入了地下领主的军队。她对她真正的父母没有任何记忆。",
+    "specialty": {
+      "name": "鹰身女妖",
+      "tooltip": "生物奖励：鹰身女妖",
+      "description": "达到2级以后提高鹰身女妖或鹰身女巫的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "arlach": {
+    "name": "艾拉切",
+    "biography": "艾拉切是少数几个被尼贡的地下领主真正信任的洞穴人之一。由于他学会了高超的弩箭技巧，经常被派去破坏敌人的防御工事。",
+    "specialty": {
+      "name": "弩车",
+      "tooltip": "炮术奖励：弩车",
+      "description": "达到4级以后提高弩车的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "ballista",
+        "min": 1,
+        "max": 1
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "dace": {
+    "name": "戴斯",
+    "biography": "戴斯出生于一个武士家族，他从一个看起来极其古老的大师那里学习战斗技巧，他特别擅长指挥牛头怪。",
+    "specialty": {
+      "name": "牛头怪",
+      "tooltip": "生物奖励：牛头怪",
+      "description": "达到5级以后提高牛头怪或牛头王的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "ajit": {
+    "name": "艾杰特",
+    "biography": "艾杰特仔细研究了恩洛斯愚蠢的巫师阿伽创造的眼怪和眼魔后，他成功的培养并完全掌控了那些生物，现在他正训练它们进行战斗。",
+    "specialty": {
+      "name": "邪眼",
+      "tooltip": "生物奖励：邪眼",
+      "description": "达到2级以后提高邪眼或毒眼的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "damacon": {
+    "name": "黛玛克",
+    "biography": "在所有洞穴人中，黛玛克是个老好人，他能够轻而易举地嗅出哪里有黄金。他也愿意向让他领军的任何人献上黄金。",
+    "specialty": {
+      "name": "+350个金币",
+      "tooltip": "每天增加350个金币",
+      "description": "为王国每天额外提供350个金币。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "gunnar": {
+    "name": "耿纳",
+    "biography": "耿纳一开始给地下领主当侦察兵，然后给高员做向导和贴身保镖，最后，他被授予尼贡边境驻军的指挥权。他缺少头脑，但能用直觉弥补。",
+    "specialty": {
+      "name": "后勤学",
+      "tooltip": "辅助技能奖励：后勤学",
+      "description": "在后勤学上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "synca": {
+    "name": "希力卡",
+    "biography": "希力卡虽然效忠于地下领主们，但内心却向往着阳光明媚的地上世界。",
+    "specialty": {
+      "name": "蝎狮",
+      "tooltip": "生物奖励：蝎狮",
+      "description": "达到6级以后提高蝎狮或毒蝎狮的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "shakti": {
+    "name": "莎克特",
+    "biography": "虽然没有眼睛，莎克特在战术上却有令人惊奇的先见之明。他的洞穴人军队在尼贡黑暗的坑道中百战百胜。",
+    "specialty": {
+      "name": "洞穴人",
+      "tooltip": "生物奖励：洞穴人",
+      "description": "达到1级以后提高洞穴人或地狱洞穴人的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      }
+    ]
+  },
+  "alamar": {
+    "name": "艾玛",
+    "biography": "艾玛在继承战争中为阿基巴德- 艾恩法斯特效力，阿基巴德战败后他逃到了尼贡，暗地里为地下领主们做事。",
+    "specialty": {
+      "name": "转世重生",
+      "tooltip": "魔法奖励：转世重生",
+      "description": "使用转世重生魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "jaegar": {
+    "name": "杰格",
+    "biography": "杰格以他的实力证明了自己是一位合格的妖术师，他说冥想是他成功的秘诀。",
+    "specialty": {
+      "name": "神秘术",
+      "tooltip": "辅助技能奖励：神秘术",
+      "description": "在神秘术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "malekith": {
+    "name": "马尔克斯",
+    "biography": "人们认为马尔克斯应该是一个实力强大的战士，但他的法力可以与尼贡最强大的魔法师相媲美。",
+    "specialty": {
+      "name": "魔力",
+      "tooltip": "辅助技能奖励：魔力",
+      "description": "在魔力技能上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "jeddite": {
+    "name": "杰德特",
+    "biography": "据说杰德特曾见过赛诺费克斯，但许多人认为，他既然还活着那传言一定是假的。杰德特也从不向人提起他的过去。",
+    "specialty": {
+      "name": "转世重生",
+      "tooltip": "魔法奖励：转世重生",
+      "description": "使用转世重生魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "geon": {
+    "name": "吉恩",
+    "biography": "吉恩的大部分魔法技能来自于他的特殊天赋，他善于窥探其他施法者的内心，通过阅读他们的想法，他就学会了施法。",
+    "specialty": {
+      "name": "鹰眼术",
+      "tooltip": "辅助技能奖励：鹰眼术",
+      "description": "在鹰眼术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "deemer": {
+    "name": "蒂玛",
+    "biography": "年轻的时候，蒂玛因为魔法失控差点被杀。从那以后，他学会了控制自己的力量，在战场上很少有人能与之匹敌。",
+    "specialty": {
+      "name": "流星火雨",
+      "tooltip": "魔法奖励：流星火雨",
+      "description": "使用流星火雨魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "sephinroth": {
+    "name": "萨费罗斯",
+    "biography": "萨费罗斯声称自己是格芬哈特国王的私生女，但国王不予承认，她从此痛恨埃拉西亚王室。她也是目前已知的唯一一位女性邪术师。",
+    "specialty": {
+      "name": "+1水晶",
+      "tooltip": "每天增加1单位水晶",
+      "description": "为王国每天额外提供1水晶。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "darkstorn": {
+    "name": "达克斯多",
+    "biography": "达克斯多在尼贡军中以喜欢比武而出名，他每次战斗前都会秘密地使用魔法以确保胜利，但现在敢挑战他的人已经不多了。",
+    "specialty": {
+      "name": "护体石肤",
+      "tooltip": "魔法奖励：护体石肤",
+      "description": "使用护体石肤魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "yog": {
+    "name": "约克",
+    "biography": "约克跟布拉卡达的术士学习过多年，但人们发现，他经常阅读关于战术的书籍，而不是关于魔法的书籍。后来他受到克鲁洛德公爵的赏识，成为军中的将领。",
+    "specialty": {
+      "name": "独眼巨人",
+      "tooltip": "生物奖励：独眼巨人",
+      "description": "达到6级以后提高独眼巨人或独眼王的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "gurnisson": {
+    "name": "格尼森",
+    "biography": "对于地精们来说能接触到权力非常罕见的事情。但是格尼森是个天才，他对弹道学的天赋使他成为了一个知名的雇佣兵。",
+    "specialty": {
+      "name": "弩车",
+      "tooltip": "炮术奖励：弩车",
+      "description": "达到4级以后提高弩车的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "ballista",
+        "min": 1,
+        "max": 1
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "jabarkas": {
+    "name": "杰巴克斯",
+    "biography": "作为博拉古斯公爵的长子，杰巴克斯知道有一天他将统治克鲁洛德，就像他父亲一样。他知道达到目地的最好方法就是征服。",
+    "specialty": {
+      "name": "半兽人",
+      "tooltip": "生物奖励：半兽人",
+      "description": "达到3级以后提高半兽人或半兽人首领的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "shiva": {
+    "name": "希娃",
+    "biography": "希瓦是马戏团训兽师家庭六个女儿中最小的那个，但她不想继承祖业，于是加入到克鲁洛德军队中当了雇佣兵。",
+    "specialty": {
+      "name": "大雕",
+      "tooltip": "生物奖励：大雕",
+      "description": "达到5级以后提高大雕或雷鸟的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "gretchin": {
+    "name": "格兰切尔",
+    "biography": "格兰切尔是一位出色的领袖，所有跟随她的人都会告诉你同一件事，那就是她会象母亲一样照顾你。",
+    "specialty": {
+      "name": "大耳怪",
+      "tooltip": "生物奖励：大耳怪",
+      "description": "达到1级以后提高大耳怪或大耳怪王的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      }
+    ]
+  },
+  "krellion": {
+    "name": "克洛林",
+    "biography": "克洛林以前只是个拳击手，但他的名气大增后，他的崇拜者们一直坚持要让他率领他们去战斗。虽然这可能不是最明智的决定，但对食人魔而言，他成为了一名卓越的领袖。",
+    "specialty": {
+      "name": "食人魔",
+      "tooltip": "生物奖励：食人魔",
+      "description": "达到4级以后提高食人魔或食人魔王的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "cragHack": {
+    "name": "肯洛-哈格",
+    "biography": "肯洛-哈格是恩洛斯知名的英雄。他厌倦了家乡，来到埃拉西亚想寻找一种新的生活。他发现自己在这片混乱的大陆上能够充分的施展才华。",
+    "specialty": {
+      "name": "进攻术",
+      "tooltip": "辅助技能奖励：进攻术",
+      "description": "在进攻术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "tyraxor": {
+    "name": "塔洛希尔",
+    "biography": "塔洛希尔之前是一名狼骑兵队长，在一次沿着两国边界的远距离行军中发现了泰塔利亚军队的伏兵，之后成为了克鲁罗德的指挥官。",
+    "specialty": {
+      "name": "恶狼骑士",
+      "tooltip": "生物奖励：恶狼骑士",
+      "description": "达到2级以后提高恶狼骑士或恶狼斗士的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      }
+    ]
+  },
+  "gird": {
+    "name": "哥德",
+    "biography": "哥德从家乡的萨满那里学到了很多知识，人们都认为她会成为新的萨满，但是克鲁洛德的法师搜寻懂魔法的孩童时，哥德被带走了。",
+    "specialty": {
+      "name": "魔力",
+      "tooltip": "辅助技能奖励：魔力",
+      "description": "在魔力技能上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "vey": {
+    "name": "维尔",
+    "biography": "作为食人魔法师，维尔无数次证明了他自己拥有超群的领导才能。如果杰巴克斯不能创造出什么功绩，维尔将成为克鲁洛德王国的继承人。",
+    "specialty": {
+      "name": "食人魔",
+      "tooltip": "生物奖励：食人魔",
+      "description": "达到4级以后提高食人魔或食人魔王的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "dessa": {
+    "name": "德萨",
+    "biography": "大约在十五年前，德萨所在的村庄遭到人类强盗的大屠杀，整个村庄被夷为平地，德萨是仅存的六个孩童之一。从那时起，他总是想着某一天要人类血债血偿。",
+    "specialty": {
+      "name": "后勤学",
+      "tooltip": "辅助技能奖励：后勤学",
+      "description": "在后勤学上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "terek": {
+    "name": "特洛克",
+    "biography": "特洛克在太阳马戏团当过多年的大力士，跟观众比赛看谁能把大石头扔得最远。有一天他输了，于是被赶出了马戏团，但是把他打败的那人将他招募到了克鲁洛德军队中。",
+    "specialty": {
+      "name": "攻击加速",
+      "tooltip": "魔法奖励：加击加速",
+      "description": "使用攻击加速魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "zubin": {
+    "name": "祖宾",
+    "biography": "祖宾曾经是与博拉古斯公爵作战的一个部落的首领。双方和谈后，他被授予了在克鲁罗德军队中的指挥权。",
+    "specialty": {
+      "name": "百发百中",
+      "tooltip": "魔法奖励：百发百中",
+      "description": "使用百发百中魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "gundula": {
+    "name": "干德鲁",
+    "biography": "干德鲁一出生就成了孤儿，被博拉古斯当做女儿养大。当她得知公爵并非她的亲生父亲后，伤心的参加了军队，希望光荣战死在沙场上，但事实上从来没有人打败过她。",
+    "specialty": {
+      "name": "进攻术",
+      "tooltip": "辅助技能奖励：进攻术",
+      "description": "在进攻术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "oris": {
+    "name": "奥力斯",
+    "biography": "在最初的魔法师生涯中，奥力斯并未表现出多大的潜力，但她拥有一种神奇的能力，她能够学会她所看到过的几乎所有魔法，这足以弥补她在魔法技能上的不足。",
+    "specialty": {
+      "name": "鹰眼术",
+      "tooltip": "辅助技能奖励：鹰眼术",
+      "description": "在鹰眼术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "saurug": {
+    "name": "塞瑞格",
+    "biography": "据说塞瑞格学习炼金术的最初目的是想发财，他虽然没能成功，但他的魔法对克鲁洛德的军队来说很有价值。",
+    "specialty": {
+      "name": "+1宝石",
+      "tooltip": "每天增加1宝石",
+      "description": "为王国每天额外提供1宝石。"
+    },
+    "army": [
+      {
+        "creature": "goblin",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "bron": {
+    "name": "布朗",
+    "biography": "布朗不是普通人，他对蜥蜴的石化之眼有着不可思议的抵抗力，这使他比任何活物都更了解蜥蜴与巨蜥。",
+    "specialty": {
+      "name": "蜥蜴",
+      "tooltip": "生物奖励：蜥蜴",
+      "description": "达到4级以后提高蜥蜴或巨蜥的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "drakon": {
+    "name": "鲁肯",
+    "biography": "鲁肯是村里最优秀的战士，为特拉洛斯克国王效力之前，他可以说是这个地区最强大的勇士了。在豺狼人看来，他的行为很有魅力，于是成群的豺狼人加入到他率领的军队。",
+    "specialty": {
+      "name": "豺狼人",
+      "tooltip": "生物奖励：豺狼人",
+      "description": "达到1级以后提高豺狼人或豺狼劫掠者的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      }
+    ]
+  },
+  "wystan": {
+    "name": "维斯特",
+    "biography": "维斯特是特拉洛斯克国王的大女婿，也是泰塔利亚王位的王位继承人。在此之前，他自愿服侍国王前后，并向国王学习。他在等待有一天时机成熟，杀死国王，登上王位。",
+    "specialty": {
+      "name": "蜥蜴人",
+      "tooltip": "生物奖励：蜥蜴人",
+      "description": "达到2级以后提高蜥蜴人或蜥蜴勇士的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      }
+    ]
+  },
+  "tazar": {
+    "name": "泰泽",
+    "biography": "在与克鲁洛德长达六个月的边界战争中，泰泽率领的一小股部队驻扎在一个泰塔利亚哨所，阻挡了五倍于他们的克鲁罗德军队长达八天，一直坚持到援军赶来。",
+    "specialty": {
+      "name": "防御术",
+      "tooltip": "辅助技能奖励：防御术",
+      "description": "在防御术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "alkin": {
+    "name": "阿尔金",
+    "biography": "特拉洛斯克国王从未真正赏识过阿尔金，他希望他有一天会自杀，但阿尔金以他的实力证明了自己的价值，这让国王很不高兴。",
+    "specialty": {
+      "name": "野牛",
+      "tooltip": "生物奖励：野牛",
+      "description": "达到5级以后提高野牛或蛮牛的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "korbac": {
+    "name": "克巴斯",
+    "biography": "克巴斯被埃拉西亚的人们称为拯救了学者萨索尔的大英雄。不管这是不是真的，他在为泰塔利亚卖命的过程中，曾不止一次证明了他的勇猛。",
+    "specialty": {
+      "name": "毒蝇",
+      "tooltip": "生物奖励：毒蝇",
+      "description": "达到3级以后提高毒蝇或龙蝇的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      },
+      {
+        "creature": "DragonFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "gerwulf": {
+    "name": "格伍夫",
+    "biography": "格伍夫为泰塔利亚带来了弩车，那是他攻陷克鲁洛德边境上的一个野蛮人据点获得的战利品。不久之后，他成为了泰塔利亚在西北海岸部署的弩车专家。",
+    "specialty": {
+      "name": "弩车",
+      "tooltip": "炮术奖励：弩车",
+      "description": "达到4级以后提高弩车的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "ballista",
+        "min": 1,
+        "max": 1
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "broghild": {
+    "name": "布鲁菲德",
+    "biography": "布鲁菲德的祖父是第一个驯化野生飞龙的人，他本人也是指挥飞龙的大师。",
+    "specialty": {
+      "name": "飞龙",
+      "tooltip": "生物奖励：飞龙",
+      "description": "达到6级以后提高飞龙或飞龙王的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "mirlanda": {
+    "name": "麦林德",
+    "biography": "麦林德年青时大部分时间花在学习黑暗魔法上，后来她意识到这样只会毁了她自己。随着年龄的增长，她渐渐找到了正义与邪恶的平衡点，成为了一个强大的女巫。",
+    "specialty": {
+      "name": "虚弱无力",
+      "tooltip": "魔法奖励：虚弱无力",
+      "description": "使用虚弱无力魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "rosic": {
+    "name": "罗斯可",
+    "biography": "罗斯可小时候发过一次高烧，情况十分危险，她村子里的长老们都认为她活不下来了。但是她奇迹般的痊愈了，痊愈之后她获得了意想不到的魔法能力。",
+    "specialty": {
+      "name": "神秘术",
+      "tooltip": "辅助技能奖励：神秘术",
+      "description": "在神秘术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "voy": {
+    "name": "沃伊",
+    "biography": "沃伊是一个女巫，擅长气系魔法。她经常被船长们雇佣，帮助他们引导船只，确保在海上顺风航行。比起家乡大片的沼泽地上，她更喜欢海洋上微咸的空气。",
+    "specialty": {
+      "name": "航海术",
+      "tooltip": "辅助技能奖励：航海术",
+      "description": "在航海术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "verdish": {
+    "name": "威迪斯",
+    "biography": "在一次地下领主们的突袭中，威迪斯险些丧命。幸运的是，威迪斯是医疗术的大师，能够治愈她在战场上受到的致命创伤。",
+    "specialty": {
+      "name": "急救术",
+      "tooltip": "辅助技能奖励：急救术",
+      "description": "在急救术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "firstAidTent",
+        "min": 1,
+        "max": 1
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "merist": {
+    "name": "马利斯",
+    "biography": "马利斯本来是村里的医师，当人们发现她拥有强大的魔法能力后，她很快就被泰塔利亚强迫带走了。",
+    "specialty": {
+      "name": "护体石肤",
+      "tooltip": "魔法奖励：护体石肤",
+      "description": "使用护体石肤魔法时效果大增，但还要取决于英雄级别与目标级别之差(目标的级别越低，效果越好)。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "styg": {
+    "name": "斯蒂格",
+    "biography": "斯蒂格是泰塔利亚国王特拉洛斯克的第十一个女儿，很显然，她永远不会在十个继承人前面登上泰塔利亚王座，于是她从小就开始学习魔法。",
+    "specialty": {
+      "name": "魔力",
+      "tooltip": "辅助技能奖励：魔力",
+      "description": "在魔力技能上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "andra": {
+    "name": "安洁儿",
+    "biography": "在让一个女性人类领导他的军队之前，特拉洛斯克国王给了安德拉一系列的测试来检验她的知识水平。后来特拉洛斯克国王试图让安德拉成为她的妻子，但被安德拉拒绝了。",
+    "specialty": {
+      "name": "智力",
+      "tooltip": "辅助技能奖励：智力",
+      "description": "在智力技能上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "tiva": {
+    "name": "蒂娃",
+    "biography": "蒂瓦通过挑战那些地位在她之上的人物来检查自己的所学，以证明她比任何一个人都学习的快。经历了多次战争的考验后，她终于获得了英雄的称号。",
+    "specialty": {
+      "name": "鹰眼术",
+      "tooltip": "辅助技能奖励：鹰眼术",
+      "description": "在鹰眼术上每级得到5%的额外奖励。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "PrimitiveLizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "pasis": {
+    "name": "帕里斯",
+    "biography": "帕里斯一直对生命体非常迷恋。她热衷于对生命体开展的调研，以及和具备血肉的生物之间的广泛交流。",
+    "specialty": {
+      "name": "精神元素",
+      "tooltip": "生物奖励：精神元素",
+      "description": "达到6级以后提高精神元素或魔法元素的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "thunar": {
+    "name": "索尔那",
+    "biography": "在埃拉西亚首都附近居住的多年时光中，索尔那学习了很多战术和理财知识，她对于普通人类的好奇心和尊重让她获准进入元素城。",
+    "specialty": {
+      "name": "土元素",
+      "tooltip": "生物奖励：土元素",
+      "description": "达到5级以后提高土元素或石元素的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "ignissa": {
+    "name": "依格尼萨",
+    "biography": "四年前，有一个强大的巫师邀请依格尼萨来到了她的位面。她没有办法回家，只能在乱流中徘徊，直到她感受到了元素城对她的召唤。",
+    "specialty": {
+      "name": "火元素",
+      "tooltip": "生物奖励：火元素",
+      "description": "达到4级以后提高火元素或烈火元素的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "lacus": {
+    "name": "拉克斯",
+    "biography": "所有的水元素们都想要为元素城服务，为了这个名额，水元素们爆发了激烈的竞争。拉克斯凭借自己高超的战术知识获得了这个机会。",
+    "specialty": {
+      "name": "水元素",
+      "tooltip": "生物奖励：水元素",
+      "description": "达到3级以后提高水元素或冰元素的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 1,
+        "max": 2
+      }
+    ]
+  },
+  "monere": {
+    "name": "莫奈尔",
+    "biography": "作为一团纯净的能量，莫奈尔十分享受这种状态带给他的自由。然而，他对肉体生物的好奇心驱使他走进了元素城。",
+    "specialty": {
+      "name": "精神元素",
+      "tooltip": "生物奖励：精神元素",
+      "description": "达到6级以后提高精神元素或魔法元素的攻击力与防御力。。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "erdamon": {
+    "name": "埃德蒙",
+    "biography": "作为一个古老的岩浆之王，埃德蒙已经在伊欧弗边陲的山脉上沉睡了几个世纪。他从睡梦中苏醒，加入到抵抗克里根人的战斗中去。",
+    "specialty": {
+      "name": "土元素",
+      "tooltip": "生物奖励：土元素",
+      "description": "达到5级以后提高土元素或石元素的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "fiur": {
+    "name": "费拉",
+    "biography": "费拉很年轻，他非凡的战斗技巧还没有经过实战的检验，但他凶猛的战斗风格无人能及。人们相信他将成为元素城中最强大的英雄之一。",
+    "specialty": {
+      "name": "火元素",
+      "tooltip": "生物奖励：火元素",
+      "description": "达到4级以后提高火元素或烈火元素的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "kalt": {
+    "name": "凯尔特",
+    "biography": "凯尔特的学习效率总是很高，他被召唤到了一个元素城，在那里他能满足自己强烈的学习欲望，能够习得新的、不同的东西。",
+    "specialty": {
+      "name": "水元素",
+      "tooltip": "生物奖励：",
+      "description": "达到3级以后提高水元素或冰元素的攻击力与防御力。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 1,
+        "max": 2
+      }
+    ]
+  },
+  "luna": {
+    "name": "露娜",
+    "biography": "以前露娜是恩洛斯的巫师，来到埃拉西亚后，露娜感受到元素融合的召唤。她不得不放弃了自己的水系魔法天赋，转而学习火魔法。",
+    "specialty": {
+      "name": "烈火魔墙",
+      "tooltip": "魔法奖励：烈火魔墙",
+      "description": "“烈火魔墙”威力加倍。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "brissa": {
+    "name": "博丽斯",
+    "biography": "博丽斯是个年轻的神怪，还没有受过任何针对她的正规训练，但她丰富的作战经验弥补了这一不足。因为她在还没有完成试炼的时候就参与了复兴战争。",
+    "specialty": {
+      "name": "攻击加速",
+      "tooltip": "魔法奖励：攻击加速",
+      "description": "擅长“攻击加速”魔法(受法的兵种越弱效果越明显)。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "ciele": {
+    "name": "萨丽尔",
+    "biography": "萨丽尔在阿维利的海边长大，她感觉自己和那些古老的水域有着莫名的联系。她走遍大陆，想要找到那些在召唤她的东西。最终，她在元素城发现了她想要的东西。",
+    "specialty": {
+      "name": "魔法神箭",
+      "tooltip": "魔法奖励：魔法神箭",
+      "description": "擅长“魔法神箭”魔法(杀伤力+50%)。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "labetha": {
+    "name": "兰贝斯",
+    "biography": "兰贝斯出生在穷困的家庭，她的父母在复兴战争中惨遭农民屠杀。她被树精们带走，到阿维利参军。她的土系魔法能力快速成形。当她感知到元素城的召唤时，她立刻就动身前往。",
+    "specialty": {
+      "name": "护体石肤",
+      "tooltip": "魔法奖励：护体石肤",
+      "description": "擅长“护体石肤”魔法(效果+3)。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "inteus": {
+    "name": "恩托斯",
+    "biography": "恩托斯以前是个杂耍艺人，专门表演吞火的绝技。有一天他突然感受到了元素的召唤，于是立刻加入了元素城。",
+    "specialty": {
+      "name": "嗜血奇术",
+      "tooltip": "魔法奖励：嗜血奇术",
+      "description": "擅长“嗜血奇术”魔法(受法的兵种越弱效果越明显)。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "aenain": {
+    "name": "阿奈尔",
+    "biography": "神怪是由一股神秘而又强大的力量创造出来的，他们天生是魔法的宠儿。但阿奈尔却是一个不完美的产物。几个世纪以来，他一直努力克服自己在感知和洞察方面的小缺憾，由于他对气系魔法的勤勉和奉献精神，他被召唤到了元素城。",
+    "specialty": {
+      "name": "毁灭之光",
+      "tooltip": "魔法奖励：毁灭之光",
+      "description": "“毁灭之光”魔法+2攻击力。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "gelare": {
+    "name": "格雷尔",
+    "biography": "格雷尔生来就有超乎他年龄的智慧，甚至对于一个精灵来说也是如此。他总是沉着冷静，对自己被召唤毫不怀疑。",
+    "specialty": {
+      "name": "+350金币",
+      "tooltip": "每天增加350个金币",
+      "description": "为王国每天额外提供350个金币。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "grindan": {
+    "name": "格兰登",
+    "biography": "矮人们比其他任何人都喜欢金币。格兰登能运用土系魔法能力发现金矿，在这一点上无人能及。",
+    "specialty": {
+      "name": "+350金币",
+      "tooltip": "每天增加350个金币",
+      "description": "为王国每天额外提供350个金币。"
+    },
+    "army": [
+      {
+        "creature": "Pixies",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "Air Elementals",
+        "min": 3,
+        "max": 5
+      },
+      {
+        "creature": "Water Elementals",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "sirMullich": {
+    "name": "姆拉克爵士",
+    "biography": "一般来说，姆拉克爵士是个苦修者，但他容易出现间歇性的不正常的兴奋，据信这是为了恐吓他的部队加快工作速度。",
+    "specialty": {
+      "name": "神速",
+      "tooltip": "生物奖励：速度",
+      "description": "所有生物速度+2。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "archer",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "adrienne": {
+    "name": "埃德妮",
+    "biography": "埃德妮十分渴望获得权力以保护自己的家园。她冒着被社会抛弃和被自己的人民憎恨的危险追随自己的激情。",
+    "specialty": {
+      "name": "火系魔法",
+      "tooltip": "辅助技能奖励：高级火系魔法",
+      "description": "开始时就懂得高级火系魔法。"
+    },
+    "army": [
+      {
+        "creature": "gnoll",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "lizardman",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "serpentFly",
+        "min": 2,
+        "max": 4
+      }
+    ]
+  },
+  "catherine": {
+    "name": "凯瑟琳",
+    "biography": "作为埃拉西亚的女王，凯瑟琳为了保卫自己的国家而四处征战，并复兴了她父亲的王国。然而随着国家对战争的厌倦，对她的立场的支持者正在变少。",
+    "specialty": {
+      "name": "剑士",
+      "tooltip": "生物奖励：剑士",
+      "description": "达到4级以后提高剑士和十字军的攻击力和防御力。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "archer",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "dracon": {
+    "name": "德肯",
+    "biography": "德肯的人生目标就是成为最伟大的屠龙者。很多人都认为他是天才中的天才，但他却经常穿着一些花里胡哨的衣服以取代更加实用的战斗装备。",
+    "specialty": {
+      "name": "魔幻法师",
+      "tooltip": "生物奖励：魔幻法师",
+      "description": "将僧侣、祭司、法师和大法师升级为魔幻法师。"
+    },
+    "army": [
+      {
+        "creature": "Enchanters",
+        "min": 6,
+        "max": 6
+      },
+      {
+        "creature": "Enchanters",
+        "min": 3,
+        "max": 3
+      },
+      {
+        "creature": "Enchanters",
+        "min": 1,
+        "max": 1
+      }
+    ]
+  },
+  "gelu": {
+    "name": "格鲁",
+    "biography": "对于格鲁，人们知之甚少。他在摩甘-肯达尔将军手下服役时被发现，现在他成为了埃拉西亚的护林团指挥官。",
+    "specialty": {
+      "name": "幻影射手",
+      "tooltip": "生物奖励：幻影射手",
+      "description": "将弓箭手、神射手、木精灵和大精灵升级为幻影射手。"
+    },
+    "army": [
+      {
+        "creature": "Sharpshooters",
+        "min": 6,
+        "max": 6
+      },
+      {
+        "creature": "Sharpshooters",
+        "min": 3,
+        "max": 3
+      },
+      {
+        "creature": "Sharpshooters",
+        "min": 1,
+        "max": 1
+      }
+    ]
+  },
+  "kilgor": {
+    "name": "科尔格",
+    "biography": "通过击败了自己的父亲，科尔格得到了家族的统治权。他的名声在整个克鲁洛德就已经是响当当了，许多人认为他是唯一有能力赢得王位之战的人。",
+    "specialty": {
+      "name": "比蒙",
+      "tooltip": "生物奖励：比蒙",
+      "description": "使比蒙和比蒙巨兽攻击力+5、防御力+5，杀伤力+10。"
+    },
+    "army": [
+      {
+        "creature": "Goblins",
+        "min": 15,
+        "max": 25
+      },
+      {
+        "creature": "goblinWolfRider",
+        "min": 5,
+        "max": 7
+      },
+      {
+        "creature": "orc",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "undeadHaart": {
+    "name": "罗德-哈特",
+    "biography": "罗德-哈特被崇拜他的亡灵教徒们复活了，现在他比过去更加强大了。",
+    "specialty": {
+      "name": "暗黑骑士",
+      "tooltip": "生物奖励：暗黑骑士",
+      "description": "使暗黑骑士和恐怖骑士攻击力+5、防御力+5，杀伤力+10。"
+    },
+    "army": [
+      {
+        "creature": "skeleton",
+        "min": 20,
+        "max": 30
+      },
+      {
+        "creature": "Zombie",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "wight",
+        "min": 4,
+        "max": 6
+      }
+    ]
+  },
+  "mutare": {
+    "name": "摩莉尔",
+    "biography": "摩莉尔具有指挥龙的能力，许多人注意到她在尼贡的领主中迅速崛起。",
+    "specialty": {
+      "name": "龙",
+      "tooltip": "生物奖励：龙",
+      "description": "使龙攻击力+5，防御力+5。"
+    },
+    "army": [
+      {
+        "creature": "troglodyte",
+        "min": 30,
+        "max": 40
+      },
+      {
+        "creature": "harpy",
+        "min": 4,
+        "max": 6
+      },
+      {
+        "creature": "beholder",
+        "min": 3,
+        "max": 4
+      }
+    ]
+  },
+  "roland": {
+    "name": "罗兰德",
+    "biography": "罗兰德前不久刚被一群勇士从克里根人那里解救出来，现在他加入了埃拉西亚的军队，在他的妻子指挥下奋勇作战。不久的将来，战争会结束，他和凯瑟琳会回到恩洛斯。在那之前，他们必须选一个人成为埃拉西亚之王。",
+    "specialty": {
+      "name": "剑士",
+      "tooltip": "生物奖励：剑士",
+      "description": "达到4级以后提高剑士和十字军的攻击力和防御力。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "archer",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "mutareDrake": {
+    "name": "巨龙摩莉尔",
+    "biography": "喝下龙之血后，摩莉尔变成了一条巨龙。有人怀疑她是否预示着龙神的到来。",
+    "specialty": {
+      "name": "龙",
+      "tooltip": "生物奖励：龙",
+      "description": "使龙攻击力+5，防御力+5。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "archer",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "boragus": {
+    "name": "伯拉格",
+    "biography": "云斯顿-博拉古斯凭借着自己特殊的血脉以及他下属的食人魔们，在战场上鲜有敌手，从而在寻求权力的过程中走得更远。",
+    "specialty": {
+      "name": "食人魔",
+      "tooltip": "生物奖励：食人魔",
+      "description": "达到4级以后提高食人魔和食人魔王的攻击力和防御力。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "archer",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  },
+  "xeron": {
+    "name": "塞尔伦",
+    "biography": "随着赛诺费克斯被杀，路西法·克里根夺取了权力宝座，塞尔伦是第一个向这个篡位者宣誓效忠的人。很多人由于他的选择，也选择支持路西法。",
+    "specialty": {
+      "name": "恶魔",
+      "tooltip": "生物奖励：恶魔",
+      "description": "使恶魔和大恶魔攻击力+4、防御力+2，速度+1。"
+    },
+    "army": [
+      {
+        "creature": "pikeman",
+        "min": 10,
+        "max": 20
+      },
+      {
+        "creature": "archer",
+        "min": 4,
+        "max": 7
+      },
+      {
+        "creature": "griffin",
+        "min": 2,
+        "max": 3
+      }
+    ]
+  }
+}

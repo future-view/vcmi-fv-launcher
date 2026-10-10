@@ -1,0 +1,20 @@
+{
+  "lang": "chinese",
+  "encoding": "gbk",
+  "gameDir": "Heroes3-VCMI",
+  "configDir": "Heroes3-VCMI/config",
+  "generatedAt": "2026-09-13T08:22:57.373Z",
+  "source": "H3 legacy TXT in Data/*.lod (via VCMI CLegacyConfigParser rules)",
+  "counts": {
+    "creatures": 150,
+    "factions": 9,
+    "heroes": 156,
+    "heroClasses": 18,
+    "artifacts": 144,
+    "spells": 70,
+    "skills": 28,
+    "terrains": 10,
+    "buildings": 248,
+    "buildingCosts": 347
+  }
+}

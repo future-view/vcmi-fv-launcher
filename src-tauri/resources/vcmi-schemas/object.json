@@ -1,0 +1,45 @@
+{
+	"type" : "object",
+	"$schema" : "http://json-schema.org/draft-04/schema",
+	"title" : "VCMI map object format",
+	"description" : "Description of map object class",
+	"required" : [ "name", "handler" ],
+	"additionalProperties" : false,
+
+	"properties" : {
+		"compatibilityIdentifiers" : {
+			"type" : "array",
+			"items" : {
+				"type" : "string"
+			},
+			"description" : "Additional identifiers that may refer to this object, to provide compatibility after object has been renamed"
+		},
+		"name" : {
+			"type" : "string"
+		},
+		"index" : {
+			"type" : "number"
+		},
+		"lastReservedIndex" : {
+			"type" : "number"
+		},
+		"handler" : {
+			"type" : "string",
+			"enum" : [
+				"configurable", "dwelling", "hero", "town", "boat", "market", "hillFort", "shipyard", "monster", "resource", "static", "randomArtifact", 
+				"randomHero", "randomResource", "randomTown", "randomMonster", "randomDwelling", "generic", "artifact", "borderGate", "borderGuard", "denOfThieves", 
+				"event", "garrison", "heroPlaceholder", "keymaster", "flaggable", "magi", "mine", "obelisk", "pandora", "prison", "questGuard", "seerHut", "sign", 
+				"siren", "monolith", "subterraneanGate", "whirlpool", "terrain"
+			]
+		},
+		"base" : {
+			"type" : "object"
+		},
+		"types" : {
+			"type" : "object",
+			"additionalProperties" : {
+				"$ref" : "objectType.json"
+			}
+		}
+	}
+}

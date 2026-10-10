@@ -1,0 +1,200 @@
+{
+  "castle": {
+    "name": "Castle",
+    "townNames": [
+      "Castellatus",
+      "Cornerstone",
+      "Kanan",
+      "Highcastle",
+      "Whitemoon",
+      "Transom",
+      "Middleheim",
+      "Brettonia",
+      "Alexandretta",
+      "Whitestone",
+      "Claxton",
+      "Armitage",
+      "Whistledale",
+      "Gateway",
+      "Dunwall",
+      "Kildare"
+    ],
+    "description": "The Castle is the bastion of the human Kingdom of Erathia, a just and orderly realm of Knights and Clerics. Its pikemen, griffins, and angels form a balanced army, and its Champions can resurrect the fallen on the battlefield."
+  },
+  "rampart": {
+    "name": "Rampart",
+    "townNames": [
+      "Wise Oak",
+      "Forest",
+      "Fortune Keep",
+      "Still Water",
+      "Elfwind",
+      "Serenity",
+      "Ceiliedgh",
+      "Gladeroot",
+      "Forest Glen",
+      "Rainhaven",
+      "Strongglen",
+      "Marishen",
+      "Bath'iere",
+      "Green Falls",
+      "Emerald Moor",
+      "Wild Willow"
+    ],
+    "description": "Rampart is the enchanted woodland of the elven nation AvLee, a good-aligned town of Rangers and Druids. Centaurs, dendroids, and green dragons guard its mist-shrouded groves."
+  },
+  "tower": {
+    "name": "Tower",
+    "townNames": [
+      "Machina",
+      "Stronggale",
+      "Corona",
+      "Silverwing",
+      "Facture",
+      "Cloudfire",
+      "Cloudspire",
+      "Equinox",
+      "Athenaeum",
+      "Valtara",
+      "Tirith",
+      "Fallen Star",
+      "Mystos",
+      "Ayer",
+      "Silverspire",
+      "Manufactury"
+    ],
+    "description": "Tower is the astral city of Bracada, home to Wizards and Alchemists—neutral, but leaning toward good. Gremlins, golems, and titans bend the elemental spheres to their will."
+  },
+  "inferno": {
+    "name": "Inferno",
+    "townNames": [
+      "Abaddon",
+      "Acheron",
+      "Ashden",
+      "Brimstone",
+      "Candent",
+      "Cinderspire",
+      "Daemon Gate",
+      "Enkindle",
+      "Gehenna",
+      "Firebrand",
+      "Ashcombe",
+      "Hellwind",
+      "Stygius",
+      "Styx",
+      "Tartaros",
+      "Blackburn"
+    ],
+    "description": "Inferno is the burning realm of Eeofol's demons, an evil domain of Demoniacs and Heretics. Imps, gogs, and devils pour from the underworld to ravage the surface world."
+  },
+  "necropolis": {
+    "name": "Necropolis",
+    "townNames": [
+      "Haunt's Wind",
+      "Cessacioun",
+      "Agony",
+      "Sanctum",
+      "Terminus",
+      "Blackquarter",
+      "Death's Gate",
+      "Grave Raven",
+      "Dark Cloud",
+      "Coldsoul",
+      "Coldreign",
+      "Dark Eternal",
+      "Ghostwind",
+      "Blight",
+      "Shadow Keep",
+      "Worm Warren"
+    ],
+    "description": "Necropolis is the cursed land of Deya, an evil-aligned town of Death Knights and Necromancers. Skeletons, vampires, and liches raise the dead to swell their endless legions."
+  },
+  "dungeon": {
+    "name": "Dungeon",
+    "townNames": [
+      "Veks",
+      "Sorrow Crown",
+      "Chillwater",
+      "Deepshadow",
+      "Darkhold",
+      "Blindroot",
+      "Shadowden",
+      "Scar",
+      "Malev",
+      "Castigare",
+      "Dragonnade",
+      "Shade",
+      "Evernight",
+      "Darkburrow",
+      "Lost Hold",
+      "Coldshadow"
+    ],
+    "description": "Dungeon is the subterranean domain of the dark elves, an evil-aligned town of Overlords and Warlocks. Troglodytes, minotaurs, and black dragons lurk in its shadowed caverns."
+  },
+  "stronghold": {
+    "name": "Stronghold",
+    "townNames": [
+      "Kragg",
+      "Drago Breach",
+      "Hartgrim",
+      "Sandflash",
+      "Morganheim",
+      "Cragmoor",
+      "Dragonspire",
+      "Battlement",
+      "Bocc",
+      "Slau",
+      "Tormina",
+      "Dolere",
+      "Rockwarren",
+      "Strongglen",
+      "Kruber",
+      "Rovener"
+    ],
+    "description": "Stronghold is the rugged fortress of the barbarian tribes of Krewlod, a neutral town of Barbarians and Beastmasters. Goblins, wolf riders, and behemoths answer the call of the war drum."
+  },
+  "fortress": {
+    "name": "Fortress",
+    "townNames": [
+      "Marshank",
+      "Deadfall",
+      "Coolmire",
+      "Backwater",
+      "Marshchoke",
+      "Lostmoor",
+      "Silt",
+      "Deadwood",
+      "Edgewater",
+      "Stillbog",
+      "Drakenmoor",
+      "Hermit Cove",
+      "Mosswood",
+      "Marshwall",
+      "Mossden",
+      "Mudshire"
+    ],
+    "description": "Fortress is the steaming swamp home of the lizard folk of Tatalia, a neutral town of Beastmasters and Witches. Gnolls, lizard warriors, and hydras thrive amid its murky marshes."
+  },
+  "conflux": {
+    "name": "Conflux",
+    "townNames": [
+      "Elementon",
+      "Styriam",
+      "Fenderen",
+      "Lagumoor",
+      "Wazzar",
+      "Lanting",
+      "Vluchton",
+      "Solium",
+      "Massein",
+      "Magmetin",
+      "Ventu",
+      "Fleogan Mills",
+      "Electrising",
+      "Ceald",
+      "Igne",
+      "Froisan"
+    ],
+    "description": "Conflux is the elemental sanctuary introduced in Armageddon's Blade, a neutral town of Planeswalkers and Elementalists. Air, earth, fire, and water elementals heed the call of magic itself."
+  }
+}

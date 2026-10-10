@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    margin: 0;
+    overflow: hidden;
+    height: 100vh;
+    background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(99, 102, 241, 0.18), transparent),
+      radial-gradient(900px 600px at -10% 110%, rgba(59, 130, 246, 0.16), transparent),
+      #0f172a;
+  }
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-slate-900/60 border border-slate-700/30;
+    backdrop-filter: blur(16px);
+  }
+  .glass-strong {
+    @apply bg-slate-950/90 border border-slate-700/30;
+    backdrop-filter: blur(20px);
+  }
+}
+
+/* 像素素材（def 帧、生物/英雄图标、小图）放大时保持锐利，不在 2K/4K 屏糊化 */
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/**
+ * 无边框窗口的拖拽区（`data-tauri-drag-region`）。
+ *
+ * 拖动有两条独立路径，任一缺失都会表现为「窗口拖不动」：
+ * 1. Tauri 注入脚本 → `plugin:window|start_dragging` 命令，**受 capabilities 管控**，
+ *    需要 `core:window:allow-start-dragging`（不在 `core:window:default` 里）；
+ * 2. CSS `app-region: drag` —— 纯渲染层路径，不经 JS / ACL。
+ *
+ * 这里显式补第 2 条（官方在 Windows 一节给出的写法），与第 1 条形成双保险；
+ * 顺带补齐触摸 / 笔输入的拖动支持。注意该区域内**不能**放交互元素（会吞掉点击）。
+ */
+*[data-tauri-drag-region] {
+  app-region: drag;
+  -webkit-app-region: drag;
+}

@@ -1,0 +1,4062 @@
+{
+  "pikeman": {
+    "name": "枪兵",
+    "plural": "枪兵",
+    "abilityText": "忽略骑士的冲锋伤害加成",
+    "stats": {
+      "attack": 4,
+      "defense": 5,
+      "hitPoints": 10,
+      "speed": 4,
+      "shots": 0,
+      "growth": 14,
+      "horde": 0,
+      "aiValue": 80,
+      "combatValue": 100,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 60
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "halberdier": {
+    "name": "戟兵",
+    "plural": "戟兵",
+    "abilityText": "忽略骑士的冲锋伤害加成",
+    "stats": {
+      "attack": 6,
+      "defense": 5,
+      "hitPoints": 10,
+      "speed": 5,
+      "shots": 0,
+      "growth": 14,
+      "horde": 0,
+      "aiValue": 115,
+      "combatValue": 115,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 75
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "archer": {
+    "name": "弓箭手",
+    "plural": "弓箭手",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 3,
+      "hitPoints": 10,
+      "speed": 4,
+      "shots": 12,
+      "growth": 9,
+      "horde": 0,
+      "aiValue": 126,
+      "combatValue": 115,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 100
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "marksman": {
+    "name": "神射手",
+    "plural": "神射手",
+    "abilityText": "射击2次。",
+    "stats": {
+      "attack": 6,
+      "defense": 3,
+      "hitPoints": 10,
+      "speed": 6,
+      "shots": 24,
+      "growth": 9,
+      "horde": 0,
+      "aiValue": 184,
+      "combatValue": 115,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 150
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "griffin": {
+    "name": "狮鹫",
+    "plural": "狮鹫",
+    "abilityText": "反击2次。",
+    "stats": {
+      "attack": 8,
+      "defense": 8,
+      "hitPoints": 25,
+      "speed": 6,
+      "shots": 0,
+      "growth": 7,
+      "horde": 3,
+      "aiValue": 351,
+      "combatValue": 324,
+      "damage": {
+        "min": 3,
+        "max": 6
+      },
+      "cost": {
+        "gold": 200
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "royalGriffin": {
+    "name": "皇家狮鹫",
+    "plural": "皇家狮鹫",
+    "abilityText": "反击无限。",
+    "stats": {
+      "attack": 9,
+      "defense": 9,
+      "hitPoints": 25,
+      "speed": 9,
+      "shots": 0,
+      "growth": 7,
+      "horde": 3,
+      "aiValue": 448,
+      "combatValue": 364,
+      "damage": {
+        "min": 3,
+        "max": 6
+      },
+      "cost": {
+        "gold": 240
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "swordsman": {
+    "name": "剑士",
+    "plural": "剑士",
+    "abilityText": "",
+    "stats": {
+      "attack": 10,
+      "defense": 12,
+      "hitPoints": 35,
+      "speed": 5,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 445,
+      "combatValue": 445,
+      "damage": {
+        "min": 6,
+        "max": 9
+      },
+      "cost": {
+        "gold": 300
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "crusader": {
+    "name": "十字军",
+    "plural": "十字军",
+    "abilityText": "攻击2次。",
+    "stats": {
+      "attack": 12,
+      "defense": 12,
+      "hitPoints": 35,
+      "speed": 6,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 588,
+      "combatValue": 588,
+      "damage": {
+        "min": 7,
+        "max": 10
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "monk": {
+    "name": "僧侣",
+    "plural": "僧侣",
+    "abilityText": "",
+    "stats": {
+      "attack": 12,
+      "defense": 7,
+      "hitPoints": 30,
+      "speed": 5,
+      "shots": 12,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 485,
+      "combatValue": 485,
+      "damage": {
+        "min": 10,
+        "max": 12
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "zealot": {
+    "name": "祭司",
+    "plural": "祭司",
+    "abilityText": "肉搏战中杀伤力不减。",
+    "stats": {
+      "attack": 12,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 7,
+      "shots": 24,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 750,
+      "combatValue": 500,
+      "damage": {
+        "min": 10,
+        "max": 12
+      },
+      "cost": {
+        "gold": 450
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "cavalier": {
+    "name": "骑兵",
+    "plural": "骑兵",
+    "abilityText": "杀伤力可增大。",
+    "stats": {
+      "attack": 15,
+      "defense": 15,
+      "hitPoints": 100,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1946,
+      "combatValue": 1668,
+      "damage": {
+        "min": 15,
+        "max": 25
+      },
+      "cost": {
+        "gold": 1000
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "champion": {
+    "name": "骑士",
+    "plural": "骑士",
+    "abilityText": "杀伤力可增大。",
+    "stats": {
+      "attack": 16,
+      "defense": 16,
+      "hitPoints": 100,
+      "speed": 9,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2100,
+      "combatValue": 1800,
+      "damage": {
+        "min": 20,
+        "max": 25
+      },
+      "cost": {
+        "gold": 1200
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "angel": {
+    "name": "天使",
+    "plural": "天使",
+    "abilityText": "恶魔的死敌。",
+    "stats": {
+      "attack": 20,
+      "defense": 20,
+      "hitPoints": 200,
+      "speed": 12,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 5019,
+      "combatValue": 3585,
+      "damage": {
+        "min": 50,
+        "max": 50
+      },
+      "cost": {
+        "gems": 1,
+        "gold": 3000
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "archangel": {
+    "name": "大天使",
+    "plural": "大天使",
+    "abilityText": "士气+1。恶魔的死敌。可以复活盟友。",
+    "stats": {
+      "attack": 30,
+      "defense": 30,
+      "hitPoints": 250,
+      "speed": 18,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 8776,
+      "combatValue": 6033,
+      "damage": {
+        "min": 50,
+        "max": 50
+      },
+      "cost": {
+        "gems": 3,
+        "gold": 5000
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "centaur": {
+    "name": "半人马",
+    "plural": "半人马",
+    "abilityText": "",
+    "stats": {
+      "attack": 5,
+      "defense": 3,
+      "hitPoints": 8,
+      "speed": 6,
+      "shots": 12,
+      "growth": 14,
+      "horde": 0,
+      "aiValue": 100,
+      "combatValue": 100,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 70
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "centaurCaptain": {
+    "name": "半人马首领",
+    "plural": "半人马首领",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 3,
+      "hitPoints": 10,
+      "speed": 8,
+      "shots": 12,
+      "growth": 14,
+      "horde": 0,
+      "aiValue": 138,
+      "combatValue": 115,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 90
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "dwarf": {
+    "name": "矮人",
+    "plural": "矮人",
+    "abilityText": "20%的魔法抵抗力。",
+    "stats": {
+      "attack": 6,
+      "defense": 7,
+      "hitPoints": 20,
+      "speed": 3,
+      "shots": 0,
+      "growth": 8,
+      "horde": 4,
+      "aiValue": 138,
+      "combatValue": 194,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 120
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "battleDwarf": {
+    "name": "战斗矮人",
+    "plural": "战斗矮人",
+    "abilityText": "40%的魔法抵抗力。",
+    "stats": {
+      "attack": 7,
+      "defense": 7,
+      "hitPoints": 20,
+      "speed": 5,
+      "shots": 0,
+      "growth": 8,
+      "horde": 4,
+      "aiValue": 209,
+      "combatValue": 209,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 150
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "woodElf": {
+    "name": "森林精灵",
+    "plural": "森林精灵",
+    "abilityText": "",
+    "stats": {
+      "attack": 9,
+      "defense": 5,
+      "hitPoints": 15,
+      "speed": 6,
+      "shots": 24,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 234,
+      "combatValue": 195,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 200
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "grandElf": {
+    "name": "大地精灵",
+    "plural": "大地精灵",
+    "abilityText": "射击2次。",
+    "stats": {
+      "attack": 9,
+      "defense": 5,
+      "hitPoints": 15,
+      "speed": 7,
+      "shots": 24,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 331,
+      "combatValue": 195,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 225
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "pegasus": {
+    "name": "飞马",
+    "plural": "飞马",
+    "abilityText": "敌方施法者的克星。",
+    "stats": {
+      "attack": 9,
+      "defense": 8,
+      "hitPoints": 30,
+      "speed": 8,
+      "shots": 0,
+      "growth": 5,
+      "horde": 0,
+      "aiValue": 518,
+      "combatValue": 407,
+      "damage": {
+        "min": 5,
+        "max": 9
+      },
+      "cost": {
+        "gold": 250
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "silverPegasus": {
+    "name": "银飞马",
+    "plural": "银飞马",
+    "abilityText": "敌方施法者的克星。",
+    "stats": {
+      "attack": 9,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 12,
+      "shots": 0,
+      "growth": 5,
+      "horde": 0,
+      "aiValue": 532,
+      "combatValue": 418,
+      "damage": {
+        "min": 5,
+        "max": 9
+      },
+      "cost": {
+        "gold": 275
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "dendroidGuard": {
+    "name": "枯木卫士",
+    "plural": "枯木卫士",
+    "abilityText": "用树根缠住敌人。",
+    "stats": {
+      "attack": 9,
+      "defense": 12,
+      "hitPoints": 55,
+      "speed": 3,
+      "shots": 0,
+      "growth": 3,
+      "horde": 2,
+      "aiValue": 517,
+      "combatValue": 690,
+      "damage": {
+        "min": 10,
+        "max": 14
+      },
+      "cost": {
+        "gold": 350
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "dendroidSoldier": {
+    "name": "枯木战士",
+    "plural": "枯木战士",
+    "abilityText": "用树根缠住敌人。",
+    "stats": {
+      "attack": 9,
+      "defense": 12,
+      "hitPoints": 65,
+      "speed": 4,
+      "shots": 0,
+      "growth": 3,
+      "horde": 2,
+      "aiValue": 803,
+      "combatValue": 765,
+      "damage": {
+        "min": 10,
+        "max": 14
+      },
+      "cost": {
+        "gold": 425
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "unicorn": {
+    "name": "独角兽",
+    "plural": "独角兽",
+    "abilityText": "抵抗魔法。使敌人失明。",
+    "stats": {
+      "attack": 15,
+      "defense": 14,
+      "hitPoints": 90,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1806,
+      "combatValue": 1548,
+      "damage": {
+        "min": 18,
+        "max": 22
+      },
+      "cost": {
+        "gold": 850
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "warUnicorn": {
+    "name": "独角神兽",
+    "plural": "独角神兽",
+    "abilityText": "抵抗魔法。使敌人失明。",
+    "stats": {
+      "attack": 15,
+      "defense": 14,
+      "hitPoints": 110,
+      "speed": 9,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2030,
+      "combatValue": 1740,
+      "damage": {
+        "min": 18,
+        "max": 22
+      },
+      "cost": {
+        "gold": 950
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "greenDragon": {
+    "name": "绿龙",
+    "plural": "绿龙",
+    "abilityText": "不怕1-3级魔法。",
+    "stats": {
+      "attack": 18,
+      "defense": 18,
+      "hitPoints": 180,
+      "speed": 10,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 4872,
+      "combatValue": 3654,
+      "damage": {
+        "min": 40,
+        "max": 50
+      },
+      "cost": {
+        "crystal": 1,
+        "gold": 2400
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "goldDragon": {
+    "name": "金龙",
+    "plural": "金龙",
+    "abilityText": "不怕1-4级魔法。",
+    "stats": {
+      "attack": 27,
+      "defense": 27,
+      "hitPoints": 250,
+      "speed": 16,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 8613,
+      "combatValue": 6220,
+      "damage": {
+        "min": 40,
+        "max": 50
+      },
+      "cost": {
+        "crystal": 2,
+        "gold": 4000
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "gremlin": {
+    "name": "小妖精",
+    "plural": "小妖精",
+    "abilityText": "",
+    "stats": {
+      "attack": 3,
+      "defense": 3,
+      "hitPoints": 4,
+      "speed": 4,
+      "shots": 0,
+      "growth": 16,
+      "horde": 0,
+      "aiValue": 44,
+      "combatValue": 55,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 30
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "masterGremlin": {
+    "name": "大妖精",
+    "plural": "大妖精",
+    "abilityText": "远程攻击。",
+    "stats": {
+      "attack": 4,
+      "defense": 4,
+      "hitPoints": 4,
+      "speed": 5,
+      "shots": 8,
+      "growth": 16,
+      "horde": 0,
+      "aiValue": 66,
+      "combatValue": 55,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 40
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "stoneGargoyle": {
+    "name": "石像鬼",
+    "plural": "石像鬼",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 6,
+      "hitPoints": 16,
+      "speed": 6,
+      "shots": 0,
+      "growth": 9,
+      "horde": 4,
+      "aiValue": 165,
+      "combatValue": 150,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 130
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "obsidianGargoyle": {
+    "name": "石像怪",
+    "plural": "石像怪",
+    "abilityText": "",
+    "stats": {
+      "attack": 7,
+      "defense": 7,
+      "hitPoints": 16,
+      "speed": 9,
+      "shots": 0,
+      "growth": 9,
+      "horde": 4,
+      "aiValue": 201,
+      "combatValue": 155,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 160
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "ironGolem": {
+    "name": "石人",
+    "plural": "石人",
+    "abilityText": "受魔法攻击时损伤减少50%。",
+    "stats": {
+      "attack": 7,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 3,
+      "shots": 0,
+      "growth": 6,
+      "horde": 0,
+      "aiValue": 250,
+      "combatValue": 339,
+      "damage": {
+        "min": 4,
+        "max": 5
+      },
+      "cost": {
+        "gold": 150
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "stoneGolem": {
+    "name": "铁人",
+    "plural": "铁人",
+    "abilityText": "受魔法攻击时损伤减少75%。",
+    "stats": {
+      "attack": 9,
+      "defense": 10,
+      "hitPoints": 35,
+      "speed": 5,
+      "shots": 0,
+      "growth": 6,
+      "horde": 0,
+      "aiValue": 412,
+      "combatValue": 412,
+      "damage": {
+        "min": 4,
+        "max": 5
+      },
+      "cost": {
+        "gold": 200
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "mage": {
+    "name": "法师",
+    "plural": "法师",
+    "abilityText": "肉搏战中杀伤力不减。英雄使用魔法时魔法值消耗较小。",
+    "stats": {
+      "attack": 11,
+      "defense": 8,
+      "hitPoints": 25,
+      "speed": 5,
+      "shots": 24,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 570,
+      "combatValue": 418,
+      "damage": {
+        "min": 7,
+        "max": 9
+      },
+      "cost": {
+        "gold": 350
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "archMage": {
+    "name": "大法师",
+    "plural": "大法师",
+    "abilityText": "肉搏战中杀伤力不减。英雄使用魔法时魔法值消耗较小。",
+    "stats": {
+      "attack": 12,
+      "defense": 9,
+      "hitPoints": 30,
+      "speed": 7,
+      "shots": 24,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 680,
+      "combatValue": 467,
+      "damage": {
+        "min": 7,
+        "max": 9
+      },
+      "cost": {
+        "gold": 450
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "genie": {
+    "name": "神怪",
+    "plural": "神怪",
+    "abilityText": "火精灵的死敌。",
+    "stats": {
+      "attack": 12,
+      "defense": 12,
+      "hitPoints": 40,
+      "speed": 7,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 884,
+      "combatValue": 680,
+      "damage": {
+        "min": 13,
+        "max": 16
+      },
+      "cost": {
+        "gold": 550
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "masterGenie": {
+    "name": "神怪主",
+    "plural": "神怪主",
+    "abilityText": "对盟友随机施放有益魔法。火精灵的死敌。",
+    "stats": {
+      "attack": 12,
+      "defense": 12,
+      "hitPoints": 40,
+      "speed": 11,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 942,
+      "combatValue": 748,
+      "damage": {
+        "min": 13,
+        "max": 16
+      },
+      "cost": {
+        "gold": 600
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "naga": {
+    "name": "蛇女",
+    "plural": "蛇女",
+    "abilityText": "敌人无法反击。",
+    "stats": {
+      "attack": 16,
+      "defense": 13,
+      "hitPoints": 110,
+      "speed": 5,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2016,
+      "combatValue": 2016,
+      "damage": {
+        "min": 20,
+        "max": 20
+      },
+      "cost": {
+        "gold": 1100
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "nagaQueen": {
+    "name": "蛇妖",
+    "plural": "蛇妖",
+    "abilityText": "敌人无法反击。",
+    "stats": {
+      "attack": 16,
+      "defense": 13,
+      "hitPoints": 110,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2840,
+      "combatValue": 2485,
+      "damage": {
+        "min": 30,
+        "max": 30
+      },
+      "cost": {
+        "gold": 1600
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "giant": {
+    "name": "巨人",
+    "plural": "巨人",
+    "abilityText": "不怕心智魔法。",
+    "stats": {
+      "attack": 19,
+      "defense": 16,
+      "hitPoints": 150,
+      "speed": 7,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 3718,
+      "combatValue": 3146,
+      "damage": {
+        "min": 40,
+        "max": 60
+      },
+      "cost": {
+        "gems": 1,
+        "gold": 2000
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "titan": {
+    "name": "泰坦巨人",
+    "plural": "泰坦巨人",
+    "abilityText": "肉搏战中杀伤力不减。不怕心智魔法。黑龙的死敌。",
+    "stats": {
+      "attack": 24,
+      "defense": 24,
+      "hitPoints": 300,
+      "speed": 11,
+      "shots": 24,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 7500,
+      "combatValue": 5000,
+      "damage": {
+        "min": 40,
+        "max": 60
+      },
+      "cost": {
+        "gems": 2,
+        "gold": 5000
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "imp": {
+    "name": "小怪物",
+    "plural": "小怪物",
+    "abilityText": "",
+    "stats": {
+      "attack": 2,
+      "defense": 3,
+      "hitPoints": 4,
+      "speed": 5,
+      "shots": 0,
+      "growth": 15,
+      "horde": 8,
+      "aiValue": 50,
+      "combatValue": 50,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 50
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "familiar": {
+    "name": "怪物",
+    "plural": "怪物",
+    "abilityText": "将部分敌人消耗的魔法值加到已方英雄的魔法值中。",
+    "stats": {
+      "attack": 4,
+      "defense": 4,
+      "hitPoints": 4,
+      "speed": 7,
+      "shots": 0,
+      "growth": 15,
+      "horde": 8,
+      "aiValue": 60,
+      "combatValue": 60,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 60
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "gog": {
+    "name": "歌革",
+    "plural": "歌革",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 4,
+      "hitPoints": 13,
+      "speed": 4,
+      "shots": 12,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 159,
+      "combatValue": 145,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 125
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "magog": {
+    "name": "玛各",
+    "plural": "玛各",
+    "abilityText": "火球攻击。",
+    "stats": {
+      "attack": 7,
+      "defense": 4,
+      "hitPoints": 13,
+      "speed": 6,
+      "shots": 24,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 240,
+      "combatValue": 210,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 175
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "hellHound": {
+    "name": "地狱猎犬",
+    "plural": "地狱猎犬",
+    "abilityText": "",
+    "stats": {
+      "attack": 10,
+      "defense": 6,
+      "hitPoints": 25,
+      "speed": 7,
+      "shots": 0,
+      "growth": 5,
+      "horde": 3,
+      "aiValue": 357,
+      "combatValue": 275,
+      "damage": {
+        "min": 2,
+        "max": 7
+      },
+      "cost": {
+        "gold": 200
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "cerberus": {
+    "name": "三首猎犬",
+    "plural": "三首猎犬",
+    "abilityText": "攻击3个敌人。敌人无法反击。",
+    "stats": {
+      "attack": 10,
+      "defense": 8,
+      "hitPoints": 25,
+      "speed": 8,
+      "shots": 0,
+      "growth": 5,
+      "horde": 3,
+      "aiValue": 392,
+      "combatValue": 308,
+      "damage": {
+        "min": 2,
+        "max": 7
+      },
+      "cost": {
+        "gold": 250
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "demon": {
+    "name": "恶鬼",
+    "plural": "恶鬼",
+    "abilityText": "",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 35,
+      "speed": 5,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 445,
+      "combatValue": 445,
+      "damage": {
+        "min": 7,
+        "max": 9
+      },
+      "cost": {
+        "gold": 250
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "hornedDemon": {
+    "name": "长角恶鬼",
+    "plural": "长角恶鬼",
+    "abilityText": "",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 40,
+      "speed": 6,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 480,
+      "combatValue": 480,
+      "damage": {
+        "min": 7,
+        "max": 9
+      },
+      "cost": {
+        "gold": 270
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "pitFiend": {
+    "name": "邪神",
+    "plural": "邪神",
+    "abilityText": "",
+    "stats": {
+      "attack": 13,
+      "defense": 13,
+      "hitPoints": 45,
+      "speed": 6,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 765,
+      "combatValue": 765,
+      "damage": {
+        "min": 13,
+        "max": 17
+      },
+      "cost": {
+        "gold": 500
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "pitLord": {
+    "name": "邪神王",
+    "plural": "邪神王",
+    "abilityText": "使已方死亡的部队复活并变成恶鬼。",
+    "stats": {
+      "attack": 13,
+      "defense": 13,
+      "hitPoints": 45,
+      "speed": 7,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1224,
+      "combatValue": 1071,
+      "damage": {
+        "min": 13,
+        "max": 17
+      },
+      "cost": {
+        "gold": 700
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "efreet": {
+    "name": "火精灵",
+    "plural": "火精灵",
+    "abilityText": "不怕火系魔法。神怪的死敌。",
+    "stats": {
+      "attack": 16,
+      "defense": 12,
+      "hitPoints": 90,
+      "speed": 9,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1670,
+      "combatValue": 1413,
+      "damage": {
+        "min": 16,
+        "max": 24
+      },
+      "cost": {
+        "gold": 900
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "efreetSultan": {
+    "name": "烈火精灵",
+    "plural": "烈火精灵",
+    "abilityText": "拥有烈火神盾。不怕火系魔法。神怪的死敌。",
+    "stats": {
+      "attack": 16,
+      "defense": 14,
+      "hitPoints": 90,
+      "speed": 13,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1848,
+      "combatValue": 1584,
+      "damage": {
+        "min": 16,
+        "max": 24
+      },
+      "cost": {
+        "gold": 1100
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "devil": {
+    "name": "恶魔",
+    "plural": "恶魔",
+    "abilityText": "敌人运气-1，且无法反击。天使的死敌。",
+    "stats": {
+      "attack": 19,
+      "defense": 21,
+      "hitPoints": 160,
+      "speed": 11,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 5101,
+      "combatValue": 3759,
+      "damage": {
+        "min": 30,
+        "max": 40
+      },
+      "cost": {
+        "mercury": 1,
+        "gold": 2700
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "archDevil": {
+    "name": "大恶魔",
+    "plural": "大恶魔",
+    "abilityText": "敌人运气-1，且无法反击。天使的死敌。",
+    "stats": {
+      "attack": 26,
+      "defense": 28,
+      "hitPoints": 200,
+      "speed": 17,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 7115,
+      "combatValue": 5243,
+      "damage": {
+        "min": 30,
+        "max": 40
+      },
+      "cost": {
+        "mercury": 2,
+        "gold": 4500
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "skeleton": {
+    "name": "骷髅兵",
+    "plural": "骷髅兵",
+    "abilityText": "丧尸。",
+    "stats": {
+      "attack": 5,
+      "defense": 4,
+      "hitPoints": 6,
+      "speed": 4,
+      "shots": 0,
+      "growth": 12,
+      "horde": 6,
+      "aiValue": 60,
+      "combatValue": 75,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 60
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "skeletonWarrior": {
+    "name": "骷髅勇士",
+    "plural": "骷髅勇士",
+    "abilityText": "丧尸。",
+    "stats": {
+      "attack": 6,
+      "defense": 6,
+      "hitPoints": 6,
+      "speed": 5,
+      "shots": 0,
+      "growth": 12,
+      "horde": 6,
+      "aiValue": 85,
+      "combatValue": 85,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 70
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "walkingDead": {
+    "name": "行尸",
+    "plural": "行尸",
+    "abilityText": "丧尸。",
+    "stats": {
+      "attack": 5,
+      "defense": 5,
+      "hitPoints": 15,
+      "speed": 3,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 98,
+      "combatValue": 140,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 100
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "zombieLord": {
+    "name": "僵尸",
+    "plural": "僵尸",
+    "abilityText": "丧尸。使敌人染病。",
+    "stats": {
+      "attack": 5,
+      "defense": 5,
+      "hitPoints": 20,
+      "speed": 4,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 128,
+      "combatValue": 160,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 125
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "wight": {
+    "name": "幽灵",
+    "plural": "幽灵",
+    "abilityText": "丧尸。可恢复生命值。",
+    "stats": {
+      "attack": 7,
+      "defense": 7,
+      "hitPoints": 18,
+      "speed": 5,
+      "shots": 0,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 252,
+      "combatValue": 231,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 200
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "wraith": {
+    "name": "阴魂",
+    "plural": "阴魂",
+    "abilityText": "丧尸。可恢复生命值。吸取敌人的魔法值。",
+    "stats": {
+      "attack": 7,
+      "defense": 7,
+      "hitPoints": 18,
+      "speed": 7,
+      "shots": 0,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 315,
+      "combatValue": 252,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 230
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "vampire": {
+    "name": "吸血鬼",
+    "plural": "吸血鬼",
+    "abilityText": "丧尸。敌人无法反击。",
+    "stats": {
+      "attack": 10,
+      "defense": 9,
+      "hitPoints": 30,
+      "speed": 6,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 555,
+      "combatValue": 518,
+      "damage": {
+        "min": 5,
+        "max": 8
+      },
+      "cost": {
+        "gold": 360
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "vampireLord": {
+    "name": "吸血鬼王",
+    "plural": "吸血鬼王",
+    "abilityText": "丧尸。 吸取敌人的生命值。敌人无法反击。",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 40,
+      "speed": 9,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 783,
+      "combatValue": 652,
+      "damage": {
+        "min": 5,
+        "max": 8
+      },
+      "cost": {
+        "gold": 500
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "lich": {
+    "name": "尸巫",
+    "plural": "尸巫",
+    "abilityText": "丧尸。 用死亡之云攻击。",
+    "stats": {
+      "attack": 13,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 6,
+      "shots": 12,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 848,
+      "combatValue": 742,
+      "damage": {
+        "min": 11,
+        "max": 13
+      },
+      "cost": {
+        "gold": 550
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "powerLich": {
+    "name": "尸巫王",
+    "plural": "尸巫王",
+    "abilityText": "丧尸。 用死亡之云攻击。",
+    "stats": {
+      "attack": 13,
+      "defense": 10,
+      "hitPoints": 40,
+      "speed": 7,
+      "shots": 24,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1079,
+      "combatValue": 889,
+      "damage": {
+        "min": 11,
+        "max": 15
+      },
+      "cost": {
+        "gold": 600
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "blackKnight": {
+    "name": "暗黑骑士",
+    "plural": "暗黑骑士",
+    "abilityText": "丧尸。诅咒敌人。",
+    "stats": {
+      "attack": 16,
+      "defense": 16,
+      "hitPoints": 120,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2087,
+      "combatValue": 1753,
+      "damage": {
+        "min": 15,
+        "max": 30
+      },
+      "cost": {
+        "gold": 1200
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "dreadKnight": {
+    "name": "恐怖骑士",
+    "plural": "恐怖骑士",
+    "abilityText": "丧尸。诅咒敌人。致命一击。",
+    "stats": {
+      "attack": 18,
+      "defense": 18,
+      "hitPoints": 120,
+      "speed": 9,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2382,
+      "combatValue": 2029,
+      "damage": {
+        "min": 15,
+        "max": 30
+      },
+      "cost": {
+        "gold": 1500
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "boneDragon": {
+    "name": "骨龙",
+    "plural": "骨龙",
+    "abilityText": "丧尸。敌人士气-1。",
+    "stats": {
+      "attack": 17,
+      "defense": 15,
+      "hitPoints": 150,
+      "speed": 9,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 3388,
+      "combatValue": 2420,
+      "damage": {
+        "min": 25,
+        "max": 50
+      },
+      "cost": {
+        "gold": 1800
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "ghostDragon": {
+    "name": "鬼龙 ",
+    "plural": "鬼龙",
+    "abilityText": "丧尸。敌人士气-1。使敌人衰老。",
+    "stats": {
+      "attack": 19,
+      "defense": 17,
+      "hitPoints": 200,
+      "speed": 14,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 4696,
+      "combatValue": 3228,
+      "damage": {
+        "min": 25,
+        "max": 50
+      },
+      "cost": {
+        "mercury": 1,
+        "gold": 3000
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "troglodyte": {
+    "name": "洞穴人",
+    "plural": "洞穴人",
+    "abilityText": "不受双目失明魔法的影响。",
+    "stats": {
+      "attack": 4,
+      "defense": 3,
+      "hitPoints": 5,
+      "speed": 4,
+      "shots": 0,
+      "growth": 14,
+      "horde": 7,
+      "aiValue": 59,
+      "combatValue": 73,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 50
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "infernalTroglodyte": {
+    "name": "地狱洞穴人",
+    "plural": "地狱洞穴人",
+    "abilityText": "不受双目失明魔法的影响。",
+    "stats": {
+      "attack": 5,
+      "defense": 4,
+      "hitPoints": 6,
+      "speed": 5,
+      "shots": 0,
+      "growth": 14,
+      "horde": 7,
+      "aiValue": 84,
+      "combatValue": 84,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 65
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "harpy": {
+    "name": "鹰身女妖",
+    "plural": "鹰身女妖",
+    "abilityText": "攻击并返回。",
+    "stats": {
+      "attack": 6,
+      "defense": 5,
+      "hitPoints": 14,
+      "speed": 6,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 154,
+      "combatValue": 140,
+      "damage": {
+        "min": 1,
+        "max": 4
+      },
+      "cost": {
+        "gold": 130
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "harpyHag": {
+    "name": "鹰身女巫",
+    "plural": "鹰身女巫",
+    "abilityText": "攻击并返回。敌人无法反击。",
+    "stats": {
+      "attack": 6,
+      "defense": 6,
+      "hitPoints": 14,
+      "speed": 9,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 238,
+      "combatValue": 196,
+      "damage": {
+        "min": 1,
+        "max": 4
+      },
+      "cost": {
+        "gold": 170
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "beholder": {
+    "name": "邪眼",
+    "plural": "邪眼",
+    "abilityText": "肉搏战中杀伤力不减。",
+    "stats": {
+      "attack": 9,
+      "defense": 7,
+      "hitPoints": 22,
+      "speed": 5,
+      "shots": 12,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 336,
+      "combatValue": 240,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 250
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "evilEye": {
+    "name": "毒眼",
+    "plural": "毒眼",
+    "abilityText": "肉搏战中杀伤力不减。",
+    "stats": {
+      "attack": 10,
+      "defense": 8,
+      "hitPoints": 22,
+      "speed": 7,
+      "shots": 24,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 367,
+      "combatValue": 245,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 280
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "medusa": {
+    "name": "美杜莎",
+    "plural": "美杜莎",
+    "abilityText": "肉搏战中杀伤力不减。将敌人石化。",
+    "stats": {
+      "attack": 9,
+      "defense": 9,
+      "hitPoints": 25,
+      "speed": 5,
+      "shots": 4,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 517,
+      "combatValue": 379,
+      "damage": {
+        "min": 6,
+        "max": 8
+      },
+      "cost": {
+        "gold": 300
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "medusaQueen": {
+    "name": "美杜莎女王",
+    "plural": "美杜莎女王",
+    "abilityText": "肉搏战中杀伤力不减。将敌人石化。",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 6,
+      "shots": 8,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 577,
+      "combatValue": 423,
+      "damage": {
+        "min": 6,
+        "max": 8
+      },
+      "cost": {
+        "gold": 330
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "minotaur": {
+    "name": "牛头怪",
+    "plural": "牛头怪",
+    "abilityText": "士气高涨。",
+    "stats": {
+      "attack": 14,
+      "defense": 12,
+      "hitPoints": 50,
+      "speed": 6,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 835,
+      "combatValue": 835,
+      "damage": {
+        "min": 12,
+        "max": 20
+      },
+      "cost": {
+        "gold": 500
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "minotaurKing": {
+    "name": "牛头王",
+    "plural": "牛头王",
+    "abilityText": "士气高涨。",
+    "stats": {
+      "attack": 15,
+      "defense": 15,
+      "hitPoints": 50,
+      "speed": 8,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1068,
+      "combatValue": 890,
+      "damage": {
+        "min": 12,
+        "max": 20
+      },
+      "cost": {
+        "gold": 575
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "manticore": {
+    "name": "蝎狮",
+    "plural": "蝎狮",
+    "abilityText": "",
+    "stats": {
+      "attack": 15,
+      "defense": 13,
+      "hitPoints": 80,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1547,
+      "combatValue": 1215,
+      "damage": {
+        "min": 14,
+        "max": 20
+      },
+      "cost": {
+        "gold": 850
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "scorpicore": {
+    "name": "毒蝎狮",
+    "plural": "毒蝎狮",
+    "abilityText": "使敌人麻痹。",
+    "stats": {
+      "attack": 16,
+      "defense": 14,
+      "hitPoints": 80,
+      "speed": 11,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1589,
+      "combatValue": 1248,
+      "damage": {
+        "min": 14,
+        "max": 20
+      },
+      "cost": {
+        "gold": 1050
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "redDragon": {
+    "name": "赤龙",
+    "plural": "赤龙",
+    "abilityText": "不怕1-3级魔法。",
+    "stats": {
+      "attack": 19,
+      "defense": 19,
+      "hitPoints": 180,
+      "speed": 11,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 4702,
+      "combatValue": 3762,
+      "damage": {
+        "min": 40,
+        "max": 50
+      },
+      "cost": {
+        "sulfur": 1,
+        "gold": 2500
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "blackDragon": {
+    "name": "黑龙",
+    "plural": "黑龙",
+    "abilityText": "不怕所有魔法。",
+    "stats": {
+      "attack": 25,
+      "defense": 25,
+      "hitPoints": 300,
+      "speed": 15,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 8721,
+      "combatValue": 6783,
+      "damage": {
+        "min": 40,
+        "max": 50
+      },
+      "cost": {
+        "sulfur": 2,
+        "gold": 4000
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "goblin": {
+    "name": "大耳怪",
+    "plural": "大耳怪",
+    "abilityText": "",
+    "stats": {
+      "attack": 4,
+      "defense": 2,
+      "hitPoints": 5,
+      "speed": 5,
+      "shots": 0,
+      "growth": 15,
+      "horde": 8,
+      "aiValue": 60,
+      "combatValue": 60,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 40
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "hobgoblin": {
+    "name": "大耳怪王",
+    "plural": "大耳怪王",
+    "abilityText": "",
+    "stats": {
+      "attack": 5,
+      "defense": 3,
+      "hitPoints": 5,
+      "speed": 7,
+      "shots": 0,
+      "growth": 15,
+      "horde": 8,
+      "aiValue": 78,
+      "combatValue": 65,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 50
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "goblinWolfRider": {
+    "name": "恶狼骑士",
+    "plural": "恶狼骑士",
+    "abilityText": "",
+    "stats": {
+      "attack": 7,
+      "defense": 5,
+      "hitPoints": 10,
+      "speed": 6,
+      "shots": 0,
+      "growth": 9,
+      "horde": 0,
+      "aiValue": 130,
+      "combatValue": 130,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 100
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "hobgoblinWolfRider": {
+    "name": "恶狼斗士",
+    "plural": "恶狼斗士",
+    "abilityText": "攻击2次。",
+    "stats": {
+      "attack": 8,
+      "defense": 5,
+      "hitPoints": 10,
+      "speed": 8,
+      "shots": 0,
+      "growth": 9,
+      "horde": 0,
+      "aiValue": 203,
+      "combatValue": 174,
+      "damage": {
+        "min": 3,
+        "max": 4
+      },
+      "cost": {
+        "gold": 140
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "orc": {
+    "name": "半兽人",
+    "plural": "半兽人",
+    "abilityText": "",
+    "stats": {
+      "attack": 8,
+      "defense": 4,
+      "hitPoints": 15,
+      "speed": 4,
+      "shots": 12,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 192,
+      "combatValue": 175,
+      "damage": {
+        "min": 2,
+        "max": 5
+      },
+      "cost": {
+        "gold": 150
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "orcChieftain": {
+    "name": "半兽人首领",
+    "plural": "半兽人首领",
+    "abilityText": "",
+    "stats": {
+      "attack": 8,
+      "defense": 4,
+      "hitPoints": 20,
+      "speed": 5,
+      "shots": 24,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 240,
+      "combatValue": 200,
+      "damage": {
+        "min": 2,
+        "max": 5
+      },
+      "cost": {
+        "gold": 165
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "ogre": {
+    "name": "食人魔",
+    "plural": "食人魔",
+    "abilityText": "",
+    "stats": {
+      "attack": 13,
+      "defense": 7,
+      "hitPoints": 40,
+      "speed": 4,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 416,
+      "combatValue": 520,
+      "damage": {
+        "min": 6,
+        "max": 12
+      },
+      "cost": {
+        "gold": 300
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "ogreMage": {
+    "name": "食人魔王",
+    "plural": "食人魔王",
+    "abilityText": "使用嗜血奇术魔法。",
+    "stats": {
+      "attack": 13,
+      "defense": 7,
+      "hitPoints": 60,
+      "speed": 5,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 672,
+      "combatValue": 672,
+      "damage": {
+        "min": 6,
+        "max": 12
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "roc": {
+    "name": "大雕",
+    "plural": "大雕",
+    "abilityText": "",
+    "stats": {
+      "attack": 13,
+      "defense": 11,
+      "hitPoints": 60,
+      "speed": 7,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1027,
+      "combatValue": 790,
+      "damage": {
+        "min": 11,
+        "max": 15
+      },
+      "cost": {
+        "gold": 600
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "thunderbird": {
+    "name": "雷鸟",
+    "plural": "雷鸟",
+    "abilityText": "闪电攻击。",
+    "stats": {
+      "attack": 13,
+      "defense": 11,
+      "hitPoints": 60,
+      "speed": 11,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1106,
+      "combatValue": 869,
+      "damage": {
+        "min": 11,
+        "max": 15
+      },
+      "cost": {
+        "gold": 700
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "cyclop": {
+    "name": "独眼巨人",
+    "plural": "独眼巨人",
+    "abilityText": "攻击城墙。",
+    "stats": {
+      "attack": 15,
+      "defense": 12,
+      "hitPoints": 70,
+      "speed": 6,
+      "shots": 16,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1266,
+      "combatValue": 1055,
+      "damage": {
+        "min": 16,
+        "max": 20
+      },
+      "cost": {
+        "gold": 750
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "cyclopKing": {
+    "name": "独眼王",
+    "plural": "独眼王",
+    "abilityText": "攻击城墙。",
+    "stats": {
+      "attack": 17,
+      "defense": 13,
+      "hitPoints": 70,
+      "speed": 8,
+      "shots": 24,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1443,
+      "combatValue": 1110,
+      "damage": {
+        "min": 16,
+        "max": 20
+      },
+      "cost": {
+        "gold": 1100
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "behemoth": {
+    "name": "比蒙",
+    "plural": "比蒙",
+    "abilityText": "攻击目标的防御力下降40%。",
+    "stats": {
+      "attack": 17,
+      "defense": 17,
+      "hitPoints": 160,
+      "speed": 6,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 3162,
+      "combatValue": 3162,
+      "damage": {
+        "min": 30,
+        "max": 50
+      },
+      "cost": {
+        "gold": 1500
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "ancientBehemoth": {
+    "name": "比蒙巨兽",
+    "plural": "比蒙巨兽",
+    "abilityText": "攻击目标的防御力下降80%。",
+    "stats": {
+      "attack": 19,
+      "defense": 19,
+      "hitPoints": 300,
+      "speed": 9,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 6168,
+      "combatValue": 5397,
+      "damage": {
+        "min": 30,
+        "max": 50
+      },
+      "cost": {
+        "crystal": 1,
+        "gold": 3000
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "gnoll": {
+    "name": "豺狼人",
+    "plural": "豺狼人",
+    "abilityText": "",
+    "stats": {
+      "attack": 3,
+      "defense": 5,
+      "hitPoints": 6,
+      "speed": 4,
+      "shots": 0,
+      "growth": 12,
+      "horde": 6,
+      "aiValue": 56,
+      "combatValue": 70,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 50
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "gnollMarauder": {
+    "name": "豺狼劫掠者",
+    "plural": "豺狼劫掠者",
+    "abilityText": "",
+    "stats": {
+      "attack": 4,
+      "defense": 6,
+      "hitPoints": 6,
+      "speed": 5,
+      "shots": 0,
+      "growth": 12,
+      "horde": 6,
+      "aiValue": 90,
+      "combatValue": 90,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 70
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "lizardman": {
+    "name": "蜥蜴人",
+    "plural": "蜥蜴人",
+    "abilityText": "",
+    "stats": {
+      "attack": 5,
+      "defense": 6,
+      "hitPoints": 14,
+      "speed": 4,
+      "shots": 12,
+      "growth": 9,
+      "horde": 0,
+      "aiValue": 126,
+      "combatValue": 115,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 110
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "lizardWarrior": {
+    "name": "蜥蜴勇士",
+    "plural": "蜥蜴勇士",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 8,
+      "hitPoints": 15,
+      "speed": 5,
+      "shots": 24,
+      "growth": 9,
+      "horde": 0,
+      "aiValue": 156,
+      "combatValue": 130,
+      "damage": {
+        "min": 2,
+        "max": 5
+      },
+      "cost": {
+        "gold": 140
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "gorgon": {
+    "name": "野牛",
+    "plural": "野牛",
+    "abilityText": "",
+    "stats": {
+      "attack": 10,
+      "defense": 14,
+      "hitPoints": 70,
+      "speed": 5,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 890,
+      "combatValue": 890,
+      "damage": {
+        "min": 12,
+        "max": 16
+      },
+      "cost": {
+        "gold": 525
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "mightyGorgon": {
+    "name": "蛮牛",
+    "plural": "蛮牛",
+    "abilityText": "用死神之眼攻击。",
+    "stats": {
+      "attack": 11,
+      "defense": 16,
+      "hitPoints": 70,
+      "speed": 6,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1028,
+      "combatValue": 1028,
+      "damage": {
+        "min": 12,
+        "max": 16
+      },
+      "cost": {
+        "gold": 600
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "serpentFly": {
+    "name": "毒蝇",
+    "plural": "毒蝇",
+    "abilityText": "驱除有益的魔法。",
+    "stats": {
+      "attack": 7,
+      "defense": 9,
+      "hitPoints": 20,
+      "speed": 9,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 268,
+      "combatValue": 215,
+      "damage": {
+        "min": 2,
+        "max": 5
+      },
+      "cost": {
+        "gold": 220
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "fireDragonFly": {
+    "name": "龙蝇",
+    "plural": "龙蝇",
+    "abilityText": "驱除有益的魔法。削弱敌人。",
+    "stats": {
+      "attack": 8,
+      "defense": 10,
+      "hitPoints": 20,
+      "speed": 13,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 312,
+      "combatValue": 250,
+      "damage": {
+        "min": 2,
+        "max": 5
+      },
+      "cost": {
+        "gold": 240
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "basilisk": {
+    "name": "蜥蜴",
+    "plural": "蜥蜴",
+    "abilityText": "使敌人石化。",
+    "stats": {
+      "attack": 11,
+      "defense": 11,
+      "hitPoints": 35,
+      "speed": 5,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 552,
+      "combatValue": 506,
+      "damage": {
+        "min": 6,
+        "max": 10
+      },
+      "cost": {
+        "gold": 325
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "greaterBasilisk": {
+    "name": "巨蜥",
+    "plural": "巨蜥",
+    "abilityText": "使敌人石化。",
+    "stats": {
+      "attack": 12,
+      "defense": 12,
+      "hitPoints": 40,
+      "speed": 7,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 714,
+      "combatValue": 561,
+      "damage": {
+        "min": 6,
+        "max": 10
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "wyvern": {
+    "name": "飞龙",
+    "plural": "飞龙",
+    "abilityText": "",
+    "stats": {
+      "attack": 14,
+      "defense": 14,
+      "hitPoints": 70,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1350,
+      "combatValue": 1050,
+      "damage": {
+        "min": 14,
+        "max": 18
+      },
+      "cost": {
+        "gold": 800
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "wyvernMonarch": {
+    "name": "飞龙王",
+    "plural": "飞龙王",
+    "abilityText": "使敌人中毒。",
+    "stats": {
+      "attack": 14,
+      "defense": 14,
+      "hitPoints": 70,
+      "speed": 11,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1518,
+      "combatValue": 1181,
+      "damage": {
+        "min": 18,
+        "max": 22
+      },
+      "cost": {
+        "gold": 1100
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "hydra": {
+    "name": "九头怪",
+    "plural": "九头怪",
+    "abilityText": "攻击邻近的所有敌人。敌人不会反击。",
+    "stats": {
+      "attack": 16,
+      "defense": 18,
+      "hitPoints": 175,
+      "speed": 5,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 4120,
+      "combatValue": 4120,
+      "damage": {
+        "min": 25,
+        "max": 45
+      },
+      "cost": {
+        "gold": 2200
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "chaosHydra": {
+    "name": "终极九头怪",
+    "plural": "终极九头怪",
+    "abilityText": "攻击邻近的所有敌人。敌人不会反击。",
+    "stats": {
+      "attack": 18,
+      "defense": 20,
+      "hitPoints": 250,
+      "speed": 7,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 5931,
+      "combatValue": 5272,
+      "damage": {
+        "min": 25,
+        "max": 45
+      },
+      "cost": {
+        "sulfur": 1,
+        "gold": 3500
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "airElemental": {
+    "name": "气元素",
+    "plural": "气元素",
+    "abilityText": "害怕霹雳闪电、连锁闪电和连珠火球。",
+    "stats": {
+      "attack": 9,
+      "defense": 9,
+      "hitPoints": 25,
+      "speed": 7,
+      "shots": 0,
+      "growth": 6,
+      "horde": 0,
+      "aiValue": 356,
+      "combatValue": 324,
+      "damage": {
+        "min": 2,
+        "max": 8
+      },
+      "cost": {
+        "gold": 250
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "earthElemental": {
+    "name": "土元素",
+    "plural": "土元素",
+    "abilityText": "害怕流星火雨。",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 40,
+      "speed": 4,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 330,
+      "combatValue": 415,
+      "damage": {
+        "min": 4,
+        "max": 8
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "fireElemental": {
+    "name": "火元素",
+    "plural": "火元素",
+    "abilityText": "不怕火系魔法。害怕霹雳寒冰、寒冰魔环。",
+    "stats": {
+      "attack": 10,
+      "defense": 8,
+      "hitPoints": 35,
+      "speed": 6,
+      "shots": 0,
+      "growth": 5,
+      "horde": 0,
+      "aiValue": 345,
+      "combatValue": 345,
+      "damage": {
+        "min": 4,
+        "max": 6
+      },
+      "cost": {
+        "gold": 350
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "waterElemental": {
+    "name": "水元素",
+    "plural": "水元素",
+    "abilityText": "不怕寒冰魔法。害怕连珠火球、烈火魔墙与烈火神盾。",
+    "stats": {
+      "attack": 8,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 5,
+      "shots": 0,
+      "growth": 6,
+      "horde": 0,
+      "aiValue": 315,
+      "combatValue": 315,
+      "damage": {
+        "min": 3,
+        "max": 7
+      },
+      "cost": {
+        "gold": 300
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "goldGolem": {
+    "name": "金人",
+    "plural": "金人",
+    "abilityText": "受魔法攻击时损伤减少85%。",
+    "stats": {
+      "attack": 11,
+      "defense": 12,
+      "hitPoints": 50,
+      "speed": 5,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 600,
+      "combatValue": 600,
+      "damage": {
+        "min": 8,
+        "max": 10
+      },
+      "cost": {
+        "gold": 500
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "diamondGolem": {
+    "name": "钻石人",
+    "plural": "钻石人",
+    "abilityText": "受魔法攻击时损伤减少95%。",
+    "stats": {
+      "attack": 13,
+      "defense": 12,
+      "hitPoints": 60,
+      "speed": 5,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 775,
+      "combatValue": 775,
+      "damage": {
+        "min": 10,
+        "max": 14
+      },
+      "cost": {
+        "gold": 750
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "pixie": {
+    "name": "小精灵",
+    "plural": "小精灵",
+    "abilityText": "",
+    "stats": {
+      "attack": 2,
+      "defense": 2,
+      "hitPoints": 3,
+      "speed": 7,
+      "shots": 0,
+      "growth": 20,
+      "horde": 10,
+      "aiValue": 55,
+      "combatValue": 40,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 25
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "sprite": {
+    "name": "精灵",
+    "plural": "精灵",
+    "abilityText": "敌人不会反击。",
+    "stats": {
+      "attack": 2,
+      "defense": 2,
+      "hitPoints": 3,
+      "speed": 9,
+      "shots": 0,
+      "growth": 20,
+      "horde": 10,
+      "aiValue": 95,
+      "combatValue": 70,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 30
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "psychicElemental": {
+    "name": "精神元素",
+    "plural": "精神元素",
+    "abilityText": "攻击邻近所有敌人，不受反击。不怕控制心智的魔法。",
+    "stats": {
+      "attack": 15,
+      "defense": 13,
+      "hitPoints": 75,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1669,
+      "combatValue": 1431,
+      "damage": {
+        "min": 10,
+        "max": 20
+      },
+      "cost": {
+        "gold": 750
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "magicElemental": {
+    "name": "魔法元素",
+    "plural": "魔法元素",
+    "abilityText": "攻击邻近的所有敌人。敌人不会反击。不怕任何魔法。",
+    "stats": {
+      "attack": 15,
+      "defense": 13,
+      "hitPoints": 80,
+      "speed": 9,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2012,
+      "combatValue": 1724,
+      "damage": {
+        "min": 15,
+        "max": 25
+      },
+      "cost": {
+        "gold": 800
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "unused122": {
+    "name": "NOT USED (1)",
+    "plural": "NOT USED (1)",
+    "abilityText": "",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "hitPoints": 0,
+      "speed": 0,
+      "shots": 0,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 0,
+      "combatValue": 0,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {},
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "iceElemental": {
+    "name": "冰元素",
+    "plural": "冰元素",
+    "abilityText": "不怕控制心智的魔法和水系魔法，怕火系魔法。",
+    "stats": {
+      "attack": 8,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 6,
+      "shots": 24,
+      "growth": 6,
+      "horde": 0,
+      "aiValue": 380,
+      "combatValue": 315,
+      "damage": {
+        "min": 3,
+        "max": 7
+      },
+      "cost": {
+        "gold": 375
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "unused124": {
+    "name": "NOT USED (2) ",
+    "plural": "NOT USED (2) ",
+    "abilityText": "",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "hitPoints": 0,
+      "speed": 0,
+      "shots": 0,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 0,
+      "combatValue": 0,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {},
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "magmaElemental": {
+    "name": "石元素",
+    "plural": "石元素",
+    "abilityText": "不怕控制心智的魔法，能施放御土奇术魔法。",
+    "stats": {
+      "attack": 11,
+      "defense": 11,
+      "hitPoints": 40,
+      "speed": 6,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 490,
+      "combatValue": 490,
+      "damage": {
+        "min": 6,
+        "max": 10
+      },
+      "cost": {
+        "gold": 500
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "unused126": {
+    "name": "NOT USED (3)",
+    "plural": "NOT USED (3)",
+    "abilityText": "",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "hitPoints": 0,
+      "speed": 0,
+      "shots": 0,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 0,
+      "combatValue": 0,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {},
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "stormElemental": {
+    "name": "雷元素",
+    "plural": "雷元素",
+    "abilityText": "肉搏战中杀伤力不减。害怕闪电魔法和连珠火球魔法。",
+    "stats": {
+      "attack": 9,
+      "defense": 9,
+      "hitPoints": 25,
+      "speed": 8,
+      "shots": 24,
+      "growth": 6,
+      "horde": 0,
+      "aiValue": 486,
+      "combatValue": 324,
+      "damage": {
+        "min": 2,
+        "max": 8
+      },
+      "cost": {
+        "gold": 275
+      },
+      "advMapAmount": {
+        "min": 6,
+        "max": 12
+      }
+    }
+  },
+  "unused128": {
+    "name": "NOT USED (4)",
+    "plural": "NOT USED (4)",
+    "abilityText": "",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "hitPoints": 0,
+      "speed": 0,
+      "shots": 0,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 0,
+      "combatValue": 0,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {},
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "energyElemental": {
+    "name": "烈火元素",
+    "plural": "烈火元素",
+    "abilityText": "能施放御火奇术，不怕心智和火系魔法，怕水系魔法。",
+    "stats": {
+      "attack": 12,
+      "defense": 8,
+      "hitPoints": 35,
+      "speed": 8,
+      "shots": 0,
+      "growth": 5,
+      "horde": 0,
+      "aiValue": 470,
+      "combatValue": 360,
+      "damage": {
+        "min": 4,
+        "max": 6
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "firebird": {
+    "name": "火鸟",
+    "plural": "火鸟",
+    "abilityText": "喷出烈火进行攻击，不怕火魔法。",
+    "stats": {
+      "attack": 18,
+      "defense": 18,
+      "hitPoints": 150,
+      "speed": 15,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 4547,
+      "combatValue": 3248,
+      "damage": {
+        "min": 30,
+        "max": 40
+      },
+      "cost": {
+        "gold": 1500
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "phoenix": {
+    "name": "凤凰",
+    "plural": "凤凰",
+    "abilityText": "喷出烈火进行攻击，不怕火魔法。复活。",
+    "stats": {
+      "attack": 21,
+      "defense": 18,
+      "hitPoints": 200,
+      "speed": 21,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 6721,
+      "combatValue": 4929,
+      "damage": {
+        "min": 30,
+        "max": 40
+      },
+      "cost": {
+        "mercury": 1,
+        "gold": 2000
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "azureDragon": {
+    "name": "圣龙",
+    "plural": "圣龙",
+    "abilityText": "使敌人恐惧。",
+    "stats": {
+      "attack": 50,
+      "defense": 50,
+      "hitPoints": 1000,
+      "speed": 19,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 78845,
+      "combatValue": 56315,
+      "damage": {
+        "min": 70,
+        "max": 80
+      },
+      "cost": {
+        "mercury": 20,
+        "gold": 30000
+      },
+      "advMapAmount": {
+        "min": 1,
+        "max": 3
+      }
+    }
+  },
+  "crystalDragon": {
+    "name": "水晶龙",
+    "plural": "水晶龙",
+    "abilityText": "由水晶构成。",
+    "stats": {
+      "attack": 40,
+      "defense": 40,
+      "hitPoints": 800,
+      "speed": 16,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 39338,
+      "combatValue": 30260,
+      "damage": {
+        "min": 60,
+        "max": 75
+      },
+      "cost": {
+        "crystal": 10,
+        "gold": 20000
+      },
+      "advMapAmount": {
+        "min": 1,
+        "max": 3
+      }
+    }
+  },
+  "fairieDragon": {
+    "name": "紫龙",
+    "plural": "紫龙",
+    "abilityText": "施放攻击魔法。",
+    "stats": {
+      "attack": 20,
+      "defense": 20,
+      "hitPoints": 500,
+      "speed": 15,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 19580,
+      "combatValue": 16317,
+      "damage": {
+        "min": 20,
+        "max": 30
+      },
+      "cost": {
+        "gems": 8,
+        "gold": 10000
+      },
+      "advMapAmount": {
+        "min": 1,
+        "max": 3
+      }
+    }
+  },
+  "rustDragon": {
+    "name": "毒龙",
+    "plural": "毒龙",
+    "abilityText": "毒液攻击。",
+    "stats": {
+      "attack": 30,
+      "defense": 30,
+      "hitPoints": 750,
+      "speed": 17,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 26433,
+      "combatValue": 24030,
+      "damage": {
+        "min": 50,
+        "max": 50
+      },
+      "cost": {
+        "sulfur": 14,
+        "gold": 15000
+      },
+      "advMapAmount": {
+        "min": 1,
+        "max": 3
+      }
+    }
+  },
+  "enchanter": {
+    "name": "魔幻法师",
+    "plural": "魔幻法师",
+    "abilityText": "肉搏战中杀伤力不减。对盟友施放有益魔法。",
+    "stats": {
+      "attack": 17,
+      "defense": 12,
+      "hitPoints": 30,
+      "speed": 9,
+      "shots": 32,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1210,
+      "combatValue": 805,
+      "damage": {
+        "min": 14,
+        "max": 14
+      },
+      "cost": {
+        "gold": 750
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "sharpshooter": {
+    "name": "幻影射手",
+    "plural": "幻影射手",
+    "abilityText": "远程射击杀伤力不减。",
+    "stats": {
+      "attack": 12,
+      "defense": 10,
+      "hitPoints": 15,
+      "speed": 9,
+      "shots": 32,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 585,
+      "combatValue": 415,
+      "damage": {
+        "min": 8,
+        "max": 10
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "halfling": {
+    "name": "矮妖精",
+    "plural": "矮妖精",
+    "abilityText": "幸运",
+    "stats": {
+      "attack": 4,
+      "defense": 2,
+      "hitPoints": 4,
+      "speed": 5,
+      "shots": 24,
+      "growth": 15,
+      "horde": 0,
+      "aiValue": 75,
+      "combatValue": 60,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 40
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "peasant": {
+    "name": "农民",
+    "plural": "农民",
+    "abilityText": "",
+    "stats": {
+      "attack": 1,
+      "defense": 1,
+      "hitPoints": 1,
+      "speed": 3,
+      "shots": 0,
+      "growth": 25,
+      "horde": 0,
+      "aiValue": 15,
+      "combatValue": 15,
+      "damage": {
+        "min": 1,
+        "max": 1
+      },
+      "cost": {
+        "gold": 10
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "boar": {
+    "name": "野猪",
+    "plural": "野猪",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 5,
+      "hitPoints": 15,
+      "speed": 6,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 145,
+      "combatValue": 145,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 150
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "mummy": {
+    "name": "木乃伊",
+    "plural": "木乃伊",
+    "abilityText": "诅咒。",
+    "stats": {
+      "attack": 7,
+      "defense": 7,
+      "hitPoints": 30,
+      "speed": 5,
+      "shots": 0,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 270,
+      "combatValue": 270,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 300
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "nomad": {
+    "name": "游牧民",
+    "plural": "游牧民",
+    "abilityText": "沙地行走。",
+    "stats": {
+      "attack": 9,
+      "defense": 8,
+      "hitPoints": 30,
+      "speed": 7,
+      "shots": 0,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 345,
+      "combatValue": 285,
+      "damage": {
+        "min": 2,
+        "max": 6
+      },
+      "cost": {
+        "gold": 200
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "rogue": {
+    "name": "盗贼",
+    "plural": "盗贼",
+    "abilityText": "打探情报。",
+    "stats": {
+      "attack": 8,
+      "defense": 3,
+      "hitPoints": 10,
+      "speed": 6,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 135,
+      "combatValue": 135,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 100
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "troll": {
+    "name": "恶鬼",
+    "plural": "恶鬼",
+    "abilityText": "再生。",
+    "stats": {
+      "attack": 14,
+      "defense": 7,
+      "hitPoints": 40,
+      "speed": 7,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1024,
+      "combatValue": 1024,
+      "damage": {
+        "min": 10,
+        "max": 15
+      },
+      "cost": {
+        "gold": 500
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "catapult": {
+    "name": "投石车",
+    "plural": "投石车",
+    "abilityText": "攻击城墙。",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 1000,
+      "speed": 0,
+      "shots": 24,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 500,
+      "combatValue": 10,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {
+        "gold": 1
+      },
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "ballista": {
+    "name": "弩车",
+    "plural": "弩车",
+    "abilityText": "",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 250,
+      "speed": 0,
+      "shots": 24,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 600,
+      "combatValue": 650,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 2500
+      },
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "firstAidTent": {
+    "name": "急救帐篷",
+    "plural": "急救帐篷",
+    "abilityText": "医治部队。",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "hitPoints": 75,
+      "speed": 0,
+      "shots": 0,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 300,
+      "combatValue": 10,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {
+        "gold": 750
+      },
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "ammoCart": {
+    "name": "补给车",
+    "plural": "补给车",
+    "abilityText": "弹药量无限。",
+    "stats": {
+      "attack": 0,
+      "defense": 5,
+      "hitPoints": 100,
+      "speed": 0,
+      "shots": 0,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 400,
+      "combatValue": 5,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {
+        "gold": 1000
+      },
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "arrowTower": {
+    "name": "箭塔",
+    "plural": "箭塔",
+    "abilityText": "弹药量无限。",
+    "stats": {
+      "attack": 10,
+      "defense": 5,
+      "hitPoints": 100,
+      "speed": 0,
+      "shots": 99,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 400,
+      "combatValue": 5,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 1000
+      },
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  }
+}

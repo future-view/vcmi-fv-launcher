@@ -1,0 +1,116 @@
+---
+description: 项目总览：VCMI-FV 模组组合启动器的定位、功能、技术栈与目录结构。开始任何任务前先阅读本规则了解项目全局。
+globs: ["**/*"]
+---
+
+# 项目总览
+
+## 一句话定位
+
+一个**不修改 VCMI 源码**的独立外部桌面启动器：以最小化基线为起点，通过**带城镇背景图的左右分栏**可视化挑选模组，保存为 VCMI 原生 `modSettings.json` 预设，并一键启动游戏/地图编辑器。
+
+## 核心功能
+
+- **模组视图**：左栏搜索/分类/画廊选择，右栏按类型分组已选；依赖自动勾选、冲突标红。
+- **预设管理**：可搜索下拉切换、保存（遇变动激活）、更多菜单（新建含继承自 / 重命名 / 导入导出官方格式 / 删除 / Markdown 启用报告）。
+- **设置面板**：官方 12 节 schema，等高卡片 + 全量描述 + 2 行截断 + 搜索 sticky。
+- **多语言**：启动器 UI 已支持 5 种（中/英/俄/波/德，标识与官方 VCMI 同名单，完整名单 + 本地化名见 `lib/vcmiLangs.ts`），可随 `src/i18n/langs.ts` 的 `UI_LANG_IDS` 继续扩展；模组文本按 VCMI 语言 identifier 取词。
+- **底部区**：多语言下拉、游戏数据抽屉（结构化目录 + 打开）、帮助抽屉（内置 Markdown 离线文档，5 语言、目录 + 搜索）、地图编辑器入口、启用游戏。
+- **目录识别**：读取 `dirs.json` 回退默认规则；启动器读取 VCMI 配置目录写预设。
+- **容错**：定制版部分 `Content.zip` 带密码，后端 zip 提取捕获异常回退色块，绝不崩溃。
+
+## 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 前端 | React 18 + TypeScript + Tailwind CSS 3.4（Vite 5，玻璃拟态暗色） |
+| 组件 | shadcn/ui（button/card/input/switch + Radix） |
+| 桌面壳 | Tauri 2（Rust），spawn `VCMI_client.exe` / `VCMI_mapeditor.exe` |
+| zip | TS 端 yauzl；Rust 端 zip |
+| 状态/图标 | lucide-react、react-icons |
+
+**固定版本（勿随意升级）**：vite5、typescript5、tailwindcss 3.4.17、tailwind-merge ^2.5.5、tailwindcss-animate ^1.0.7、postcss 8.5、autoprefixer ^10.4.20；tsconfig 设 `verbatimModuleSyntax:false`；vite `server.allowedHosts:true`。
+
+## 目录结构
+
+```
+vcmi-fv-launcher/
+├── src/                       # 前端源码：shell / features / shared / lib（见 §目录归属）
+│   ├── main.tsx / App.tsx / index.css / vite-env.d.ts   # 入口 + 顶层编排
+│   ├── shell/                 # 启动器主界面「外壳」：窗口级 UI，不含页签业务
+│   │   └── TopBar.tsx / BottomBar.tsx / GameDataDrawer.tsx / HelpDrawer.tsx / ErrorBoundary.tsx
+│   ├── features/              # 按功能域划分的 React UI（新页面一律放这里）
+│   │   ├── mods/              # 模组页（ModView / ModBrowser / ModCard / DetailDrawer / PresetBar / PresetSaveDialog）
+│   │   ├── wiki/              # 百科页：WikiView + detail/（EntryDetail 按类别分发 + detailShared 公共件
+│   │   │                      #   + Building/Creature/Hero/Faction/Artifact/Spell/Skill/Mod/TerrainDetail + WikiPopup）
+│   │   ├── settings/          # 设置页（SettingsView + SettingCard/SettingControls/SettingsSidebar/RuntimeInfoDialog + ScopeBadge）—— 主界面与领域共用
+│   │   ├── realms/            # 领域系统：RealmShell（覆盖层容器：编排 + 弹窗）+ HomePage（主界面）
+│   │   │                      #   + InfoBody（信息页）+ PageHeaderBar / MenuButton + switch/ + repository/
+│   │   │   └── editor/        # 领域编辑器：RealmEditor（状态编排）+ tabs/{Basic,Intro,Mods,Advanced}Tab
+│   │   │                      #   + Field / FilterSlider / LanguagePicker / editorShared
+│   │   └── setup/             # 首启初始化向导
+│   ├── shared/                # 跨域通用件（无业务语义，靠 props 驱动）
+│   │   ├── ConfirmDialog.tsx / WindowControls.tsx / LanguageMenuButton.tsx
+│   │   └── ui/                # shadcn 基础控件（button / input / select / slider / switch）
+│   ├── lib/                   # 纯 TS 逻辑（**无 React**）
+│   │   ├── tauri.ts / utils.ts / enc.ts / zip.ts / log.ts / modScope.ts / modHelpers.ts / townLoading.ts
+│   │   ├── modScanner.ts / minimapBase.ts / settingsSchema.ts / langMods.ts / builtinPresets.ts
+│   │   ├── realm/{store.ts, intro.ts, types.ts}
+│   │   ├── modcache/{index.ts, status.ts, buildTargets.ts, realmAssets.ts}
+│   │   └── def/decoder.ts
+│   ├── i18n/                  # 界面词典（langs.ts 语言登记 / index.ts / zh-CN.ts / en.ts / ru.ts / pl.ts / de.ts / types.ts / settingsText.<lang>.ts）
+│   ├── generated/             # 生成物（settingDefaults.ts / settingKeys.ts，勿手改）
+│   └── assets/                # 前端静态资源
+├── src-tauri/                 # Tauri Rust 壳（分层与依赖方向见 03-architecture）
+│   ├── Cargo.toml / tauri.conf.json / build.rs
+│   └── src/                   # lib.rs（组装 + 命令注册）/ state.rs（AppPaths）
+│       ├── infra/             # 设施：json / def / lod / pak / image / http / ai / upscale / links / logging / time / hash / idle / metrics
+│       ├── vcmi/              # 领域：paths / config / scan / town / gamedata / h3core / i18n / resource / hd_edition
+│       ├── modcache/          # 百科缓存（原 wiki 域，已更名）：collect / i18n / assets / global / preview / hd / batch / index
+│       │                      #   + build/{data,assets}（条目 × 阶段二维分解）
+│       ├── realms/            # 领域系统：base / meta / presets / activate / maps / selfcheck / transfer / conflicts / persona / mod_manage
+│       ├── repository/        # 远程仓库：index / download / mods
+│       ├── runtime/           # 外挂原生组件（AI：onnxruntime）
+│       ├── updater/           # 启动器自更新
+│       └── commands/          # IPC 壳（主要层；realms/repository 亦直接承载命令）：
+│                              #   app / mods / mod_install / mod_settings / settings / vcmi_settings
+│                              #   / paths / launch / cache / runtime / updater / gamedata / game_import
+├── scripts/read-modsettings.mjs  # 纯 Node 验证脚本
+├── references/                # 真实 VCMI 参考目录（官方源码/游戏/配置）
+├── docs/                      # 设计文档 + 本规则（真相源）
+└── 配置文件: vite.config.ts / tailwind.config.js / postcss.config.js / tsconfig*.json / components.json / package.json
+```
+
+## 目录归属（新增代码放哪里）
+
+按顺序问三个问题，命中即停：
+
+1. **含 React 组件 / JSX 吗？** 没有 → `src/lib/**`（纯逻辑，**禁止** `import react`）。
+2. **只属于某一个功能域吗？** → 放该域的 `src/features/<域>/**`。域清单：`mods`（模组）/ `wiki`（百科）/ `settings`（设置）/ `realms`（领域）/ `setup`（首启向导）。
+3. **被两个及以上功能域复用，且本身不带业务语义吗？** → `src/shared/**`。
+
+补充约定：
+
+- 启动器主界面的**外壳**（顶栏 / 底栏 / 抽屉 / 错误边界）不属于任何页签 → `src/shell/**`。
+- **跨域复用但带业务语义**的能力——`features/settings`（主界面设置视图 + 领域设置页）、`features/wiki/detail`（百科详情，领域信息页复用）、`features/mods/ModBrowser`（领域编辑器复用）——**留在自己的 feature 内**，不搬去 `shared/`，否则 `shared/` 会退化成垃圾场。谁复用了谁见 `03-architecture` 的「跨域复用矩阵」。
+- 入口 `App.tsx` / `main.tsx` 保持在 `src/` 根。
+
+## 相关参考目录
+
+> 均使用windows的符号链接挂载到`references`目录, 需要使用合适的方式读取。
+
+| 目录 | 说明 |
+|---|---|
+| `references/vcmi/` | VCMI源码 |
+| `references/Heroes3-VCMI/` | VCMI官方版游戏目录 |
+| `references/vcmi_config/` | VCMI官方版配置目录 |
+
+## 设计文档（编写代码前的权威依据）
+
+完整索引见 `docs/README.zh-CN.md`（中文）/ `docs/README.md`（English）：
+
+- `docs/architecture/` — 总览、前端架构、后端架构、IPC 契约、持久化布局
+- `docs/features/` — 按功能域一功能一篇
+- `docs/guides/` — 构建运行、发行、便携部署、仓库索引、替换图标
+- `docs/reference/` — VCMI 目录机制、错误码、预设格式
+- `docs/decisions/` — 架构决策记录（ADR）

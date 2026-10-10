@@ -1,0 +1,68 @@
+# ==========================================================================
+# CI —— 四项静态自检（快速、无需真实游戏目录）
+#
+# 覆盖重构后最容易静默失效的三处契约：
+#   1. IPC 契约（前端 invoke / 后端 #[tauri::command] / lib.rs 注册表 三方一致，基线 77 命令）
+#   2. modSettings 结构（纯 Node 验证脚本，用临时副本，不改真实文件）
+#   3. Rust 编译 + 前端类型
+#
+# 说明：真机冒烟测试（`wiki::smoke_tests`，多为 #[ignore] + 依赖真实游戏目录）
+#       不在 CI 内运行 —— 需要 `-- --ignored` 与 `VCMI_GAME_DIR`。
+# ==========================================================================
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 前端 + 契约（快速反馈）──────────────────────────────────────────────
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: 安装依赖
+        run: npm ci
+      - name: TypeScript 类型检查
+        run: npx tsc --noEmit
+      - name: IPC 契约三方比对
+        run: npm run check:invoke-parity
+      - name: modSettings 结构验证
+        run: npm run verify:settings
+
+  # ── Rust 编译与单元测试 ────────────────────────────────────────────────
+  # 用 windows-latest：代码含 Win32 专属 FFI（PE 版本读取、空闲检测、进程枚举），
+  # Linux 下无法编译。
+  rust:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # `tauri::generate_context!` 在**编译期**读取 `frontendDist`（../dist），
+      # 缺少该目录会直接编译失败。CI 只做类型/编译校验，故放一个占位产物；
+      # 真实前端构建由 `npm run build` 与 tsc 在 frontend job 覆盖。
+      - name: 占位前端产物（满足 tauri 编译期路径校验）
+        shell: bash
+        run: mkdir -p dist && printf '<!doctype html><title>ci</title>\n' > dist/index.html
+      - name: cargo check（含测试目标，要求零警告）
+        run: |
+          cd src-tauri
+          cargo check --all-targets --locked
+        env:
+          RUSTFLAGS: -D warnings
+      - name: 单元测试（真机冒烟为 #[ignore]，不在 CI 跑）
+        run: |
+          cd src-tauri
+          cargo test --lib --locked

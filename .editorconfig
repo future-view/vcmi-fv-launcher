@@ -1,0 +1,68 @@
+# ==========================================================================
+# EditorConfig - Unified code style across editors
+# Note: For cross-platform collaboration, except for Windows-specific scripts (.ps1/.bat/.cmd), all code and
+# The rule file uniformly uses LF line endings; the rule is "truth source".
+# It is recommended to declare "text=auto" and "eol=lf" in .gitattributes to fix the line endings when checking in.
+# ==========================================================================
+
+root = true
+
+# --------------------------------------------------------------------------
+# Global default: Unified LF line endings (cross-platform)
+# --------------------------------------------------------------------------
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = true
+insert_final_newline = true
+max_line_length = 120
+
+# --------------------------------------------------------------------------
+# Windows-specific script: preserve CRLF (PowerShell / batch processing, to avoid interpreter compatibility issues)
+# --------------------------------------------------------------------------
+[*.{ps1,psm1,psd1,bat,cmd}]
+end_of_line = crlf
+
+# --------------------------------------------------------------------------
+# Rust (Tauri backend): Default cargo fmt style (4-space indentation)
+# --------------------------------------------------------------------------
+[*.rs]
+indent_style = space
+indent_size = 4
+
+# --------------------------------------------------------------------------
+# JSON / TOML / YAML: Maintain 2 spaces and disable trailing whitespace
+# --------------------------------------------------------------------------
+[*.{json,jsonc,json5,toml,yaml,yml}]
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = true
+
+[*.yaml]
+indent_size = 2
+
+# --------------------------------------------------------------------------
+# Markdown / Documentation
+# --------------------------------------------------------------------------
+[*.{md,markdown,mdc}]
+indent_size = 2
+trim_trailing_whitespace = false
+
+# --------------------------------------------------------------------------
+# Shell script (cross-platform, LF; PowerShell has been converted to CRLF in the Windows-specific group)
+# --------------------------------------------------------------------------
+[*.{sh,bash,zsh}]
+indent_size = 4
+end_of_line = lf
+
+[Makefile]
+indent_style = tab
+
+# --------------------------------------------------------------------------
+# Meaningless but compatible binary/data files: skip trailing blank processing
+# --------------------------------------------------------------------------
+[*.{png,jpg,jpeg,gif,webp,ico,bmp,woff,woff2}]
+insert_final_newline = false
+trim_trailing_whitespace = false

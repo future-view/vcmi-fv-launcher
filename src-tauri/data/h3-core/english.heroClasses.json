@@ -1,0 +1,164 @@
+{
+  "class0": {
+    "name": "Knight",
+    "stats": {
+      "attack": 2,
+      "defense": 2,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class1": {
+    "name": "Cleric",
+    "stats": {
+      "attack": 1,
+      "defense": 0,
+      "spellPower": 2,
+      "knowledge": 2
+    }
+  },
+  "class2": {
+    "name": "Ranger",
+    "stats": {
+      "attack": 1,
+      "defense": 3,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class3": {
+    "name": "Druid",
+    "stats": {
+      "attack": 0,
+      "defense": 2,
+      "spellPower": 1,
+      "knowledge": 2
+    }
+  },
+  "class4": {
+    "name": "Alchemist",
+    "stats": {
+      "attack": 1,
+      "defense": 1,
+      "spellPower": 2,
+      "knowledge": 2
+    }
+  },
+  "class5": {
+    "name": "Wizard",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "spellPower": 2,
+      "knowledge": 3
+    }
+  },
+  "class6": {
+    "name": "Demoniac",
+    "stats": {
+      "attack": 2,
+      "defense": 2,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class7": {
+    "name": "Heretic",
+    "stats": {
+      "attack": 1,
+      "defense": 1,
+      "spellPower": 2,
+      "knowledge": 1
+    }
+  },
+  "class8": {
+    "name": "Death Knight",
+    "stats": {
+      "attack": 1,
+      "defense": 2,
+      "spellPower": 2,
+      "knowledge": 1
+    }
+  },
+  "class9": {
+    "name": "Necromancer",
+    "stats": {
+      "attack": 1,
+      "defense": 0,
+      "spellPower": 2,
+      "knowledge": 2
+    }
+  },
+  "class10": {
+    "name": "Overlord",
+    "stats": {
+      "attack": 2,
+      "defense": 2,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class11": {
+    "name": "Warlock",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "spellPower": 3,
+      "knowledge": 2
+    }
+  },
+  "class12": {
+    "name": "Barbarian",
+    "stats": {
+      "attack": 4,
+      "defense": 0,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class13": {
+    "name": "Battle Mage",
+    "stats": {
+      "attack": 2,
+      "defense": 1,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class14": {
+    "name": "Beastmaster",
+    "stats": {
+      "attack": 0,
+      "defense": 4,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class15": {
+    "name": "Witch",
+    "stats": {
+      "attack": 0,
+      "defense": 1,
+      "spellPower": 2,
+      "knowledge": 2
+    }
+  },
+  "class16": {
+    "name": "Planeswalker",
+    "stats": {
+      "attack": 3,
+      "defense": 1,
+      "spellPower": 1,
+      "knowledge": 1
+    }
+  },
+  "class17": {
+    "name": "Elementalist",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "spellPower": 3,
+      "knowledge": 3
+    }
+  }
+}

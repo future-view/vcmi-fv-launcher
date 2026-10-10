@@ -1,0 +1,32 @@
+{
+  "dirt": {
+    "name": "泥地"
+  },
+  "sand": {
+    "name": "沙漠"
+  },
+  "grass": {
+    "name": "草地"
+  },
+  "snow": {
+    "name": "雪地"
+  },
+  "swamp": {
+    "name": "沼泽"
+  },
+  "rough": {
+    "name": "戈壁"
+  },
+  "subterra": {
+    "name": "地下洞穴"
+  },
+  "lava": {
+    "name": "熔岩"
+  },
+  "water": {
+    "name": "水域"
+  },
+  "rock": {
+    "name": "岩石"
+  }
+}

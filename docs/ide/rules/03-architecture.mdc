@@ -1,0 +1,117 @@
+---
+description: 架构分层与模块职责：纯 TS 逻辑层与 React UI 层解耦、Tauri IPC 边界、核心数据流（modSettings 预设结构）与关键决策。改动涉及多个模块时先看本规则。
+globs: ["**/*.{ts,tsx,rs,mjs}"]
+---
+
+# 架构与数据流
+
+## 分层原则
+
+**纯 TS 逻辑层（不依赖 React）与 React UI 层严格解耦**，便于 Node 脚本单独验证。
+
+```
+React 前端 UI  ──Tauri IPC──►  Tauri Rust 命令层
+     │                                │
+     │ 扫描+缓存校验                  │ 读取/写入 modSettings.json
+     ▼                                ▼
+  src/lib/**（纯 TS 逻辑：modScanner / tauri / zip / enc ...）
+```
+
+**目录即分层**（`src/` 下四层，判定方法见 `01-project-overview` 的「目录归属」）：
+
+| 目录 | 是什么 | 硬约束 |
+|---|---|---|
+| `shell/` | 启动器主界面外壳（顶栏 / 底栏 / 抽屉 / 错误边界） | 不含页签业务 |
+| `features/<域>/` | 各功能域的 React UI（`mods` / `wiki` / `settings` / `realms` / `setup`） | 不含纯逻辑 |
+| `shared/` | 跨域通用件（无语义）+ `ui/` 基础控件 | **不得**引用 `features/` 或 `shell/` |
+| `lib/` | 纯 TS 逻辑（IPC 桥接 / 扫描 / 解析 / store / schema） | **不得** `import react` |
+
+### 依赖方向（必须遵守）
+
+```
+shell / features/*  ──►  features/{mods, wiki, settings}  ──►  shared/  ──►  lib/
+        └──────────────►  features/realms  ──┘
+```
+
+- `features/realms/**` 可以单向引用 `features/{mods,wiki,settings}` 与 `shared/`（领域编辑器 / 信息页 / 设置页要复用它们）；**反向禁止**。
+- 除「领域 → 被复用能力」外，同级 feature 之间不互相引用。
+- `shared/` 与 `lib/` 不得反向依赖任何 `features/`、`shell/`。
+
+### 跨域复用矩阵（谁用了谁，改这些文件前先看这张表）
+
+| 被复用方 | 复用方 | 说明 |
+|---|---|---|
+| `features/settings/SettingsView` | `App.tsx`（主界面设置视图）、`features/realms/RealmShell`（领域设置页） | 靠 `configDir` 跑两套数据；`hideTitle` 控制标题归属 |
+| `features/wiki/detail/*`（EntryDetail / WikiPopup） | `features/wiki/WikiView`、`features/realms/RealmShell`（领域信息页的城镇详情） | 百科详情的展示层 |
+| `features/mods/ModBrowser` | `features/mods/ModView`、`features/realms/editor/RealmEditor` | 领域模组勾选复用同一浏览器 |
+| `shared/{ConfirmDialog, WindowControls, LanguageMenuButton}` | 横跨 `shell/` 与 `features/` 多处 | 无语义通用件 |
+| `shared/ui/*` | 各处 | shadcn 基础控件 |
+
+### 前端 `src/` 关键模块
+
+| 模块 | 职责 |
+|---|---|
+| `App.tsx` | 顶层编排：启动串行编排（目录→领域恢复→自检→缓存）、领域模式与启动器模式互斥渲染、语言层同步 |
+| `shell/TopBar.tsx` / `shell/BottomBar.tsx` | 主界面顶栏（品牌 + 页签 + 窗口控件）/ 底栏（游戏数据 / 帮助 / 编辑器 / 启动游戏） |
+| `features/realms/RealmShell.tsx` | 领域全屏覆盖层**容器**：状态编排 + 页面分发 + 弹窗；页面实体在 `HomePage.tsx`（主界面）/ `InfoBody.tsx`（信息页）/ `switch/` / `repository/` / `editor/` / `features/settings` |
+| `features/wiki/detail/EntryDetail.tsx` | 百科条目详情**入口 + 按 category 分发**；公共件在 `detailShared.tsx`，各 `modType` 渲染在 `XxxDetail.tsx`（生物/英雄/城镇/建筑/宝物/法术/技能/地形/模组） |
+| `features/realms/editor/RealmEditor.tsx` | 领域编辑器**状态编排**（表单 state / 校验 / 保存 / 导出）+ 标签栏与弹窗；四个标签页在 `tabs/{Basic,Intro,Mods,Advanced}Tab.tsx`，通过 `XxxTabProps` 接收扁平 props |
+| `lib/modScanner.ts` | 扫描 `Mods/`，解析各 mod.json，按 modType 分组；submod 用 `parent.child` ID 归并 |
+| `lib/minimapBase.ts` | 基线 mods 配置（默认增强版 `["vcmi","h3e-main-menu","core"]`） |
+| `lib/settingsSchema.ts` | 官方设置面板 schema（13 标签 / 157 项，bool/enum/slider/num/text/button）—— **只有结构，无文案**；label/desc 在 `i18n/settingsText.<lang>.ts`，键域由 `generated/settingKeys.ts` 穷举 |
+| `lib/realm/{store,intro,types}.ts` | 领域不可变快照 store（`useSyncExternalStore`）、多语言回退取词、领域类型 |
+| `i18n/` | 界面词典：`langs.ts`（支持哪几种语言 = `UI_LANG_IDS`，标识与官方 VCMI 同名单，当前 5 种：中/英/俄/波/德，可扩展）+ `zh-CN.ts` / `en.ts` / `ru.ts` / `pl.ts` / `de.ts`（各一本完整 `LangDict`）+ 分段正文 `settingsText.<lang>.ts` + `types.ts`；VCMI 语言标识 ↔ 本地化名 ↔ BCP-47 标签在 `lib/vcmiLangs.ts`（经 `vcmiLangName` / `vcmiLangTag` 取用） |
+| `lib/tauri.ts` | IPC 桥接：`isTauri()` 区分环境，`invoke()` 调后端命令 |
+| `lib/zip.ts` / `lib/enc.ts` | yauzl 精准单条目读取 / 加密检测；编码回退 + 宽松 JSON 解析 |
+| `lib/helpDoc.ts` | 帮助文档：内置 Markdown（`src/assets/help/help.<lang>.md`，5 语言）装载 + 受控子集解析（`Block[]`）+ 目录 / 搜索 —— 解析器**无 React**，见 `docs/features/i18n.zh-CN.md` §4 |
+
+### Tauri Rust `src-tauri/src/`（分层详见 `docs/architecture/backend.zh-CN.md`）
+
+**依赖单向**：`commands → updater / runtime / repository / realms / modcache / vcmi → infra`（另有 `repository → realms`、`realms / modcache / runtime → vcmi`）。下层**禁止**反向依赖上层，`infra` / `vcmi` / `modcache` / `runtime` / `updater` 中**不得出现** `tauri` 类型（`State` / `AppHandle` / `Window`）；进度一律用**回调**下传，事件 `emit` 只在 `commands/` 做。
+
+> 例外（与注释不符的实际状态）：`realms/` 与 `repository/` 目前直接承载命令定义与 Tauri 类型，故"`commands/` 是唯一允许 tauri 类型的层"已过期。
+
+| 目录 | 层级 | 职责 | 硬约束 |
+|---|---|---|---|
+| `infra/` | 设施 | 无业务语义的工具：`json`（宽容解析）/ `def`（DEF 解码）/ `lod`（LOD 归档）/ `image`（PCX/BMP/WebP）/ `cache` / `links` / `logging` / `time` / `hash` / `idle`（空闲检测）/ `metrics`（性能埋点） | 无 `tauri` 类型、无 VCMI 业务语义 |
+| `vcmi/` | 领域 | 读游戏/模组/设置：`paths`（目录识别：优先 `<exe>/config/dirs.json`，回退 `Documents\My Games\vcmi`）/ `config`（`launcher.json` 分组结构 + 旧扁平键迁移）/ `scan` / `town` / `gamedata`（`SPELL_ID_TABLE` 等静态表）/ `h3core` / `i18n` / `resource`（资源定位 + LOD 回退） | 无 `tauri` 类型 |
+| `modcache/` | 领域 | 百科缓存构建（原 `wiki/`）：`collect` / `i18n` / `assets` / `global` / `preview` / `hd` / `batch` / `index` + `build/{data,assets}` 二维分解 | 同上；进度用**回调**而非 `AppHandle` |
+| `realms/` | 领域 | 领域系统：`base`（进程守卫/配置/根路径与锁）/ `meta` / `presets` / `activate` / `maps` / `selfcheck` / `transfer` / `conflicts` / `persona` | 同上 |
+| `repository/` | 领域 | 远程仓库：`index`（索引抓取缓存）/ `download`（下载安装 + 封面） | 同上 |
+| `commands/` | IPC 壳 | 主要层：解包 state → 调下层 → `Result` 转换；按域分 `app` / `mods` / `mod_install` / `mod_settings` / `settings` / `vcmi_settings` / `paths` / `launch` / `cache` / `runtime` / `updater` / `gamedata` / `game_import`（`realms` / `repository` 另有命令直接导出） | 只做「解包 state → 调下层 → `Result` 转换」 |
+| `state.rs` | 全局 | `AppPaths`：游戏/用户目录快照（`Mutex` 包裹，经 `State<AppPaths>` 注入） | — |
+| `lib.rs` | 组装 | Builder 插件、`generate_handler!` 命令注册表 | 命令清单需与 `commands/` 定义、前端 `invoke` 三方一致 |
+
+### IPC 契约冻结清单（改后端必读）
+
+**改完必须跑 `npm run check:invoke-parity`** —— 比对前端 `invoke("x")` / 后端 `#[tauri::command]` / `lib.rs` 注册表三方，有差异退出码 1。当前基线：**135 个命令**（以脚本输出为准）（2026-09-15 新增启动器自动更新 6 命令：`check_launcher_update` / `download_launcher_update` / `cancel_launcher_update` / `apply_launcher_update` / `set_update_pref` / `set_update_manifest_url`；2026-09-17 新增 `set_town_preview`（城镇背景 hover 预览开关）；2026-09-23 新增 HD 素材 3 命令：`set_hd_edition_use` / `set_hd_edition_scale` / `hd_edition_status`（官方 HD 版素材 `.pak` 的来源开关、档位与状态探测）；2026-09-29 **未新增命令**：可选更新的 7 天节流**复用** `set_update_pref` 扩展参数（`autoCheck` 改 `Option<bool>`、新增 `promptVersion`，旧调用向后兼容 —— 本机工具链对**新增** Tauri 命令会触发 never-type 硬错误，见 `docs/architecture/backend.zh-CN.md` 的对应约束），配套 `check_launcher_update` 出参新增 `shouldPrompt`、`get_runtime_info` 新增可选 `config_dir`；前端 invoke 集中在 `src/lib/tauri.ts`，parity 脚本只扫描该文件）。
+
+- **命令名 + 参数名** = 前端契约：重命名或改参数会**静默 404**（前端 `invoke` 拿不到命令）。
+- **三层格式各自冻结**（详见重构文档 §7.1）：磁盘 `launcher.json` = **按用途分组的 snake_case**（`paths` / `ui` / `hd` / `mods` / `realms` / `update` / `runtime`，2026-09-24 由平铺改为此结构，**无迁移层**：旧扁平文件视为无效配置）；`read_launcher_config` 出参 = **手写 camelCase**（`gameDir` 等 15 key，2026-09-17 加 `townPreview`）；`write_launcher_config` 入参 = camelCase。任一层被"顺手统一"→ 用户配置丢失或启动流程断裂。
+- 同类冻结：`get_dirs` 6 key、realms 结构化错误串 `{code,msg?,realmId?,realmName?}`、`check_realm_id` 的 `{available,reason}`、批量构建 `BatchWikiMod` 的 serde flatten 字段。
+- **禁改（看似兼容、实为必需）**：`write_launcher_config` 的「宽容继承」回退（`read_launcher_config_lenient`，防首次向导清掉便携包预置的语言 / 高清开关 / 组件地址）；`vcmi/paths.rs` 的 `%USERDOCUMENTS%` 映射（增强版必需）；`modcache::sanitize_id`（**允许点号**，`core.castle` 依赖）与 `VcmiPaths::sanitize_realm_id`（禁点号 + 空回退 `"realm"`）**禁止合并**。
+
+## 核心数据流：modSettings.json 预设结构
+
+- 顶层字段：`activePreset`、`presets`（`{name:{mods,settings}}`）、`activeMods`、`validatedMods`。
+- `settings` 结构：`父modID -> {子modID: bool}`。
+- **`core` 为 VCMI 保留内置 scope**，运行时自动加载，不写入用户选择。
+- 导出单预设格式：`{name, mods, settings}`；导入读 `name` 存 presets 后移除 `name` 字段。
+
+## 关键决策（改代码前必读）
+
+1. **模块解耦**：逻辑层与 UI 分离；MVP 先用 mock 跑通 UI，再接真实扫描。
+2. **目录识别**：先读 `dirs.json` 的 `userDataPath/userConfigPath/userLogsPath`（支持环境变量展开），无则回退 Windows 默认；游戏数据目录 = exe 同目录。
+3. **基线**：以「能真正启动增强版」为验证目标；预设写入（`write_mod_settings`）保留 `activeMods` 字段，提供基线开关回退。
+4. **zip 容错**：加密/损坏 zip 捕获异常回退色块，`backgroundError` 缓存避免重复尝试。
+5. **缺失 mod 检测**：扫描比对预设与本地实际存在，缺失项右栏标红 + 启动时模态列原因（缺失/依赖/冲突）。
+6. **性能**：扫描一次性 O(n)；背景图首跑提取后走缓存；写 modSettings 前自动备份。
+
+## 依赖/冲突逻辑
+
+- 选择 mod 时自动勾选其 `depends`；与 `conflicts` 冲突项标红提示。
+- 缺失 mod、依赖未满足、冲突存在时：禁止启动并在模态中列出原因。
+
+## 验证脚本
+
+`scripts/read-modsettings.mjs`：读取真实 `modSettings.json` 验证（结构解析、子 ID 命名规律、官方单预设导出、写入+备份，用临时副本不改真实文件）。`npm run verify:settings` 运行。

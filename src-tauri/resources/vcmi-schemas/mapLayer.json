@@ -1,0 +1,30 @@
+{
+	"type" : "object",
+	"$schema" : "http://json-schema.org/draft-04/schema",
+	"title" : "VCMI mapLayers format",
+	"description" : "Format used to define new map layers in VCMI",
+	"required" : [ "text" ],
+	"additionalProperties" : false,
+	"properties" : {
+		"text" :
+		{
+			"type" : "string",
+			"description" : "Human-readable name of the layer"
+		},
+		"index" :
+		{
+			"type" : "number",
+			"description" : "Internal, do not use"
+		},
+		"defaultTerrain" :
+		{
+			"type" : "string",
+			"description" : "Terrain used to fill this layer when clearing / generating terrain, defaults to water"
+		},
+		"icon" :
+		{
+			"type" : "string",
+			"description" : "Optional custom icon for this map layer"
+    }
+	}
+}

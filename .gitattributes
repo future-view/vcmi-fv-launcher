@@ -1,0 +1,84 @@
+# ==========================================================================
+# .gitattributes - Git Line Ending Normalization and File Attributes
+# Purpose: Under cross-platform collaboration, unify the line endings of text files to LF (unless it is a Windows-specific script),
+# Mark the binary file. This file is consistent with .editorconfig (the source of truth).
+# ==========================================================================
+
+# --------------------------------------------------------------------------
+# Default: The line endings of text files are uniformly set to LF (both for check-in and check-out, ensuring consistency across platforms)
+# --------------------------------------------------------------------------
+* text=auto eol=lf
+
+# --------------------------------------------------------------------------
+# Specify the text type (as a fallback, ensuring that the following extensions are treated as text)
+# --------------------------------------------------------------------------
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.mjs text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.jsonc text eol=lf
+*.json5 text eol=lf
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.markdown text eol=lf
+*.mdc text eol=lf
+*.rs text eol=lf
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+Makefile text eol=lf
+*.editorconfig text eol=lf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
+
+# --------------------------------------------------------------------------
+# Windows-specific script: Retain CRLF (PowerShell / batch processing, to avoid interpreter compatibility issues)
+# --------------------------------------------------------------------------
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# --------------------------------------------------------------------------
+# Binary file: Do not perform line-ending conversion (specify binary to avoid misidentification as text)
+# --------------------------------------------------------------------------
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.bmp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.exe binary
+*.dll binary
+*.pdb binary
+*.msi binary
+*.zip binary
+*.7z binary
+*.tar binary
+*.gz binary
+
+# --------------------------------------------------------------------------
+# Lock file: Text and requires diff (overriding the *.json declaration above to ensure processing as text)
+# --------------------------------------------------------------------------
+package-lock.json text eol=lf
+Cargo.lock text eol=lf
+
+# --------------------------------------------------------------------------
+# Generated/Cache Directory: Mark as binary or diff to ignore, reducing repository noise
+# (These directories will only take effect if they are committed; it is recommended to also exclude them in .gitignore)
+# --------------------------------------------------------------------------
+dist/** binary
+src-tauri/target/** binary
+node_modules/** binary

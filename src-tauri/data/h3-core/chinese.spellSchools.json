@@ -1,0 +1,6 @@
+{
+  "air": { "index": 0, "name": "气系" },
+  "fire": { "index": 1, "name": "火系" },
+  "earth": { "index": 2, "name": "土系" },
+  "water": { "index": 3, "name": "水系" }
+}

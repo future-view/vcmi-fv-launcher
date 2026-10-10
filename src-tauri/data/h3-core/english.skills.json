@@ -1,0 +1,170 @@
+{
+  "pathfinding": {
+    "name": "Pathfinding",
+    "basic": "{Basic Pathfinding}\n\nBasic Pathfinding reduces the movement penalty for rough terrain by 25%.",
+    "advanced": "{Advanced Pathfinding}\n\nAdvanced Pathfinding reduces the movement penalty for rough terrain by 50%.",
+    "expert": "{Expert Pathfinding}\n\nExpert Pathfinding reduces the movement penalty for rough terrain by 75%."
+  },
+  "archery": {
+    "name": "Archery",
+    "basic": "{Basic Archery}\n\nBasic Archery increases the damage done by range attacking creatures by 10%.",
+    "advanced": "{Advanced Archery}\n\nAdvanced Archery increases the damage done by range attacking creatures by 25%.",
+    "expert": "{Expert Archery}\n\nExpert Archery increases the damage done by range attacking creatures by 50%."
+  },
+  "logistics": {
+    "name": "Logistics",
+    "basic": "{Basic Logistics}\n\nBasic Logistics increases your hero's movement points over land by 10%.",
+    "advanced": "{Advanced Logistics}\n\nAdvanced Logistics increases your hero's movement points over land by 20%.",
+    "expert": "{Expert Logistics}\n\nExpert Logistics increases your hero's movement points over land by 30%."
+  },
+  "scouting": {
+    "name": "Scouting",
+    "basic": "{Basic Scouting}\n\nBasic Scouting allows your hero to see 1 square further into the shroud.",
+    "advanced": "{Advanced Scouting}\n\nAdvanced Scouting allows your hero to see 2 squares further into the shroud.",
+    "expert": "{Expert Scouting}\n\nExpert Scouting allows your hero to see 3 squares further into the shroud."
+  },
+  "diplomacy": {
+    "name": "Diplomacy",
+    "basic": "{Basic Diplomacy}\n\nBasic Diplomacy allows you to negotiate with monsters who are weaker than your group, and reduces the cost of surrendering by 20%.",
+    "advanced": "{Advanced Diplomacy}\n\nAdvanced Diplomacy allows you to negotiate with monsters who are weaker than your group, and reduces the cost of surrendering by 40%.",
+    "expert": "{Expert Diplomacy}\n\nExpert Diplomacy allows you to negotiate with monsters who are weaker than your group, and reduces the cost of surrendering by 60%."
+  },
+  "navigation": {
+    "name": "Navigation",
+    "basic": "{Basic Navigation}\n\nBasic Navigation increases your hero's movement points at sea by 50%.",
+    "advanced": "{Advanced Navigation}\n\nAdvanced Navigation doubles your hero's movement points at sea.",
+    "expert": "{Expert Navigation}\n\nExpert Navigation increases your hero's movement points at sea by 150%."
+  },
+  "leadership": {
+    "name": "Leadership",
+    "basic": "{Basic Leadership}\n\nBasic Leadership increases your hero's troops' morale by 1.",
+    "advanced": "{Advanced Leadership}\n\nAdvanced Leadership increases your hero's troops' morale by 2.",
+    "expert": "{Expert Leadership}\n\nExpert Leadership increases your hero's troops' morale by 3."
+  },
+  "wisdom": {
+    "name": "Wisdom",
+    "basic": "{Basic Wisdom}\n\nBasic Wisdom allows your hero to learn third level spells.",
+    "advanced": "{Advanced Wisdom}\n\nAdvanced Wisdom allows your hero to learn fourth level spells.",
+    "expert": "{Expert Wisdom}\n\nExpert Wisdom allows your hero to learn fifth level spells."
+  },
+  "mysticism": {
+    "name": "Mysticism",
+    "basic": "{Basic Mysticism}\n\nBasic Mysticism allows your hero to regenerate 2 spell points per day.",
+    "advanced": "{Advanced Mysticism}\n\nAdvanced Mysticism allows your hero to regenerate 3 spell points per day.",
+    "expert": "{Expert Mysticism}\n\nExpert Mysticism allows your hero to regenerate 4 spell points per day."
+  },
+  "luck": {
+    "name": "Luck",
+    "basic": "{Basic Luck}\n\nBasic Luck increases your hero's luck by 1.",
+    "advanced": "{Advanced Luck}\n\nAdvanced Luck increases your hero's luck by 2.",
+    "expert": "{Expert Luck}\n\nExpert Luck increases your hero's luck by 3."
+  },
+  "ballistics": {
+    "name": "Ballistics",
+    "basic": "{Basic Ballistics}\n\nBasic Ballistics gives control of the catapult to the hero, allowing aimed shots with increased damage.",
+    "advanced": "{Advanced Ballistics}\n\nAdvanced Ballistics gives control of the catapult to the hero, allowing two aimed shots with increased damage.",
+    "expert": "{Expert Ballistics}\n\nExpert Ballistics gives control of the catapult to the hero, allowing two aimed shots at maximum damage."
+  },
+  "eagleEye": {
+    "name": "Eagle Eye",
+    "basic": "{Basic Eagle Eye}\n\nBasic Eagle Eye gives your hero a 40% chance to learn any 1st or 2nd level spell used in combat.",
+    "advanced": "{Advanced Eagle Eye}\n\nAdvanced Eagle Eye gives your hero a 50% chance to learn any spell up to 3rd level used in combat.",
+    "expert": "{Expert Eagle Eye}\n\nExpert Eagle Eye gives your hero a 60% chance to learn any spell up to 4th level used in combat."
+  },
+  "necromancy": {
+    "name": "Necromancy",
+    "basic": "{Basic Necromancy}\n\nBasic Necromancy allows 10% of the creatures killed in combat to be brought back from the dead as Skeletons.",
+    "advanced": "{Advanced Necromancy}\n\nAdvanced Necromancy allows 20% of the creatures killed in combat to be brought back from the dead as Skeletons.",
+    "expert": "{Expert Necromancy}\n\nExpert Necromancy allows 30% of the creatures killed in combat to be brought back from the dead as Skeletons."
+  },
+  "estates": {
+    "name": "Estates",
+    "basic": "{Basic Estates}\n\nWith Eestates, a hero contributes 125 gold per day to your cause.",
+    "advanced": "{Advanced Estates}\n\nWith Estates, a hero contributes 250 gold per day to your cause.",
+    "expert": "{Expert Estates}\n\nWith Estates, a hero contributes 500 gold per day to your cause."
+  },
+  "fireMagic": {
+    "name": "Fire Magic",
+    "basic": "{Basic Fire Magic}\n\nBasic Fire Magic allows your hero to cast Fire spells at reduced cost.",
+    "advanced": "{Advanced Fire Magic}\n\nAdvanced Fire Magic allows your hero to cast Fire spells at reduced cost and increased effectiveness.",
+    "expert": "{Expert Fire Magic}\n\nExpert Fire Magic allows your hero to cast Fire spells at reduced cost and maximum effectiveness."
+  },
+  "airMagic": {
+    "name": "Air Magic",
+    "basic": "{Basic Air Magic}\n\nBasic Air Magic allows your hero to cast Air spells at reduced cost.",
+    "advanced": "{Advanced Air Magic}\n\nAdvanced Air Magic allows your hero to cast Air spells at reduced cost and increased effectiveness.",
+    "expert": "{Expert Air Magic}\n\nExpert Air Magic allows your hero to cast Air spells at reduced cost and maximum effectiveness."
+  },
+  "waterMagic": {
+    "name": "Water Magic",
+    "basic": "{Basic Water Magic}\n\nBasic Water Magic allows your hero to cast Water spells at reduced cost.",
+    "advanced": "{Advanced Water Magic}\n\nAdvanced Water Magic allows your hero to cast Water spells at reduced cost and increased effectiveness.",
+    "expert": "{Expert Water Magic}\n\nExpert Water Magic allows your hero to cast Water spells at reduced cost and maximum effectiveness."
+  },
+  "earthMagic": {
+    "name": "Earth Magic",
+    "basic": "{Basic Earth Magic}\n\nBasic Earth Magic allows your hero to cast Earth spells at reduced cost.",
+    "advanced": "{Advanced Earth Magic}\n\nAdvanced Earth Magic allows your hero to cast Earth spells at reduced cost and increased effectiveness.",
+    "expert": "{Expert Earth Magic}\n\nExpert Earth Magic allows your hero to cast Earth spells at reduced cost and maximum effectiveness."
+  },
+  "scholar": {
+    "name": "Scholar",
+    "basic": "{Basic Scholar}\n\nBasic Scholar allows heroes to teach each other 1st and 2nd level spells, effectively trading spells between spell books.",
+    "advanced": "{Advanced Scholar}\n\nAdvanced Scholar allows heroes to teach each other any spell up to 3rd level, effectively trading spells between spell books.",
+    "expert": "{Expert Scholar}\n\nExpert Scholar allows heroes to teach each other any spell up to 4th level, effectively trading spells between spell books."
+  },
+  "tactics": {
+    "name": "Tactics",
+    "basic": "{Basic Tactics}\n\nBasic Tactics allows you to rearrange your troops just before combat, within three hex rows of the commanding hero.",
+    "advanced": "{Advanced Tactics}\n\nAdvanced Tactics allows you to rearrange your troops just before combat, within five hex rows of the commanding hero.",
+    "expert": "{Expert Tactics}\n\nExpert Tactics allows you to rearrange your troops just before combat, within seven hex rows of the commanding hero."
+  },
+  "artillery": {
+    "name": "Artillery",
+    "basic": "{Basic Artillery}\n\nBasic Artillery gives control of the ballista to the hero, allowing two shots with a 50% chance to inflict double damage.",
+    "advanced": "{Advanced Artillery}\n\nAdvanced Artillery gives control of the ballista to the hero, allowing two shots with a 75% chance to inflict double damage.",
+    "expert": "{Expert Artillery}\n\nExpert Artillery gives control of the ballista to the hero, allowing two shots which inflict double damage."
+  },
+  "learning": {
+    "name": "Learning",
+    "basic": "{Basic Learning}\n\nBasic Learning increases a hero's earned experience by 5%.",
+    "advanced": "{Advanced Learning}\n\nAdvanced Learning increases a hero's earned experience by 10%.",
+    "expert": "{Expert Learning}\n\nExpert Learning increases a hero's earned experience by 15%."
+  },
+  "offence": {
+    "name": "Offense",
+    "basic": "{Basic Offense}\n\nBasic Offense increases all hand-to-hand damage inflicted by the hero's troops by 10%.",
+    "advanced": "{Advanced Offense}\n\nAdvanced Offense increases all hand-to-hand damage inflicted by the hero's troops by 20%.",
+    "expert": "{Expert Offense}\n\nExpert Offense increases all hand-to-hand damage inflicted by the hero's troops by 30%."
+  },
+  "armorer": {
+    "name": "Armorer",
+    "basic": "{Basic Armorer}\n\nBasic Armorer reduces all damage inflicted against the hero's troops by 5%.",
+    "advanced": "{Advanced Armorer}\n\nAdvanced Armorer reduces all damage inflicted against the hero's troops by 10%.",
+    "expert": "{Expert Armorer}\n\nExpert Armorer reduces all damage inflicted against the hero's troops by 15%."
+  },
+  "intelligence": {
+    "name": "Intelligence",
+    "basic": "{Basic Intelligence}\n\nBasic Intelligence increases a hero's normal maximum spell points by 25%.",
+    "advanced": "{Advanced Intelligence}\n\nAdvanced Intelligence increases a hero's normal maximum spell points by 50%.",
+    "expert": "{Expert Intelligence}\n\nExpert Intelligence doubles a hero's normal maximum spell points."
+  },
+  "sorcery": {
+    "name": "Sorcery",
+    "basic": "{Basic Sorcery}\n\nBasic Sorcery causes a hero's spells to inflict an additional 5% damage in combat.",
+    "advanced": "{Advanced Sorcery}\n\nAdvanced Sorcery causes a hero's spells to inflict an additional 10% damage in combat.",
+    "expert": "{Expert Sorcery}\n\nExpert Sorcery causes a hero's spells to inflict an additional 15% damage in combat."
+  },
+  "resistance": {
+    "name": "Resistance",
+    "basic": "{Basic Resistance}\n\nBasic Resistance endows a hero's troops with 5% magic resistance.",
+    "advanced": "{Advanced Resistance}\n\nAdvanced Resistance endows a hero's troops with 10% magic resistance.",
+    "expert": "{Expert Resistance}\n\nExpert Resistance endows a hero's troops with 20% magic resistance."
+  },
+  "firstAid": {
+    "name": "First Aid",
+    "basic": "{Basic First Aid}\n\nBasic First Aid gives control of the first aid tent to the hero, healing 50 points of damage to the first unit of the selected stack.",
+    "advanced": "{Advanced First Aid}\n\nAdvanced First Aid gives control of the first aid tent to the hero, healing 75 points of damage to the first unit of the selected stack.",
+    "expert": "{Expert First Aid}\n\nExpert First Aid gives control of the first aid tent to the hero, healing 100 points of damage to the first unit of the selected stack."
+  }
+}

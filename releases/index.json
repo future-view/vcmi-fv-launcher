@@ -1,0 +1,42 @@
+{
+  "schema": "vcmi-fv-launcher-release-index/1",
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-30",
+  "repo": {
+    "provider": "github",
+    "owner": "future-view",
+    "name": "vcmi-fv-launcher",
+    "defaultBranch": "main",
+    "releaseBase": "https://github.com/future-view/vcmi-fv-launcher/releases",
+    "indexUrl": "https://raw.githubusercontent.com/future-view/vcmi-fv-launcher/main/releases/index.json"
+  },
+  "download": {
+    "base": "https://github.com/future-view/vcmi-fv-launcher/releases",
+    "pathTemplate": "{base}/download/{tag}/{name}",
+    "note": "换自建源 / CDN / Gitee 只改这里；{base} {tag} {name} {release} 为占位符"
+  },
+  "preset": {
+    "base": {
+      "update": {
+        "manifest_url": "https://raw.githubusercontent.com/future-view/vcmi-fv-launcher/main/releases/index.json"
+      }
+    },
+    "flavors": {
+      "ai": {
+        "hd": {
+          "enhance": true,
+          "ai": {
+            "enhance": true,
+            "model": "realesrgan_anime6b.onnx"
+          }
+        }
+      }
+    }
+  },
+  "product": "VCMI-FV-Launcher",
+  "channel": "stable",
+  "latest": null,
+  "minSupported": null,
+  "versions": [],
+  "releases": []
+}

@@ -1,0 +1,114 @@
+---
+description: Tauri 与 VCMI 集成要点：目录识别（dirs.json/默认规则）、IPC 命令契约、游戏/编辑器启动、modSettings 读写与备份、Windows 打包。涉及 src-tauri 或 IPC 时必读。
+globs: ["src-tauri/**", "src/lib/tauri.ts", "**/tauri.conf.json"]
+---
+
+# Tauri / VCMI 集成
+
+## IPC 命令契约（前端 `invoke` 与后端 `#[tauri::command]`）
+
+| 命令 | 入参 | 返回 | 说明 |
+|---|---|---|---|
+| `read_mod_settings` | — | JSON 全文 | 读取 modSettings.json |
+| `write_mod_settings` | `{ data }` | () | 写前自动备份 `.backup` |
+| `clear_mod_validation` | `{ configDir?, modIds }` | 清除条目数 | 删 `validatedMods` 条目，强制 VCMI 重新校验（排查「游戏外改过模组文件 / 加载失败」） |
+| `get_dirs` | — | `{exeDir, gameDir, userDir, userConfigDir, logsDir, userModsDir}` | 目录信息（游戏数据抽屉用） |
+| `get_compile_info` | — | `{vcmiVersion, coreModVersion, versionSource, osVersion}` | 引擎版本探测结果（见下节） |
+| `gamedata_health_check` | — | `{ok, roots[], items[]}` | 游戏数据完整性体检（只读，见下节） |
+| `preview_mod_zip` | `{ zipPath }` | `{modId, name, version, modType, entryCount, target, exists}` | 探查本地 mod 包（**不写盘**，安装前确认用） |
+| `install_local_mod` | `{ zipPath, overwrite }` | `{modId, dest, installedFiles, replaced}` | 安装本地 zip 到用户 Mods 目录（见下节） |
+| `launch_game` | — | () | spawn `VCMI_client.exe`（显式 `current_dir(gameDir)`） |
+| `launch_editor` | — | () | spawn `VCMI_mapeditor.exe`（同上） |
+| `open_in_explorer` | `{ path }` | () | 系统资源管理器打开目录 |
+
+- 前端统一经 `src/lib/tauri.ts` 调用；`isTauri()` 为假时返回 mock，不抛错。
+- 后端错误统一返回 `Result<T, String>`，中文描述由前端展示。
+- ⚠️ 启动类命令**必须** `.current_dir(game_dir)`：VCMI 按**进程工作目录**解析相对路径
+  （`CFilesystemLoader` 的 `dataPaths()` 硬编码 `"."`），从启动器 spawn 时会继承启动器自身的 cwd。
+
+## 目录识别规则（paths.rs）
+
+优先级：
+1. `<exe 同目录>/config/dirs.json` 存在时，读取 `userDataPath` 等覆盖用户目录（支持 `%VAR%` 与 `$VAR` 环境变量展开）。
+2. 否则回退 Windows 默认 `Documents\My Games\vcmi`。
+3. 游戏数据目录（Mods/ 所在）= exe 同目录。
+
+```
+user_config_dir = user_dir/config       # modSettings.json 所在
+logs_dir   = user_dir/logs
+user_mods_dir   = game_dir/Mods
+```
+
+## 启动 / 地图编辑器
+
+- 默认在游戏目录（exe 同目录）找 `VCMI_client.exe` / `VCMI_mapeditor.exe`。
+- 路径查找保持可配置化，避免硬编码死路径。
+- 用 `Command::spawn()` 非阻塞启动，失败返回中文错误。
+
+## modSettings 读写要点
+
+- 写前**必须备份**：若文件存在，先 `fs::copy` 到 `modSettings.json.backup`。
+- 写前 `create_dir_all` 保证父目录存在。
+- 序列化用 `serde_json::to_string_pretty` 保留可读性。
+- 预设结构（activePreset / presets / activeMods）由前端组装，后端 `write_mod_settings` 负责写入 + 写前备份。
+
+## 引擎版本探测（`vcmi/version.rs`）
+
+`get_compile_info` 的 `vcmiVersion` 走**三级**探测，顺序不可颠倒：
+
+1. **`VCMI_client.exe -v`（权威）**：`EntryPoint.cpp::prog_version()` 在 SDL / 引擎初始化**之前**打印并
+   `return 0`，实测无窗口无副作用，输出 `VCMI 1.7.4.652bb0b7…`（`VCMI_VERSION_FULL` = 版本 + git sha）。
+   探测放**独立线程 + 超时**，进程万一不退出也不阻塞 IPC。
+2. PE 文件版本（若某发行版写入了 rc 资源）。
+3. 扫描 `VCMI_client.exe` / `VCMI_server.exe` 里**唯一**的 `x.y.z` 串（`VCMI_launcher.exe` 全是 Qt 噪音，不可用）。
+
+⚠️ **不要**回退到 `Mods/vcmi/mod.json` 的 `version`：实测两个参考安装都是 `1.5`（核心 mod 的**资产版本**），
+与引擎版本无关 —— 拿它判模组 `compatibility` 会让 66 个 `min ≥ 1.6` 的模组全部误报不兼容。
+该值单独作为 `coreModVersion` 返回，仅供诊断显示。三级全失败 → `Unknown`（前端此时**不做**兼容判定）。
+
+前端：`src/lib/modCompat.ts`（复刻 `CModVersion::compatible`：**major 必须相等**、只比较双方都声明的段）+
+`src/lib/engineVersion.ts`（模块级单次加载 + `useSyncExternalStore` 订阅，避免每张卡片各查一次 IPC）。
+回归：`cargo test --lib -- vcmi::version::tests::real_ --ignored`。
+
+## 游戏数据体检（`vcmi/health.rs`）
+
+- H3 资源**不是散文件**：`HELP.TXT` / `PLAYERS.PAL` / `TPTHBK*.PCX` 在 `Data/H3bitmap.lod`，
+  `DEFAULT.DEF` 在 `H3sprite.lod`，AB 战役 `.H3C` 在 `H3ab_bmp.lod` ⇒ 按 **lod 条目名**判定，
+  用 `infra::lod::lod_entry_names`（只读文件头 `0x5c + count*32`，**不读整个容器**）。
+- 资源根有两处：**游戏目录**与 **userDataPath**（VCMI 同时挂载；实测官方版数据放 userDataPath、
+  增强版放游戏目录），任一命中即算通过。
+- 文件名**大小写不敏感**（内置字体磁盘上是 `NotoSerif-Medium.ttf`，虚拟路径写作 `DATA/NOTOSERIF-MEDIUM.TTF`）。
+- 回归：`cargo test --lib -- health::tests::real_ --ignored`（断言参考目录零误报）。
+
+## 本地 zip 安装模组（`vcmi/mod_install.rs`）
+
+复刻官方 `ModStateController::doInstallMod` + `detectModArchive`
+（`launcher/modManager/modstatecontroller.cpp:115-149, 276-335`），四处**刻意改进**：
+
+1. **先解压到临时目录再整体就位**（`Mods/.fv-install-<id>/`，点开头 → 扫描会跳过）：
+   解压中断/失败不留半截 mod，也不动既有安装；
+2. **只解压 mod 根内条目**并剥离该前缀（官方按原路径解压再改名，包根部的 readme 会污染 `Mods/`）；
+3. **支持「根目录即 mod」的包**（官方只认 `X/mod.json` 与 `X/Y/mod.json`）；
+4. **覆盖时旧目录改名保留**（可回滚），不是直接删；对目录联接（junction）只 `remove_dir`
+   —— 否则会毁掉联接指向的真实文件（`infra::links::is_link`）。
+
+- mod id = 包内 mod 目录名（根目录包用 zip 文件名），并**去掉尾随版本号**
+  （`hota-1.7.3` → `hota`）—— 不剥会让 `depends: ["hota"]` 之类依赖声明全部失配。
+- 安全：条目路径拒绝绝对路径 / `..` / 盘符；文件名含 U+FFFD（编码无法识别）→ 直接失败，不写乱码目录。
+- 安装位置**固定 `userModsDir`**：游戏目录 `Mods/` 是发行包自带内容，安装流程不写入。
+- 前端：Mods 页工具栏「安装本地模组」+ **拖放 zip 到页面**（Tauri `onDragDropEvent` 才能拿到本地路径），
+  安装后重扫并自动勾选新模组。
+- 回归：`cargo test --lib -- vcmi::mod_install`。
+
+## 打包
+
+- `beforeDevCommand: npm run dev`、`devUrl: http://localhost:5173`、`frontendDist: ../dist`。
+- Windows exe 产物：`src-tauri/target/release/vcmi-fv-launcher.exe`。
+- MSI 安装包需联网下载 wix 工具，网络受限时仅生成 exe（`npx tauri build`）。
+- CSP 为 `null`（本地打包允许）；`gen/schemas/` 是生成的，不提交。
+
+## 注意
+
+- 不要修改 VCMI 官方代码；启动器只通过预设/命令与 VCMI 交互。
+- 新增命令需同时在 `lib.rs` 的 `invoke_handler` 注册。
+- 涉及真实 `references/` 目录时只读，验证用临时副本（如 `.tmp-verify`）。

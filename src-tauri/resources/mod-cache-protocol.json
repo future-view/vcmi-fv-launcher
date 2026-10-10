@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "vcmiSchemaVersion": "1.7.5",
+  "note": "提取协议表：模组配置字段 → 缓存字段 的显式映射。VCMI JSON Schema（resources/vcmi-schemas，由 scripts/sync-vcmi-schemas.mjs 同步）为字段定义唯一权威源；本表登记每类实体的文本字段来源（含多写法候选链）、缓存映射与翻译键模板。新增字段流程：schema → 本表登记 → build 抽取 → wiki-audit 通过 → 前端读取。采集路径容错（非字段级，见 vcmi::town::is_town_config_path_in 与 infra::json::type_seg_match）：城镇支持变体目录 config/<Faction>/（同目录有 faction.json 或 town/ 子目录）；类型目录支持 <Type>-<suffix>（如 Abode-creatures / Abode-heroes）与单复数、大小写变体。",
+  "schemaManifest": "vcmi-schemas/manifest.json",
+  "entities": {
+    "artifacts": {
+      "cat": "artifacts",
+      "schema": "artifact.json",
+      "textFields": [
+        { "configPaths": ["text.name", "name"], "cacheField": "name", "i18nKeys": ["artifact.{scope}.{id}.name"] },
+        { "configPaths": ["text.description", "description"], "cacheField": "description", "i18nKeys": ["artifact.{scope}.{id}.description"] },
+        { "configPaths": ["text.event"], "cacheField": "eventDescription", "i18nKeys": ["artifact.{scope}.{id}.event"] }
+      ],
+      "ignoredPaths": []
+    },
+    "creatures": {
+      "cat": "creatures",
+      "schema": "creature.json",
+      "textFields": [
+        { "configPaths": ["name.singular", "text.name.singular", "text.name"], "cacheField": "name", "i18nKeys": ["creatures.{scope}.{id}.name.singular"] },
+        { "configPaths": ["name.plural"], "cacheField": "name(plural)", "i18nKeys": ["creatures.{scope}.{id}.name.plural"] },
+        { "configPaths": ["description", "text.description"], "cacheField": "description", "i18nKeys": ["creatures.{scope}.{id}.description"] },
+        { "configPaths": ["text.event"], "cacheField": "eventDescription", "i18nKeys": ["creatures.{scope}.{id}.event"] },
+        { "configPaths": ["abilities.*.name", "abilities[].name"], "cacheField": "abilities[].name", "i18nKeys": ["creatures.{scope}.{id}.bonus.{type}"] },
+        { "configPaths": ["abilities.*.description", "abilities[].description"], "cacheField": "abilities[].description", "i18nKeys": ["creatures.{scope}.{id}.bonus.{type}"] }
+      ],
+      "ignoredPaths": ["extraNames[]"]
+    },
+    "heroes": {
+      "cat": "heroes",
+      "schema": "hero.json",
+      "textFields": [
+        { "configPaths": ["texts.name", "name"], "cacheField": "name", "i18nKeys": ["hero.{scope}.{id}.name"] },
+        { "configPaths": ["texts.biography", "biography"], "cacheField": "biography", "i18nKeys": ["hero.{scope}.{id}.biography"] },
+        { "configPaths": ["texts.specialty.name"], "cacheField": "specialty", "i18nKeys": ["hero.{scope}.{id}.specialty.name"] },
+        { "configPaths": ["texts.specialty.description"], "cacheField": "specialtyDescription", "i18nKeys": ["hero.{scope}.{id}.specialty.description"] },
+        { "configPaths": ["texts.specialty.tooltip"], "cacheField": "specialtyTooltip", "i18nKeys": ["hero.{scope}.{id}.specialty.tooltip"] },
+        { "configPaths": ["specialty.bonuses.*.name", "specialty.bonuses.*.description"], "cacheField": "specialtyBonuses[]", "i18nKeys": ["hero.{scope}.{id}.specialty.bonuses.{key}"] }
+      ],
+      "ignoredPaths": [
+        "images.specialtyLarge",
+        "images.specialtySmall",
+        "specialty.creature",
+        "specialty.secondary",
+        "specialty.spellScalingPercentage",
+        "specialty.spellFixedAdditive"
+      ]
+    },
+    "heroClasses": {
+      "cat": "heroClasses",
+      "schema": "heroClass.json",
+      "textFields": [
+        { "configPaths": ["name"], "cacheField": "className", "i18nKeys": ["heroClass.{scope}.{id}.name"] }
+      ],
+      "ignoredPaths": []
+    },
+    "spells": {
+      "cat": "spells",
+      "schema": "spell.json",
+      "textFields": [
+        { "configPaths": ["name"], "cacheField": "name", "i18nKeys": ["spell.{scope}.{id}.name"] },
+        { "configPaths": ["description"], "cacheField": "description", "i18nKeys": ["spell.{scope}.{id}.description"] },
+        { "configPaths": ["levels.*.description", "levels.none.description", "levels.base.description"], "cacheField": "levelDescriptions.{basic,advanced,expert}", "i18nKeys": ["spell.{scope}.{id}.description.{none|base|basic|advanced|expert}"] }
+      ],
+      "ignoredPaths": ["animation.*.defName", "animation.*.effectName", "animation.projectile.*.defName"]
+    },
+    "skills": {
+      "cat": "skills",
+      "schema": "skill.json",
+      "textFields": [
+        { "configPaths": ["name"], "cacheField": "name", "i18nKeys": ["skill.{scope}.{id}.name"] },
+        { "configPaths": ["basic.description", "advanced.description", "expert.description"], "cacheField": "levels.{basic,advanced,expert}", "i18nKeys": ["skill.{scope}.{id}.description.{basic|advanced|expert}"] }
+      ],
+      "ignoredPaths": ["specialty[]", "*.effects.*.description"]
+    },
+    "factions": {
+      "cat": "factions",
+      "schema": "faction.json",
+      "textFields": [
+        { "configPaths": ["name"], "cacheField": "name", "i18nKeys": ["faction.{scope}.{id}.name"] },
+        { "configPaths": ["description"], "cacheField": "description", "i18nKeys": ["faction.{scope}.{id}.description"] },
+        { "configPaths": ["town.buildings.*.name", "town.buildings.*.description"], "cacheField": "buildings[].name/description", "i18nKeys": ["building.{scope}.{fid}.{bid}.name", "building.{scope}.{fid}.{bid}.description"] },
+        { "configPaths": ["dwellings.*.name", "town.dwellings.*.name"], "cacheField": "(不采集：dwellings.json 常为跨 mod 生成器补丁；招募建筑名由 buildings[].name 承载)", "i18nKeys": ["building.{scope}.{fid}.{bid}.name"] },
+        { "configPaths": ["town.names[]"], "cacheField": "(未投影，候选随机名)", "i18nKeys": ["faction.{scope}.{id}.randomName.{i}"] }
+      ],
+      "ignoredPaths": []
+    },
+    "terrains": {
+      "cat": "terrains",
+      "schema": "terrain.json",
+      "textFields": [
+        { "configPaths": ["text", "name"], "cacheField": "name", "i18nKeys": ["terrain.{scope}.{id}.name"] }
+      ],
+      "ignoredPaths": []
+    },
+    "townBuildings": {
+      "cat": "buildings",
+      "schema": "townBuilding.json",
+      "textFields": [
+        { "configPaths": ["name", "description"], "cacheField": "buildings[].name/description", "i18nKeys": ["building.{scope}.{fid}.{bid}.name", "building.{scope}.{fid}.{bid}.description"] }
+      ],
+      "ignoredPaths": []
+    },
+    "spellSchools": {
+      "cat": "spellSchools",
+      "schema": "spellSchool.json",
+      "textFields": [
+        { "configPaths": ["name"], "cacheField": "spells[].schoolNames", "i18nKeys": ["spellSchool.{scope}.{id}.name", "spellSchool.core.{id}.name"] }
+      ],
+      "ignoredPaths": []
+    },
+    "objects": {
+      "cat": "objects",
+      "schema": "object.json",
+      "textFields": [
+        { "configPaths": ["name"], "cacheField": "objects[].name", "i18nKeys": ["object.{scope}.{id}.name"] },
+        { "configPaths": ["types.*.name"], "cacheField": "objects[].types[].name", "i18nKeys": ["mapObject.{scope}.{id}.{sub}.name"] },
+        { "configPaths": ["types.*.description"], "cacheField": "objects[].types[].description", "i18nKeys": ["mapObject.{scope}.{id}.{sub}.description"] },
+        { "configPaths": ["types.*.onSelect", "types.*.onEmpty"], "cacheField": "objects[].types[].events[].title/text", "i18nKeys": ["mapObject.{scope}.{id}.{sub}.onSelect[.{i}]", "mapObject.{scope}.{id}.{sub}.onEmpty[.{i}]"] },
+        { "configPaths": ["types.*.rewards[].message"], "cacheField": "objects[].types[].events[].title/text", "i18nKeys": ["mapObject.{scope}.{id}.{sub}.onSelect.{i}.message", "mapObject.{scope}.{id}.{sub}.onEmpty.{i}.message"] }
+      ],
+      "ignoredPaths": []
+    },
+    "resources": {
+      "cat": "resources",
+      "schema": "resources.json",
+      "textFields": [
+        { "configPaths": ["name"], "cacheField": "resources[].name", "i18nKeys": ["resource.{scope}.{id}.name", "resource.core.{id}.name"] }
+      ],
+      "ignoredPaths": []
+    },
+    "mods": {
+      "cat": "mods",
+      "schema": "mod.json",
+      "textFields": [
+        { "configPaths": ["name", "description"], "cacheField": "mod 元数据", "i18nKeys": [] },
+        { "configPaths": ["*.name", "*.description"], "cacheField": "语言块（单城镇 mod 的城镇名/描述兜底）", "i18nKeys": [] }
+      ],
+      "ignoredPaths": ["descriptionURL", "changelog", "licenseName", "translations", "skipValidation"]
+    }
+  },
+  "outOfScope": {
+    "note": "暂未纳入百科/启动器的 schema（P3 候选）。登记在此即视为已声明，--ci 不报违规；纳入时移入 entities 并补字段。",
+    "schemas": {
+      "objectType.json": "对象子类型定义（名在 mapObject.* 翻译键，已随 objects 段提取）",
+      "objectTemplate.json": "同上",
+      "biome.json": "地图障碍集合",
+      "battlefield.json": "特殊战场",
+      "bonus.json": "bonus 类型定义（能力文本走 core.bonus 翻译键）",
+      "bonusInstance.json": "bonus 实例",
+      "rewardable.json": "地图对象奖励（解析含非标准 JSON 注释）",
+      "flaggable.json": "地图对象标志",
+      "obstacle.json": "障碍物定义（地形页不含）",
+      "river.json": "河流定义（地形页不含）",
+      "road.json": "道路定义（地形页不含）",
+      "market.json": "市场对象",
+      "mapLayer.json": "地图层",
+      "campaignRegion.json": "战役区域",
+      "mapHeader.json": "地图头（战役消息）",
+      "gameSettings.json": "游戏设置（启动器另有读取）",
+      "settings.json": "启动器设置",
+      "mmaiSettings.json": "AI 设置",
+      "script.json": "脚本",
+      "template.json": "随机地图模板",
+      "townSiege.json": "攻城战配置",
+      "townStructure.json": "城镇建筑动画（资源路径非文本）",
+      "spellEffect.json": "法术特效",
+      "highscoreCreatures.json": "高分榜生物清单"
+    }
+  }
+}

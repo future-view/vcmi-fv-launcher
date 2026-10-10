@@ -1,0 +1,322 @@
+{
+	"type" : "object",
+	"$schema" : "http://json-schema.org/draft-04/schema",
+	"title" : "VCMI random map template format",
+	"description" : "Format used to define random map templates in VCMI",
+	"definitions" :
+	{
+		"zone" : {
+			"type" : "object",
+			"required" : ["type"],
+			"additionalProperties" : false,
+			"properties" : {
+				"type" : {
+					"type" : "string",
+					"enum" : ["playerStart", "cpuStart", "treasure", "junction", "sealed"]
+				},
+				"size" : { "type" : "number", "minimum" : 1 },
+				"owner" : {},
+				"playerTowns" : {"$ref" : "#/definitions/towns"},
+				"neutralTowns" : {"$ref" : "#/definitions/towns"},
+				"matchTerrainToTown" : { "type" : "boolean"},
+				"townHints": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"likeZone": { "type": "number" },
+							"notLikeZone": { 
+								"oneOf": [
+									{ "type": "number" },
+									{ 
+										"type": "array",
+										"items": { "type": "number" }
+									}
+								]
+							},
+							"relatedToZoneTerrain": { "type": "number" }
+						}
+					}
+				},
+				"townsLikeZone" : { "type" : "number" },
+				"minesLikeZone" : { "type" : "number" },
+				"terrainTypeLikeZone" : { "type" : "number" },
+				"treasureLikeZone" : { "type" : "number" },
+				"customObjectsLikeZone" : { "type" : "number" },
+
+				"visiblePositionX" : { "type" : "number" },
+				"visiblePositionY" : { "type" : "number" },
+				"visibleSize" : { "type" : "number" },
+				"forcedLevel" : {
+					"type" : "string",
+					"enum" : ["automatic", "surface", "underground"]
+				},
+				
+				"terrainTypes": {"$ref" : "#/definitions/stringArray"},
+				"bannedTerrains": {"$ref" : "#/definitions/stringArray"},
+
+				"townsAreSameType" : { "type" : "boolean"},
+				"allowedMonsters" : {"$ref" : "#/definitions/stringArray"},
+				"bannedMonsters" : {"$ref" : "#/definitions/stringArray"},
+				"allowedTowns" : {"$ref" : "#/definitions/stringArray"},
+				"bannedTowns" : {"$ref" : "#/definitions/stringArray"},
+
+				"monsters" : {
+					"type" : "string",
+					"enum" : ["weak", "normal", "strong", "none"]
+				},
+
+				"mines" : {"$ref" : "#/definitions/mines"},
+				"treasure" : {
+					"type" : "array",
+					"items" : {
+						"type" : "object",
+						"properties" : {
+							"min" : {"type" : "number", "minimum" : 0},
+							"max" : {"type" : "number", "minimum" : 0},
+							"density" : {"type" : "number", "minimum" : 1}
+						},
+						"additionalProperties" : false
+					}
+				},
+				"customObjects" : {
+					"type" : "object",
+					"properties": {
+						"bannedCategories": {
+							"type": "array",
+							"items": {
+								"type": "string",
+								"enum": ["all", "dwelling", "creatureBank", "randomArtifact", "bonus", "resource", "resourceGenerator", "spellScroll", "pandorasBox", "questArtifact", "seerHut"]
+							}
+						},
+						"bannedObjects": {
+							"type": "object",
+							"additionalProperties": {
+								"anyOf" : [
+									{
+										"type": "boolean"
+									},
+									{
+										"type": "object",
+										"additionalProperties": {
+											"type": "boolean"
+										}
+									}
+								]
+								
+							}
+						},
+						"requiredObjects": {
+							"type": "object",
+							"additionalProperties": {
+								"anyOf" : [
+									{ "type": "number", "minimum" : 0 },
+									{
+										"type": "object",
+										"additionalProperties": { "type": "number", "minimum" : 0 }
+									},
+									{
+										"type": "object",
+										"properties": {
+											"count": { "type": "number", "minimum": 0 },
+											"guard": { "type": "number", "minimum": 0 }
+										},
+										"required": ["count"],
+										"additionalProperties": false
+									},
+									{
+										"type": "object",
+										"additionalProperties": {
+											"type": "object",
+											"properties": {
+												"count": { "type": "number", "minimum": 0 },
+												"guard": { "type": "number", "minimum": 0 }
+											},
+											"required": ["count"],
+											"additionalProperties": false
+										}
+									}
+								]
+							}
+						},
+						"commonObjects": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"properties": {
+									"type": {
+										"type": "string"
+									},
+									"subtype": {
+										"type": "string"
+									},
+									"rmg": {
+										"type": "object",
+										"properties": {
+											"value": {
+												"type": "integer"
+											},
+											"rarity": {
+												"type": "integer"
+											},
+											"zoneLimit": {
+												"type": "integer"
+											}
+										},
+										"required": ["value", "rarity"]
+									}
+								},
+								"required": ["type", "rmg"]
+							}
+						}
+					}
+				}
+			}
+		},
+
+		"towns" : {
+			"type" : "object",
+			"additionalProperties" : false,
+			"properties" : {
+				"towns" : { "type" : "number" },
+				"castles" : { "type" : "number" },
+				"townDensity" : { "type" : "number" },
+				"castleDensity" : { "type" : "number" }
+			}
+		},
+		"stringArray" : {
+			"type" : "array",
+			"items" : { "type" : "string" }
+		},
+		"mines" : {
+			"type" : "object",
+			"additionalProperties" : {
+				"type" : "number"
+			}
+		},
+		"connection" :
+		{
+			"required" : ["a", "b"],
+			"additionalProperties" : false,
+			"properties" : {
+				"a" : {
+					"type" : "string"
+				},
+				"b" : {
+					"type" : "string"
+				},
+				"guard" :
+				{
+					"type" : "number",
+					"minimum" : 0
+				},
+				"type":
+				{
+					"type" : "string",
+					"enum" : ["guarded", "wide", "fictive", "repulsive", "forcePortal"]
+				},
+				"road":
+				{
+					"type" : "string",
+					"enum" : ["true", "false", "random"]
+				}
+			}
+		},
+		"waterContent" :
+		{
+			"enum" : ["none", "normal", "islands"],
+			"type" : "string"
+		}
+	},
+	
+	"additionalProperties" : false,
+	"required" : ["zones", "connections", "minSize", "maxSize", "players"],
+	"properties" :
+	{
+		"players" : {
+			"description" : "Number of players that will be present on map (human or AI)",
+			"type": "string"
+		},
+		"humans" : {
+			"description" : "Optional, number of AI-only players",
+			"type": "string"
+		},
+		"minSize" : {
+			"description" : "Minimal size of the map, e.g. 'm+u' or '120x120x1",
+			"type": "string"
+		},
+		"maxSize" : {
+			"description" : "Maximal size of the map, e.g. 'm+u' or '120x120x1",
+			"type": "string"
+		},
+		"settings" : {
+			"description" : "List of changed game settings by template",
+			"type" : "object",
+			"$ref" : "gameSettings.json"
+		},
+		
+		"bannedSpells": {
+			"description" : "List of spells that are banned on this template",
+			"$ref" : "#/definitions/stringArray"
+		},
+		
+		"bannedArtifacts": {
+			"description" : "List of artifacts that are banned on this template",
+			"$ref" : "#/definitions/stringArray"
+		},
+		
+		"bannedSkills": {
+			"description" : "List of skills that are banned on this template",
+			"$ref" : "#/definitions/stringArray"
+		},
+		
+		"enabledHeroes": {
+			"description" : "List of normally banned heroes that are enabled on this template",
+			"$ref" : "#/definitions/stringArray"
+		},
+		
+		"enabledSpells": {
+			"description" : "List of normally banned spells that are enabled on this template",
+			"$ref" : "#/definitions/stringArray"
+		},
+		
+		"enabledArtifacts": {
+			"description" : "List of normally banned artifacts that are enabled on this template",
+			"$ref" : "#/definitions/stringArray"
+		},
+		
+		"enabledSkills": {
+			"description" : "List of normally banned skills that are enabled on this template",
+			"$ref" : "#/definitions/stringArray"
+		},
+		
+		"bannedHeroes": {
+			"description" : "List of heroes that are banned on this template",
+			"$ref" : "#/definitions/stringArray"
+		},
+		
+		"name" : {
+			"description" : "Optional name - useful to have several template variations with same name",
+			"type": "string"
+		},
+		"description" : {
+			"description" : "Optional info about template, author or special rules",
+			"type": "string"
+		},
+		"zones" : {
+			"description" : "List of named zones",
+			"type" : "object",
+			"additionalProperties" : {"$ref" : "#/definitions/zone"	}
+		},
+		"connections" : {
+			"description" : "List of connections between zones",
+			"type" : "array",
+			"items" : {"$ref" : "#/definitions/connection"}	
+		},
+		"allowedWaterContent" : {
+			"description" : "Optional parameter allowing to prohibit some water modes. All modes are allowed if parameter is not specified",
+			"type" : "array",
+			"items" : {"$ref" : "#/definitions/waterContent"}
+		}
+	}
+}

@@ -1,0 +1,109 @@
+---
+description: 构建、运行与验证命令速查：安装依赖、纯前端 mock、真实 modSettings 验证、Tauri 桌面运行、打包 Windows exe。需要跑命令时先看本规则。
+globs: ["**/*.{ts,tsx,rs,json,mjs,html,md}"]
+---
+
+# 构建 / 运行 / 验证命令
+
+## 环境要求
+
+- Node（项目依赖 vite5 / typescript5，建议 Node 18+）。
+- Tauri 2（Rust 工具链，Windows 下需 MSVC）。
+- 在**项目根目录**执行。
+
+## 常用命令
+
+```bash
+# 安装依赖
+npm install
+
+# 纯前端 mock 运行（浏览器，Tauri IPC 自动回退 mock）
+npm run dev
+
+# 类型检查 + 前端构建（输出到 dist/）
+npm run build
+
+# 预览构建产物
+npm run preview
+
+# 验证真实 modSettings 读写与备份（使用临时副本，不改真实文件）
+npm run verify:settings
+
+# Tauri 桌面运行
+npx tauri dev
+
+# 打包 Windows exe（网络受限时仅 exe，不含 MSI）
+npx tauri build
+```
+
+## 命令说明
+
+| 命令 | 作用 | 备注 |
+|---|---|---|
+| `npm run dev` | Vite 开发服务器（5173 端口） | 浏览器直接跑 mock |
+| `npm run build` | `tsc && vite build` | 先类型检查再构建 |
+| `npm run verify:settings` | 运行 `scripts/read-modsettings.mjs` | 验证预设读写/备份/官方单预设格式 |
+| `npx tauri dev` | 启动 Tauri 桌面调试 | 自动拉起 `npm run dev` |
+| `npx tauri build` | 打包 Windows exe | 产物在 `src-tauri/target/release/` |
+| `npm run build:debug` | dev 档打包 | 自带控制台；产物 `target/debug/` |
+| `npm run build:console` | dev 档 + `--features console` | **推荐的自测包**：有控制台 + 体积约 1/3 |
+| `npm run build:console:release` | release 档 + `--features console` | 有控制台 + 满性能 |
+| `npm run release:pack` | **对外发行的唯一构建入口** | release 档 + 提取产物 + 生成随包预置 + 写条目片段；`--flavor ai` 出 AI 版；`--no-build` 只提取 |
+| `npm run release:publish` | 发布到 GitHub Releases | 建 tag/release → 流式传资产 → 更新 `releases/index.json`；`--resume` / `--replace` / `--dry-run` |
+| `npm run release:verify` | 发行契约自检 | 结构与投影 / 预置 / ChangeLog 一致性；`--online` 探测下载地址与远端索引；`--fix` 重算派生物 |
+| `npm run release:status` | 索引版本 vs 本地已打包目录 | 只读 |
+
+## 发行体系（`scripts/release.mjs` —— 唯一发行工具）
+
+设计依据：`docs/guides/release.zh-CN.md`。**两步式**：
+
+```bash
+npm run release:pack -- --version 0.2.0      # ① 本地发包：写入版本 → 构建 → 打包 → 预置 → 片段（不联网）
+npm run release:pack -- --test               #    测试包：不改源码、不进更新链、不出安装包
+npm run release:pack                         #    零参数：用文件里的版本（CI / tag 构建）
+npm run release:publish -- --version 0.2.0   # ② 发布到 GitHub（--version 缺省 = 文件里的版本）
+# 索引推送到 GitHub 后，才对所有用户的启动器更新生效（raw CDN 分钟级缓存）
+```
+
+`release:pack` 输出到：
+
+```
+releases/<version>_<YYYYMMDD-HH>[_<flavor>]/    ← 到小时；同一小时重跑直接覆盖
+├─ portable_<version>_<stamp>.zip      ← 主更新资产（程序文件；**不含用户数据**）
+├─ vcmi-fv-launcher.exe
+├─ VCMI-FV-Launcher_<v>_x64-setup.exe  ← NSIS
+├─ VCMI-FV-Launcher_<v>_x64_en-US.msi  ← MSI（AI 版不出 MSI）
+├─ release.json                        ← 全部资产指纹
+└─ index.entry.json                    ← 本版本条目片段（publish 读它）
+releases/index.json                     ← ✅ 提交进 git：仓库级索引 = 启动器的更新清单
+releases/latest.json                    ← ❌ 本地指针
+```
+
+- **纯净版 zip 仅含 exe**；**AI 版（`--flavor ai`）额外含 `.vcmi-fv-launcher/runtime/ai/**`** + AI 预置。
+- ⚠️ zip 里**绝不能有** `.vcmi-fv-launcher/` 下的用户数据（realms / cache / mods / launcher.json）
+  —— "解压覆盖"会清空用户的领域与缓存。
+- `.gitignore` 忽略 `releases/*`，**只提交 `releases/index.json`**。
+- 随包预置补丁在 `src-tauri/resources/release-preset/*.json`：**提交进 git**（构建期要读），
+  由 `releases/index.json` 的 `preset` 区块生成（改配置后重跑 `release:pack`）。
+- ⚠️ **`--version` 就是契约版本**（ADR 0007）：与文件不同时会在**构建前**写入 `Cargo.toml` + `tauri.conf.json`
+  （持久注入，需随发行提交；`--temp-version` 为临时注入、构建后自动还原）。必须合法 semver + **严格单调递增**
+  （更新器只认 `current < version`，同号重发无效）。
+- ⚠️ **Windows 安装包只支持纯数字版本**：`0.2.0-rc1` 这类必须加 `--no-bundle`，否则 bundler 直接失败。
+- ⚠️ HEAD 停在某个 tag 上而与本 tag 不一致 → `release:pack` **直接拒绝**（防"打了标签忘定版"；`--allow-tag-mismatch` 放行）。
+- ⚠️ 更新说明的唯一手写编辑点是仓库根 **`ChangeLog.md`**（`## v<版本>` → `### <lang>` → `- 一行`，严格解析）；
+  `--notes "…"` 可临时覆盖，`--body-file` 提供富文本正文。
+- ⚠️ 旧的 `build:release*` / `package:release` / `release:info` / `release:manifest` **已删除**（不做老兼容）。
+
+## 验证通过标准
+
+1. `npm run build` 无类型错误。
+2. `npm run verify:settings` 全部 `✓` 通过。
+3. `npx tauri dev` 能正常打开窗口并与后端 IPC 通信。
+4. 打包后 exe 能识别 `references/` 对应目录并正确读写预设。
+
+## 脚本入口
+
+- `scripts/release.mjs`：**唯一发行工具**（`pack` / `publish` / `verify` / `status`，含产物提取与手写 ZIP）。
+- `scripts/sync-version.mjs`：版本单一来源（`Cargo.toml` → `tauri.conf.json`；`--bump patch|minor|major`）。
+- `scripts/read-modsettings.mjs`：Node 验证脚本（可传 `[userConfigDir]` 参数指定目录）。
+- 修改逻辑层后建议跑一次 `verify:settings` 回归。

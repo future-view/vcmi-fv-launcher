@@ -1,0 +1,994 @@
+{
+  "castle.special1": {
+    "name": "Lighthouse",
+    "description": "The lighthouse grants additional mobility to any ships you control."
+  },
+  "castle.horde1": {
+    "name": "Griffin Bastion",
+    "description": "The Griffin Bastion increases Griffin production by 3 per week."
+  },
+  "castle.horde1Upgr": {
+    "name": "Griffin Bastion",
+    "description": "The Griffin Bastion increases Royal Griffin production by 3 per week."
+  },
+  "castle.ship": {
+    "name": "Shipyard",
+    "description": "The Shipyard allows you to purchase ships."
+  },
+  "castle.special2": {
+    "name": "Stables",
+    "description": "The Stables increase the land movement rate of any visiting hero."
+  },
+  "castle.special3": {
+    "name": "Brotherhood of the Sword",
+    "description": "During a siege, the Brotherhood of the Sword increases troop morale by +2."
+  },
+  "castle.grail": {
+    "name": "Colossus",
+    "description": "The presence of the Colossus increases weekly creature generation by 50%, provides your kingdom with an additional 5000 gold each day, and increases the morale of all allied heroes by +2."
+  },
+  "castle.resourceSilo": {
+    "name": "Resource Silo",
+    "description": "The Resource Silo provides you with an additional +1 wood and +1 ore each day."
+  },
+  "rampart.special1": {
+    "name": "Mystic Pond",
+    "description": "The Mystic Pond produces a small random number of resources each week."
+  },
+  "rampart.horde1": {
+    "name": "Miners' Guild",
+    "description": "The Miners' Guild increases Dwarf production by 4 per week."
+  },
+  "rampart.horde1Upgr": {
+    "name": "Miners' Guild",
+    "description": "The Miners' Guild increases Battle Dwarf production by 4 per week."
+  },
+  "rampart.special2": {
+    "name": "Fountain of Fortune",
+    "description": "The Fountain of Fortune increases the luck of the garrison hero by +2 when defending against a siege."
+  },
+  "rampart.special3": {
+    "name": "Treasury",
+    "description": "The Treasury earns you 10% interest on any gold you have at the start of each week."
+  },
+  "rampart.horde2": {
+    "name": "Dendroid Saplings",
+    "description": "The Dendroid Saplings increase Dendroid Guard production by 2 per week."
+  },
+  "rampart.horde2Upgr": {
+    "name": "Dendroid Saplings",
+    "description": "The Dendroid Saplings increase Dendroid Soldier production by 2 per week."
+  },
+  "rampart.grail": {
+    "name": "Spirit Guardian",
+    "description": "The presence of the Spirit Guardian increases weekly creature generation by 50%, provides your kingdom with an additional 5000 gold each day, and increases the luck of all allied heroes by +2."
+  },
+  "rampart.resourceSilo": {
+    "name": "Resource Silo",
+    "description": "The Resource Silo provides you with an additional +1 crystal each day."
+  },
+  "tower.special1": {
+    "name": "Artifact Merchants",
+    "description": "For a nominal fee, you can purchase artifacts from the Artifact Merchants."
+  },
+  "tower.horde1": {
+    "name": "Sculptor's Wings",
+    "description": "The Sculptor's Wings increase Stone Gargoyle production by 4 per week."
+  },
+  "tower.horde1Upgr": {
+    "name": "Sculptor's Wings",
+    "description": "The Sculptor's Wings increase Obsidian Gargoyle production by 4 per week."
+  },
+  "tower.special2": {
+    "name": "Lookout Tower",
+    "description": "The lookout tower extends the visible distance around your city."
+  },
+  "tower.special3": {
+    "name": "Library",
+    "description": "The library provides your mage guild with additional spells."
+  },
+  "tower.special4": {
+    "name": "Wall of Knowledge",
+    "description": "The Wall of Knowledge increases the Knowledge skill of any visiting hero by +1."
+  },
+  "tower.grail": {
+    "name": "Skyship",
+    "description": "The presence of the Skyship increases weekly creature generation by 50%, provides your kingdom with an additional 5000 gold each day, reveals the entire world map, and increases the knowledge of any defending hero by +15 (these spell points do not follow a hero who leaves the town)."
+  },
+  "tower.resourceSilo": {
+    "name": "Resource Silo",
+    "description": "The Resource Silo provides you with an additional +1 gems each day."
+  },
+  "inferno.horde1": {
+    "name": "Birthing Pools",
+    "description": "The Birthing Pools increase Imp production by 8 per week."
+  },
+  "inferno.horde1Upgr": {
+    "name": "Birthing Pools",
+    "description": "The Birthing Pools increase Familiar production by 8 per week."
+  },
+  "inferno.special2": {
+    "name": "Brimstone Stormclouds",
+    "description": "The Brimstone Stormclouds boost a garrison hero's power by +2 during any siege defense."
+  },
+  "inferno.special3": {
+    "name": "Castle Gate",
+    "description": "Allows travel between Inferno towns containing Castle Gates. Destination town must be unoccupied."
+  },
+  "inferno.special4": {
+    "name": "Order of Fire",
+    "description": "The Order of Fire increases the Power skill of any visiting hero by +1."
+  },
+  "inferno.horde2": {
+    "name": "Cages",
+    "description": "The Cages increase Hell Hound production by 3 per week."
+  },
+  "inferno.horde2Upgr": {
+    "name": "Cages",
+    "description": "The Cages increase Cerberus production by 3 per week."
+  },
+  "inferno.grail": {
+    "name": "Deity of Fire",
+    "description": "The presence of the Deity of Fire increases weekly creature generation by 50% and provides your empire with an additional 5000 gold each day.  Every week hereafter will be a Week of the Imp."
+  },
+  "inferno.resourceSilo": {
+    "name": "Resource Silo",
+    "description": "The Resource Silo provides you with an additional +1 mercury each day."
+  },
+  "necropolis.special1": {
+    "name": "Cover of Darkness",
+    "description": "The Cover of Darkness covers your city with a permanent shroud to all other players."
+  },
+  "necropolis.horde1": {
+    "name": "Unearthed Graves",
+    "description": "The Unearthed Graves increase Skeleton production by 6 per week."
+  },
+  "necropolis.horde1Upgr": {
+    "name": "Unearthed Graves",
+    "description": "The Unearthed Graves increase Skeleton Warrior production by 6 per week."
+  },
+  "necropolis.ship": {
+    "name": "Shipyard",
+    "description": "The Shipyard allows you to purchase ships."
+  },
+  "necropolis.special2": {
+    "name": "Necromancy Amplifier",
+    "description": "The Necromancy Amplifier increases the Necromancy skill of all heroes you control (with the Necromancy skill) by 10%."
+  },
+  "necropolis.special3": {
+    "name": "Skeleton Transformer",
+    "description": "The Skeleton Transformer allows you to convert any creature into a skeleton."
+  },
+  "necropolis.grail": {
+    "name": "Soul Prison",
+    "description": "The presence of the Soul Prison increases weekly creature generation by 50%, provides your empire with an additional 5000 gold each day, and boosts the Necromancy skill of all allied heroes (who possess the skill) by 20%."
+  },
+  "necropolis.resourceSilo": {
+    "name": "Resource Silo",
+    "description": "The Resource Silo provides you with an additional +1 wood and +1 ore each day."
+  },
+  "dungeon.special1": {
+    "name": "Artifact Merchants",
+    "description": "For a nominal fee, you can purchase artifacts from the Artifact Merchants."
+  },
+  "dungeon.horde1": {
+    "name": "Mushroom Rings",
+    "description": "The Mushroom Rings increase Troglodyte production by 7 per week."
+  },
+  "dungeon.horde1Upgr": {
+    "name": "Mushroom Rings",
+    "description": "The Mushroom Rings increase Infernal Troglodyte production by 7 per week."
+  },
+  "dungeon.special2": {
+    "name": "Mana Vortex",
+    "description": "The Mana Vortex temporarily doubles spell points for any garrison or visiting hero."
+  },
+  "dungeon.special3": {
+    "name": "Portal of Summoning",
+    "description": "With the Portal of Summoning, you can recruit creatures from an externally flagged dwelling."
+  },
+  "dungeon.special4": {
+    "name": "Battle Scholar Academy",
+    "description": "The Academy of Battle Scholars teaches new skills to any hero (+1000 experience) once."
+  },
+  "dungeon.grail": {
+    "name": "Guardian of Earth",
+    "description": "The presence of the Guardian of Earth increases weekly creature generation by 50%, provides your empire with an additional 5000 gold each day, and increases the Power of a garrison hero by +12 when defending against a siege."
+  },
+  "dungeon.resourceSilo": {
+    "name": "Resource Silo",
+    "description": "The Resource Silo provides you with an additional +1 sulfur each day."
+  },
+  "stronghold.special1": {
+    "name": "Escape Tunnel",
+    "description": "The Escape Tunnel allows a garrison hero to flee from defending against a siege."
+  },
+  "stronghold.horde1": {
+    "name": "Mess Hall",
+    "description": "The Mess Hall increases Goblin production by 8 per week."
+  },
+  "stronghold.horde1Upgr": {
+    "name": "Mess Hall",
+    "description": "The Mess Hall increases Hobgoblin production by 8 per week."
+  },
+  "stronghold.special2": {
+    "name": "Freelancer's Guild",
+    "description": "The Freelancer's Guild allows you to trade creatures for resources."
+  },
+  "stronghold.special3": {
+    "name": "Ballista Yard",
+    "description": "This Blacksmith upgrade provides your armies with ballistas."
+  },
+  "stronghold.special4": {
+    "name": "Hall of Valhalla",
+    "description": "The Hall of Valhalla increases the Attack skill of any visiting hero by +1."
+  },
+  "stronghold.grail": {
+    "name": "Warlords' Monument",
+    "description": "The presence of the Warlords' Monument increases weekly creature generation by 50%, provides your kingdom with an additional 5000 gold each day, and increases the Attack strength of a garrison hero by +20 when defending against a siege."
+  },
+  "stronghold.resourceSilo": {
+    "name": "Resource Silo",
+    "description": "The Resource Silo provides you with an additional +1 wood and +1 ore each day."
+  },
+  "fortress.special1": {
+    "name": "Cage of Warlords",
+    "description": "The Cage of Warlords increases the Defense strength of any visiting hero by +1."
+  },
+  "fortress.horde1": {
+    "name": "Captain's Quarters",
+    "description": "The Captain's Quarters increase Gnoll production by 6 per week."
+  },
+  "fortress.horde1Upgr": {
+    "name": "Captain's Quarters",
+    "description": "The Captain's Quarters increase Gnoll Marauder production by 6 per week."
+  },
+  "fortress.ship": {
+    "name": "Shipyard",
+    "description": "The Shipyard allows you to purchase ships."
+  },
+  "fortress.special2": {
+    "name": "Glyphs of Fear",
+    "description": "The Glyphs of Fear add +2 to a garrison hero's defense skill when defending against a siege."
+  },
+  "fortress.special3": {
+    "name": "Blood Obelisk",
+    "description": "The presence of a Blood Obelisk adds +2 to a garrison hero's attack skill when defending against a siege."
+  },
+  "fortress.grail": {
+    "name": "Carnivorous Plant",
+    "description": "The presence of the Carnivorous Plant increases weekly creature generation by 50%, provides your kingdom with an additional 5000 gold each day, and increases the Attack and Defense strength of a garrison hero by +10 each when defending against a siege."
+  },
+  "fortress.resourceSilo": {
+    "name": "Resource Silo",
+    "description": "The Resource Silo provides you with an additional +1 wood and +1 ore each day."
+  },
+  "conflux.special1": {
+    "name": "Artifact Merchants",
+    "description": "For a nominal fee, you can purchase artifacts from the Artifact Merchants."
+  },
+  "conflux.horde1": {
+    "name": "Garden of Life",
+    "description": "This structure increases weekly production of Pixies by 10 per week."
+  },
+  "conflux.horde1Upgr": {
+    "name": "Garden of Life",
+    "description": "This structure increases weekly production of Sprites 10 per week."
+  },
+  "conflux.ship": {
+    "name": "Shipyard",
+    "description": "The Shipyard allows you to purchase ships."
+  },
+  "conflux.special2": {
+    "name": "Magic University",
+    "description": "At the Magic University, you can pay to learn any, or all, of the four schools of magic."
+  },
+  "conflux.grail": {
+    "name": "Aurora Borealias",
+    "description": "The presence of the Aurora Borealias increases weekly creature generation by 50%, provides your kingdom with an additional 5000 gold each day, and places all spells in your mage guild."
+  },
+  "conflux.resourceSilo": {
+    "name": "Resource Silo",
+    "description": "The Resource Silo provides you with an additional 1 Mercury each day."
+  },
+  "neutral.special1": {
+    "name": "Artifact Merchants",
+    "description": "For a nominal fee, you can purchase artifacts from the Artifact Merchants."
+  },
+  "neutral.horde1": {
+    "name": "Level 1 Creature Horde",
+    "description": "This structure increases weekly production of Level 1 Creatures."
+  },
+  "neutral.horde1Upgr": {
+    "name": "Level 2 Creature Horde",
+    "description": "This structure increases weekly production of Level 2 Creatures."
+  },
+  "neutral.ship": {
+    "name": "Shipyard",
+    "description": "The Shipyard allows you to purchase ships."
+  },
+  "neutral.special4": {
+    "name": "Level 3 Creature Horde",
+    "description": "This structure increases weekly production of Level 3 Creatures."
+  },
+  "neutral.horde2": {
+    "name": "Level 4 Creature Horde",
+    "description": "This structure increases weekly production of Level 4 Creatures."
+  },
+  "neutral.horde2Upgr": {
+    "name": "Level 5 Creature Horde",
+    "description": "This structure increases weekly production of Level 5 Creatures."
+  },
+  "neutral.grail": {
+    "name": "Grail",
+    "description": "The presence of the Grail increases weekly creature generation by 50%, provides your kingdom with an additional 5000 gold each day, and provides an additional bonus unique to each town type."
+  },
+  "neutral.resourceSilo": {
+    "name": "Resource Silo",
+    "description": "The Resource Silo provides you with an additional resource ore each day."
+  },
+  "common.mageGuild1": {
+    "name": "Mage Guild Level 1",
+    "description": "Entering the Mage Guild will allow a visiting hero to learn the spells kept within."
+  },
+  "common.mageGuild2": {
+    "name": "Mage Guild Level 2",
+    "description": "Entering the Mage Guild will allow a visiting hero to learn the spells kept within."
+  },
+  "common.mageGuild3": {
+    "name": "Mage Guild Level 3",
+    "description": "Entering the Mage Guild will allow a visiting hero to learn the spells kept within."
+  },
+  "common.mageGuild4": {
+    "name": "Mage Guild Level 4",
+    "description": "Entering the Mage Guild will allow a visiting hero to learn the spells kept within."
+  },
+  "common.mageGuild5": {
+    "name": "Mage Guild Level 5",
+    "description": "Entering the Mage Guild will allow a visiting hero to learn the spells kept within."
+  },
+  "common.tavern": {
+    "name": "Tavern",
+    "description": "The Tavern increases morale for troops defending the city."
+  },
+  "common.shipyard": {
+    "name": "Shipyard",
+    "description": "The Shipyard allows you to purchase ships."
+  },
+  "common.fort": {
+    "name": "Fort",
+    "description": "The Fort provides your town with defensive walls."
+  },
+  "common.citadel": {
+    "name": "Citadel",
+    "description": "Including a 50% increase to base creature growth, the Citadel adds a keep, and other terrain obstacles, to a town's defenses."
+  },
+  "common.castle": {
+    "name": "Castle",
+    "description": "The Castle adds two arrow towers, fortifies your town's defenses, and doubles base creature growth."
+  },
+  "common.villageHall": {
+    "name": "Village Hall",
+    "description": "The Village Hall allows you to purchase town structures and earns your kingdom 500 gold per day."
+  },
+  "common.townHall": {
+    "name": "Town Hall",
+    "description": "The Town Hall allows you to purchase town structures and earns your kingdom 1000 gold per day."
+  },
+  "common.cityHall": {
+    "name": "City Hall",
+    "description": "The City Hall allows you to purchase town structures and earns your kingdom 2000 gold per day."
+  },
+  "common.capitol": {
+    "name": "Capitol",
+    "description": "The Capitol earns your kingdom 4000 gold per day."
+  },
+  "common.marketplace": {
+    "name": "Marketplace",
+    "description": "With the Marketplace, you can buy and sell resources (exchange rates increase with each Marketplace you own)."
+  },
+  "common.ship": {
+    "name": "Shipyard with ship",
+    "description": "The Shipyard allows you to purchase ships."
+  },
+  "castle.blacksmith": {
+    "name": "Blacksmith",
+    "description": "The Blacksmith provides your armies with Ballistas."
+  },
+  "rampart.blacksmith": {
+    "name": "Blacksmith",
+    "description": "The Blacksmith provides your armies with First Aid Tents."
+  },
+  "tower.blacksmith": {
+    "name": "Blacksmith",
+    "description": "The Blacksmith provides your armies with Ammo Carts."
+  },
+  "inferno.blacksmith": {
+    "name": "Blacksmith",
+    "description": "The Blacksmith provides your armies with Ammo Carts."
+  },
+  "necropolis.blacksmith": {
+    "name": "Blacksmith",
+    "description": "The Blacksmith provides your armies with First Aid Tents."
+  },
+  "dungeon.blacksmith": {
+    "name": "Blacksmith",
+    "description": "The Blacksmith provides your armies with Ballistas."
+  },
+  "stronghold.blacksmith": {
+    "name": "Blacksmith",
+    "description": "The Blacksmith provides your armies with Ammo Carts."
+  },
+  "fortress.blacksmith": {
+    "name": "Blacksmith",
+    "description": "The Blacksmith provides your armies with First Aid Tents."
+  },
+  "conflux.blacksmith": {
+    "name": "Blacksmith",
+    "description": "The Blacksmith provides your armies with Ballistas."
+  },
+  "neutral.blacksmith": {
+    "name": "Blacksmith",
+    "description": "The Blacksmith provides your armies with War Machines."
+  },
+  "castle.dwellingLvl1": {
+    "name": "Guardhouse",
+    "description": "The Guardhouse allows you to recruit Pikemen."
+  },
+  "castle.dwellingLvl2": {
+    "name": "Archers' Tower",
+    "description": "The Archers' Tower allows you to recruit Archers."
+  },
+  "castle.dwellingLvl3": {
+    "name": "Griffin Tower",
+    "description": "The Griffin Tower allows you to recruit Griffins."
+  },
+  "castle.dwellingLvl4": {
+    "name": "Barracks",
+    "description": "The Barracks allow you to recruit Swordsmen."
+  },
+  "castle.dwellingLvl5": {
+    "name": "Monastery",
+    "description": "The Monastery allows you to recruit Monks."
+  },
+  "castle.dwellingLvl6": {
+    "name": "Training Grounds",
+    "description": "The Training Grounds allow you to recruit Cavaliers."
+  },
+  "castle.dwellingLvl7": {
+    "name": "Portal of Glory",
+    "description": "The Portal of Glory allows you to recruit Angels."
+  },
+  "castle.dwellingUpLvl1": {
+    "name": "Upg. Guardhouse",
+    "description": "The Guardhouse allows you to recruit Halberdiers."
+  },
+  "castle.dwellingUpLvl2": {
+    "name": "Upg. Archers' Tower",
+    "description": "The Archers' Tower allows you to recruit Marksmen."
+  },
+  "castle.dwellingUpLvl3": {
+    "name": "Upg. Griffin Tower",
+    "description": "The Griffin Tower allows you to recruit Royal Griffins."
+  },
+  "castle.dwellingUpLvl4": {
+    "name": "Upg. Barracks",
+    "description": "The Barracks allow you to recruit Crusaders."
+  },
+  "castle.dwellingUpLvl5": {
+    "name": "Upg. Monastery",
+    "description": "The Monastery allows you to recruit Zealots."
+  },
+  "castle.dwellingUpLvl6": {
+    "name": "Upg. Training Grounds",
+    "description": "The Training Grounds allow you to recruit Champions."
+  },
+  "castle.dwellingUpLvl7": {
+    "name": "Upg. Portal of Glory",
+    "description": "The Portal of Glory allows you to recruit Arch Angels."
+  },
+  "rampart.dwellingLvl1": {
+    "name": "Centaur Stables",
+    "description": "The Centaur Stables allow you to recruit Centaurs."
+  },
+  "rampart.dwellingLvl2": {
+    "name": "Dwarf Cottage",
+    "description": "The Dwarf Cottage allows you to recruit Dwarves."
+  },
+  "rampart.dwellingLvl3": {
+    "name": "Homestead",
+    "description": "The Homestead allows you to recruit Wood Elves."
+  },
+  "rampart.dwellingLvl4": {
+    "name": "Enchanted Spring",
+    "description": "The Enchanted Spring allows you to recruit Pegasi."
+  },
+  "rampart.dwellingLvl5": {
+    "name": "Dendroid Arches",
+    "description": "The Dendroid Arches allow you to recruit Dendroid Guards."
+  },
+  "rampart.dwellingLvl6": {
+    "name": "Unicorn Glade",
+    "description": "The Unicorn Glade allows you to recruit Unicorns."
+  },
+  "rampart.dwellingLvl7": {
+    "name": "Dragon Cliffs",
+    "description": "The Dragon Cliffs allow you to recruit Green Dragons."
+  },
+  "rampart.dwellingUpLvl1": {
+    "name": "Upg. Centaur Stables",
+    "description": "The Centaur Stables allow you to recruit Centaur Captains."
+  },
+  "rampart.dwellingUpLvl2": {
+    "name": "Upg. Dwarf Cottage",
+    "description": "The Dwarf Cottage allows you to recruit Battle Dwarves."
+  },
+  "rampart.dwellingUpLvl3": {
+    "name": "Upg. Homestead",
+    "description": "The Homestead allows you to recruit Grand Elves."
+  },
+  "rampart.dwellingUpLvl4": {
+    "name": "Upg. Enchanted Spring",
+    "description": "The Enchanted Spring allows you to recruit Silver Pegasi."
+  },
+  "rampart.dwellingUpLvl5": {
+    "name": "Upg. Dendroid Arches",
+    "description": "The Dendroid Arches allow you to recruit Dendroid Soldiers."
+  },
+  "rampart.dwellingUpLvl6": {
+    "name": "Upg. Unicorn Glade",
+    "description": "The Unicorn Glade allows you to recruit War Unicorns."
+  },
+  "rampart.dwellingUpLvl7": {
+    "name": "Upg. Dragon Cliffs",
+    "description": "The Dragon Cliffs allow you to recruit Gold Dragons."
+  },
+  "tower.dwellingLvl1": {
+    "name": "Workshop",
+    "description": "The Workshop allows you to recruit Gremlins."
+  },
+  "tower.dwellingLvl2": {
+    "name": "Parapet",
+    "description": "The Parapet allows you to recruit Stone Gargoyles."
+  },
+  "tower.dwellingLvl3": {
+    "name": "Golem Factory",
+    "description": "The Golem Factory allows you to recruit Stone Golems."
+  },
+  "tower.dwellingLvl4": {
+    "name": "Mage Tower",
+    "description": "The Mage Tower allows you to recruit Magi."
+  },
+  "tower.dwellingLvl5": {
+    "name": "Altar of Wishes",
+    "description": "The Altar of Wishes allows you to recruit Genies."
+  },
+  "tower.dwellingLvl6": {
+    "name": "Golden Pavilion",
+    "description": "The Golden Pavilion allows you to recruit Nagas."
+  },
+  "tower.dwellingLvl7": {
+    "name": "Cloud Temple",
+    "description": "The Cloud Temple allows you to recruit Giants."
+  },
+  "tower.dwellingUpLvl1": {
+    "name": "Upg. Workshop",
+    "description": "The Workshop allows you to recruit Master Gremlins."
+  },
+  "tower.dwellingUpLvl2": {
+    "name": "Upg. Parapet",
+    "description": "The Parapet allows you to recruit Obsidian Gargoyles."
+  },
+  "tower.dwellingUpLvl3": {
+    "name": "Upg. Golem Factory",
+    "description": "The Golem Factory allows you to recruit Iron Golems."
+  },
+  "tower.dwellingUpLvl4": {
+    "name": "Upg. Mage Tower",
+    "description": "The Mage Tower allows you to recruit Arch Magi."
+  },
+  "tower.dwellingUpLvl5": {
+    "name": "Upg. Altar of Wishes",
+    "description": "The Altar of Wishes allows you to recruit Master Genies."
+  },
+  "tower.dwellingUpLvl6": {
+    "name": "Upg. Golden Pavilion",
+    "description": "The Golden Pavilion allows you to recruit Naga Queens."
+  },
+  "tower.dwellingUpLvl7": {
+    "name": "Upg. Cloud Temple",
+    "description": "The Cloud Temple allows you to recruit Titans."
+  },
+  "inferno.dwellingLvl1": {
+    "name": "Imp Crucible",
+    "description": "The Imp Crucible allows you to recruit Imps."
+  },
+  "inferno.dwellingLvl2": {
+    "name": "Hall of Sins",
+    "description": "The Hall of Sins allows you to recruit Gogs."
+  },
+  "inferno.dwellingLvl3": {
+    "name": "Kennels",
+    "description": "The Kennels allow you to recruit Hell Hounds."
+  },
+  "inferno.dwellingLvl4": {
+    "name": "Demon Gate",
+    "description": "The Demon Gate allows you to recruit Demons."
+  },
+  "inferno.dwellingLvl5": {
+    "name": "Hell Hole",
+    "description": "The Hell Hole allows you to recruit Pit Fiends."
+  },
+  "inferno.dwellingLvl6": {
+    "name": "Fire Lake",
+    "description": "The Fire Lake allows you to recruit Efreet."
+  },
+  "inferno.dwellingLvl7": {
+    "name": "Forsaken Palace",
+    "description": "The Forsaken Palace allows you to recruit Devils."
+  },
+  "inferno.dwellingUpLvl1": {
+    "name": "Upg. Imp Crucible",
+    "description": "The Imp Crucible allows you to recruit Familiars."
+  },
+  "inferno.dwellingUpLvl2": {
+    "name": "Upg. Hall of Sins",
+    "description": "The Hall of Sins allows you to recruit Magogs."
+  },
+  "inferno.dwellingUpLvl3": {
+    "name": "Upg. Kennels",
+    "description": "The Kennels allow you to recruit Cerberi."
+  },
+  "inferno.dwellingUpLvl4": {
+    "name": "Upg. Demon Gate",
+    "description": "The Demon Gate allows you to recruit Horned Demons."
+  },
+  "inferno.dwellingUpLvl5": {
+    "name": "Upg. Hell Hole",
+    "description": "The Hell Hole allows you to recruit Pit Lords."
+  },
+  "inferno.dwellingUpLvl6": {
+    "name": "Upg. Fire Lake",
+    "description": "The Fire Lake allows you to recruit Efreet Sultans."
+  },
+  "inferno.dwellingUpLvl7": {
+    "name": "Upg. Forsaken Palace",
+    "description": "The Forsaken Palace allows you to recruit Arch Devils."
+  },
+  "necropolis.dwellingLvl1": {
+    "name": "Cursed Temple",
+    "description": "The Cursed Temple allows you to recruit Skeletons."
+  },
+  "necropolis.dwellingLvl2": {
+    "name": "Graveyard",
+    "description": "The Graveyard allows you to recruit Walking Dead."
+  },
+  "necropolis.dwellingLvl3": {
+    "name": "Tomb of Souls",
+    "description": "The Tomb of Souls allows you to recruit Wights."
+  },
+  "necropolis.dwellingLvl4": {
+    "name": "Estate",
+    "description": "The Estate allows you to recruit Vampires."
+  },
+  "necropolis.dwellingLvl5": {
+    "name": "Mausoleum",
+    "description": "The Mausoleum allows you to recruit Liches."
+  },
+  "necropolis.dwellingLvl6": {
+    "name": "Hall of Darkness",
+    "description": "The Hall of Darkness allows you to recruit Black Knights."
+  },
+  "necropolis.dwellingLvl7": {
+    "name": "Dragon Vault",
+    "description": "The Dragon Vault allows you to recruit Bone Dragons."
+  },
+  "necropolis.dwellingUpLvl1": {
+    "name": "Upg. Cursed Temple",
+    "description": "The Cursed Temple allows you to recruit Skeleton Warriors."
+  },
+  "necropolis.dwellingUpLvl2": {
+    "name": "Upg. Graveyard",
+    "description": "The Graveyard allows you to recruit Zombies."
+  },
+  "necropolis.dwellingUpLvl3": {
+    "name": "Upg. Tomb of Souls",
+    "description": "The Tomb of Souls allows you to recruit Wraiths."
+  },
+  "necropolis.dwellingUpLvl4": {
+    "name": "Upg. Estate",
+    "description": "The Estate allows you to recruit Vampire Lords."
+  },
+  "necropolis.dwellingUpLvl5": {
+    "name": "Upg. Mausoleum",
+    "description": "The Mausoleum allows you to recruit Power Liches."
+  },
+  "necropolis.dwellingUpLvl6": {
+    "name": "Upg. Hall of Darkness",
+    "description": "The Hall of Darkness allows you to recruit Dread Knights."
+  },
+  "necropolis.dwellingUpLvl7": {
+    "name": "Upg. Dragon Vault",
+    "description": "The Dragon Vault allows you to recruit Ghost Dragons."
+  },
+  "dungeon.dwellingLvl1": {
+    "name": "Warren",
+    "description": "The Warren allows you to recruit Troglodytes."
+  },
+  "dungeon.dwellingLvl2": {
+    "name": "Harpy Loft",
+    "description": "The Harpy Loft allows you to recruit Harpies."
+  },
+  "dungeon.dwellingLvl3": {
+    "name": "Pillar of Eyes",
+    "description": "The Pillar of Eyes allows you to recruit Beholders."
+  },
+  "dungeon.dwellingLvl4": {
+    "name": "Chapel of Stilled Voices",
+    "description": "The Chapel of Stilled Voices allows you to recruit Medusas."
+  },
+  "dungeon.dwellingLvl5": {
+    "name": "Labyrinth",
+    "description": "The Labyrinth allows you to recruit Minotaurs."
+  },
+  "dungeon.dwellingLvl6": {
+    "name": "Manticore Lair",
+    "description": "The Manticore Lair allows you to recruit Manticores."
+  },
+  "dungeon.dwellingLvl7": {
+    "name": "Dragon Cave",
+    "description": "The Dragon Cave allows you to recruit Red Dragons."
+  },
+  "dungeon.dwellingUpLvl1": {
+    "name": "Upg. Warren",
+    "description": "The Warren allows you to recruit Infernal Troglodytes."
+  },
+  "dungeon.dwellingUpLvl2": {
+    "name": "Upg. Harpy Loft",
+    "description": "The Harpy Loft allows you to recruit Harpy Hags."
+  },
+  "dungeon.dwellingUpLvl3": {
+    "name": "Upg. Pillar of Eyes",
+    "description": "The Pillar of Eyes allows you to recruit Evil Eyes."
+  },
+  "dungeon.dwellingUpLvl4": {
+    "name": "Upg. Stilled Voices",
+    "description": "The Chapel of Stilled Voices allows you to recruit Medusa Queens."
+  },
+  "dungeon.dwellingUpLvl5": {
+    "name": "Upg. Labyrinth",
+    "description": "The Labyrinth allows you to recruit Minotaur Kings."
+  },
+  "dungeon.dwellingUpLvl6": {
+    "name": "Upg. Manticore Lair",
+    "description": "The Manticore Lair allows you to recruit Scorpicores."
+  },
+  "dungeon.dwellingUpLvl7": {
+    "name": "Upg. Dragon Cave",
+    "description": "The Dragon Cave allows you to recruit Black Dragons."
+  },
+  "stronghold.dwellingLvl1": {
+    "name": "Goblin Barracks",
+    "description": "The Goblin Barracks allow you to recruit Goblins."
+  },
+  "stronghold.dwellingLvl2": {
+    "name": "Wolf Pen",
+    "description": "The Wolf Pen allows you to recruit Wolf Riders."
+  },
+  "stronghold.dwellingLvl3": {
+    "name": "Orc Tower",
+    "description": "The Orc Tower allows you to recruit Orcs."
+  },
+  "stronghold.dwellingLvl4": {
+    "name": "Ogre Fort",
+    "description": "The Ogre Fort allows you to recruit Ogres."
+  },
+  "stronghold.dwellingLvl5": {
+    "name": "Cliff Nest",
+    "description": "The Cliff Nest allows you to recruit Rocs."
+  },
+  "stronghold.dwellingLvl6": {
+    "name": "Cyclops Cave",
+    "description": "The Cyclops Cave allows you to recruit Cyclopses."
+  },
+  "stronghold.dwellingLvl7": {
+    "name": "Behemoth Lair",
+    "description": "The Behemoth Lair allows you to recruit Behemoths."
+  },
+  "stronghold.dwellingUpLvl1": {
+    "name": "Upg. Goblin Barracks",
+    "description": "The Goblin Barracks allow you to recruit Hobgoblins."
+  },
+  "stronghold.dwellingUpLvl2": {
+    "name": "Upg. Wolf Pen",
+    "description": "The Wolf Pen allows you to recruit Wolf Raiders."
+  },
+  "stronghold.dwellingUpLvl3": {
+    "name": "Upg. Orc Tower",
+    "description": "The Orc Tower allows you to recruit Orc Chieftains."
+  },
+  "stronghold.dwellingUpLvl4": {
+    "name": "Upg. Ogre Fort",
+    "description": "The Ogre Fort allows you to recruit Ogre Magi."
+  },
+  "stronghold.dwellingUpLvl5": {
+    "name": "Upg. Cliff Nest",
+    "description": "The Cliff Nest allows you to recruit Thunderbirds."
+  },
+  "stronghold.dwellingUpLvl6": {
+    "name": "Upg. Cyclops Cave",
+    "description": "The Cyclops Cave allows you to recruit Cyclops Kings."
+  },
+  "stronghold.dwellingUpLvl7": {
+    "name": "Upg. Behemoth Lair",
+    "description": "The Behemoth Lair allows you to recruit Ancient Behemoths."
+  },
+  "fortress.dwellingLvl1": {
+    "name": "Gnoll Hut",
+    "description": "The Gnoll Hut allows you to recruit Gnolls."
+  },
+  "fortress.dwellingLvl2": {
+    "name": "Lizard Den",
+    "description": "The Lizard Den allows you to recruit Lizardmen."
+  },
+  "fortress.dwellingLvl3": {
+    "name": "Serpent Fly Hive",
+    "description": "The Serpent Fly Hive allows you to recruit Serpent Flies."
+  },
+  "fortress.dwellingLvl4": {
+    "name": "Basilisk Pit",
+    "description": "The Basilisk Pit allows you to recruit Basilisks."
+  },
+  "fortress.dwellingLvl5": {
+    "name": "Gorgon Lair",
+    "description": "The Gorgon Lair allows you to recruit Gorgons."
+  },
+  "fortress.dwellingLvl6": {
+    "name": "Wyvern Nest",
+    "description": "The Wyvern Nest allows you to recruit Wyverns."
+  },
+  "fortress.dwellingLvl7": {
+    "name": "Hydra Pond",
+    "description": "The Hydra Pond allows you to recruit Hydras."
+  },
+  "fortress.dwellingUpLvl1": {
+    "name": "Upg. Gnoll Hut",
+    "description": "The Gnoll Hut allows you to recruit Gnoll Marauders."
+  },
+  "fortress.dwellingUpLvl2": {
+    "name": "Upg. Lizard Den",
+    "description": "The Lizard Den allows you to recruit Lizard Warriors."
+  },
+  "fortress.dwellingUpLvl3": {
+    "name": "Upg. Serpent Fly Hive",
+    "description": "The Serpent Fly Hive allows you to recruit Dragon Flies."
+  },
+  "fortress.dwellingUpLvl4": {
+    "name": "Upg. Basilisk Pit",
+    "description": "The Basilisk Pit allows you to recruit Greater Basilisks."
+  },
+  "fortress.dwellingUpLvl5": {
+    "name": "Upg. Gorgon Lair",
+    "description": "The Gorgon Lair allows you to recruit Mighty Gorgons."
+  },
+  "fortress.dwellingUpLvl6": {
+    "name": "Upg. Wyvern Nest",
+    "description": "The Wyvern Nest allows you to recruit Wyvern Monarchs."
+  },
+  "fortress.dwellingUpLvl7": {
+    "name": "Upg. Hydra Pond",
+    "description": "The Hydra Pond allows you to recruit Chaos Hydras."
+  },
+  "conflux.dwellingLvl1": {
+    "name": "Magic Lantern",
+    "description": "The Magic Lantern allows you to recruit Pixies."
+  },
+  "conflux.dwellingLvl2": {
+    "name": "Altar of Air",
+    "description": "The Altar of Air allows you to recruit Air Elementals."
+  },
+  "conflux.dwellingLvl3": {
+    "name": "Altar of Water",
+    "description": "The Altar of Water allows you to recruit Water Elementals."
+  },
+  "conflux.dwellingLvl4": {
+    "name": "Altar of Fire",
+    "description": "The Altar of Fire allows you to recruit Fire Elementals."
+  },
+  "conflux.dwellingLvl5": {
+    "name": "Altar of Earth",
+    "description": "The Altar of Earth allows you to recruit Earth Elementals."
+  },
+  "conflux.dwellingLvl6": {
+    "name": "Altar of Thought",
+    "description": "The Altar of Thought allows you to recruit Psychic Elementals."
+  },
+  "conflux.dwellingLvl7": {
+    "name": "Pyre",
+    "description": "The Pyre allows you to recruit Fire Birds."
+  },
+  "conflux.dwellingUpLvl1": {
+    "name": "Upg. Magic Lantern",
+    "description": "The Magic Pool allows you to recruit Sprites."
+  },
+  "conflux.dwellingUpLvl2": {
+    "name": "Upg. Altar of Air",
+    "description": "The Temple of Thunder allows you to recruit Storm Elementals."
+  },
+  "conflux.dwellingUpLvl3": {
+    "name": "Upg. Altar of Water",
+    "description": "The Temple of Ice allows you to recruit Ice Elementals."
+  },
+  "conflux.dwellingUpLvl4": {
+    "name": "Upg. Altar of Fire",
+    "description": "The Temple of Energy allows you to recruit Energy Elementals."
+  },
+  "conflux.dwellingUpLvl5": {
+    "name": "Upg. Altar of Earth",
+    "description": "The Temple of Magma allows you to recruit Magma Elementals."
+  },
+  "conflux.dwellingUpLvl6": {
+    "name": "Upg. Altar of Thought",
+    "description": "The Temple of Magic allows you to recruit Magic Elementals."
+  },
+  "conflux.dwellingUpLvl7": {
+    "name": "Upg. Pyre",
+    "description": "The Funeral Pyre allows you to recruit Pheonixes ."
+  },
+  "neutral.dwellingLvl1": {
+    "name": "Level 1 Creature Generator",
+    "description": "Allows you to recruit Level 1 Creatures."
+  },
+  "neutral.dwellingLvl2": {
+    "name": "Level 2 Creature Generator",
+    "description": "Allows you to recruit Level 2 Creatures."
+  },
+  "neutral.dwellingLvl3": {
+    "name": "Level 3 Creature Generator",
+    "description": "Allows you to recruit Level 3 Creatures."
+  },
+  "neutral.dwellingLvl4": {
+    "name": "Level 4 Creature Generator",
+    "description": "Allows you to recruit Level 4 Creatures."
+  },
+  "neutral.dwellingLvl5": {
+    "name": "Level 5 Creature Generator",
+    "description": "Allows you to recruit Level 5 Creatures."
+  },
+  "neutral.dwellingLvl6": {
+    "name": "Level 6 Creature Generator",
+    "description": "Allows you to recruit Level 6 Creatures."
+  },
+  "neutral.dwellingLvl7": {
+    "name": "Level 7 Creature Generator",
+    "description": "Allows you to recruit Level 7 Creatures."
+  },
+  "neutral.dwellingUpLvl1": {
+    "name": "Upg. Level 1 Creature Generator",
+    "description": "Allows you to recruit Upgraded Level 1 Creatures."
+  },
+  "neutral.dwellingUpLvl2": {
+    "name": "Upg. Level 2 Creature Generator",
+    "description": "Allows you to recruit Upgraded Level 2 Creatures."
+  },
+  "neutral.dwellingUpLvl3": {
+    "name": "Upg. Level 3 Creature Generator",
+    "description": "Allows you to recruit Upgraded Level 3 Creatures."
+  },
+  "neutral.dwellingUpLvl4": {
+    "name": "Upg. Level 4 Creature Generator",
+    "description": "Allows you to recruit Upgraded Level 4 Creatures."
+  },
+  "neutral.dwellingUpLvl5": {
+    "name": "Upg. Level 5 Creature Generator",
+    "description": "Allows you to recruit Upgraded Level 5 Creatures."
+  },
+  "neutral.dwellingUpLvl6": {
+    "name": "Upg. Level 6 Creature Generator",
+    "description": "Allows you to recruit Upgraded Level 6 Creatures."
+  },
+  "neutral.dwellingUpLvl7": {
+    "name": "Upg. Level 7 Creature Generator",
+    "description": "Allows you to recruit Upgraded Level 7 Creatures."
+  }
+}

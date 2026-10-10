@@ -1,0 +1,32 @@
+{
+  "dirt": {
+    "name": "Dirt"
+  },
+  "sand": {
+    "name": "Desert"
+  },
+  "grass": {
+    "name": "Grass"
+  },
+  "snow": {
+    "name": "Snow"
+  },
+  "swamp": {
+    "name": "Swamp"
+  },
+  "rough": {
+    "name": "Rough"
+  },
+  "subterra": {
+    "name": "Subterranean"
+  },
+  "lava": {
+    "name": "Lava"
+  },
+  "water": {
+    "name": "Water"
+  },
+  "rock": {
+    "name": "Rock"
+  }
+}

@@ -1,0 +1,848 @@
+{
+  "summonBoat": {
+    "name": "召船术",
+    "level": 1,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级召船术}\n\n召唤一艘己方的空船。\n\n成功的机会有50%。\n",
+      "advanced": "{中级召船术}\n\n召唤一艘己方的空船。如果没有现成的，可以造出一艘新船。\n\n成功的机会达75%。\n",
+      "expert": "{高级召船术}\n\n召唤一艘己方的空船。如果没有现成的，可以造出一艘新船。\n\n成功的机会达100%。\n"
+    }
+  },
+  "scuttleBoat": {
+    "name": "摧毁船只",
+    "level": 2,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级摧毁船只}\n\n永久地毁坏一艘自己的船只。\n\n成功机会有50%。\n",
+      "advanced": "{中级摧毁船只}\n\n永久地毁坏一艘自己的船只。\n\n成功机会达75%。\n",
+      "expert": "{高级摧毁船只}\n\n永久地毁坏一艘自己的船只。\n"
+    }
+  },
+  "visions": {
+    "name": "透视之眼",
+    "level": 2,
+    "schools": [
+      "earth",
+      "water",
+      "fire",
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级透视之眼}\n\n让你粗略了解对方军队、英雄和驻军的实力。如果附近有游荡的怪物，会告诉你他们的数量以及是否会加入。\n",
+      "advanced": "{中级透视之眼}\n\n让你粗略了解对方军队、英雄和驻军的实力。如果附近有游荡的怪物，会告诉你他们的数量以及是否会加入。并且赋予你探知附近敌方英雄的基本技能状态、所带兵种及数量的能力。",
+      "expert": "{高级透视之眼}\n\n让你了解对方军队、英雄、城镇和驻军的实力。如果附近有游荡的怪物，会告诉你他们的数量以及是否会加入。并且赋予你探知附近敌方英雄的基本技能状态、所带兵种及数量的能力。\n"
+    }
+  },
+  "viewEarth": {
+    "name": "透视大地",
+    "level": 1,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级透视大地}\n\n显示所有资源的地点。\n",
+      "advanced": "{中级透视大地}\n\n显示所有资源和矿井的地点。\n",
+      "expert": "{高级透视大地}\n\n显示所有资源和矿井的地点及所有地形。\n"
+    }
+  },
+  "disguise": {
+    "name": "伪装大法",
+    "level": 2,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级伪装大法}\n\n令你所有部队都以你最精锐部队的实力情况显现在对手的视线里。生物的数量正常显示。\n",
+      "advanced": "{中级伪装大法}\n\n令你所有部队都以你最精锐部队的实力情况显现在对手的视线里。生物的数量显示为零。\n",
+      "expert": "{高级伪装大法}\n\n令你所有部队都以最精锐部队的实力情况显现在对手的视线里。生物的数量显示为零。\n"
+    }
+  },
+  "viewAir": {
+    "name": "透视大气",
+    "level": 1,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级透视大气}\n\n显示所有宝物的方位。",
+      "advanced": "{中级透视大气}\n\n显示所有宝物和敌方英雄的方位。",
+      "expert": "{高级透视大气}\n\n显示所有宝物、敌方英雄和城镇的方位。\n"
+    }
+  },
+  "fly": {
+    "name": "飞行奇术",
+    "level": 5,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级飞行奇术}\n\n利用英雄的移动点数飞越障碍，但最后必须着陆。\n",
+      "advanced": "{中级飞行奇术}\n\n利用英雄的移动点数飞越障碍，但最后必须着陆。\n",
+      "expert": "{高级飞行奇术}\n\n利用英雄的移动点数飞越障碍，但最后必须着陆。\n"
+    }
+  },
+  "waterWalk": {
+    "name": "凌波微步",
+    "level": 4,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级凌波微步}\n\n利用英雄的移动点数行走于水面，但最后必须上岸",
+      "advanced": "{中级凌波微步}\n\n利用英雄的移动点数行走于水面，但最后必须上岸。",
+      "expert": "{高级凌波微步}\n\n利用英雄的移动点数行走于水面，但最后必须上岸。"
+    }
+  },
+  "dimensionDoor": {
+    "name": "异次元之门",
+    "level": 5,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级异次元之门}\n\n把英雄送到一个未被占领但可见的目的地。每天可以使用2次。\n",
+      "advanced": "{中级异次元之门}\n\n把英雄送到一个未被占领但可见的目的地。每天可以使用3次。\n",
+      "expert": "{高级异次元之门}\n\n把英雄送到一个未被占领但可见的目的地。每天可以使用4次。\n"
+    }
+  },
+  "townPortal": {
+    "name": "时空之门",
+    "level": 4,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级时空之门}\n\n将英雄传送到最近的己方空城。\n",
+      "advanced": "{中级时空之门}\n\n将英雄传送到任何己方的空城。",
+      "expert": "{高级时空之门}\n\n将英雄传送到任何己方的空城。"
+    }
+  },
+  "quicksand": {
+    "name": "流沙陷阱",
+    "level": 2,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级流沙陷阱}\n\n随机放置4片流沙地，只有你和本土生物能够看见。陷入流沙将使部队丧失行动力，但同时流沙地也会暴露。",
+      "advanced": "{中级流沙陷阱}\n\n随机放置6片流沙地，只有你和本土生物能够看见。陷入流沙将使部队丧失行动力，但同时流沙地也会暴露。\n",
+      "expert": "{高级流沙陷阱}\n\n随机放置8片流沙地，只有你和本土生物能够看见。陷入流沙将使部队丧失行动力，但同时流沙地也会暴露。\n"
+    }
+  },
+  "landMine": {
+    "name": "埋设地雷",
+    "level": 3,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级埋设地雷}\n\n随机放置4枚地雷，只有你和本土生物能够看见。踩到的部队会受到重创。",
+      "advanced": "{中级埋设地雷}\n\n随机放置6枚地雷，只有你和本土生物能够看见。踩到的部队会受到重创。\n\n杀伤力比初级高25点。",
+      "expert": "{高级埋设地雷}\n\n随机放置8枚地雷，只有你和本土生物能够看见。踩到的部队会受到重创。\n\n杀伤力比初级高75点。"
+    }
+  },
+  "forceField": {
+    "name": "大力神盾",
+    "level": 3,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级大力神盾}\n\n在指定地点建造小力场。",
+      "advanced": "{中级大力神盾}\n\n在指定地点建造大力场。\n",
+      "expert": "{高级大力神盾}\n\n在指定地点建造大力场。"
+    }
+  },
+  "fireWall": {
+    "name": "烈火魔墙",
+    "level": 2,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级烈火魔墙}\n\n在战场燃起火焰，使经过的部队受到伤害",
+      "advanced": "{中级烈火魔墙}\n\n在战场燃起大火，使经过的部队受到伤害",
+      "expert": "{高级烈火魔墙}\n\n在战场燃起冲天烈焰，经过的部队都将遭到重创。"
+    }
+  },
+  "earthquake": {
+    "name": "地动山摇",
+    "level": 3,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级地动山摇}\n\n在攻城战中随机破坏2处城墙。",
+      "advanced": "{中级地动山摇}\n\n在攻城战中随机破坏3处城墙。",
+      "expert": "{高级地动山摇}\n\n在攻城战中随机破坏4处城墙。"
+    }
+  },
+  "magicArrow": {
+    "name": "魔法神箭",
+    "level": 1,
+    "schools": [
+      "earth",
+      "water",
+      "fire",
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级魔法神箭}\n\n发射魔法闪电打击敌军。\n",
+      "advanced": "{中级魔法神箭}\n\n发射魔法闪电打击敌军。\n\n杀伤力比初级高10点。",
+      "expert": "{高级魔法神箭}\n\n发射魔法闪电打击敌军。\n\n杀伤力比初级高20点。"
+    }
+  },
+  "iceBolt": {
+    "name": "霹雳寒冰",
+    "level": 2,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级霹雳寒冰}\n\n消耗敌军生命值。",
+      "advanced": "{中级霹雳寒冰}\n\n消耗敌军生命值。\n\n杀伤力比初级高10点。",
+      "expert": "{高级霹雳寒冰}\n\n消耗敌军生命值。\n\n杀伤力比初级高40点。"
+    }
+  },
+  "lightningBolt": {
+    "name": "霹雳闪电",
+    "level": 2,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级霹雳闪电}\n\n发射霹雳闪电，杀伤敌军。",
+      "advanced": "{中级霹雳闪电}\n\n发射霹雳闪电，杀伤敌军。\n\n杀伤力比初级高10点。",
+      "expert": "{高级霹雳闪电}\n\n发射霹雳闪电，杀伤敌军。\n\n杀伤力比初级高40点。"
+    }
+  },
+  "implosion": {
+    "name": "雷鸣爆弹",
+    "level": 5,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级雷鸣爆弹}\n\n给被选中的敌军以致命一击。",
+      "advanced": "{中级雷鸣爆弹}\n\n给被选中的敌军以致命一击。\n\n杀伤力比初级高100点。",
+      "expert": "{高级雷鸣爆弹}\n\n给被选中的敌军以致命一击。\n\n杀伤力比初级高200点。"
+    }
+  },
+  "chainLightning": {
+    "name": "连锁闪电",
+    "level": 4,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级连锁闪电}\n\n用连锁闪电攻击被选中的目标，之后相继攻击邻近3个目标，杀伤力逐个减半。\n",
+      "advanced": "{中级连锁闪电}\n\n用连锁闪电攻击被选中的目标，之后相继攻击邻近4个目标，杀伤力逐个减半。\n\n杀伤力比初级高25点。",
+      "expert": "{高级连锁闪电}\n\n用连锁闪电攻击被选中的目标，之后相继攻击邻近4个目标，杀伤力逐个减半。\n\n杀伤力比初级高75点。"
+    }
+  },
+  "frostRing": {
+    "name": "寒冰魔环",
+    "level": 3,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级寒冰魔环}\n\n能伤及目标附近的生物但不伤及目标。",
+      "advanced": "{中级寒冰魔环}\n\n能伤及目标附近的生物但不伤及目标。\n\n杀伤力比初级高15点。",
+      "expert": "{高级寒冰魔环}\n\n能伤及目标附近的生物但不伤及目标。\n\n杀伤力比初级高45点。"
+    }
+  },
+  "fireball": {
+    "name": "连珠火球",
+    "level": 3,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级连珠火球}\n\n放出火球攻击被选中的部队，同时会伤及周围的目标\n",
+      "advanced": "{中级连珠火球}\n\n放出火球攻击被选中的部队，同时会伤及周围的目标。\n\n杀伤力比初级高15点。",
+      "expert": "{高级连珠火球}\n\n放出火球攻击被选中的部队，同时会伤及周围的目标。\n\n杀伤力比初级高45点。"
+    }
+  },
+  "inferno": {
+    "name": "地狱烈焰",
+    "level": 4,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级地狱烈焰}\n\n用巨大的火球攻击被选中的目标，同时会伤及周围的目标。\n",
+      "advanced": "{中级地狱烈焰}\n\n用巨大的火球攻击被选中的目标，同时会伤及周围的目标。\n\n杀伤力比初级高20点。",
+      "expert": "{高级地狱烈焰}\n\n用巨大的火球攻击被选中的目标，同时会伤及周围的目标。\n\n杀伤力比初级高60点。"
+    }
+  },
+  "meteorShower": {
+    "name": "流星火雨",
+    "level": 4,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级流星火雨}\n\n使陨石降落在被选中的目标周围。\n",
+      "advanced": "{中级流星火雨}\n\n使陨石降落在被选中的目标周围。\n\n杀伤力比初级高25点。",
+      "expert": "{高级流星火雨}\n\n使陨石降落在被选中的目标周围。\n\n杀伤力比初级高75点。"
+    }
+  },
+  "deathRipple": {
+    "name": "死亡波纹",
+    "level": 2,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级死亡波纹}\n\n发出死亡冲击波攻击敌我所有部队(丧尸除外)。\n",
+      "advanced": "{中级死亡波纹}\n\n发出死亡冲击波攻击敌我所有部队(丧尸除外)。\n\n杀伤力比初级高10点。",
+      "expert": "{高级死亡波纹}\n\n发出死亡冲击波攻击敌我所有部队(丧尸除外)。\n\n杀伤力比初级高20点。"
+    }
+  },
+  "destroyUndead": {
+    "name": "亡灵杀手",
+    "level": 3,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级亡灵杀手}\n\n攻击战场上的丧尸。",
+      "advanced": "{中级亡灵杀手}\n\n攻击战场上的丧尸。\n\n杀伤力比初级高10点。",
+      "expert": "{高级亡灵杀手}\n\n攻击战场上的丧尸。\n\n杀伤力比初级高40点。"
+    }
+  },
+  "armageddon": {
+    "name": "末日审判",
+    "level": 4,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级末日审判}\n\n用火雨攻击战场上所有的生物。",
+      "advanced": "{中级末日审判}\n\n用火雨攻击战场上所有的生物。\n\n杀伤力比初级高30点。",
+      "expert": "{高级末日审判}\n\n用火雨攻击战场上所有的生物。\n\n杀伤力比初级高90点。"
+    }
+  },
+  "shield": {
+    "name": "护体神盾",
+    "level": 1,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级护体神盾}\n\n降低肉搏战时对方进攻的杀伤力。\n",
+      "advanced": "{中级护体神盾}\n\n降低肉搏战时对方进攻的杀伤力。\n\n防御效果是初级的2倍。",
+      "expert": "{高级护体神盾}\n\n对所有本方部队，降低肉搏战时对方进攻的杀伤力。\n\n防御效果是初级的2倍。"
+    }
+  },
+  "airShield": {
+    "name": "大气神盾",
+    "level": 3,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级大气神盾}\n\n使被选中的部队在受到敌军远程攻击时损伤减少。\n",
+      "advanced": "{中级大气神盾}\n\n使被选中的部队在受到敌军远程攻击时损伤减少。\n\n防御效果是初级的2倍。",
+      "expert": "{高级大气神盾}\n\n使所有的部队在受到敌军远程攻击时损伤减少。\n\n防御效果是初级的2倍。"
+    }
+  },
+  "fireShield": {
+    "name": "烈火神盾",
+    "level": 4,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级烈火神盾}\n\n被选中的我方部队在受到攻击时，进攻方也会受到伤害。\n",
+      "advanced": "{中级烈火神盾}\n\n被选中的我方部队在受到攻击时，进攻方也会受到伤害。\n\n进攻方受到的伤害比初级高5%。",
+      "expert": "{高级烈火神盾}\n\n被选中的我方部队在受到攻击时，进攻方也会受到伤害。\n\n进攻方受到的伤害比初级高10%。"
+    }
+  },
+  "protectAir": {
+    "name": "御气奇术",
+    "level": 2,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级御气奇术}\n\n能对被选中的部队起到保护作用，降低气系魔法的杀伤力。\n",
+      "advanced": "{中级御气奇术}\n\n能对被选中的部队起到保护作用，降低气系魔法的杀伤力。\n\n防御效果接近初级的2倍。",
+      "expert": "{高级御气奇术}\n\n能对所有的部队起到保护作用，降低气系魔法的杀伤力。\n\n防御效果接近初级的2倍。"
+    }
+  },
+  "protectFire": {
+    "name": "御火奇术",
+    "level": 1,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级御火奇术}\n\n能对被选中的部队起到保护作用，降低火系魔法的杀伤力。\n",
+      "advanced": "{中级御火奇术}\n\n能对被选中的部队起到保护作用，降低火系魔法的杀伤力。\n\n防御效果接近初级的2倍。",
+      "expert": "{高级御火奇术}\n\n能对所有的部队起到保护作用，降低火系魔法的杀伤力。\n\n防御效果接近初级的2倍。"
+    }
+  },
+  "protectWater": {
+    "name": "御水奇术",
+    "level": 1,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级御水奇术}\n\n能对被选中的部队起到保护作用，降低水系魔法的杀伤力。\n",
+      "advanced": "{中级御水奇术}\n\n能对被选中的部队起到保护作用，降低水系魔法的杀伤力。\n\n防御效果接近初级的2倍。",
+      "expert": "{高级御水奇术}\n\n能对所有的部队起到保护作用，降低水系魔法的杀伤力。\n\n防御效果接近初级的2倍。"
+    }
+  },
+  "protectEarth": {
+    "name": "御土奇术",
+    "level": 3,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级御土奇术}\n\n能对被选中的部队起到保护作用，降低土系魔法的杀伤力。\n",
+      "advanced": "{中级御土奇术}\n\n能对被选中的部队起到保护作用，降低土系魔法的杀伤力。\n\n防御效果接近初级的2倍。",
+      "expert": "{高级御土奇术}\n\n能对所有的部队起到保护作用，降低土系魔法的杀伤力。\n\n防御效果接近初级的2倍。"
+    }
+  },
+  "antiMagic": {
+    "name": "抗魔大法",
+    "level": 3,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级抗魔大法}\n\n使被选中的部队能防御所有低级魔法的攻击。",
+      "advanced": "{中级抗魔大法}\n\n使被选中的部队能防御除最高级魔法外所有魔法的攻击。\n",
+      "expert": "{高级抗魔大法}\n\n使被选中的部队能防御所有魔法的攻击。"
+    }
+  },
+  "dispel": {
+    "name": "驱魔大法",
+    "level": 1,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级驱魔大法}\n\n解除被选中的我方部队身上所有的魔法。",
+      "advanced": "{中级驱魔大法}\n\n解除被选中的我方部队或敌方部队身上所有的魔法。\n",
+      "expert": "{高级驱魔大法}\n\n解除所有部队身上所有的魔法。"
+    }
+  },
+  "magicMirror": {
+    "name": "魔法神镜",
+    "level": 5,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级魔法神镜}\n\n有20%的机会使敌军使用的魔法反射到任意一支敌军身上。\n",
+      "advanced": "{中级魔法神镜}\n\n有30%的机会使敌军使用的魔法反射到任意一支敌军身上。\n",
+      "expert": "{高级魔法神镜}\n\n有40%的机会使敌军使用的魔法反射到任意一支敌军身上。\n"
+    }
+  },
+  "cure": {
+    "name": "疗伤",
+    "level": 1,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级疗伤}\n\n解除被选中部队身上的所有负面魔法，并恢复体力。\n",
+      "advanced": "{中级疗伤}\n\n解除所有我方部队身上的所有负面魔法，并恢复体力。\n\n比初级多恢复10点生命值。",
+      "expert": "{高级疗伤}\n\n解除所有我方部队身上的所有负面魔法，并恢复体力。\n\n比初级多恢复20点生命值。"
+    }
+  },
+  "resurrection": {
+    "name": "转世重生",
+    "level": 4,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级转世重生}\n\n补充伤亡部队的兵力。\n",
+      "advanced": "{中级转世重生}\n\n补充伤亡部队的兵力。\n\n比初级多补充40点生命值。",
+      "expert": "{高级转世重生}\n\n补充伤亡部队的兵力。\n\n比初级多补充120点生命值。"
+    }
+  },
+  "animateDead": {
+    "name": "聚灵奇术",
+    "level": 3,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级聚灵奇术}\n\n补充伤亡丧尸部队的兵力。\n",
+      "advanced": "{中级聚灵奇术}\n\n补充伤亡丧尸部队的兵力。\n\n比初级多补充30点生命值。",
+      "expert": "{高级聚灵奇术}\n\n补充伤亡丧尸部队的兵力。\n\n比初级多补充130点生命值。"
+    }
+  },
+  "sacrifice": {
+    "name": "牺牲",
+    "level": 5,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级牺牲}\n\n牺牲一支部队来复活另一支死亡的部队。复活的数量取决于你的魔法能力和被摧毁部队的生命值。",
+      "advanced": "{中级牺牲}\n\n牺牲一支部队来复活另一支死亡的部队。复活的数量取决于你的魔法能力和被摧毁部队的生命值。\n\n比初级复活更多的部队。",
+      "expert": "{高级牺牲}\n\n牺牲一支部队来复活另一支死亡的部队。复活的数量取决于你的魔法能力和被摧毁部队的生命值。\n\n比中级复活更多的部队。"
+    }
+  },
+  "bless": {
+    "name": "圣灵佑佐",
+    "level": 1,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级圣灵佑佐}\n\n使被选中的部队在战斗中的杀伤力达到最大值。\n",
+      "advanced": "{中级圣灵佑佐}\n\n使被选中的部队在战斗中的杀伤力比最大值还大。\n",
+      "expert": "{高级圣灵佑佐}\n\n使被选中的部队在战斗中的杀伤力比最大值还大。\n"
+    }
+  },
+  "curse": {
+    "name": "恶咒附身",
+    "level": 1,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级恶咒附身}\n\n使被选中的敌方部队在攻击时只造成最小的伤害。\n",
+      "advanced": "{中级恶咒附身}\n\n使被选中的敌方部队在攻击时造成小于他们最小杀伤力的伤害。\n",
+      "expert": "{高级恶咒附身}\n\n使所有的敌方部队在攻击时造成小于他们最小杀伤力的伤害。\n"
+    }
+  },
+  "bloodlust": {
+    "name": "嗜血奇术",
+    "level": 1,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级嗜血奇术}\n\n加强被选中的部队在肉搏战中的攻击力。\n",
+      "advanced": "{中级嗜血奇术}\n\n加强被选中的部队在肉搏战中的攻击力。\n\n效果是初级的2倍。",
+      "expert": "{高级嗜血奇术}\n\n加强所有的部队在肉搏战中的攻击力。\n\n效果是初级的2倍。"
+    }
+  },
+  "precision": {
+    "name": "百发百中",
+    "level": 2,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级百发百中}\n\n提高被选中的本方部队的远程杀伤力。\n",
+      "advanced": "{中级百发百中}\n\n提高被选中的本方部队的远程杀伤力。\n\n杀伤力是初级的2倍。",
+      "expert": "{高级百发百中}\n\n提高所有本方部队的远程杀伤力。\n\n杀伤力是初级的2倍。"
+    }
+  },
+  "weakness": {
+    "name": "虚弱无力",
+    "level": 2,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级虚弱无力}\n\n削弱被选中敌军的攻击力。",
+      "advanced": "{中级虚弱无力}\n\n削弱被选中敌军的攻击力。\n\n效果是初级的2倍。",
+      "expert": "{高级虚弱无力}\n\n削弱所有敌军的攻击力。\n\n效果是初级的2倍。"
+    }
+  },
+  "stoneSkin": {
+    "name": "护体石肤",
+    "level": 1,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级护体石肤}\n\n加强被选中的部队的防御力。",
+      "advanced": "{中级护体石肤}\n\n加强被选中的部队的防御力。\n\n效果是初级的2倍。",
+      "expert": "{高级护体石肤}\n\n加强所有部队的防御力。\n\n效果是初级的2倍。"
+    }
+  },
+  "disruptingRay": {
+    "name": "毁灭之光",
+    "level": 2,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级毁灭之光}\n\n降低被选中敌军的防御力。魔法可以对同一部队重复使用。\n",
+      "advanced": "{中级毁灭之光}\n\n降低被选中敌军的防御力。魔法可以对同一部队重复使用。\n\n比初级更有效。",
+      "expert": "{高级毁灭之光}\n\n降低被选中敌军的防御力。魔法可以对同一部队重复使用。\n\n比中级更有效。"
+    }
+  },
+  "prayer": {
+    "name": "祈祷",
+    "level": 4,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级祈祷}\n\n同时提高被选中部队的攻击力、防御力和行动速度。",
+      "advanced": "{中级祈祷}\n\n同时提高被选中部队的攻击力、防御力和行动速度。\n\n效果是初级的2倍。",
+      "expert": "{高级祈祷}\n\n同时提高所有部队的攻击力、防御力和行动速度\n\n效果是初级的2倍。"
+    }
+  },
+  "mirth": {
+    "name": "欢欣鼓舞",
+    "level": 3,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级欢欣鼓舞}\n\n令被选中的部队士气大增。",
+      "advanced": "{中级欢欣鼓舞}\n\n令被选中的部队士气大增。\n\n效果是初级的2倍。",
+      "expert": "{高级欢欣鼓舞}\n\n令所有部队士气大增。\n\n效果是初级的2倍。"
+    }
+  },
+  "sorrow": {
+    "name": "悲痛欲绝",
+    "level": 4,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级悲痛欲绝}\n\n降低被选中的敌军的士气。",
+      "advanced": "{中级悲痛欲绝}\n\n降低被选中的敌军的士气。\n\n效果是初级的2倍。",
+      "expert": "{高级悲痛欲绝}\n\n降低所有敌军的士气。\n\n效果是初级的2倍。"
+    }
+  },
+  "fortune": {
+    "name": "幸运之神",
+    "level": 2,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级幸运之神}\n\n提高被选中的部队的幸运值。",
+      "advanced": "{中级幸运之神}\n\n提高被选中的部队的幸运值。\n\n效果是初级的2倍。",
+      "expert": "{高级幸运之神}\n\n提高所有部队的幸运值。\n\n效果是初级的2倍。"
+    }
+  },
+  "misfortune": {
+    "name": "大难临头",
+    "level": 3,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级大难临头}\n\n降低被选中敌军的幸运值。\n\n魔法消耗是普通的1/2。",
+      "advanced": "{中级大难临头}\n\n降低被选中敌军的幸运值。\n\n效果是初级的2倍。",
+      "expert": "{高级大难临头}\n\n降低所有敌军的幸运值。\n\n效果是初级的2倍。"
+    }
+  },
+  "haste": {
+    "name": "攻击加速",
+    "level": 1,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级攻击加速}\n\n加快被选中部队的行动速度。",
+      "advanced": "{中级攻击加速}\n\n加快被选中部队的行动速度。\n\n效果接近初级的2倍。",
+      "expert": "{高级攻击加速}\n\n加快所有本方部队的行动速度。\n\n效果接近初级的2倍。"
+    }
+  },
+  "slow": {
+    "name": "迟缓大法",
+    "level": 1,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级迟缓大法}\n\n减缓被选中敌军的行动速度。",
+      "advanced": "{中级迟缓大法}\n\n减缓被选中敌军的行动速度。\n\n效果是初级的2倍。",
+      "expert": "{高级迟缓大法}\n\n减缓所有敌军的行动速度。\n\n效果是初级的2倍。"
+    }
+  },
+  "slayer": {
+    "name": "屠戮成性",
+    "level": 4,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级屠戮成性}\n\n被选中的我方部队在进攻比蒙、龙和九头怪时攻击力提高。\n",
+      "advanced": "{中级屠戮成性}\n\n被选中的我方部队在进攻比蒙、龙、九头怪、恶魔和天使时攻击力提高。\n",
+      "expert": "{高级屠戮成性}\n\n被选中的我方部队在进攻比蒙、龙、九头怪、恶魔、天使及泰坦巨人时攻击力提高。\n"
+    }
+  },
+  "frenzy": {
+    "name": "孤注一掷",
+    "level": 4,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级孤注一掷}\n\n以降低防御力为代价，提高被选中部队的攻击力。\n",
+      "advanced": "{中级孤注一掷}\n\n以降低防御力为代价，提高被选中部队的攻击力。\n\n效果是初级的1.5倍。",
+      "expert": "{高级孤注一掷}\n\n以降低防御力为代价，提高被选中部队的攻击力。\n\n效果是初级的2倍。"
+    }
+  },
+  "titanBolt": {
+    "name": "泰坦之箭",
+    "level": 5,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{泰坦之箭}\n\n600点杀伤力，施放者不消耗魔法值。",
+      "advanced": "{泰坦之箭}\n\n600点杀伤力，施放者不消耗魔法值。",
+      "expert": "{泰坦之箭}\n\n600点杀伤力，施放者不消耗魔法值。"
+    }
+  },
+  "counterstrike": {
+    "name": "反戈一击",
+    "level": 4,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级反戈一击}\n\n被选中的本方部队每一轮能有1次额外的反击。\n",
+      "advanced": "{中级反戈一击}\n\n被选中的本方部队每一轮能有2次额外的反击。\n",
+      "expert": "{高级反戈一击}\n\n所有的本方部队每一轮能有2次额外的反击。\n"
+    }
+  },
+  "berserk": {
+    "name": "丧心病狂",
+    "level": 4,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级丧心病狂}\n\n被选中的部队将不分敌友地攻击附近的部队。\n",
+      "advanced": "{中级丧心病狂}\n\n被选中的部队将不分敌友地攻击附近的部队。\n\n攻击范围比初级大6格。",
+      "expert": "{高级丧心病狂}\n\n被选中的部队将不分敌友地攻击附近的部队。\n\n攻击范围比初级大18格。"
+    }
+  },
+  "hypnotize": {
+    "name": "蛊惑人心",
+    "level": 3,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级蛊惑人心}\n\n暂时控制一支敌军。",
+      "advanced": "{中级蛊惑人心}\n\n暂时控制一支敌军。\n\n可以控制的敌军生命值比初级高10点。\n",
+      "expert": "{高级蛊惑人心}\n\n暂时控制一支敌军。\n\n可以控制的敌军生命值比初级高40点。\n"
+    }
+  },
+  "forgetfulness": {
+    "name": "失忆大法",
+    "level": 3,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级失忆大法}\n\n使被选中的敌军半数无法进行远程攻击。\n",
+      "advanced": "{中级失忆大法}\n\n使被选中的敌军无法进行远程攻击。\n",
+      "expert": "{高级失忆大法}\n\n使所有的敌军无法进行远程攻击。"
+    }
+  },
+  "blind": {
+    "name": "双目失明",
+    "level": 2,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级双目失明}\n\n使生物双目失明，无法行动，在遭到攻击后其视力才能恢复，并在反击时攻击力减半。\n",
+      "advanced": "{中级双目失明}\n\n使生物双目失明，无法行动，在遭到攻击后其视力才能恢复，并在反击时攻击力为原来的1/4。\n",
+      "expert": "{高级双目失明}\n\n使生物双目失明，无法行动，在遭到攻击后其视力才能恢复，并且不能反击。"
+    }
+  },
+  "teleport": {
+    "name": "瞬间移动",
+    "level": 3,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级瞬间移动}\n\n将被选中的我方部队瞬间传送到未被占据的目标格。\n\n部队不能逾越城墙或护城河。",
+      "advanced": "{中级瞬间移动}\n\n将被选中的我方部队瞬间传送到未被占据的目标格。\n\n部队不能逾越城墙。",
+      "expert": "{高级瞬间移动}\n\n将被选中的我方部队瞬间传送到任何未被占据的目标格。\n"
+    }
+  },
+  "removeObstacle": {
+    "name": "驱除障碍",
+    "level": 2,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级驱除障碍}\n\n除去战场上的一般障碍物，如树木、岩石等。\n",
+      "advanced": "{中级驱除障碍}\n\n除去战场上的烈火魔墙或一般障碍物，如树木、岩石等。\n",
+      "expert": "{高级驱除障碍}\n\n除去战场上的一般障碍物或魔法障碍物。\n"
+    }
+  },
+  "clone": {
+    "name": "镜像大法",
+    "level": 4,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级镜像大法}\n\n复制一支选中的部队。如果受到攻击就会消失。\n\n复制1-5 级的生物。",
+      "advanced": "{中级镜像大法}\n\n复制一支选中的部队。如果受到攻击就会消失。\n\n复制1-6 级的生物。",
+      "expert": "{高级镜像大法}\n\n复制一支选中的部队。如果受到攻击就会消失。\n\n复制任何等级的生物。"
+    }
+  },
+  "fireElemental": {
+    "name": "召唤火元素",
+    "level": 5,
+    "schools": [
+      "fire"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级召唤火元素}\n\n召唤火元素。一旦召唤成功，就不能再召唤其他元素。\n",
+      "advanced": "{中级召唤火元素}\n\n召唤火元素。一旦召唤成功，就不能再召唤其他元素。\n\n召唤数量大约是初级的1.5倍。\n",
+      "expert": "{高级召唤火元素}\n\n召唤火元素。一旦召唤成功，就不能再召唤其他元素。\n\n召唤数量大约是初级的2倍。\n"
+    }
+  },
+  "earthElemental": {
+    "name": "召唤土元素",
+    "level": 5,
+    "schools": [
+      "earth"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级召唤土元素}\n\n召唤土元素。一旦召唤成功，就不能再召唤其他元素。\n",
+      "advanced": "{中级召唤土元素}\n\n召唤土元素。一旦召唤成功，就不能再召唤其他元素\n\n召唤数量大约是初级的1.5倍。\n",
+      "expert": "{高级召唤土元素}\n\n召唤土元素。一旦召唤成功，就不能再召唤其他元素。\n\n召唤数量大约是初级的2倍。\n"
+    }
+  },
+  "waterElemental": {
+    "name": "召唤水元素",
+    "level": 5,
+    "schools": [
+      "water"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级召唤水元素}\n\n召唤水元素。一旦召唤成功，就不能再召唤其他元素。\n",
+      "advanced": "{中级召唤水元素}\n\n召唤水元素。一旦召唤成功，就不能再召唤其他元素。\n\n召唤数量大约是初级1.5倍。\n",
+      "expert": "{高级召唤水元素}\n\n召唤水元素。一旦召唤成功，就不能再召唤其他元素。\n\n召唤数量大约是初级的2倍。\n"
+    }
+  },
+  "airElemental": {
+    "name": "召唤气元素",
+    "level": 5,
+    "schools": [
+      "air"
+    ],
+    "levelDescriptions": {
+      "basic": "{初级召唤气元素}\n\n召唤气元素。一旦成功，就不能再召唤其他元素。",
+      "advanced": "{中级召唤气元素}\n\n召唤气元素。一旦成功，就不能再召唤其他元素。\n\n召唤数量大约是初级的1.5倍。\n",
+      "expert": "{高级召唤气元素}\n\n召唤气元素。一旦成功，就不能再召唤其他元素。\n\n召唤数量大约是初级的2倍。\n"
+    }
+  }
+}

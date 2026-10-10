@@ -1,0 +1,219 @@
+//! 启动器本地日志模块。
+//!
+//! - **目录**：`<exe>/.vcmi-fv-launcher/logs/`（由 `VcmiPaths::launcher_data_dir()` 派生，
+//!   **不依赖 `launcher.json`**，故可在进程极早期初始化）。
+//! - **等级**：由 `launcher.json` 的 `runtime.log_level` 决定（`error|warn|info|debug|trace`），
+//!   缺失或非法回退 `info`。
+//! - **轮转**：按天（UTC）分文件 + 单文件大小上限切分。
+//!   `tracing-appender` 的 `RollingFileAppender` 不含「大小切分」与「保留清理」，
+//!   故此处自实现 writer 与后台清理线程。
+//! - **落盘**：`tracing_appender::non_blocking` 提供「内存缓冲 + 后台线程写出」，
+//!   业务线程不因磁盘 IO 阻塞；`WorkerGuard` 存入进程级 `OnceLock`，存活到进程结束。
+
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+use std::time::{Duration, SystemTime};
+
+use tracing_appender::non_blocking::WorkerGuard;
+
+/// 单文件大小上限（默认 5 MB），超出即切分序号分片。
+const DEFAULT_MAX_BYTES: u64 = 5 * 1024 * 1024;
+/// 日志保留天数（默认 7 天）。
+const DEFAULT_KEEP_DAYS: u64 = 7;
+/// 过期日志清理周期（默认每小时）。
+const CLEAN_INTERVAL: Duration = Duration::from_secs(60 * 60);
+/// 日志文件名前缀（清理线程据此识别本模块产物，避免误删其它文件）。
+const FILE_PREFIX: &str = "vcmi-fv.";
+
+/// 进程级 guard：**必须存活到进程结束**，否则缓冲日志不会落盘。
+static GUARD: OnceLock<WorkerGuard> = OnceLock::new();
+
+/// 日志等级，对应 `launcher.json` 的 `runtime.log_level`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogLevel {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl LogLevel {
+    /// 解析配置字符串（大小写不敏感）；缺失或非法值回退 [`LogLevel::Info`]。
+    pub fn parse(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "error" => Self::Error,
+            "warn" | "warning" => Self::Warn,
+            "debug" => Self::Debug,
+            "trace" => Self::Trace,
+            _ => Self::Info,
+        }
+    }
+
+    fn as_tracing(self) -> tracing::Level {
+        match self {
+            Self::Error => tracing::Level::ERROR,
+            Self::Warn => tracing::Level::WARN,
+            Self::Info => tracing::Level::INFO,
+            Self::Debug => tracing::Level::DEBUG,
+            Self::Trace => tracing::Level::TRACE,
+        }
+    }
+}
+
+/// 初始化全局日志。**幂等**：重复调用直接返回。
+///
+/// 应在 `run()` 的 `.setup()` 中、`VcmiPaths::detect()` **之前**调用，
+/// 以便覆盖目录初始化 / 领域激活等早期逻辑。
+pub fn init(logs_dir: &Path, level: LogLevel) -> io::Result<()> {
+    if GUARD.get().is_some() {
+        return Ok(());
+    }
+    fs::create_dir_all(logs_dir)?;
+
+    let (non_blocking, guard) = tracing_appender::non_blocking(RotatingFile::new(
+        logs_dir.to_path_buf(),
+        DEFAULT_MAX_BYTES,
+    ));
+    // 存入进程级 static（不 drop）：保证后台写出线程存活到进程结束。
+    let _ = GUARD.set(guard);
+
+    let _ = tracing_subscriber::fmt()
+        .with_max_level(level.as_tracing())
+        .with_writer(non_blocking)
+        .with_ansi(false) // 文件日志不输出 ANSI 颜色
+        .with_timer(tracing_subscriber::fmt::time::SystemTime)
+        .try_init();
+
+    spawn_cleanup(logs_dir.to_path_buf(), DEFAULT_KEEP_DAYS);
+    Ok(())
+}
+
+/* ------------------------------ 文件 writer ------------------------------ */
+
+/// 按「天 + 单文件大小」轮转的文件 writer。
+///
+/// 命名：当天首个文件 `vcmi-fv.YYYY-MM-DD.log`，同日超限后为
+/// `vcmi-fv.YYYY-MM-DD.1.log`、`.2.log` …
+struct RotatingFile {
+    dir: PathBuf,
+    max_bytes: u64,
+    file: Option<File>,
+    bytes: u64,
+    /// 当前文件所属日期（`YYYY-MM-DD`，UTC）
+    date: String,
+    /// 当日分片序号（0 = 首个）
+    seq: u32,
+}
+
+impl RotatingFile {
+    fn new(dir: PathBuf, max_bytes: u64) -> Self {
+        Self {
+            dir,
+            max_bytes,
+            file: None,
+            bytes: 0,
+            date: String::new(),
+            seq: 0,
+        }
+    }
+
+    fn open(&mut self, date: &str, seq: u32) -> io::Result<()> {
+        fs::create_dir_all(&self.dir)?;
+        let name = if seq == 0 {
+            format!("{FILE_PREFIX}{date}.log")
+        } else {
+            format!("{FILE_PREFIX}{date}.{seq}.log")
+        };
+        let f = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.dir.join(name))?;
+        // 续写已存在的文件时，从现有长度起算大小
+        self.bytes = f.metadata().map(|m| m.len()).unwrap_or(0);
+        self.file = Some(f);
+        self.date = date.to_string();
+        self.seq = seq;
+        Ok(())
+    }
+
+    /// 判断是否需要换文件：首次打开 / 跨天（序号归零）/ 同日超限（序号 +1）。
+    fn rotate_if_needed(&mut self, incoming: u64) -> io::Result<()> {
+        let today = crate::infra::time::today_utc();
+        if self.file.is_none() {
+            return self.open(&today, 0);
+        }
+        if self.date != today {
+            return self.open(&today, 0);
+        }
+        if self.bytes + incoming > self.max_bytes {
+            let date = self.date.clone();
+            let seq = self.seq + 1;
+            return self.open(&date, seq);
+        }
+        Ok(())
+    }
+}
+
+impl Write for RotatingFile {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.rotate_if_needed(buf.len() as u64)?;
+        let n = match self.file.as_mut() {
+            Some(f) => f.write(buf)?,
+            None => return Err(io::Error::new(io::ErrorKind::Other, "日志文件未打开")),
+        };
+        self.bytes += n as u64;
+        Ok(n)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self.file.as_mut() {
+            Some(f) => f.flush(),
+            None => Ok(()),
+        }
+    }
+}
+
+/* ------------------------------ 过期清理 ------------------------------ */
+
+/// 后台线程：定期清理超过保留期的日志文件（按文件修改时间判断）。
+fn spawn_cleanup(dir: PathBuf, keep_days: u64) {
+    std::thread::spawn(move || {
+        let keep = Duration::from_secs(keep_days.saturating_mul(86_400));
+        loop {
+            cleanup_once(&dir, keep);
+            std::thread::sleep(CLEAN_INTERVAL);
+        }
+    });
+}
+
+fn cleanup_once(dir: &Path, keep: Duration) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    let now = SystemTime::now();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        // 只清理本模块产物，避免误删同目录其它文件
+        if !name.starts_with(FILE_PREFIX) || !name.ends_with(".log") {
+            continue;
+        }
+        let expired = entry
+            .metadata()
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| now.duration_since(t).ok())
+            .map(|age| age > keep)
+            .unwrap_or(false);
+        if expired && fs::remove_file(&path).is_ok() {
+            tracing::info!(target: "logging", "已清理过期日志：{name}");
+        }
+    }
+}
+
+/* ------------------------------ 时间工具 ------------------------------ */

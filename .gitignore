@@ -1,0 +1,105 @@
+# ==========================================================================
+# VCMI-FV Mod Combination Launcher .gitignore
+# Coverage: Node/Vite frontend + Tauri (Rust) desktop shell + IDE/editor + system files
+# ==========================================================================
+
+# --------------------------------------------------------------------------
+# Node / npm
+# --------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.lerna/
+*.tsbuildinfo
+
+# --------------------------------------------------------------------------
+# Build product (front-end)
+# --------------------------------------------------------------------------
+dist/
+dist-ssr/
+*.local
+out/
+.vite/
+# Fingerprint files in the release directory (releases/<dir>/release.json, not contract files, do not submit)
+release.json
+# Release product directory (see scripts/release.mjs): binaries are not included in the repository, **only the repository-level index is submitted**
+releases/*
+!releases/index.json
+target/
+
+# --------------------------------------------------------------------------
+# Tauri / Rust backend build artifacts
+# --------------------------------------------------------------------------
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# --------------------------------------------------------------------------
+# Log
+# --------------------------------------------------------------------------
+logs/
+*.log
+*.log.*
+
+# --------------------------------------------------------------------------
+# Environment variables / Secret keys (Never commit)
+# --------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.local.example
+*.pem
+*.key
+
+# --------------------------------------------------------------------------
+# Cache / Temporary Files
+# --------------------------------------------------------------------------
+.cache/
+.tmp/
+.tmp-verify/
+coverage/
+.nyc_output/
+eslint-report.*
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*~
+
+# --------------------------------------------------------------------------
+# System files
+# --------------------------------------------------------------------------
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.swp
+# Windows retains device name artifacts (`cmd > nul` generates a file with the same name in Git Bash)
+/nul
+
+# --------------------------------------------------------------------------
+# Editor / IDE
+# --------------------------------------------------------------------------
+.idea/
+# CodeBuddy:
+.codebuddy/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# AI-IDE-related products (rules / sessions / plans).
+# The source of rule definitions is located in docs/ide/rules/.
+# The rule directories for each IDE are copied from here and are considered as copied products, not included in the repository.
+.codebuddy/
+.qoder/
+
+# Custom
+.ui-selftest
+.tmp-hd

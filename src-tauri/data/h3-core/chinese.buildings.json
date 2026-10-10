@@ -1,0 +1,994 @@
+{
+  "castle.special1": {
+    "name": "灯塔",
+    "description": "灯塔能提高船的移动能力。"
+  },
+  "castle.horde1": {
+    "name": "狮鹫城堡",
+    "description": "狮鹫城堡使狮鹫的产量每周增加3个。"
+  },
+  "castle.horde1Upgr": {
+    "name": "狮鹫城堡",
+    "description": "狮鹫城堡使皇家狮鹫的产量每周增加3个。"
+  },
+  "castle.ship": {
+    "name": "船坞",
+    "description": "船坞可让你购买船只。"
+  },
+  "castle.special2": {
+    "name": "马厩",
+    "description": "马厩能提高来访英雄的陆上移动能力。"
+  },
+  "castle.special3": {
+    "name": "兄弟会",
+    "description": "在攻城战中，兄弟会能使部队士气+2。"
+  },
+  "castle.grail": {
+    "name": "战神像",
+    "description": "战神像使每周的生物产量提高50%，每天为你的王国额外提供5000个金币，并使所有的已方英雄士气+2。"
+  },
+  "castle.resourceSilo": {
+    "name": "物资仓库",
+    "description": "物资仓库每天为你额外提供1木材和1矿石。"
+  },
+  "rampart.special1": {
+    "name": "魔幻池",
+    "description": "魔幻池每周随机生产少量资源。"
+  },
+  "rampart.horde1": {
+    "name": "矿工工会",
+    "description": "矿工工会使矮人的产量每周增加4个。"
+  },
+  "rampart.horde1Upgr": {
+    "name": "矿工工会",
+    "description": "矿工工会使战斗矮人的产量每周增加4个。"
+  },
+  "rampart.special2": {
+    "name": "幸运泉",
+    "description": "在攻城战中，幸运泉使驻守英雄的幸运值+2。"
+  },
+  "rampart.special3": {
+    "name": "金库",
+    "description": "金库在每周的第1天使金币数量+10%。"
+  },
+  "rampart.horde2": {
+    "name": "树精",
+    "description": "树精使枯木卫士的产量每周增加2个。"
+  },
+  "rampart.horde2Upgr": {
+    "name": "树精",
+    "description": "树精使枯木战士的产量每周增加2个。"
+  },
+  "rampart.grail": {
+    "name": "守护神像",
+    "description": "守护神像使每周的生物产量提高50%，每天为你的王国额外提供5000个金币，并使所有的已方英雄幸运值+2。"
+  },
+  "rampart.resourceSilo": {
+    "name": "物资仓库",
+    "description": "物资仓库每天为你额外提供1水晶。"
+  },
+  "tower.special1": {
+    "name": "宝物商店",
+    "description": "只需支付少量费用，你就可以从宝物商店购买宝物。"
+  },
+  "tower.horde1": {
+    "name": "雕刻屋",
+    "description": "雕刻屋使石像鬼的产量每周增加4个。"
+  },
+  "tower.horde1Upgr": {
+    "name": "雕刻屋",
+    "description": "雕刻屋使石像怪的产量每周增加4个。"
+  },
+  "tower.special2": {
+    "name": "了望塔",
+    "description": "了望塔可扩大城镇周围的可视范围。"
+  },
+  "tower.special3": {
+    "name": "图书馆",
+    "description": "图书馆为魔法行会增加魔法。"
+  },
+  "tower.special4": {
+    "name": "智慧墙",
+    "description": "智慧墙使每个来访英雄的知识+1。"
+  },
+  "tower.grail": {
+    "name": "飞船",
+    "description": "飞船使每周的生物产量提高50%，每天为你的王国额外提供5000个金币，显示整张世界地图，并使驻守英雄的知识+15(当英雄离开城镇时，会失去增加的魔法值)。"
+  },
+  "tower.resourceSilo": {
+    "name": "物资仓库",
+    "description": "物资仓库每天为你额外提供1宝石。"
+  },
+  "inferno.horde1": {
+    "name": "诞生池",
+    "description": "诞生池使小怪物的产量每周增加8个。"
+  },
+  "inferno.horde1Upgr": {
+    "name": "诞生池",
+    "description": "诞生池使怪物的产量每周增加8个。"
+  },
+  "inferno.special2": {
+    "name": "硫云风暴",
+    "description": "在攻城战中，硫云风暴使驻守英雄的力量+2。"
+  },
+  "inferno.special3": {
+    "name": "城堡大门",
+    "description": "城堡大门能使你穿梭于有城堡大门的地狱城镇之间，目标城镇必须是空城。"
+  },
+  "inferno.special4": {
+    "name": "烈火魔柱",
+    "description": "烈火魔柱使每个来访英雄的力量+1。"
+  },
+  "inferno.horde2": {
+    "name": "栏笼",
+    "description": "栏笼使地狱猎犬的产量每周增加3个。"
+  },
+  "inferno.horde2Upgr": {
+    "name": "栏笼",
+    "description": "栏笼使三首猎犬的产量每周增加3个。"
+  },
+  "inferno.grail": {
+    "name": "火神像",
+    "description": "火神像使每周的生物产量提高50%，每天为你的王国额外提供5000个金币，此后每周都是小怪物之周。"
+  },
+  "inferno.resourceSilo": {
+    "name": "物资仓库",
+    "description": "物资仓库每天为你额外提供1水银。"
+  },
+  "necropolis.special1": {
+    "name": "黑暗天幕",
+    "description": "黑暗天幕为你的城镇笼罩一层永久的阴影，不让其他玩家看见。"
+  },
+  "necropolis.horde1": {
+    "name": "墓穴",
+    "description": "墓穴使骷髅兵的产量每周增加6个。"
+  },
+  "necropolis.horde1Upgr": {
+    "name": "墓穴",
+    "description": "墓穴使骷髅勇士的产量每周增加6个。"
+  },
+  "necropolis.ship": {
+    "name": "船坞",
+    "description": "船坞可让你购买船只。"
+  },
+  "necropolis.special2": {
+    "name": "招魂塔",
+    "description": "招魂塔可以使你所有掌握招魂术的英雄招魂术提高10%。"
+  },
+  "necropolis.special3": {
+    "name": "骷髅转换场",
+    "description": "骷髅转换场可让你把任何生物变成骷髅兵。"
+  },
+  "necropolis.grail": {
+    "name": "灵塔",
+    "description": "灵塔使每周的生物产量提高50%，每天为你的王国额外提供5000个金币，并使所有已方英雄(掌握招魂术)的招魂术提高20%。"
+  },
+  "necropolis.resourceSilo": {
+    "name": "物资仓库",
+    "description": "物资仓库每天为你额外提供1木材和1矿石。"
+  },
+  "dungeon.special1": {
+    "name": "宝物商店",
+    "description": "只需支付少量费用，你就可以从宝物商店购买宝物。"
+  },
+  "dungeon.horde1": {
+    "name": "蘑菇环",
+    "description": "蘑菇环使洞穴人的产量每周增加7个。"
+  },
+  "dungeon.horde1Upgr": {
+    "name": "蘑菇环",
+    "description": "蘑菇环使地狱洞穴人的产量每周增加7个。"
+  },
+  "dungeon.special2": {
+    "name": "魔力漩涡",
+    "description": "魔力漩涡使驻守或来访的英雄暂时拥有双倍的魔法值。"
+  },
+  "dungeon.special3": {
+    "name": "召唤之门",
+    "description": "通过召唤之门，你能从被控制的野外生物巢穴招募生物。"
+  },
+  "dungeon.special4": {
+    "name": "战术学院",
+    "description": "战术学院向来访英雄教授新技能(经验值+1000)，每人一次。"
+  },
+  "dungeon.grail": {
+    "name": "大地守护神",
+    "description": "大地守护神使每周的生物产量提高50%，每天为你的王国额外提供5000个金币，并且在攻城战中使驻守英雄的力量+12。"
+  },
+  "dungeon.resourceSilo": {
+    "name": "物资仓库",
+    "description": "物资仓库每天为你额外提供1硫磺。"
+  },
+  "stronghold.special1": {
+    "name": "遁逸之路",
+    "description": "遁逸之路允许驻守英雄在攻城战中逃跑。"
+  },
+  "stronghold.horde1": {
+    "name": "饭堂",
+    "description": "饭堂使大耳怪的产量每周增加8个。"
+  },
+  "stronghold.horde1Upgr": {
+    "name": "饭堂",
+    "description": "饭堂使大耳怪王的产量每周增加8个。"
+  },
+  "stronghold.special2": {
+    "name": "自由职业者协会",
+    "description": "自由职业者协会允许你用生物交换资源。"
+  },
+  "stronghold.special3": {
+    "name": "弩车工场",
+    "description": "这个铁匠铺的升级建筑能为你的军队提供驽车。"
+  },
+  "stronghold.special4": {
+    "name": "英烈祠",
+    "description": "英烈祠使每个来访英雄的攻击力+1。"
+  },
+  "stronghold.grail": {
+    "name": "斗士碑",
+    "description": "斗士碑使每周的生物产量提高50%，每天为你的王国额外提供5000个金币，并且在攻城战中使驻守英雄的攻击力+20。"
+  },
+  "stronghold.resourceSilo": {
+    "name": "物资仓库",
+    "description": "物资仓库每天为你额外提供1木材和1矿石。"
+  },
+  "fortress.special1": {
+    "name": "战神之栏",
+    "description": "战神之栏使每个来访英雄的防御力+1。"
+  },
+  "fortress.horde1": {
+    "name": "首领之家",
+    "description": "首领之家使狼人的产量每周增加6个。"
+  },
+  "fortress.horde1Upgr": {
+    "name": "首领之家",
+    "description": "首领之家使大狼人的产量每周增加6个。"
+  },
+  "fortress.ship": {
+    "name": "船坞",
+    "description": "船坞可让你购买船只。"
+  },
+  "fortress.special2": {
+    "name": "恐怖浮雕",
+    "description": "在攻城战中，恐怖浮雕使驻守英雄的防御力+2。"
+  },
+  "fortress.special3": {
+    "name": "血塔",
+    "description": "在攻城战中，血塔使驻守英雄的攻击力+2。"
+  },
+  "fortress.grail": {
+    "name": "噬人花",
+    "description": "噬人花使每周的生物产量提高50%，每天为你的王国额外提供5000个金币，并且在攻城战中使驻守英雄的攻击力和防御力各+10。"
+  },
+  "fortress.resourceSilo": {
+    "name": "物资仓库",
+    "description": "物资仓库每天为你额外提供1木材和1矿石。"
+  },
+  "conflux.special1": {
+    "name": "宝物商店",
+    "description": "只需支付少量费用，你就可以从宝物商店购买宝物。"
+  },
+  "conflux.horde1": {
+    "name": "生命花园",
+    "description": "生命花园让小精灵的产量每周增加10个。"
+  },
+  "conflux.horde1Upgr": {
+    "name": "生命花园",
+    "description": "生命花园让精灵的产量每周增加10个。"
+  },
+  "conflux.ship": {
+    "name": "船坞",
+    "description": "船坞可让你购买船只。"
+  },
+  "conflux.special2": {
+    "name": "魔法学院",
+    "description": "在魔法学院里，你可以花钱学习四种派系的魔法。"
+  },
+  "conflux.grail": {
+    "name": "魔幻彩虹",
+    "description": "使每周的生物产量提高50%，每天为你的王国额外提供5000个金币，并且让英雄能在魔法学院里学到所有的魔法。"
+  },
+  "conflux.resourceSilo": {
+    "name": "物资仓库",
+    "description": "物资仓库每天为你额外提供1水银。"
+  },
+  "neutral.special1": {
+    "name": "宝物商店",
+    "description": "只需支付少量费用，你就可以从宝物商店购买宝物。"
+  },
+  "neutral.horde1": {
+    "name": "1级生物群落",
+    "description": "这种建筑能提高1级生物的每周产量。"
+  },
+  "neutral.horde1Upgr": {
+    "name": "2级生物群落",
+    "description": "这种建筑能提高2级生物的每周产量。"
+  },
+  "neutral.ship": {
+    "name": "船坞",
+    "description": "船坞可让你购买船只。"
+  },
+  "neutral.special4": {
+    "name": "3级生物群落",
+    "description": "这种建筑能提高3级生物的每周产量。"
+  },
+  "neutral.horde2": {
+    "name": "4级生物群落",
+    "description": "这种建筑能提高4级生物的每周产量。"
+  },
+  "neutral.horde2Upgr": {
+    "name": "5级生物群落",
+    "description": "这种建筑能提高5级生物的每周产量。"
+  },
+  "neutral.grail": {
+    "name": "神器",
+    "description": "神器使每周的生物产量提高50%，每天为你的王国额外提供5000个金币，并且为各种城镇带来特定的利益。"
+  },
+  "neutral.resourceSilo": {
+    "name": "物资仓库",
+    "description": "物资仓库每天为你额外提供1矿石。"
+  },
+  "common.mageGuild1": {
+    "name": "1级魔法行会",
+    "description": "进入魔法行会的来访英雄可以学会其中的魔法。"
+  },
+  "common.mageGuild2": {
+    "name": "2级魔法行会",
+    "description": "进入魔法行会的来访英雄可以学会其中的魔法。"
+  },
+  "common.mageGuild3": {
+    "name": "3级魔法行会",
+    "description": "进入魔法行会的来访英雄可以学会其中的魔法。"
+  },
+  "common.mageGuild4": {
+    "name": "4级魔法行会",
+    "description": "进入魔法行会的来访英雄可以学会其中的魔法。"
+  },
+  "common.mageGuild5": {
+    "name": "5级魔法行会",
+    "description": "进入魔法行会的来访英雄可以学会其中的魔法。"
+  },
+  "common.tavern": {
+    "name": "酒馆",
+    "description": "酒馆可提高驻军的士气。"
+  },
+  "common.shipyard": {
+    "name": "船坞",
+    "description": "船坞可让你购买船只。"
+  },
+  "common.fort": {
+    "name": "堡垒",
+    "description": "堡垒可为你的城镇提供城墙。"
+  },
+  "common.citadel": {
+    "name": "大本营",
+    "description": "大本营不仅能使生物的基本生长率提高50%，还能加强城镇的防御设施。"
+  },
+  "common.castle": {
+    "name": "城堡",
+    "description": "城堡可提供2座箭塔以加强城镇的防御，而且还可使生物的基本生长率加倍。"
+  },
+  "common.villageHall": {
+    "name": "议事堂",
+    "description": "议事堂可以让你购买城镇建筑并每天向你提供500个金币。"
+  },
+  "common.townHall": {
+    "name": "内政厅",
+    "description": "内政厅可以让你购买城镇建筑，并每天向你提供1000个金币。"
+  },
+  "common.cityHall": {
+    "name": "议会",
+    "description": "议会可以让你购买城镇建筑并每天向你提供2000个金币。"
+  },
+  "common.capitol": {
+    "name": "国会",
+    "description": "国会每天向你提供4000个金币。"
+  },
+  "common.marketplace": {
+    "name": "市场",
+    "description": "市场可让你交换资源(你所拥有的市场越多，价格越便宜)。"
+  },
+  "common.ship": {
+    "name": "有船的船坞",
+    "description": "船坞可让你购买船只。"
+  },
+  "castle.blacksmith": {
+    "name": "铁匠铺",
+    "description": "铁匠铺可向你的军队提供弩车。"
+  },
+  "rampart.blacksmith": {
+    "name": "铁匠铺",
+    "description": "铁匠铺可向你的军队提供急救帐篷。"
+  },
+  "tower.blacksmith": {
+    "name": "铁匠铺",
+    "description": "铁匠铺可向你的军队提供补给车。"
+  },
+  "inferno.blacksmith": {
+    "name": "铁匠铺",
+    "description": "铁匠铺可向你的军队提供补给车。"
+  },
+  "necropolis.blacksmith": {
+    "name": "铁匠铺",
+    "description": "铁匠铺可向你的军队提供急救帐篷。"
+  },
+  "dungeon.blacksmith": {
+    "name": "铁匠铺",
+    "description": "铁匠铺可向你的军队提供弩车。"
+  },
+  "stronghold.blacksmith": {
+    "name": "铁匠铺",
+    "description": "铁匠铺可向你的军队提供补给车。"
+  },
+  "fortress.blacksmith": {
+    "name": "铁匠铺",
+    "description": "铁匠铺可向你的军队提供急救帐篷。"
+  },
+  "conflux.blacksmith": {
+    "name": "铁匠铺",
+    "description": "铁匠铺可向你的军队提供弩车。"
+  },
+  "neutral.blacksmith": {
+    "name": "铁匠铺",
+    "description": "铁匠铺可向你的军队提供战争机器。"
+  },
+  "castle.dwellingLvl1": {
+    "name": "岗楼",
+    "description": "岗楼允许你招募枪兵。"
+  },
+  "castle.dwellingLvl2": {
+    "name": "射手塔楼",
+    "description": "射手塔楼允许你招募弓箭手。"
+  },
+  "castle.dwellingLvl3": {
+    "name": "狮鹫塔楼",
+    "description": "狮鹫塔楼允许你招募狮鹫。"
+  },
+  "castle.dwellingLvl4": {
+    "name": "兵营",
+    "description": "兵营允许你招募剑士。"
+  },
+  "castle.dwellingLvl5": {
+    "name": "寺院",
+    "description": "寺院允许你招募僧侣。"
+  },
+  "castle.dwellingLvl6": {
+    "name": "训练场",
+    "description": "训练场允许你招募骑兵。"
+  },
+  "castle.dwellingLvl7": {
+    "name": "云中城",
+    "description": "云中城允许你招募天使。"
+  },
+  "castle.dwellingUpLvl1": {
+    "name": "高级岗楼",
+    "description": "高级岗楼允许你招募戟兵。"
+  },
+  "castle.dwellingUpLvl2": {
+    "name": "高级射手塔楼",
+    "description": "高级射手塔楼允许你招募神射手。"
+  },
+  "castle.dwellingUpLvl3": {
+    "name": "高级狮鹫塔楼",
+    "description": "高级狮鹫塔楼允许你招募皇家狮鹫。"
+  },
+  "castle.dwellingUpLvl4": {
+    "name": "高级兵营",
+    "description": "高级兵营允许你招募十字军。"
+  },
+  "castle.dwellingUpLvl5": {
+    "name": "高级寺院",
+    "description": "高级寺院允许你招募祭司。"
+  },
+  "castle.dwellingUpLvl6": {
+    "name": "高级训练场",
+    "description": "高级训练场允许你招募骑士。"
+  },
+  "castle.dwellingUpLvl7": {
+    "name": "高级云中城",
+    "description": "高级云中城允许你招募大天使。"
+  },
+  "rampart.dwellingLvl1": {
+    "name": "人马厩",
+    "description": "人马厩允许你招募半人马。"
+  },
+  "rampart.dwellingLvl2": {
+    "name": "矮人村舍",
+    "description": "矮人村舍允许你招募矮人。"
+  },
+  "rampart.dwellingLvl3": {
+    "name": "木屋",
+    "description": "木屋允许你招募木精灵。"
+  },
+  "rampart.dwellingLvl4": {
+    "name": "魔泉",
+    "description": "魔泉允许你招募飞马。"
+  },
+  "rampart.dwellingLvl5": {
+    "name": "枯木拱门",
+    "description": "枯木拱门允许你招募枯木卫士。"
+  },
+  "rampart.dwellingLvl6": {
+    "name": "林间圣地",
+    "description": "林间圣地允许你招募独角兽。"
+  },
+  "rampart.dwellingLvl7": {
+    "name": "龙崖",
+    "description": "龙崖允许你招募绿龙。"
+  },
+  "rampart.dwellingUpLvl1": {
+    "name": "高级人马厩",
+    "description": "高级人马厩允许你招募半人马首领。"
+  },
+  "rampart.dwellingUpLvl2": {
+    "name": "高级矮人村舍",
+    "description": "高级矮人村舍允许你招募战斗矮人。"
+  },
+  "rampart.dwellingUpLvl3": {
+    "name": "高级木屋",
+    "description": "高级木屋允许你招募大精灵。"
+  },
+  "rampart.dwellingUpLvl4": {
+    "name": "高级魔泉",
+    "description": "高级魔泉允许你招募银飞马。"
+  },
+  "rampart.dwellingUpLvl5": {
+    "name": "高级枯木拱门",
+    "description": "高级枯木拱门允许你招募枯木战士。"
+  },
+  "rampart.dwellingUpLvl6": {
+    "name": "高级林间圣地",
+    "description": "高级林间圣地允许你招募独角神兽。"
+  },
+  "rampart.dwellingUpLvl7": {
+    "name": "高级龙崖",
+    "description": "高级龙崖允许你招募金龙。"
+  },
+  "tower.dwellingLvl1": {
+    "name": "钟楼",
+    "description": "钟楼允许你招募小妖精。"
+  },
+  "tower.dwellingLvl2": {
+    "name": "鬼楼",
+    "description": "鬼楼允许你招募石像鬼。"
+  },
+  "tower.dwellingLvl3": {
+    "name": "制造工场",
+    "description": "制造工场允许你招募石人。"
+  },
+  "tower.dwellingLvl4": {
+    "name": "法师塔",
+    "description": "法师塔允许你招募法师。"
+  },
+  "tower.dwellingLvl5": {
+    "name": "祈愿神坛",
+    "description": "祈愿神坛允许你招募神怪。"
+  },
+  "tower.dwellingLvl6": {
+    "name": "金色帐篷",
+    "description": "金色帐篷允许你招募蛇女。"
+  },
+  "tower.dwellingLvl7": {
+    "name": "云殿",
+    "description": "云殿允许你招募巨人。"
+  },
+  "tower.dwellingUpLvl1": {
+    "name": "高级钟楼",
+    "description": "高级钟楼允许你招募大妖精。"
+  },
+  "tower.dwellingUpLvl2": {
+    "name": "高级鬼楼",
+    "description": "高级鬼楼允许你招募石像怪。"
+  },
+  "tower.dwellingUpLvl3": {
+    "name": "高级制造工场",
+    "description": "高级制造工场允许你招募铁人。"
+  },
+  "tower.dwellingUpLvl4": {
+    "name": "高级法师塔",
+    "description": "高级法师塔允许你招募大法师。"
+  },
+  "tower.dwellingUpLvl5": {
+    "name": "高级祈愿神坛",
+    "description": "高级祈愿神坛允许你招募神怪主。"
+  },
+  "tower.dwellingUpLvl6": {
+    "name": "高级金色帐篷",
+    "description": "高级金色帐篷允许你招募蛇妖。"
+  },
+  "tower.dwellingUpLvl7": {
+    "name": "高级云殿",
+    "description": "高级云殿允许你招募泰坦巨人。"
+  },
+  "inferno.dwellingLvl1": {
+    "name": "怪物熔炉",
+    "description": "怪物熔炉允许你招募小怪物。"
+  },
+  "inferno.dwellingLvl2": {
+    "name": "罪恶殿堂",
+    "description": "罪恶殿堂允许你招募歌革。"
+  },
+  "inferno.dwellingLvl3": {
+    "name": "狗窝",
+    "description": "狗窝允许你招募地狱猎犬。"
+  },
+  "inferno.dwellingLvl4": {
+    "name": "恶鬼之门",
+    "description": "恶鬼之门允许你招募恶鬼。"
+  },
+  "inferno.dwellingLvl5": {
+    "name": "黄泉鬼穴",
+    "description": "黄泉鬼穴允许你招募邪神。"
+  },
+  "inferno.dwellingLvl6": {
+    "name": "烈火神殿",
+    "description": "烈火神殿允许你招募火精灵。"
+  },
+  "inferno.dwellingLvl7": {
+    "name": "恶魔殿",
+    "description": "恶魔殿允许你招募恶魔。"
+  },
+  "inferno.dwellingUpLvl1": {
+    "name": "高级怪物熔炉",
+    "description": "高级怪物熔炉允许你招募怪物。"
+  },
+  "inferno.dwellingUpLvl2": {
+    "name": "高级罪恶殿堂",
+    "description": "高级罪恶殿堂允许你招募玛各。"
+  },
+  "inferno.dwellingUpLvl3": {
+    "name": "高级狗窝",
+    "description": "高级狗窝允许你招募三首猎犬。"
+  },
+  "inferno.dwellingUpLvl4": {
+    "name": "高级恶鬼之门",
+    "description": "高级恶鬼之门允许你招募长角恶鬼。"
+  },
+  "inferno.dwellingUpLvl5": {
+    "name": "高级黄泉鬼穴",
+    "description": "高级黄泉鬼穴允许你招募邪神王。"
+  },
+  "inferno.dwellingUpLvl6": {
+    "name": "高级烈火神殿",
+    "description": "高级烈火神殿允许你招募烈火精灵。"
+  },
+  "inferno.dwellingUpLvl7": {
+    "name": "高级恶魔殿",
+    "description": "高级恶魔殿允许你招募大恶魔。"
+  },
+  "necropolis.dwellingLvl1": {
+    "name": "邪庙",
+    "description": "邪庙允许你招募骷髅兵。"
+  },
+  "necropolis.dwellingLvl2": {
+    "name": "坟地",
+    "description": "坟地允许你招募行尸。"
+  },
+  "necropolis.dwellingLvl3": {
+    "name": "灵墓",
+    "description": "灵墓允许你招募幽灵。"
+  },
+  "necropolis.dwellingLvl4": {
+    "name": "幽宅",
+    "description": "幽宅允许你招募吸血鬼。"
+  },
+  "necropolis.dwellingLvl5": {
+    "name": "陵墓",
+    "description": "陵墓允许你招募尸巫。"
+  },
+  "necropolis.dwellingLvl6": {
+    "name": "暗黑殿",
+    "description": "暗黑殿允许你招募暗黑骑士。"
+  },
+  "necropolis.dwellingLvl7": {
+    "name": "龙之顶",
+    "description": "龙之顶允许你招募骨龙。"
+  },
+  "necropolis.dwellingUpLvl1": {
+    "name": "高级邪庙",
+    "description": "高级邪庙允许你招募骷髅勇士。"
+  },
+  "necropolis.dwellingUpLvl2": {
+    "name": "高级坟地",
+    "description": "高级坟地允许你招募僵尸。"
+  },
+  "necropolis.dwellingUpLvl3": {
+    "name": "高级灵墓",
+    "description": "高级灵墓允许你招募阴魂。"
+  },
+  "necropolis.dwellingUpLvl4": {
+    "name": "高级幽宅",
+    "description": "高级幽宅允许你招募吸血鬼王。"
+  },
+  "necropolis.dwellingUpLvl5": {
+    "name": "高级陵墓",
+    "description": "高级陵墓允许你招募尸巫王。"
+  },
+  "necropolis.dwellingUpLvl6": {
+    "name": "高级暗黑殿",
+    "description": "高级暗黑殿允许你招募恐怖骑士。"
+  },
+  "necropolis.dwellingUpLvl7": {
+    "name": "高级龙之顶",
+    "description": "高级龙之顶允许你招募鬼龙。"
+  },
+  "dungeon.dwellingLvl1": {
+    "name": "暗穴",
+    "description": "暗穴允许你招募洞穴人。"
+  },
+  "dungeon.dwellingLvl2": {
+    "name": "鸟阁",
+    "description": "鸟阁允许你招募鹰身女妖。"
+  },
+  "dungeon.dwellingLvl3": {
+    "name": "邪眼之柱",
+    "description": "邪眼之柱允许你招募邪眼。"
+  },
+  "dungeon.dwellingLvl4": {
+    "name": "静默之堂",
+    "description": "静默之堂允许你招募美杜莎。"
+  },
+  "dungeon.dwellingLvl5": {
+    "name": "迷宫",
+    "description": "迷宫允许你招募牛头怪。"
+  },
+  "dungeon.dwellingLvl6": {
+    "name": "蝎狮巢",
+    "description": "蝎狮巢允许你招募蝎狮。"
+  },
+  "dungeon.dwellingLvl7": {
+    "name": "龙穴",
+    "description": "龙穴允许你招募赤龙。"
+  },
+  "dungeon.dwellingUpLvl1": {
+    "name": "高级暗穴",
+    "description": "高级暗穴允许你招募地狱洞穴人。"
+  },
+  "dungeon.dwellingUpLvl2": {
+    "name": "高级鸟阁",
+    "description": "高级鸟阁允许你招募鹰身女巫。"
+  },
+  "dungeon.dwellingUpLvl3": {
+    "name": "高级邪眼之柱",
+    "description": "高级邪眼之柱允许你招募毒眼。"
+  },
+  "dungeon.dwellingUpLvl4": {
+    "name": "高级静默之堂",
+    "description": "高级静默之堂允许你招募美杜莎女王。"
+  },
+  "dungeon.dwellingUpLvl5": {
+    "name": "高级迷宫",
+    "description": "高级迷宫允许你招募牛头王。"
+  },
+  "dungeon.dwellingUpLvl6": {
+    "name": "高级蝎狮巢",
+    "description": "高级蝎狮巢允许你招募毒蝎狮。"
+  },
+  "dungeon.dwellingUpLvl7": {
+    "name": "高级龙穴",
+    "description": "高级龙穴允许你招募黑龙。"
+  },
+  "stronghold.dwellingLvl1": {
+    "name": "大耳怪营",
+    "description": "大耳怪营允许你招募大耳怪。"
+  },
+  "stronghold.dwellingLvl2": {
+    "name": "狼舍",
+    "description": "狼舍允许你招募恶狼骑士。"
+  },
+  "stronghold.dwellingLvl3": {
+    "name": "兽人塔",
+    "description": "兽人塔允许你招募半兽人。"
+  },
+  "stronghold.dwellingLvl4": {
+    "name": "食人魔堡垒",
+    "description": "食人魔堡垒允许你招募食人魔。"
+  },
+  "stronghold.dwellingLvl5": {
+    "name": "壁巢",
+    "description": "壁巢允许你招募大雕。"
+  },
+  "stronghold.dwellingLvl6": {
+    "name": "独眼洞穴",
+    "description": "独眼洞穴允许你招募独眼巨人。"
+  },
+  "stronghold.dwellingLvl7": {
+    "name": "比蒙巢穴",
+    "description": "比蒙巢穴允许你招募比蒙。"
+  },
+  "stronghold.dwellingUpLvl1": {
+    "name": "高级大耳怪营",
+    "description": "高级大耳怪营允许你招募大耳怪王。"
+  },
+  "stronghold.dwellingUpLvl2": {
+    "name": "高级狼舍",
+    "description": "高级狼舍允许你招募恶狼斗士。"
+  },
+  "stronghold.dwellingUpLvl3": {
+    "name": "高级兽人塔",
+    "description": "高级兽人塔允许你招募半兽人首领。"
+  },
+  "stronghold.dwellingUpLvl4": {
+    "name": "高级食人魔堡垒",
+    "description": "高级食人魔堡垒允许你招募食人魔王。"
+  },
+  "stronghold.dwellingUpLvl5": {
+    "name": "高级壁巢",
+    "description": "高级壁巢允许你招募雷鸟。"
+  },
+  "stronghold.dwellingUpLvl6": {
+    "name": "高级独眼洞穴",
+    "description": "高级独眼洞穴允许你招募独眼王。"
+  },
+  "stronghold.dwellingUpLvl7": {
+    "name": "高级比蒙巢穴",
+    "description": "高级比蒙巢穴允许你招募比蒙巨兽。"
+  },
+  "fortress.dwellingLvl1": {
+    "name": "狼屋",
+    "description": "狼屋允许你招募狼人。"
+  },
+  "fortress.dwellingLvl2": {
+    "name": "蜥蜴巢",
+    "description": "蜥蜴巢允许你招募蜥蜴人。"
+  },
+  "fortress.dwellingLvl3": {
+    "name": "毒蝇巢",
+    "description": "毒蝇巢允许你招募毒蝇。"
+  },
+  "fortress.dwellingLvl4": {
+    "name": "蜥蜴洞",
+    "description": "蜥蜴洞允许你招募蜥蜴。"
+  },
+  "fortress.dwellingLvl5": {
+    "name": "野牛棚",
+    "description": "野牛棚允许你招募野牛。"
+  },
+  "fortress.dwellingLvl6": {
+    "name": "飞龙巢",
+    "description": "飞龙巢允许你招募飞龙。"
+  },
+  "fortress.dwellingLvl7": {
+    "name": "九头怪池塘",
+    "description": "九头怪池塘允许你招募九头怪。"
+  },
+  "fortress.dwellingUpLvl1": {
+    "name": "高级狼屋",
+    "description": "高级狼屋允许你招募大狼人。"
+  },
+  "fortress.dwellingUpLvl2": {
+    "name": "高级蜥蜴巢",
+    "description": "高级蜥蜴巢允许你招募蜥蜴勇士。"
+  },
+  "fortress.dwellingUpLvl3": {
+    "name": "高级毒蝇巢",
+    "description": "高级毒蝇巢允许你招募龙蝇。"
+  },
+  "fortress.dwellingUpLvl4": {
+    "name": "高级蜥蜴洞",
+    "description": "高级蜥蜴洞允许你招募巨蜥。"
+  },
+  "fortress.dwellingUpLvl5": {
+    "name": "高级野牛棚",
+    "description": "高级野牛棚允许你招募蛮牛。"
+  },
+  "fortress.dwellingUpLvl6": {
+    "name": "高级飞龙巢",
+    "description": "高级飞龙巢允许你招募飞龙王。"
+  },
+  "fortress.dwellingUpLvl7": {
+    "name": "高级九头怪池塘",
+    "description": "高级九头怪池塘允许你招募终极九头怪。"
+  },
+  "conflux.dwellingLvl1": {
+    "name": "精灵花园",
+    "description": "精灵花园允许你招募小精灵。"
+  },
+  "conflux.dwellingLvl2": {
+    "name": "空气神坛",
+    "description": "空气神坛允许你招募气元素。"
+  },
+  "conflux.dwellingLvl3": {
+    "name": "流水神坛",
+    "description": "流水神坛允许你招募水元素。"
+  },
+  "conflux.dwellingLvl4": {
+    "name": "烈火神坛",
+    "description": "烈火神坛允许你招募火元素。"
+  },
+  "conflux.dwellingLvl5": {
+    "name": "大地神坛",
+    "description": "大地神坛允许你招募土元素。"
+  },
+  "conflux.dwellingLvl6": {
+    "name": "精神神坛",
+    "description": "精神神坛允许你招募精神元素。"
+  },
+  "conflux.dwellingLvl7": {
+    "name": "凤凰巢",
+    "description": "凤凰巢允许你招募火鸟。"
+  },
+  "conflux.dwellingUpLvl1": {
+    "name": "高级精灵花园",
+    "description": "高级精灵花园允许你招募精灵。"
+  },
+  "conflux.dwellingUpLvl2": {
+    "name": "高级空气神坛",
+    "description": "高级空气神坛允许你招募雷元素。"
+  },
+  "conflux.dwellingUpLvl3": {
+    "name": "高级流水神坛",
+    "description": "高级流水神坛允许你招募冰元素。"
+  },
+  "conflux.dwellingUpLvl4": {
+    "name": "高级烈火神坛",
+    "description": "高级烈火神坛允许你招募烈火元素。"
+  },
+  "conflux.dwellingUpLvl5": {
+    "name": "高级大地神坛",
+    "description": "高级大地神坛允许你招募石元素。"
+  },
+  "conflux.dwellingUpLvl6": {
+    "name": "高级精神神坛",
+    "description": "高级精神神坛允许你招募魔法元素。"
+  },
+  "conflux.dwellingUpLvl7": {
+    "name": "高级凤凰巢",
+    "description": "高级凤凰巢允许你招募凤凰。"
+  },
+  "neutral.dwellingLvl1": {
+    "name": "1级兵种生产建筑",
+    "description": "允许你招募1级兵种。"
+  },
+  "neutral.dwellingLvl2": {
+    "name": "2级兵种生产建筑",
+    "description": "允许你招募2级兵种。"
+  },
+  "neutral.dwellingLvl3": {
+    "name": "3级兵种生产建筑",
+    "description": "允许你招募3级兵种。"
+  },
+  "neutral.dwellingLvl4": {
+    "name": "4级兵种生产建筑",
+    "description": "允许你招募4级兵种。"
+  },
+  "neutral.dwellingLvl5": {
+    "name": "5级兵种生产建筑",
+    "description": "允许你招募5级兵种。"
+  },
+  "neutral.dwellingLvl6": {
+    "name": "6级兵种生产建筑",
+    "description": "允许你招募6级兵种。"
+  },
+  "neutral.dwellingLvl7": {
+    "name": "7级兵种生产建筑",
+    "description": "允许你招募7级兵种。"
+  },
+  "neutral.dwellingUpLvl1": {
+    "name": "升级后的1级兵种生产建筑",
+    "description": "允许你招募升级后的1级兵种。"
+  },
+  "neutral.dwellingUpLvl2": {
+    "name": "升级后的2级兵种生产建筑",
+    "description": "允许你招募升级后的2级兵种。"
+  },
+  "neutral.dwellingUpLvl3": {
+    "name": "升级后的3级兵种生产建筑",
+    "description": "允许你招募升级后的3级兵种。"
+  },
+  "neutral.dwellingUpLvl4": {
+    "name": "升级后的4级兵种生产建筑",
+    "description": "允许你招募升级后的4级兵种。"
+  },
+  "neutral.dwellingUpLvl5": {
+    "name": "升级后的5级兵种生产建筑",
+    "description": "允许你招募升级后的5级兵种。"
+  },
+  "neutral.dwellingUpLvl6": {
+    "name": "升级后的6级兵种生产建筑",
+    "description": "允许你招募升级后的6级兵种。"
+  },
+  "neutral.dwellingUpLvl7": {
+    "name": "升级后的7级兵种生产建筑",
+    "description": "允许你招募升级后的7级兵种。"
+  }
+}

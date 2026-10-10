@@ -1,0 +1,4062 @@
+{
+  "pikeman": {
+    "name": "Pikeman",
+    "plural": "Pikemen",
+    "abilityText": "",
+    "stats": {
+      "attack": 4,
+      "defense": 5,
+      "hitPoints": 10,
+      "speed": 4,
+      "shots": 0,
+      "growth": 14,
+      "horde": 0,
+      "aiValue": 80,
+      "combatValue": 100,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 60
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "halberdier": {
+    "name": "Halberdier",
+    "plural": "Halberdiers",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 5,
+      "hitPoints": 10,
+      "speed": 5,
+      "shots": 0,
+      "growth": 14,
+      "horde": 0,
+      "aiValue": 115,
+      "combatValue": 115,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 75
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "archer": {
+    "name": "Archer",
+    "plural": "Archers",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 3,
+      "hitPoints": 10,
+      "speed": 4,
+      "shots": 12,
+      "growth": 9,
+      "horde": 0,
+      "aiValue": 126,
+      "combatValue": 115,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 100
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "marksman": {
+    "name": "Marksman",
+    "plural": "Marksmen",
+    "abilityText": "Shoots twice.",
+    "stats": {
+      "attack": 6,
+      "defense": 3,
+      "hitPoints": 10,
+      "speed": 6,
+      "shots": 24,
+      "growth": 9,
+      "horde": 0,
+      "aiValue": 184,
+      "combatValue": 115,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 150
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "griffin": {
+    "name": "Griffin",
+    "plural": "Griffins",
+    "abilityText": "Retaliates twice.",
+    "stats": {
+      "attack": 8,
+      "defense": 8,
+      "hitPoints": 25,
+      "speed": 6,
+      "shots": 0,
+      "growth": 7,
+      "horde": 3,
+      "aiValue": 351,
+      "combatValue": 324,
+      "damage": {
+        "min": 3,
+        "max": 6
+      },
+      "cost": {
+        "gold": 200
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "royalGriffin": {
+    "name": "Royal Griffin",
+    "plural": "Royal Griffins",
+    "abilityText": "Unlimited retaliations.",
+    "stats": {
+      "attack": 9,
+      "defense": 9,
+      "hitPoints": 25,
+      "speed": 9,
+      "shots": 0,
+      "growth": 7,
+      "horde": 3,
+      "aiValue": 448,
+      "combatValue": 364,
+      "damage": {
+        "min": 3,
+        "max": 6
+      },
+      "cost": {
+        "gold": 240
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "swordsman": {
+    "name": "Swordsman",
+    "plural": "Swordsmen",
+    "abilityText": "",
+    "stats": {
+      "attack": 10,
+      "defense": 12,
+      "hitPoints": 35,
+      "speed": 5,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 445,
+      "combatValue": 445,
+      "damage": {
+        "min": 6,
+        "max": 9
+      },
+      "cost": {
+        "gold": 300
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "crusader": {
+    "name": "Crusader",
+    "plural": "Crusaders",
+    "abilityText": "Strikes twice.",
+    "stats": {
+      "attack": 12,
+      "defense": 12,
+      "hitPoints": 35,
+      "speed": 6,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 588,
+      "combatValue": 588,
+      "damage": {
+        "min": 7,
+        "max": 10
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "monk": {
+    "name": "Monk",
+    "plural": "Monks",
+    "abilityText": "",
+    "stats": {
+      "attack": 12,
+      "defense": 7,
+      "hitPoints": 30,
+      "speed": 5,
+      "shots": 12,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 485,
+      "combatValue": 485,
+      "damage": {
+        "min": 10,
+        "max": 12
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "zealot": {
+    "name": "Zealot",
+    "plural": "Zealots",
+    "abilityText": "No melee penalty.",
+    "stats": {
+      "attack": 12,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 7,
+      "shots": 24,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 750,
+      "combatValue": 500,
+      "damage": {
+        "min": 10,
+        "max": 12
+      },
+      "cost": {
+        "gold": 450
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "cavalier": {
+    "name": "Cavalier",
+    "plural": "Cavaliers",
+    "abilityText": "Jousting bonus.",
+    "stats": {
+      "attack": 15,
+      "defense": 15,
+      "hitPoints": 100,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1946,
+      "combatValue": 1668,
+      "damage": {
+        "min": 15,
+        "max": 25
+      },
+      "cost": {
+        "gold": 1000
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "champion": {
+    "name": "Champion",
+    "plural": "Champions",
+    "abilityText": "Jousting bonus.",
+    "stats": {
+      "attack": 16,
+      "defense": 16,
+      "hitPoints": 100,
+      "speed": 9,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2100,
+      "combatValue": 1800,
+      "damage": {
+        "min": 20,
+        "max": 25
+      },
+      "cost": {
+        "gold": 1200
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "angel": {
+    "name": "Angel",
+    "plural": "Angels",
+    "abilityText": "Hates Devils.",
+    "stats": {
+      "attack": 20,
+      "defense": 20,
+      "hitPoints": 200,
+      "speed": 12,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 5019,
+      "combatValue": 3585,
+      "damage": {
+        "min": 50,
+        "max": 50
+      },
+      "cost": {
+        "gems": 1,
+        "gold": 3000
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "archangel": {
+    "name": "Archangel",
+    "plural": "Archangels",
+    "abilityText": "+1 morale.  Hates Devils.\nResurrects allies.",
+    "stats": {
+      "attack": 30,
+      "defense": 30,
+      "hitPoints": 250,
+      "speed": 18,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 8776,
+      "combatValue": 6033,
+      "damage": {
+        "min": 50,
+        "max": 50
+      },
+      "cost": {
+        "gems": 3,
+        "gold": 5000
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "centaur": {
+    "name": "Centaur",
+    "plural": "Centaurs",
+    "abilityText": "",
+    "stats": {
+      "attack": 5,
+      "defense": 3,
+      "hitPoints": 8,
+      "speed": 6,
+      "shots": 0,
+      "growth": 14,
+      "horde": 0,
+      "aiValue": 100,
+      "combatValue": 100,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 70
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "centaurCaptain": {
+    "name": "Centaur Captain",
+    "plural": "Centaur Captains",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 3,
+      "hitPoints": 10,
+      "speed": 8,
+      "shots": 0,
+      "growth": 14,
+      "horde": 0,
+      "aiValue": 138,
+      "combatValue": 115,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 90
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "dwarf": {
+    "name": "Dwarf",
+    "plural": "Dwarves",
+    "abilityText": "20% magic resistance.",
+    "stats": {
+      "attack": 6,
+      "defense": 7,
+      "hitPoints": 20,
+      "speed": 3,
+      "shots": 0,
+      "growth": 8,
+      "horde": 4,
+      "aiValue": 138,
+      "combatValue": 194,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 120
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "battleDwarf": {
+    "name": "Battle Dwarf",
+    "plural": "Battle Dwarves",
+    "abilityText": "40% magic resistance.",
+    "stats": {
+      "attack": 7,
+      "defense": 7,
+      "hitPoints": 20,
+      "speed": 5,
+      "shots": 0,
+      "growth": 8,
+      "horde": 4,
+      "aiValue": 209,
+      "combatValue": 209,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 150
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "woodElf": {
+    "name": "Wood Elf",
+    "plural": "Wood Elves",
+    "abilityText": "",
+    "stats": {
+      "attack": 9,
+      "defense": 5,
+      "hitPoints": 15,
+      "speed": 6,
+      "shots": 24,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 234,
+      "combatValue": 195,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 200
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "grandElf": {
+    "name": "Grand Elf",
+    "plural": "Grand Elves",
+    "abilityText": "Shoots twice.",
+    "stats": {
+      "attack": 9,
+      "defense": 5,
+      "hitPoints": 15,
+      "speed": 7,
+      "shots": 24,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 331,
+      "combatValue": 195,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 225
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "pegasus": {
+    "name": "Pegasus",
+    "plural": "Pegasi",
+    "abilityText": "Magic damper.",
+    "stats": {
+      "attack": 9,
+      "defense": 8,
+      "hitPoints": 30,
+      "speed": 8,
+      "shots": 0,
+      "growth": 5,
+      "horde": 0,
+      "aiValue": 518,
+      "combatValue": 407,
+      "damage": {
+        "min": 5,
+        "max": 9
+      },
+      "cost": {
+        "gold": 250
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "silverPegasus": {
+    "name": "Silver Pegasus",
+    "plural": "Silver Pegasi",
+    "abilityText": "Magic damper.",
+    "stats": {
+      "attack": 9,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 12,
+      "shots": 0,
+      "growth": 5,
+      "horde": 0,
+      "aiValue": 532,
+      "combatValue": 418,
+      "damage": {
+        "min": 5,
+        "max": 9
+      },
+      "cost": {
+        "gold": 275
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "dendroidGuard": {
+    "name": "Dendroid Guard",
+    "plural": "Dendroid Guards",
+    "abilityText": "Binds enemies in place.",
+    "stats": {
+      "attack": 9,
+      "defense": 12,
+      "hitPoints": 55,
+      "speed": 3,
+      "shots": 0,
+      "growth": 3,
+      "horde": 2,
+      "aiValue": 517,
+      "combatValue": 690,
+      "damage": {
+        "min": 10,
+        "max": 14
+      },
+      "cost": {
+        "gold": 350
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "dendroidSoldier": {
+    "name": "Dendroid Soldier",
+    "plural": "Dendroid Soldiers",
+    "abilityText": "Binds enemies in place.",
+    "stats": {
+      "attack": 9,
+      "defense": 12,
+      "hitPoints": 65,
+      "speed": 4,
+      "shots": 0,
+      "growth": 3,
+      "horde": 2,
+      "aiValue": 803,
+      "combatValue": 765,
+      "damage": {
+        "min": 10,
+        "max": 14
+      },
+      "cost": {
+        "gold": 425
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "unicorn": {
+    "name": "Unicorn",
+    "plural": "Unicorns",
+    "abilityText": "Aura of magic resistance.  Blinding attack.",
+    "stats": {
+      "attack": 15,
+      "defense": 14,
+      "hitPoints": 90,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1806,
+      "combatValue": 1548,
+      "damage": {
+        "min": 18,
+        "max": 22
+      },
+      "cost": {
+        "gold": 850
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "warUnicorn": {
+    "name": "War Unicorn",
+    "plural": "War Unicorns",
+    "abilityText": "Aura of magic resistance. Blinding attack.",
+    "stats": {
+      "attack": 15,
+      "defense": 14,
+      "hitPoints": 110,
+      "speed": 9,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2030,
+      "combatValue": 1740,
+      "damage": {
+        "min": 18,
+        "max": 22
+      },
+      "cost": {
+        "gold": 950
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "greenDragon": {
+    "name": "Green Dragon",
+    "plural": "Green Dragons",
+    "abilityText": "Immune to spell levels 1-3.",
+    "stats": {
+      "attack": 18,
+      "defense": 18,
+      "hitPoints": 180,
+      "speed": 10,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 4872,
+      "combatValue": 3654,
+      "damage": {
+        "min": 40,
+        "max": 50
+      },
+      "cost": {
+        "crystal": 1,
+        "gold": 2400
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "goldDragon": {
+    "name": "Gold Dragon",
+    "plural": "Gold Dragons",
+    "abilityText": "Immune to spell levels 1-4.",
+    "stats": {
+      "attack": 27,
+      "defense": 27,
+      "hitPoints": 250,
+      "speed": 16,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 8613,
+      "combatValue": 6220,
+      "damage": {
+        "min": 40,
+        "max": 50
+      },
+      "cost": {
+        "crystal": 2,
+        "gold": 4000
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "gremlin": {
+    "name": "Gremlin",
+    "plural": "Gremlins",
+    "abilityText": "",
+    "stats": {
+      "attack": 3,
+      "defense": 3,
+      "hitPoints": 4,
+      "speed": 4,
+      "shots": 0,
+      "growth": 16,
+      "horde": 0,
+      "aiValue": 44,
+      "combatValue": 55,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 30
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "masterGremlin": {
+    "name": "Master Gremlin",
+    "plural": "Master Gremlins",
+    "abilityText": "Ranged attacker.",
+    "stats": {
+      "attack": 4,
+      "defense": 4,
+      "hitPoints": 4,
+      "speed": 5,
+      "shots": 8,
+      "growth": 16,
+      "horde": 0,
+      "aiValue": 66,
+      "combatValue": 55,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 40
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "stoneGargoyle": {
+    "name": "Stone Gargoyle",
+    "plural": "Stone Gargoyles",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 6,
+      "hitPoints": 16,
+      "speed": 6,
+      "shots": 0,
+      "growth": 9,
+      "horde": 4,
+      "aiValue": 165,
+      "combatValue": 150,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 130
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "obsidianGargoyle": {
+    "name": "Obsidian Gargoyle",
+    "plural": "Obsidian Gargoyles",
+    "abilityText": "",
+    "stats": {
+      "attack": 7,
+      "defense": 7,
+      "hitPoints": 16,
+      "speed": 9,
+      "shots": 0,
+      "growth": 9,
+      "horde": 4,
+      "aiValue": 201,
+      "combatValue": 155,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 160
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "ironGolem": {
+    "name": "Stone Golem",
+    "plural": "Stone Golems",
+    "abilityText": "Damage from spells reduced 50%.",
+    "stats": {
+      "attack": 7,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 3,
+      "shots": 0,
+      "growth": 6,
+      "horde": 0,
+      "aiValue": 250,
+      "combatValue": 339,
+      "damage": {
+        "min": 4,
+        "max": 5
+      },
+      "cost": {
+        "gold": 150
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "stoneGolem": {
+    "name": "Iron Golem",
+    "plural": "Iron Golems",
+    "abilityText": "Damage from spells reduced 75%.",
+    "stats": {
+      "attack": 9,
+      "defense": 10,
+      "hitPoints": 35,
+      "speed": 5,
+      "shots": 0,
+      "growth": 6,
+      "horde": 0,
+      "aiValue": 412,
+      "combatValue": 412,
+      "damage": {
+        "min": 4,
+        "max": 5
+      },
+      "cost": {
+        "gold": 200
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "mage": {
+    "name": "Mage",
+    "plural": "Magi",
+    "abilityText": "No melee penalty.\nHero spells cost less.",
+    "stats": {
+      "attack": 11,
+      "defense": 8,
+      "hitPoints": 25,
+      "speed": 5,
+      "shots": 24,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 570,
+      "combatValue": 418,
+      "damage": {
+        "min": 7,
+        "max": 9
+      },
+      "cost": {
+        "gold": 350
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "archMage": {
+    "name": "Arch Mage",
+    "plural": "Arch Magi",
+    "abilityText": "No melee penalty.\nHero spells cost less.",
+    "stats": {
+      "attack": 12,
+      "defense": 9,
+      "hitPoints": 30,
+      "speed": 7,
+      "shots": 24,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 680,
+      "combatValue": 467,
+      "damage": {
+        "min": 7,
+        "max": 9
+      },
+      "cost": {
+        "gold": 450
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "genie": {
+    "name": "Genie",
+    "plural": "Genies",
+    "abilityText": "Hates Efreet.",
+    "stats": {
+      "attack": 12,
+      "defense": 12,
+      "hitPoints": 40,
+      "speed": 7,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 884,
+      "combatValue": 680,
+      "damage": {
+        "min": 13,
+        "max": 16
+      },
+      "cost": {
+        "gold": 550
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "masterGenie": {
+    "name": "Master Genie",
+    "plural": "Master Genies",
+    "abilityText": "Spellcaster: Random benefit.\nHates Efreet.",
+    "stats": {
+      "attack": 12,
+      "defense": 12,
+      "hitPoints": 40,
+      "speed": 11,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 942,
+      "combatValue": 748,
+      "damage": {
+        "min": 13,
+        "max": 16
+      },
+      "cost": {
+        "gold": 600
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "naga": {
+    "name": "Naga",
+    "plural": "Nagas",
+    "abilityText": "No enemy retaliation.",
+    "stats": {
+      "attack": 16,
+      "defense": 13,
+      "hitPoints": 110,
+      "speed": 5,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2016,
+      "combatValue": 2016,
+      "damage": {
+        "min": 20,
+        "max": 20
+      },
+      "cost": {
+        "gold": 1100
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "nagaQueen": {
+    "name": "Naga Queen",
+    "plural": "Naga Queens",
+    "abilityText": "No enemy retaliation.",
+    "stats": {
+      "attack": 16,
+      "defense": 13,
+      "hitPoints": 110,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2840,
+      "combatValue": 2485,
+      "damage": {
+        "min": 30,
+        "max": 30
+      },
+      "cost": {
+        "gold": 1600
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "giant": {
+    "name": "Giant",
+    "plural": "Giants",
+    "abilityText": "Mind spell immunity",
+    "stats": {
+      "attack": 19,
+      "defense": 16,
+      "hitPoints": 150,
+      "speed": 7,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 3718,
+      "combatValue": 3146,
+      "damage": {
+        "min": 40,
+        "max": 60
+      },
+      "cost": {
+        "gems": 1,
+        "gold": 2000
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "titan": {
+    "name": "Titan",
+    "plural": "Titans",
+    "abilityText": "No melee penalty. Mind spell immunity.  Hates Black Dragons.",
+    "stats": {
+      "attack": 24,
+      "defense": 24,
+      "hitPoints": 300,
+      "speed": 11,
+      "shots": 24,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 7500,
+      "combatValue": 5000,
+      "damage": {
+        "min": 40,
+        "max": 60
+      },
+      "cost": {
+        "gems": 2,
+        "gold": 5000
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "imp": {
+    "name": "Imp",
+    "plural": "Imps",
+    "abilityText": "",
+    "stats": {
+      "attack": 2,
+      "defense": 3,
+      "hitPoints": 4,
+      "speed": 5,
+      "shots": 0,
+      "growth": 15,
+      "horde": 8,
+      "aiValue": 50,
+      "combatValue": 50,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 50
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "familiar": {
+    "name": "Familiar",
+    "plural": "Familiars",
+    "abilityText": "Magic channel.",
+    "stats": {
+      "attack": 4,
+      "defense": 4,
+      "hitPoints": 4,
+      "speed": 7,
+      "shots": 0,
+      "growth": 15,
+      "horde": 8,
+      "aiValue": 60,
+      "combatValue": 60,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 60
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "gog": {
+    "name": "Gog",
+    "plural": "Gogs",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 4,
+      "hitPoints": 13,
+      "speed": 4,
+      "shots": 12,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 159,
+      "combatValue": 145,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 125
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "magog": {
+    "name": "Magog",
+    "plural": "Magogs",
+    "abilityText": "Fireball attack.",
+    "stats": {
+      "attack": 7,
+      "defense": 4,
+      "hitPoints": 13,
+      "speed": 6,
+      "shots": 24,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 240,
+      "combatValue": 210,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 175
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "hellHound": {
+    "name": "Hell Hound",
+    "plural": "Hell Hounds",
+    "abilityText": "",
+    "stats": {
+      "attack": 10,
+      "defense": 6,
+      "hitPoints": 25,
+      "speed": 7,
+      "shots": 0,
+      "growth": 5,
+      "horde": 3,
+      "aiValue": 357,
+      "combatValue": 275,
+      "damage": {
+        "min": 2,
+        "max": 7
+      },
+      "cost": {
+        "gold": 200
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "cerberus": {
+    "name": "Cerberus",
+    "plural": "Cerberi",
+    "abilityText": "3-headed attack.\nEnemies cannot retaliate.",
+    "stats": {
+      "attack": 10,
+      "defense": 8,
+      "hitPoints": 25,
+      "speed": 8,
+      "shots": 0,
+      "growth": 5,
+      "horde": 3,
+      "aiValue": 392,
+      "combatValue": 308,
+      "damage": {
+        "min": 2,
+        "max": 7
+      },
+      "cost": {
+        "gold": 250
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "demon": {
+    "name": "Demon",
+    "plural": "Demons",
+    "abilityText": "",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 35,
+      "speed": 5,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 445,
+      "combatValue": 445,
+      "damage": {
+        "min": 7,
+        "max": 9
+      },
+      "cost": {
+        "gold": 250
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "hornedDemon": {
+    "name": "Horned Demon",
+    "plural": "Horned Demons",
+    "abilityText": "",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 40,
+      "speed": 6,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 480,
+      "combatValue": 480,
+      "damage": {
+        "min": 7,
+        "max": 9
+      },
+      "cost": {
+        "gold": 270
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "pitFiend": {
+    "name": "Pit Fiend",
+    "plural": "Pit Fiends",
+    "abilityText": "",
+    "stats": {
+      "attack": 13,
+      "defense": 13,
+      "hitPoints": 45,
+      "speed": 6,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 765,
+      "combatValue": 765,
+      "damage": {
+        "min": 13,
+        "max": 17
+      },
+      "cost": {
+        "gold": 500
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "pitLord": {
+    "name": "Pit Lord",
+    "plural": "Pit Lords",
+    "abilityText": "Summon demons from\na dead ally.",
+    "stats": {
+      "attack": 13,
+      "defense": 13,
+      "hitPoints": 45,
+      "speed": 7,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1224,
+      "combatValue": 1071,
+      "damage": {
+        "min": 13,
+        "max": 17
+      },
+      "cost": {
+        "gold": 700
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "efreet": {
+    "name": "Efreeti",
+    "plural": "Efreet",
+    "abilityText": "Immune to fire.  Hates Genies.",
+    "stats": {
+      "attack": 16,
+      "defense": 12,
+      "hitPoints": 90,
+      "speed": 9,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1670,
+      "combatValue": 1413,
+      "damage": {
+        "min": 16,
+        "max": 24
+      },
+      "cost": {
+        "gold": 900
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "efreetSultan": {
+    "name": "Efreet Sultan",
+    "plural": "Efreet Sultans",
+    "abilityText": "Fire shield.  Immune to fire.  Hates Genies.",
+    "stats": {
+      "attack": 16,
+      "defense": 14,
+      "hitPoints": 90,
+      "speed": 13,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1848,
+      "combatValue": 1584,
+      "damage": {
+        "min": 16,
+        "max": 24
+      },
+      "cost": {
+        "gold": 1100
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "devil": {
+    "name": "Devil",
+    "plural": "Devils",
+    "abilityText": "-1 enemy luck. No enemy retaliation. Hates Angels.",
+    "stats": {
+      "attack": 19,
+      "defense": 21,
+      "hitPoints": 160,
+      "speed": 11,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 5101,
+      "combatValue": 3759,
+      "damage": {
+        "min": 30,
+        "max": 40
+      },
+      "cost": {
+        "mercury": 1,
+        "gold": 2700
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "archDevil": {
+    "name": "Arch Devil",
+    "plural": "Arch Devils",
+    "abilityText": "-1 enemy luck. No enemy retaliation. Hates Angels.",
+    "stats": {
+      "attack": 26,
+      "defense": 28,
+      "hitPoints": 200,
+      "speed": 17,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 7115,
+      "combatValue": 5243,
+      "damage": {
+        "min": 30,
+        "max": 40
+      },
+      "cost": {
+        "mercury": 2,
+        "gold": 4500
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "skeleton": {
+    "name": "Skeleton",
+    "plural": "Skeletons",
+    "abilityText": "Undead.",
+    "stats": {
+      "attack": 5,
+      "defense": 4,
+      "hitPoints": 6,
+      "speed": 4,
+      "shots": 0,
+      "growth": 12,
+      "horde": 6,
+      "aiValue": 60,
+      "combatValue": 75,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 60
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "skeletonWarrior": {
+    "name": "Skeleton Warrior",
+    "plural": "Skeleton Warriors",
+    "abilityText": "Undead.",
+    "stats": {
+      "attack": 6,
+      "defense": 6,
+      "hitPoints": 6,
+      "speed": 5,
+      "shots": 0,
+      "growth": 12,
+      "horde": 6,
+      "aiValue": 85,
+      "combatValue": 85,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 70
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "walkingDead": {
+    "name": "Walking Dead",
+    "plural": "Walking Dead",
+    "abilityText": "Undead.",
+    "stats": {
+      "attack": 5,
+      "defense": 5,
+      "hitPoints": 15,
+      "speed": 3,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 98,
+      "combatValue": 140,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 100
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "zombieLord": {
+    "name": "Zombie",
+    "plural": "Zombies",
+    "abilityText": "Undead.\nDisease.",
+    "stats": {
+      "attack": 5,
+      "defense": 5,
+      "hitPoints": 20,
+      "speed": 4,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 128,
+      "combatValue": 160,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 125
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "wight": {
+    "name": "Wight",
+    "plural": "Wights",
+    "abilityText": "Undead.  Regenerating.",
+    "stats": {
+      "attack": 7,
+      "defense": 7,
+      "hitPoints": 18,
+      "speed": 5,
+      "shots": 0,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 252,
+      "combatValue": 231,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 200
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "wraith": {
+    "name": "Wraith",
+    "plural": "Wraiths",
+    "abilityText": "Undead.  Regenerating.\nDrains enemy mana.",
+    "stats": {
+      "attack": 7,
+      "defense": 7,
+      "hitPoints": 18,
+      "speed": 7,
+      "shots": 0,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 315,
+      "combatValue": 252,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 230
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "vampire": {
+    "name": "Vampire",
+    "plural": "Vampires",
+    "abilityText": "Undead.\nNo enemy retaliation.",
+    "stats": {
+      "attack": 10,
+      "defense": 9,
+      "hitPoints": 30,
+      "speed": 6,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 555,
+      "combatValue": 518,
+      "damage": {
+        "min": 5,
+        "max": 8
+      },
+      "cost": {
+        "gold": 360
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "vampireLord": {
+    "name": "Vampire Lord",
+    "plural": "Vampire Lords",
+    "abilityText": "Undead.  Drains life.\nNo enemy retaliation.",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 40,
+      "speed": 9,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 783,
+      "combatValue": 652,
+      "damage": {
+        "min": 5,
+        "max": 8
+      },
+      "cost": {
+        "gold": 500
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "lich": {
+    "name": "Lich",
+    "plural": "Liches",
+    "abilityText": "Undead.  Death cloud attack.",
+    "stats": {
+      "attack": 13,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 6,
+      "shots": 12,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 848,
+      "combatValue": 742,
+      "damage": {
+        "min": 11,
+        "max": 13
+      },
+      "cost": {
+        "gold": 550
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "powerLich": {
+    "name": "Power Lich",
+    "plural": "Power Liches",
+    "abilityText": "Undead.  Death cloud attack.",
+    "stats": {
+      "attack": 13,
+      "defense": 10,
+      "hitPoints": 40,
+      "speed": 7,
+      "shots": 24,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1079,
+      "combatValue": 889,
+      "damage": {
+        "min": 11,
+        "max": 15
+      },
+      "cost": {
+        "gold": 600
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "blackKnight": {
+    "name": "Black Knight",
+    "plural": "Black Knights",
+    "abilityText": "Undead.  Curses enemies.",
+    "stats": {
+      "attack": 16,
+      "defense": 16,
+      "hitPoints": 120,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2087,
+      "combatValue": 1753,
+      "damage": {
+        "min": 15,
+        "max": 30
+      },
+      "cost": {
+        "gold": 1200
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "dreadKnight": {
+    "name": "Dread Knight",
+    "plural": "Dread Knights",
+    "abilityText": "Undead.  Curses enemies.  \nDeath Blow attack.",
+    "stats": {
+      "attack": 18,
+      "defense": 18,
+      "hitPoints": 120,
+      "speed": 9,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2382,
+      "combatValue": 2029,
+      "damage": {
+        "min": 15,
+        "max": 30
+      },
+      "cost": {
+        "gold": 1500
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "boneDragon": {
+    "name": "Bone Dragon",
+    "plural": "Bone Dragons",
+    "abilityText": "Undead.  -1 to enemy morale.",
+    "stats": {
+      "attack": 17,
+      "defense": 15,
+      "hitPoints": 150,
+      "speed": 9,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 3388,
+      "combatValue": 2420,
+      "damage": {
+        "min": 25,
+        "max": 50
+      },
+      "cost": {
+        "gold": 1800
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "ghostDragon": {
+    "name": "Ghost Dragon",
+    "plural": "Ghost Dragons",
+    "abilityText": "Undead.  -1 to enemy morale.  Attack ages enemies.",
+    "stats": {
+      "attack": 19,
+      "defense": 17,
+      "hitPoints": 200,
+      "speed": 14,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 4696,
+      "combatValue": 3228,
+      "damage": {
+        "min": 25,
+        "max": 50
+      },
+      "cost": {
+        "mercury": 1,
+        "gold": 3000
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "troglodyte": {
+    "name": "Troglodyte",
+    "plural": "Troglodytes",
+    "abilityText": "Immune to Blinding.",
+    "stats": {
+      "attack": 4,
+      "defense": 3,
+      "hitPoints": 5,
+      "speed": 4,
+      "shots": 0,
+      "growth": 14,
+      "horde": 7,
+      "aiValue": 59,
+      "combatValue": 73,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 50
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "infernalTroglodyte": {
+    "name": "Infernal Troglodyte",
+    "plural": "Infernal Troglodytes",
+    "abilityText": "Immune to Blinding.",
+    "stats": {
+      "attack": 5,
+      "defense": 4,
+      "hitPoints": 6,
+      "speed": 5,
+      "shots": 0,
+      "growth": 14,
+      "horde": 7,
+      "aiValue": 84,
+      "combatValue": 84,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 65
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "harpy": {
+    "name": "Harpy",
+    "plural": "Harpies",
+    "abilityText": "Strike and return.",
+    "stats": {
+      "attack": 6,
+      "defense": 5,
+      "hitPoints": 14,
+      "speed": 6,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 154,
+      "combatValue": 140,
+      "damage": {
+        "min": 1,
+        "max": 4
+      },
+      "cost": {
+        "gold": 130
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "harpyHag": {
+    "name": "Harpy Hag",
+    "plural": "Harpy Hags",
+    "abilityText": "Strike and return.\nNo enemy retaliation.",
+    "stats": {
+      "attack": 6,
+      "defense": 6,
+      "hitPoints": 14,
+      "speed": 9,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 238,
+      "combatValue": 196,
+      "damage": {
+        "min": 1,
+        "max": 4
+      },
+      "cost": {
+        "gold": 170
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "beholder": {
+    "name": "Beholder",
+    "plural": "Beholders",
+    "abilityText": "No melee penalty.",
+    "stats": {
+      "attack": 9,
+      "defense": 7,
+      "hitPoints": 22,
+      "speed": 5,
+      "shots": 12,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 336,
+      "combatValue": 240,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 250
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "evilEye": {
+    "name": "Evil Eye",
+    "plural": "Evil Eyes",
+    "abilityText": "No melee penalty.",
+    "stats": {
+      "attack": 10,
+      "defense": 8,
+      "hitPoints": 22,
+      "speed": 7,
+      "shots": 24,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 367,
+      "combatValue": 245,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 280
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "medusa": {
+    "name": "Medusa",
+    "plural": "Medusas",
+    "abilityText": "No melee penalty.\nStone gaze.",
+    "stats": {
+      "attack": 9,
+      "defense": 9,
+      "hitPoints": 25,
+      "speed": 5,
+      "shots": 4,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 517,
+      "combatValue": 379,
+      "damage": {
+        "min": 6,
+        "max": 8
+      },
+      "cost": {
+        "gold": 300
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "medusaQueen": {
+    "name": "Medusa Queen",
+    "plural": "Medusa Queens",
+    "abilityText": "No melee penalty.\nStone gaze.",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 6,
+      "shots": 8,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 577,
+      "combatValue": 423,
+      "damage": {
+        "min": 6,
+        "max": 8
+      },
+      "cost": {
+        "gold": 330
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "minotaur": {
+    "name": "Minotaur",
+    "plural": "Minotaurs",
+    "abilityText": "Good morale.",
+    "stats": {
+      "attack": 14,
+      "defense": 12,
+      "hitPoints": 50,
+      "speed": 6,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 835,
+      "combatValue": 835,
+      "damage": {
+        "min": 12,
+        "max": 20
+      },
+      "cost": {
+        "gold": 500
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "minotaurKing": {
+    "name": "Minotaur King",
+    "plural": "Minotaur Kings",
+    "abilityText": "Good morale.",
+    "stats": {
+      "attack": 15,
+      "defense": 15,
+      "hitPoints": 50,
+      "speed": 8,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1068,
+      "combatValue": 890,
+      "damage": {
+        "min": 12,
+        "max": 20
+      },
+      "cost": {
+        "gold": 575
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "manticore": {
+    "name": "Manticore",
+    "plural": "Manticores",
+    "abilityText": "",
+    "stats": {
+      "attack": 15,
+      "defense": 13,
+      "hitPoints": 80,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1547,
+      "combatValue": 1215,
+      "damage": {
+        "min": 14,
+        "max": 20
+      },
+      "cost": {
+        "gold": 850
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "scorpicore": {
+    "name": "Scorpicore",
+    "plural": "Scorpicores",
+    "abilityText": "Paralyzing venom.",
+    "stats": {
+      "attack": 16,
+      "defense": 14,
+      "hitPoints": 80,
+      "speed": 11,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1589,
+      "combatValue": 1248,
+      "damage": {
+        "min": 14,
+        "max": 20
+      },
+      "cost": {
+        "gold": 1050
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "redDragon": {
+    "name": "Red Dragon",
+    "plural": "Red Dragons",
+    "abilityText": "Immune to spell levels 1-3.",
+    "stats": {
+      "attack": 19,
+      "defense": 19,
+      "hitPoints": 180,
+      "speed": 11,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 4702,
+      "combatValue": 3762,
+      "damage": {
+        "min": 40,
+        "max": 50
+      },
+      "cost": {
+        "sulfur": 1,
+        "gold": 2500
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "blackDragon": {
+    "name": "Black Dragon",
+    "plural": "Black Dragons",
+    "abilityText": "Immune to all spells.",
+    "stats": {
+      "attack": 25,
+      "defense": 25,
+      "hitPoints": 300,
+      "speed": 15,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 8721,
+      "combatValue": 6783,
+      "damage": {
+        "min": 40,
+        "max": 50
+      },
+      "cost": {
+        "sulfur": 2,
+        "gold": 4000
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "goblin": {
+    "name": "Goblin",
+    "plural": "Goblins",
+    "abilityText": "",
+    "stats": {
+      "attack": 4,
+      "defense": 2,
+      "hitPoints": 5,
+      "speed": 5,
+      "shots": 0,
+      "growth": 15,
+      "horde": 8,
+      "aiValue": 60,
+      "combatValue": 60,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 40
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "hobgoblin": {
+    "name": "Hobgoblin",
+    "plural": "Hobgoblins",
+    "abilityText": "",
+    "stats": {
+      "attack": 5,
+      "defense": 3,
+      "hitPoints": 5,
+      "speed": 7,
+      "shots": 0,
+      "growth": 15,
+      "horde": 8,
+      "aiValue": 78,
+      "combatValue": 65,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 50
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "goblinWolfRider": {
+    "name": "Wolf Rider",
+    "plural": "Wolf Riders",
+    "abilityText": "",
+    "stats": {
+      "attack": 7,
+      "defense": 5,
+      "hitPoints": 10,
+      "speed": 6,
+      "shots": 0,
+      "growth": 9,
+      "horde": 0,
+      "aiValue": 130,
+      "combatValue": 130,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 100
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "hobgoblinWolfRider": {
+    "name": "Wolf Raider",
+    "plural": "Wolf Raiders",
+    "abilityText": "Strikes twice",
+    "stats": {
+      "attack": 8,
+      "defense": 5,
+      "hitPoints": 10,
+      "speed": 8,
+      "shots": 0,
+      "growth": 9,
+      "horde": 0,
+      "aiValue": 203,
+      "combatValue": 174,
+      "damage": {
+        "min": 3,
+        "max": 4
+      },
+      "cost": {
+        "gold": 140
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "orc": {
+    "name": "Orc",
+    "plural": "Orcs",
+    "abilityText": "",
+    "stats": {
+      "attack": 8,
+      "defense": 4,
+      "hitPoints": 15,
+      "speed": 4,
+      "shots": 12,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 192,
+      "combatValue": 175,
+      "damage": {
+        "min": 2,
+        "max": 5
+      },
+      "cost": {
+        "gold": 150
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "orcChieftain": {
+    "name": "Orc Chieftain",
+    "plural": "Orc Chieftains",
+    "abilityText": "",
+    "stats": {
+      "attack": 8,
+      "defense": 4,
+      "hitPoints": 20,
+      "speed": 5,
+      "shots": 24,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 240,
+      "combatValue": 200,
+      "damage": {
+        "min": 2,
+        "max": 5
+      },
+      "cost": {
+        "gold": 165
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "ogre": {
+    "name": "Ogre",
+    "plural": "Ogres",
+    "abilityText": "",
+    "stats": {
+      "attack": 13,
+      "defense": 7,
+      "hitPoints": 40,
+      "speed": 4,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 416,
+      "combatValue": 520,
+      "damage": {
+        "min": 6,
+        "max": 12
+      },
+      "cost": {
+        "gold": 300
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "ogreMage": {
+    "name": "Ogre Mage",
+    "plural": "Ogre Magi",
+    "abilityText": "Spellcaster: Bloodlust.",
+    "stats": {
+      "attack": 13,
+      "defense": 7,
+      "hitPoints": 60,
+      "speed": 5,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 672,
+      "combatValue": 672,
+      "damage": {
+        "min": 6,
+        "max": 12
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "roc": {
+    "name": "Roc",
+    "plural": "Rocs",
+    "abilityText": "",
+    "stats": {
+      "attack": 13,
+      "defense": 11,
+      "hitPoints": 60,
+      "speed": 7,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1027,
+      "combatValue": 790,
+      "damage": {
+        "min": 11,
+        "max": 15
+      },
+      "cost": {
+        "gold": 600
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "thunderbird": {
+    "name": "Thunderbird",
+    "plural": "Thunderbirds",
+    "abilityText": "Lightning strike.",
+    "stats": {
+      "attack": 13,
+      "defense": 11,
+      "hitPoints": 60,
+      "speed": 11,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1106,
+      "combatValue": 869,
+      "damage": {
+        "min": 11,
+        "max": 15
+      },
+      "cost": {
+        "gold": 700
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "cyclop": {
+    "name": "Cyclops",
+    "plural": "Cyclopes",
+    "abilityText": "Attacks siege walls.",
+    "stats": {
+      "attack": 15,
+      "defense": 12,
+      "hitPoints": 70,
+      "speed": 6,
+      "shots": 16,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1266,
+      "combatValue": 1055,
+      "damage": {
+        "min": 16,
+        "max": 20
+      },
+      "cost": {
+        "gold": 750
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "cyclopKing": {
+    "name": "Cyclops King",
+    "plural": "Cyclops Kings",
+    "abilityText": "Attacks siege walls.",
+    "stats": {
+      "attack": 17,
+      "defense": 13,
+      "hitPoints": 70,
+      "speed": 8,
+      "shots": 24,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1443,
+      "combatValue": 1110,
+      "damage": {
+        "min": 16,
+        "max": 20
+      },
+      "cost": {
+        "gold": 1100
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "behemoth": {
+    "name": "Behemoth",
+    "plural": "Behemoths",
+    "abilityText": "Target enemy's defense is reduced 40%.",
+    "stats": {
+      "attack": 17,
+      "defense": 17,
+      "hitPoints": 160,
+      "speed": 6,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 3162,
+      "combatValue": 3162,
+      "damage": {
+        "min": 30,
+        "max": 50
+      },
+      "cost": {
+        "gold": 1500
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "ancientBehemoth": {
+    "name": "Ancient Behemoth",
+    "plural": "Ancient Behemoths",
+    "abilityText": "Target enemy's defense is reduced 80%.",
+    "stats": {
+      "attack": 19,
+      "defense": 19,
+      "hitPoints": 300,
+      "speed": 9,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 6168,
+      "combatValue": 5397,
+      "damage": {
+        "min": 30,
+        "max": 50
+      },
+      "cost": {
+        "crystal": 1,
+        "gold": 3000
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "gnoll": {
+    "name": "Gnoll",
+    "plural": "Gnolls",
+    "abilityText": "",
+    "stats": {
+      "attack": 3,
+      "defense": 5,
+      "hitPoints": 6,
+      "speed": 4,
+      "shots": 0,
+      "growth": 12,
+      "horde": 6,
+      "aiValue": 56,
+      "combatValue": 70,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 50
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "gnollMarauder": {
+    "name": "Gnoll Marauder",
+    "plural": "Gnoll Marauders",
+    "abilityText": "",
+    "stats": {
+      "attack": 4,
+      "defense": 6,
+      "hitPoints": 6,
+      "speed": 5,
+      "shots": 0,
+      "growth": 12,
+      "horde": 6,
+      "aiValue": 90,
+      "combatValue": 90,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 70
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "lizardman": {
+    "name": "Lizardman",
+    "plural": "Lizardmen",
+    "abilityText": "",
+    "stats": {
+      "attack": 5,
+      "defense": 6,
+      "hitPoints": 14,
+      "speed": 4,
+      "shots": 12,
+      "growth": 9,
+      "horde": 0,
+      "aiValue": 126,
+      "combatValue": 115,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 110
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "lizardWarrior": {
+    "name": "Lizard Warrior",
+    "plural": "Lizard Warriors",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 8,
+      "hitPoints": 15,
+      "speed": 5,
+      "shots": 24,
+      "growth": 9,
+      "horde": 0,
+      "aiValue": 156,
+      "combatValue": 130,
+      "damage": {
+        "min": 2,
+        "max": 5
+      },
+      "cost": {
+        "gold": 140
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "gorgon": {
+    "name": "Gorgon",
+    "plural": "Gorgons",
+    "abilityText": "",
+    "stats": {
+      "attack": 10,
+      "defense": 14,
+      "hitPoints": 70,
+      "speed": 5,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 890,
+      "combatValue": 890,
+      "damage": {
+        "min": 12,
+        "max": 16
+      },
+      "cost": {
+        "gold": 525
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "mightyGorgon": {
+    "name": "Mighty Gorgon",
+    "plural": "Mighty Gorgons",
+    "abilityText": "Death stare.",
+    "stats": {
+      "attack": 11,
+      "defense": 16,
+      "hitPoints": 70,
+      "speed": 6,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1028,
+      "combatValue": 1028,
+      "damage": {
+        "min": 12,
+        "max": 16
+      },
+      "cost": {
+        "gold": 600
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "serpentFly": {
+    "name": "Serpent Fly",
+    "plural": "Serpent Flies",
+    "abilityText": "Dispels beneficial spells.",
+    "stats": {
+      "attack": 7,
+      "defense": 9,
+      "hitPoints": 20,
+      "speed": 9,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 268,
+      "combatValue": 215,
+      "damage": {
+        "min": 2,
+        "max": 5
+      },
+      "cost": {
+        "gold": 220
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 20
+      }
+    }
+  },
+  "fireDragonFly": {
+    "name": "Dragon Fly",
+    "plural": "Dragon Flies",
+    "abilityText": "Dispels beneficial spells.  Weakens enemies.",
+    "stats": {
+      "attack": 8,
+      "defense": 10,
+      "hitPoints": 20,
+      "speed": 13,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 312,
+      "combatValue": 250,
+      "damage": {
+        "min": 2,
+        "max": 5
+      },
+      "cost": {
+        "gold": 240
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "basilisk": {
+    "name": "Basilisk",
+    "plural": "Basilisks",
+    "abilityText": "Petrifying attack.",
+    "stats": {
+      "attack": 11,
+      "defense": 11,
+      "hitPoints": 35,
+      "speed": 5,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 552,
+      "combatValue": 506,
+      "damage": {
+        "min": 6,
+        "max": 10
+      },
+      "cost": {
+        "gold": 325
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "greaterBasilisk": {
+    "name": "Greater Basilisk",
+    "plural": "Greater Basilisks",
+    "abilityText": "Petrifying attack.",
+    "stats": {
+      "attack": 12,
+      "defense": 12,
+      "hitPoints": 40,
+      "speed": 7,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 714,
+      "combatValue": 561,
+      "damage": {
+        "min": 6,
+        "max": 10
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "wyvern": {
+    "name": "Wyvern",
+    "plural": "Wyverns",
+    "abilityText": "",
+    "stats": {
+      "attack": 14,
+      "defense": 14,
+      "hitPoints": 70,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1350,
+      "combatValue": 1050,
+      "damage": {
+        "min": 14,
+        "max": 18
+      },
+      "cost": {
+        "gold": 800
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "wyvernMonarch": {
+    "name": "Wyvern Monarch",
+    "plural": "Wyvern Monarchs",
+    "abilityText": "Poisonous.",
+    "stats": {
+      "attack": 14,
+      "defense": 14,
+      "hitPoints": 70,
+      "speed": 11,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1518,
+      "combatValue": 1181,
+      "damage": {
+        "min": 18,
+        "max": 22
+      },
+      "cost": {
+        "gold": 1100
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 10
+      }
+    }
+  },
+  "hydra": {
+    "name": "Hydra",
+    "plural": "Hydras",
+    "abilityText": "Attacks all adjacent enemies.  Enemies cannot retaliate.",
+    "stats": {
+      "attack": 16,
+      "defense": 18,
+      "hitPoints": 175,
+      "speed": 5,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 4120,
+      "combatValue": 4120,
+      "damage": {
+        "min": 25,
+        "max": 45
+      },
+      "cost": {
+        "gold": 2200
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "chaosHydra": {
+    "name": "Chaos Hydra",
+    "plural": "Chaos Hydras",
+    "abilityText": "Attacks all adjacent enemies.  Enemies cannot retaliate.",
+    "stats": {
+      "attack": 18,
+      "defense": 20,
+      "hitPoints": 250,
+      "speed": 7,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 5931,
+      "combatValue": 5272,
+      "damage": {
+        "min": 25,
+        "max": 45
+      },
+      "cost": {
+        "sulfur": 1,
+        "gold": 3500
+      },
+      "advMapAmount": {
+        "min": 3,
+        "max": 8
+      }
+    }
+  },
+  "airElemental": {
+    "name": "Air Elemental",
+    "plural": "Air Elementals",
+    "abilityText": "Lightning and firestorm vulnerability.",
+    "stats": {
+      "attack": 9,
+      "defense": 9,
+      "hitPoints": 25,
+      "speed": 7,
+      "shots": 0,
+      "growth": 6,
+      "horde": 0,
+      "aiValue": 356,
+      "combatValue": 324,
+      "damage": {
+        "min": 2,
+        "max": 8
+      },
+      "cost": {
+        "gold": 250
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "earthElemental": {
+    "name": "Earth Elemental",
+    "plural": "Earth Elementals",
+    "abilityText": "Meteor shower vulnerability.",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 40,
+      "speed": 4,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 330,
+      "combatValue": 415,
+      "damage": {
+        "min": 4,
+        "max": 8
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "fireElemental": {
+    "name": "Fire Elemental",
+    "plural": "Fire Elementals",
+    "abilityText": "Immune to fire.\nVulnerable to ice.",
+    "stats": {
+      "attack": 10,
+      "defense": 8,
+      "hitPoints": 35,
+      "speed": 6,
+      "shots": 0,
+      "growth": 5,
+      "horde": 0,
+      "aiValue": 345,
+      "combatValue": 345,
+      "damage": {
+        "min": 4,
+        "max": 6
+      },
+      "cost": {
+        "gold": 350
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "waterElemental": {
+    "name": "Water Elemental",
+    "plural": "Water Elementals",
+    "abilityText": "Immune to ice.\nVulnerable to fire.",
+    "stats": {
+      "attack": 8,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 5,
+      "shots": 0,
+      "growth": 6,
+      "horde": 0,
+      "aiValue": 315,
+      "combatValue": 315,
+      "damage": {
+        "min": 3,
+        "max": 7
+      },
+      "cost": {
+        "gold": 300
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "goldGolem": {
+    "name": "Gold Golem",
+    "plural": "Gold Golems",
+    "abilityText": "Damage from spells reduced 85%.",
+    "stats": {
+      "attack": 11,
+      "defense": 12,
+      "hitPoints": 50,
+      "speed": 5,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 600,
+      "combatValue": 600,
+      "damage": {
+        "min": 8,
+        "max": 10
+      },
+      "cost": {
+        "gold": 500
+      },
+      "advMapAmount": {
+        "min": 10,
+        "max": 16
+      }
+    }
+  },
+  "diamondGolem": {
+    "name": "Diamond Golem",
+    "plural": "Diamond Golems",
+    "abilityText": "Damage from spells reduced 95%.",
+    "stats": {
+      "attack": 13,
+      "defense": 12,
+      "hitPoints": 60,
+      "speed": 5,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 775,
+      "combatValue": 775,
+      "damage": {
+        "min": 10,
+        "max": 14
+      },
+      "cost": {
+        "gold": 750
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "pixie": {
+    "name": "Pixie",
+    "plural": "Pixies",
+    "abilityText": "",
+    "stats": {
+      "attack": 2,
+      "defense": 2,
+      "hitPoints": 3,
+      "speed": 7,
+      "shots": 0,
+      "growth": 20,
+      "horde": 10,
+      "aiValue": 55,
+      "combatValue": 40,
+      "damage": {
+        "min": 1,
+        "max": 2
+      },
+      "cost": {
+        "gold": 25
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "sprite": {
+    "name": "Sprite",
+    "plural": "Sprites",
+    "abilityText": "No enemy retaliation.",
+    "stats": {
+      "attack": 2,
+      "defense": 2,
+      "hitPoints": 3,
+      "speed": 9,
+      "shots": 0,
+      "growth": 20,
+      "horde": 10,
+      "aiValue": 95,
+      "combatValue": 70,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 30
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 30
+      }
+    }
+  },
+  "psychicElemental": {
+    "name": "Psychic Elemental",
+    "plural": "Psychic Elementals",
+    "abilityText": "Attacks all adjacent enemies w/o retaliation. Mind spell immunity.",
+    "stats": {
+      "attack": 15,
+      "defense": 13,
+      "hitPoints": 75,
+      "speed": 7,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1669,
+      "combatValue": 1431,
+      "damage": {
+        "min": 10,
+        "max": 20
+      },
+      "cost": {
+        "gold": 750
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 16
+      }
+    }
+  },
+  "magicElemental": {
+    "name": "Magic Elemental",
+    "plural": "Magic Elementals",
+    "abilityText": "Attacks all adjacent enemies w/o retaliation. Spell immunity.",
+    "stats": {
+      "attack": 15,
+      "defense": 13,
+      "hitPoints": 80,
+      "speed": 9,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 2012,
+      "combatValue": 1724,
+      "damage": {
+        "min": 15,
+        "max": 25
+      },
+      "cost": {
+        "gold": 800
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "unused122": {
+    "name": "NOT USED (1)",
+    "plural": "NOT USED (1)",
+    "abilityText": "",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "hitPoints": 0,
+      "speed": 0,
+      "shots": 0,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 0,
+      "combatValue": 0,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {},
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "iceElemental": {
+    "name": "Ice Elemental",
+    "plural": "Ice Elementals",
+    "abilityText": "Mind spell immunity. Ice immunity. Fire vulnerability.",
+    "stats": {
+      "attack": 8,
+      "defense": 10,
+      "hitPoints": 30,
+      "speed": 6,
+      "shots": 24,
+      "growth": 6,
+      "horde": 0,
+      "aiValue": 380,
+      "combatValue": 315,
+      "damage": {
+        "min": 3,
+        "max": 7
+      },
+      "cost": {
+        "gold": 375
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 20
+      }
+    }
+  },
+  "unused124": {
+    "name": "NOT USED (2) ",
+    "plural": "NOT USED (2)",
+    "abilityText": "",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "hitPoints": 0,
+      "speed": 0,
+      "shots": 0,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 0,
+      "combatValue": 0,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {},
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "magmaElemental": {
+    "name": "Magma Elemental",
+    "plural": "Magma Elementals",
+    "abilityText": "Mind spell immunity.  Casts protection from Earth.",
+    "stats": {
+      "attack": 11,
+      "defense": 11,
+      "hitPoints": 40,
+      "speed": 6,
+      "shots": 0,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 490,
+      "combatValue": 490,
+      "damage": {
+        "min": 6,
+        "max": 10
+      },
+      "cost": {
+        "gold": 500
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 25
+      }
+    }
+  },
+  "unused126": {
+    "name": "NOT USED (3)",
+    "plural": "NOT USED (3)",
+    "abilityText": "",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "hitPoints": 0,
+      "speed": 0,
+      "shots": 0,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 0,
+      "combatValue": 0,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {},
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "stormElemental": {
+    "name": "Storm Elemental",
+    "plural": "Storm Elementals",
+    "abilityText": "No melee penalty.  Lightning and firestorm vulnerability.",
+    "stats": {
+      "attack": 9,
+      "defense": 9,
+      "hitPoints": 25,
+      "speed": 8,
+      "shots": 24,
+      "growth": 6,
+      "horde": 0,
+      "aiValue": 486,
+      "combatValue": 324,
+      "damage": {
+        "min": 2,
+        "max": 8
+      },
+      "cost": {
+        "gold": 275
+      },
+      "advMapAmount": {
+        "min": 6,
+        "max": 12
+      }
+    }
+  },
+  "unused128": {
+    "name": "NOT USED (4)",
+    "plural": "NOT USED (4)",
+    "abilityText": "",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "hitPoints": 0,
+      "speed": 0,
+      "shots": 0,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 0,
+      "combatValue": 0,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {},
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "energyElemental": {
+    "name": "Energy Elemental",
+    "plural": "Energy Elementals",
+    "abilityText": "Casts Protect from Fire. Mind & fire immunity, cold vulnerability.",
+    "stats": {
+      "attack": 12,
+      "defense": 8,
+      "hitPoints": 35,
+      "speed": 8,
+      "shots": 0,
+      "growth": 5,
+      "horde": 0,
+      "aiValue": 470,
+      "combatValue": 360,
+      "damage": {
+        "min": 4,
+        "max": 6
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "firebird": {
+    "name": "Firebird",
+    "plural": "Firebirds",
+    "abilityText": "Breath attack.  Fire spell immunity.",
+    "stats": {
+      "attack": 18,
+      "defense": 18,
+      "hitPoints": 150,
+      "speed": 15,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 4547,
+      "combatValue": 3248,
+      "damage": {
+        "min": 30,
+        "max": 40
+      },
+      "cost": {
+        "gold": 1500
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "phoenix": {
+    "name": "Phoenix",
+    "plural": "Phoenixes",
+    "abilityText": "Breath attack.  Fire spell immunity.  Rebirth.",
+    "stats": {
+      "attack": 21,
+      "defense": 18,
+      "hitPoints": 200,
+      "speed": 21,
+      "shots": 0,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 6721,
+      "combatValue": 4929,
+      "damage": {
+        "min": 30,
+        "max": 40
+      },
+      "cost": {
+        "mercury": 1,
+        "gold": 2000
+      },
+      "advMapAmount": {
+        "min": 4,
+        "max": 10
+      }
+    }
+  },
+  "azureDragon": {
+    "name": "Azure Dragon",
+    "plural": "Azure Dragons",
+    "abilityText": "Fear.",
+    "stats": {
+      "attack": 50,
+      "defense": 50,
+      "hitPoints": 1000,
+      "speed": 19,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 78845,
+      "combatValue": 56315,
+      "damage": {
+        "min": 70,
+        "max": 80
+      },
+      "cost": {
+        "mercury": 20,
+        "gold": 30000
+      },
+      "advMapAmount": {
+        "min": 1,
+        "max": 3
+      }
+    }
+  },
+  "crystalDragon": {
+    "name": "Crystal Dragon",
+    "plural": "Crystal Dragons",
+    "abilityText": "Crystal generation.",
+    "stats": {
+      "attack": 40,
+      "defense": 40,
+      "hitPoints": 800,
+      "speed": 16,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 39338,
+      "combatValue": 30260,
+      "damage": {
+        "min": 60,
+        "max": 75
+      },
+      "cost": {
+        "crystal": 10,
+        "gold": 20000
+      },
+      "advMapAmount": {
+        "min": 1,
+        "max": 3
+      }
+    }
+  },
+  "fairieDragon": {
+    "name": "Faerie Dragon",
+    "plural": "Faerie Dragons",
+    "abilityText": "Offensive spell caster.",
+    "stats": {
+      "attack": 20,
+      "defense": 20,
+      "hitPoints": 500,
+      "speed": 15,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 19580,
+      "combatValue": 16317,
+      "damage": {
+        "min": 20,
+        "max": 30
+      },
+      "cost": {
+        "gems": 8,
+        "gold": 10000
+      },
+      "advMapAmount": {
+        "min": 1,
+        "max": 3
+      }
+    }
+  },
+  "rustDragon": {
+    "name": "Rust Dragon",
+    "plural": "Rust Dragons",
+    "abilityText": "Spits acid.",
+    "stats": {
+      "attack": 30,
+      "defense": 30,
+      "hitPoints": 750,
+      "speed": 17,
+      "shots": 0,
+      "growth": 1,
+      "horde": 0,
+      "aiValue": 26433,
+      "combatValue": 24030,
+      "damage": {
+        "min": 50,
+        "max": 50
+      },
+      "cost": {
+        "sulfur": 14,
+        "gold": 15000
+      },
+      "advMapAmount": {
+        "min": 1,
+        "max": 3
+      }
+    }
+  },
+  "enchanter": {
+    "name": "Enchanter",
+    "plural": "Enchanters",
+    "abilityText": "No melee penalty.\nGroup spell casters.",
+    "stats": {
+      "attack": 17,
+      "defense": 12,
+      "hitPoints": 30,
+      "speed": 9,
+      "shots": 32,
+      "growth": 2,
+      "horde": 0,
+      "aiValue": 1210,
+      "combatValue": 805,
+      "damage": {
+        "min": 14,
+        "max": 14
+      },
+      "cost": {
+        "gold": 750
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "sharpshooter": {
+    "name": "Sharpshooter",
+    "plural": "Sharpshooters",
+    "abilityText": "No Range or Barrier penalties.",
+    "stats": {
+      "attack": 12,
+      "defense": 10,
+      "hitPoints": 15,
+      "speed": 9,
+      "shots": 32,
+      "growth": 4,
+      "horde": 0,
+      "aiValue": 585,
+      "combatValue": 415,
+      "damage": {
+        "min": 8,
+        "max": 10
+      },
+      "cost": {
+        "gold": 400
+      },
+      "advMapAmount": {
+        "min": 5,
+        "max": 12
+      }
+    }
+  },
+  "halfling": {
+    "name": "Halfling",
+    "plural": "Halflings",
+    "abilityText": "Positive luck.",
+    "stats": {
+      "attack": 4,
+      "defense": 2,
+      "hitPoints": 4,
+      "speed": 5,
+      "shots": 24,
+      "growth": 15,
+      "horde": 0,
+      "aiValue": 75,
+      "combatValue": 60,
+      "damage": {
+        "min": 1,
+        "max": 3
+      },
+      "cost": {
+        "gold": 40
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "peasant": {
+    "name": "Peasant",
+    "plural": "Peasants",
+    "abilityText": "",
+    "stats": {
+      "attack": 1,
+      "defense": 1,
+      "hitPoints": 1,
+      "speed": 3,
+      "shots": 0,
+      "growth": 25,
+      "horde": 0,
+      "aiValue": 15,
+      "combatValue": 15,
+      "damage": {
+        "min": 1,
+        "max": 1
+      },
+      "cost": {
+        "gold": 10
+      },
+      "advMapAmount": {
+        "min": 20,
+        "max": 50
+      }
+    }
+  },
+  "boar": {
+    "name": "Boar",
+    "plural": "Boars",
+    "abilityText": "",
+    "stats": {
+      "attack": 6,
+      "defense": 5,
+      "hitPoints": 15,
+      "speed": 6,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 145,
+      "combatValue": 145,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 150
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "mummy": {
+    "name": "Mummy",
+    "plural": "Mummies",
+    "abilityText": "Curse.",
+    "stats": {
+      "attack": 7,
+      "defense": 7,
+      "hitPoints": 30,
+      "speed": 5,
+      "shots": 0,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 270,
+      "combatValue": 270,
+      "damage": {
+        "min": 3,
+        "max": 5
+      },
+      "cost": {
+        "gold": 300
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "nomad": {
+    "name": "Nomad",
+    "plural": "Nomads",
+    "abilityText": "Sandwalkers.",
+    "stats": {
+      "attack": 9,
+      "defense": 8,
+      "hitPoints": 30,
+      "speed": 7,
+      "shots": 0,
+      "growth": 7,
+      "horde": 0,
+      "aiValue": 345,
+      "combatValue": 285,
+      "damage": {
+        "min": 2,
+        "max": 6
+      },
+      "cost": {
+        "gold": 200
+      },
+      "advMapAmount": {
+        "min": 12,
+        "max": 25
+      }
+    }
+  },
+  "rogue": {
+    "name": "Rogue",
+    "plural": "Rogues",
+    "abilityText": "Spying.",
+    "stats": {
+      "attack": 8,
+      "defense": 3,
+      "hitPoints": 10,
+      "speed": 6,
+      "shots": 0,
+      "growth": 8,
+      "horde": 0,
+      "aiValue": 135,
+      "combatValue": 135,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 100
+      },
+      "advMapAmount": {
+        "min": 16,
+        "max": 30
+      }
+    }
+  },
+  "troll": {
+    "name": "Troll",
+    "plural": "Trolls",
+    "abilityText": "Regenerating.",
+    "stats": {
+      "attack": 14,
+      "defense": 7,
+      "hitPoints": 40,
+      "speed": 7,
+      "shots": 0,
+      "growth": 3,
+      "horde": 0,
+      "aiValue": 1024,
+      "combatValue": 1024,
+      "damage": {
+        "min": 10,
+        "max": 15
+      },
+      "cost": {
+        "gold": 500
+      },
+      "advMapAmount": {
+        "min": 8,
+        "max": 12
+      }
+    }
+  },
+  "catapult": {
+    "name": "Catapult",
+    "plural": "Catapults",
+    "abilityText": "Attacks siege walls.",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 1000,
+      "speed": 0,
+      "shots": 24,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 500,
+      "combatValue": 10,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {
+        "gold": 1
+      },
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "ballista": {
+    "name": "Ballista",
+    "plural": "Ballistas",
+    "abilityText": "",
+    "stats": {
+      "attack": 10,
+      "defense": 10,
+      "hitPoints": 250,
+      "speed": 0,
+      "shots": 24,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 600,
+      "combatValue": 650,
+      "damage": {
+        "min": 2,
+        "max": 3
+      },
+      "cost": {
+        "gold": 2500
+      },
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "firstAidTent": {
+    "name": "First Aid Tent",
+    "plural": "First Aid Tents",
+    "abilityText": "Heals troops.",
+    "stats": {
+      "attack": 0,
+      "defense": 0,
+      "hitPoints": 75,
+      "speed": 0,
+      "shots": 0,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 300,
+      "combatValue": 10,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {
+        "gold": 750
+      },
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "ammoCart": {
+    "name": "Ammo Cart",
+    "plural": "Ammo Carts",
+    "abilityText": "Unlimited ammunition.",
+    "stats": {
+      "attack": 0,
+      "defense": 5,
+      "hitPoints": 100,
+      "speed": 0,
+      "shots": 0,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 400,
+      "combatValue": 5,
+      "damage": {
+        "min": 0,
+        "max": 0
+      },
+      "cost": {
+        "gold": 1000
+      },
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  },
+  "arrowTower": {
+    "name": "Arrow Tower",
+    "plural": "Arrow Towers",
+    "abilityText": "Unlimited ammunition.",
+    "stats": {
+      "attack": 10,
+      "defense": 5,
+      "hitPoints": 100,
+      "speed": 0,
+      "shots": 99,
+      "growth": 0,
+      "horde": 0,
+      "aiValue": 400,
+      "combatValue": 5,
+      "damage": {
+        "min": 2,
+        "max": 4
+      },
+      "cost": {
+        "gold": 1000
+      },
+      "advMapAmount": {
+        "min": 0,
+        "max": 0
+      }
+    }
+  }
+}

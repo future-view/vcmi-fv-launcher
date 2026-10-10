@@ -1,0 +1,111 @@
+{
+	"type" : "object",
+	"$schema" : "http://json-schema.org/draft-04/schema",
+	"title" : "VCMI skill format",
+	"description" : "Format used to replace bonuses provided by secondary skills in VCMI",
+	"definitions" : {
+		"skillBonus" : {
+			"type" : "object",
+			"description" : "Set of bonuses provided by skill at given level",
+			"required" : ["description", "effects"],
+			"properties" : {
+				"description" : {
+					"type" : "string",
+					"description" : "localizable description"
+				},
+				"images" : {
+					"type" : "object",
+					"description" : "Skill icons of varying size",
+					"required" : [ "small", "medium", "large", "scenarioBonus"],
+					"properties" : {
+						"small" : {
+							"type" : "string",
+							"description" : "32x32 skill icon",
+							"format" : "imageFile"
+						},
+						"medium" : {
+							"type" : "string",
+							"description" : "44x44 skill icon",
+							"format" : "imageFile"
+						},
+						"large" : {
+							"type" : "string",
+							"description" : "82x93 skill icon",
+							"format" : "imageFile"
+						},
+						"scenarioBonus" : {
+							"type" : "string",
+							"description" : "58x64 skill icon for use as campaign scenario bonus",
+							"format" : "imageFile"
+						}
+					}
+				},
+				"effects" : {
+					"type" : "object",
+					"additionalProperties" : {
+						"$ref" : "bonusInstance.json"
+					}
+				}
+			}
+		}
+	},
+	"required" : ["name", "basic", "advanced", "expert", "specialty", "gainChance" ],
+	"properties" : {
+		"compatibilityIdentifiers" : {
+			"type" : "array",
+			"items" : {
+				"type" : "string"
+			},
+			"description" : "Additional identifiers that may refer to this object, to provide compatibility after object has been renamed"
+		},
+		"name" : {
+			"type" : "string",
+			"description" : "Mandatory, localizable skill name"
+		},
+		"index" : {
+			"type" : "number",
+			"description" : "Internal, numeric id of skill, required for existing skills"
+		},
+		"specialty" : {
+			"type" : "array",
+			"description" : "List of bonuses that are affected by hero specialty",
+			"items" : { "type" : "string" }
+		},
+		"gainChance" : {
+			"description" : "Chance for the skill to be offered on level-up (heroClass may override)",
+			"type" : "object",
+			"required" : ["might", "magic"],
+			"properties" : {
+				"might" : {
+					"type" : "number",
+					"description" : "Chance for hero classes with might affinity"
+				},
+				"magic" : {
+					"type" : "number",
+					"description" : "Chance for hero classes with magic affinity"
+				}
+			}
+		},
+		"base" : {
+			"type" : "object",
+			"description" : "will be merged with all levels",
+			"additionalProperties" : true
+		},
+		"basic" : {
+			"$ref" : "#/definitions/skillBonus"
+		},
+		"advanced" : {
+			"$ref" : "#/definitions/skillBonus"
+		},
+		"expert" : {
+			"$ref" : "#/definitions/skillBonus"
+		},
+		"tags" : {
+			"type" : "object",
+			"description" : "List of tags describing this skill",
+			"additionalProperties" : {
+				"type" : "boolean"
+			}
+		}
+	}
+}
