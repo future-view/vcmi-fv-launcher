@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Download, RefreshCw, Settings2 } from "lucide-react";
+import { Download, RefreshCw, Settings2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { compareModVersions } from "@/lib/modRepo";
 import { topRealmTags } from "@/lib/realm/intro";
@@ -68,6 +68,7 @@ function hueOf(id: string): number {
   return h;
 }
 
+/** 通用弹窗：右上角固定关闭按钮（用户不清楚可点遮罩关闭，必须给出显式出口）。 */
 function Modal({
   open,
   onClose,
@@ -79,6 +80,7 @@ function Modal({
   width?: number;
   children: ReactNode;
 }) {
+  const { t } = useI18n();
   if (!open) return null;
   return (
     <div
@@ -87,9 +89,18 @@ function Modal({
     >
       <div
         style={{ width }}
-        className="max-h-[86vh] overflow-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
+        className="relative max-h-[86vh] overflow-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
+        <button
+          type="button"
+          onClick={onClose}
+          title={t.app.close}
+          aria-label={t.app.close}
+          className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-800 hover:text-slate-200"
+        >
+          <X className="h-4 w-4" />
+        </button>
         {children}
       </div>
     </div>
