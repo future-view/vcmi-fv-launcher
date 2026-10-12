@@ -172,6 +172,26 @@ fn extract_icon_and_save_inner(p: &Path, game_dir: &Path, cache_root: &Path, mod
         }
         return None;
     }
+    // 无 alpha 的位图（bmp/png）常拿纯青 `(0,255,255)` 当透明底（H3 色键，见
+    // [`crate::infra::image::keyed_rgba`]）：实测 `hota.Factory` 的法术图标
+    // `iconCancel.bmp`（78×65）整张带青底。命中就先抠干净再落盘，否则青底会原样进缓存。
+    // ⚠️ 只处理**位图**：DEF 帧的透明已由 `palette[0]` 色键处理，且 78×65 这类超过
+    // matte 阈值（≤64px）的帧正是此前漏网的那一档。
+    let (buf, ext) = match crate::infra::image::strip_color_key_rgba(&buf) {
+        Some(rgba) => {
+            let mut webp = Vec::new();
+            match image::codecs::webp::WebPEncoder::new_lossless(&mut webp).encode(
+                rgba.as_raw(),
+                rgba.width(),
+                rgba.height(),
+                image::ExtendedColorType::Rgba8,
+            ) {
+                Ok(()) => (webp, String::from("webp")),
+                Err(_) => (buf, ext),
+            }
+        }
+        None => (buf, ext),
+    };
     // 四角抠图：仅对 ≤64px 的小图标且源为位图（png/bmp/webp）时执行
     let small_icon = matches!(ext.to_lowercase().as_str(), "png" | "bmp" | "webp");
     if small_icon {

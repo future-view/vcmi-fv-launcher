@@ -40,7 +40,7 @@ pub(crate) fn load_structure_frame(
                     resolve_resource(p, &cand).or_else(|| resolve_resource(core, &cand))
                 {
                     if let Ok(img) = image::load_from_memory(&pb) {
-                        return Some((img.to_rgba8(), 0, 0));
+                        return Some((crate::infra::image::keyed_rgba(img), 0, 0));
                     }
                 }
             }

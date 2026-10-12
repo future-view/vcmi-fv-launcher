@@ -196,6 +196,70 @@ pub(crate) fn encode_webp_lossy_q(rgba: &[u8], w: u32, h: u32, q: f32) -> Option
     }
 }
 
+/// H3 系素材的**位图色键**色：纯青 `(0,255,255)`。
+///
+/// 与既有两条解码路径同款：`decode_h3_pcx`（调色板洋青像素透明）、
+/// `infra::def` 的 `palette[0]` 色键。BMP/PNG 这类**没有 alpha 通道**的位图
+/// 没有调色板可依，只能沿用这个约定色表达透明。
+const H3_COLOR_KEY: [u8; 3] = [0x00, 0xFF, 0xFF];
+
+/// 位图解码为 RGBA，并对**无 alpha 通道**的位图套用 H3 色键（纯青 → 透明）。
+///
+/// ## 触发条件（两条都要满足）
+///
+/// - **没有 alpha 通道**（`DynamicImage::has_alpha()` 为假）：带 alpha 的图"透明与否"已由
+///   alpha 明确表达，再抠色键只会误伤真实的青色像素（不同 mod 的色键色并不统一）；
+/// - 且图中**确实存在**该色：否则原样返回 `None`，调用方零额外开销（不重编码）。
+///
+/// ## 为什么要有它
+///
+/// 实测两类素材都靠纯青色表达透明，缺了这一步就是"糊一块青色"：
+/// - `New Pavilion` 的 grail 动画帧（`Sprites/towndefsPavilion/grail/NPavGrail ani*.png`，
+///   409×164 RGB）用纯青铺"画面外"区域 → 城镇幕布左上角一块纯青矩形；
+/// - `hota.Factory` 的法术图标（`content/Sprites/spells/iconCancel.bmp`，78×65）用纯青当底
+///   → 百科法术卡片带青底。
+///
+/// ⚠️ **不适用于幕布底图**：底图是最终画布（VCMI 亦原样渲染），抠洞只会露出卡片底色，
+/// 因此 [`encode_webp`] 保持不变 —— 只对"要贴到别的东西上面的图"（结构帧 / 图标）生效。
+pub(crate) fn keyed_rgba(img: image::DynamicImage) -> image::RgbaImage {
+    let has_alpha = img.has_alpha();
+    let mut rgba = img.to_rgba8();
+    if has_alpha {
+        return rgba;
+    }
+    for px in rgba.chunks_exact_mut(4) {
+        if px[0] == H3_COLOR_KEY[0] && px[1] == H3_COLOR_KEY[1] && px[2] == H3_COLOR_KEY[2] {
+            px[3] = 0;
+        }
+    }
+    rgba
+}
+
+/// 同上，但入口是**字节**：命中色键才返回 `Some`（已抠好的 RGBA），未命中返回 `None`。
+///
+/// 供"先判断要不要处理、再决定要不要重编码"的调用点使用（如 [`crate::modcache::assets`]
+/// 的图标落盘），避免为每张图都白做一次编码。
+pub(crate) fn strip_color_key_rgba(buf: &[u8]) -> Option<image::RgbaImage> {
+    let img = image::load_from_memory(buf).ok()?;
+    let has_alpha = img.has_alpha();
+    let mut rgba = img.to_rgba8();
+    if has_alpha {
+        return None;
+    }
+    let mut hit = false;
+    for px in rgba.chunks_exact_mut(4) {
+        if px[0] == H3_COLOR_KEY[0] && px[1] == H3_COLOR_KEY[1] && px[2] == H3_COLOR_KEY[2] {
+            px[3] = 0;
+            hit = true;
+        }
+    }
+    if hit {
+        Some(rgba)
+    } else {
+        None
+    }
+}
+
 /// 将位图字节（bmp/png/jpg/pcx）编码为 webp。失败返回 None。
 /// 编码策略见 `encode_rgba_auto`：小图有损、大图无损。
 pub(crate) fn encode_webp(buf: &[u8], ext: &str) -> Option<Vec<u8>> {

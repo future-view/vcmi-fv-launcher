@@ -39,20 +39,7 @@ const WORST_DISPLAY_ZOOM: f64 = 148.0 / 64.0;
 /// 递增后首次运行会**清理全部 `@Nx` 变体**并重新生成 —— 变体的幂等判定只看
 /// "目标文件是否存在"，所以编码质量或分级规则变了，旧变体不会自己更新。
 /// （仅"倍率随显示器变化"不在此列：那由逐图 `target_rate` 对比自动清理。）
-///
-/// - v1 → v2：编码从 `encode_rgba_auto`（大图走无损，1600×748 约 1.5 MB）改为统一有损 q85（约 234 KB）；
-///   倍率从"全局统一"改为**按用途分级**（[`hd_target_box`]），大图不再跟着小图的倍率走。
-/// - v2 → v3（2026-09-22）：**按图性质分派算法与编码** —— 像素画走 xBRZ + 无损，
-///   抖动插画走 Lanczos3（xBRZ 会把插画抹成色块，实测 4x 明显更糊）。
-/// - v4 → v5（2026-09-23）：**变体源改为优先用官方 HD 素材**（`hd-edition` 的 `.pak`）——
-///   素材阶段把"有真高清源"的图登记进 `<mod>/hd-map.json`（见 `modcache::hd_map`），
-///   变体改由 HD 图生成（能整除的档位直接原图直出、零插值，否则按最小放大倍数整数放大），
-///   无 HD 覆盖的图仍从 1x 基准放大。源变了 ⇒ 旧变体必须整体清理重建。
-/// - v5 → v6（2026-10-09）：**小尺寸抖动插画改判像素画** —— 源图长边 ≤ [`SMALL_DITHER_EDGE`]
-///   的试算"插画"（creature/hero 58×64 抖动头像）在 AI 未接管时改走 xBRZ + 无损：
-///   实测（`hd_compare` 42 样本 + 肉眼）Lanczos3 把抖动磨成糊斑（用户报"2x/3x 模糊"的根因），
-///   xBRZ 可辨识度显著更高。分派变了 ⇒ 旧变体必须整体清理重建。
-pub const HD_SCHEME_VERSION: u32 = 6;
+pub const HD_SCHEME_VERSION: u32 = 1;
 
 /// 进程内"方案已核对"标志：`generate_for_mod` 会被 600+ 个 mod 调用，只应核对一次。
 static SCHEME_CHECKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

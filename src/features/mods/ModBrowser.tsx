@@ -164,6 +164,9 @@ export function ModBrowser({
     () => new Set([...flat.map((m) => m.id.toLowerCase()), ...RESERVED_MOD_IDS]),
     [flat],
   );
+  // 是否为内置保留 scope（`vcmi` / `core`）：大小写不敏感（mod.json 声明可能与保留 id 大小写不一致）。
+  const isReserved = (id: string) =>
+    [...RESERVED_MOD_IDS].some((r) => r.toLowerCase() === id.toLowerCase());
 
   const parentMap = useMemo(() => {
     const map = new Map<string, ModInfo>();
@@ -219,11 +222,14 @@ export function ModBrowser({
       // 必需依赖守卫（对齐 VCMI ModManager：依赖断裂会被拒绝加载）：
       // 若仍有其它启用模组把待移除的模组（或其子模组）列为 required `depends`，则阻止关闭。
       let blocker: { by: ModInfo; dep: string } | null = null;
+      // 依赖 id 比较大小写不敏感（同启用路径）：声明常与扫描 id 大小写不一致
+      // （实测 `New Pavillion` 声明 `new pavilion.dunes-terrain`，扫描 id 为 `New Pavilion.…`）
+      const removeLower = new Set<string>([...removeSet].map((x) => x.toLowerCase()));
       for (const r of removeSet) {
         for (const y of next) {
           if (removeSet.has(y)) continue;
           const ym = flatMap.get(y);
-          if (ym && ym.depends.includes(r)) {
+          if (ym && ym.depends.some((d) => removeLower.has(d.toLowerCase()))) {
             blocker = { by: ym, dep: r };
             break;
           }
@@ -300,23 +306,33 @@ export function ModBrowser({
             }
           });
         }
-        // 必需依赖（递归）：存在则一并启用，缺失则记下以便拒绝（与 VCMI 一致）
+        // 必需依赖（递归）：存在则一并启用，缺失则记下以便拒绝（与 VCMI 一致）。
+        // ⚠️ id 匹配必须大小写不敏感（VCMI 语义，同 isActiveMod / conflictsActive）：
+        // 实测 mod.json 里的依赖声明常与扫描 id 大小写不一致 ——
+        // `New Pavillion` 声明 `new pavilion.dunes-terrain`（实际 `New Pavilion.dunes-terrain`）、
+        // `tartarus` 声明 `tidesofwar`（实际 `tidesOfWar`）与 `newtown-terrains.icelandterrain`
+        // （实际 `...icelandTerrain`）。精确匹配会把**已安装**依赖误判为缺失 → 硬拦截启用。
         for (const d of cm.depends) {
-          if (installedIds.has(d)) {
-            // 真实可勾选项（顶层或已展开到磁盘的子模组）：一并启用；
+          const dm = flatMap.get(d) ?? lowerFlat.get(d.toLowerCase());
+          if (dm) {
+            // 真实可勾选项（顶层或已展开到磁盘的子模组）：一并启用（用扫描到的规范 id）；
             // 但若它是与已启用模组互斥的子模组，仅排除该子模组（不阻断其父/依赖链）。
-            const dm = flatMap.get(d);
-            if (dm?.isSubmod && conflictsActive(d)) continue;
-            if (!isSelected(d) && !toAdd.has(d)) {
-              toAdd.add(d);
-              stack.push(d);
+            if (dm.isSubmod && conflictsActive(dm.id)) continue;
+            if (!isSelected(dm.id) && !toAdd.has(dm.id)) {
+              toAdd.add(dm.id);
+              stack.push(dm.id);
             }
+          } else if (isReserved(d)) {
+            // 内置保留 scope（`vcmi` / `core`）：由引擎自带、不在目录扫描结果里，
+            // 但 VCMI 预设的启用列表确实含它们（实测官方预设 `mods: [vcmi, core]`）→
+            // 视为恒已满足。⚠️ 不能当成"未安装依赖"，否则会误报「缺少必需依赖 vcmi」。
+            if (!isSelected(d) && !toAdd.has(d)) toAdd.add(d);
           } else {
             // 依赖项不在目录扫描结果中：若它是「随父模组压缩在 content.zip 内的子模组」
             // （父模组 id 已安装），VCMI 会在加载父模组时一并解析 → 视为已满足、
             // 不报缺失、也不入 selected（由父模组整体启用带动）。其余才是真正缺失的依赖。
             const rid = rootId(d);
-            if (!(rid !== d && installedIds.has(rid))) {
+            if (!(rid !== d && lowerInstalled.has(rid.toLowerCase()))) {
               missingDeps.add(d);
               // 记「哪个模组缺哪些依赖」：分层处置时按来源判定可否「跳过子模组」
               const s = missingOf.get(cur) ?? new Set<string>();
@@ -853,6 +869,12 @@ function TownGroupSection({
   const { t } = useI18n();
   const parentName = localizedName(parent, lang);
   const parentIsTown = parent.type === "Town";
+  // 父模组自身是否真提供城镇（口径同 ModCard 的 isTown / L553 的 standalone）：
+  // 伞形 Town 包（实测 `New Pavilion`）自身 `factions` 为空、城镇内容全在子模组里，
+  // 但它 `modType=Town` 会被算作城镇行 —— 照旧渲染就会在城镇网格里多出一张
+  // 没有幕布图的卡片，与子模组的城镇图重复。自身无 factions 时不渲染父卡片
+  // （父模组仍可通过分组标题进详情、勾选子模组即联动父模组）。
+  const parentHasTown = parentIsTown && (parent.factions?.length ?? 0) > 0;
   const depTipOf = (m: ModInfo) =>
     defectIds?.has(m.id.toLowerCase()) ? t.mods.depTagTip : undefined;
 
@@ -889,7 +911,7 @@ function TownGroupSection({
 
       {!collapsed && (
         <div className="grid grid-cols-2 gap-3">
-          {parentIsTown && (
+          {parentHasTown && (
             <ModListItem
               mod={parent}
               lang={lang}
