@@ -790,6 +790,8 @@ export const en: LangDict = {
     skipVersion: "Skip this version",
     skipDefer: "Defer for now",
     downloadedNote: "The package is downloaded and kept; you can apply it anytime",
+    manualHint: "In-app updates are not available on this platform; please download the new version manually",
+    openDownload: "Open download page",
     skippedToast: "Skipped {ver}; check for updates in settings to restore reminders",
     undoSkip: "Undo",
     redDotReady: "Update package downloaded, awaiting restart to apply",

@@ -55,6 +55,14 @@ pub struct ManifestEntry {
     /// —— 解压后由 `download::staged_has_exe()` 判定，声明错也不会做错事。
     #[serde(default)]
     pub kind: Option<String>,
+    /// 更新签名（ADR 0008 D9：本期**不校验**，字段保留为前向兼容——
+    /// 将来引入 minisign 时存量清单无需迁移）。
+    #[serde(default)]
+    pub signature: Option<String>,
+    /// 更新方式（ADR 0008 D7）：`inplace`（缺省）/ `appimage` / `bundle` / `manual`。
+    /// 由 pack 的平台描述符写入；缺失时按 `platform::default_update_mode` 兜底。
+    #[serde(default, rename = "updateMode")]
+    pub update_mode: Option<String>,
 }
 
 impl ManifestEntry {
@@ -62,10 +70,23 @@ impl ManifestEntry {
     pub fn is_zip(&self) -> bool {
         matches!(self.format.as_deref(), Some("zip"))
     }
+
+    /// 更新方式：条目显式值优先；**缺失时按当前平台兜底**
+    ///（`platform::default_update_mode`：darwin 过渡态 = manual，其余 = inplace）。
+    pub fn mode(&self) -> super::platform::UpdateMode {
+        match self.update_mode.as_deref() {
+            Some(s) => super::platform::UpdateMode::from_manifest(Some(s)),
+            None => super::platform::default_update_mode(super::platform::target_triple().unwrap_or("")),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LauncherManifest {
+    /// 平台三元组（ADR 0008 D5）：与当前二进制不一致 → 按无更新处理
+    /// （防"下载了别的平台的包"这种配置错位）。
+    #[serde(default)]
+    pub platform: Option<String>,
     #[serde(default)]
     pub latest: Option<String>,
     /// 强制门槛：`current < minSupported` → 强制更新。缺省 = 无强制。
@@ -76,8 +97,8 @@ pub struct LauncherManifest {
     /// 放行**明文 http** 的下载地址（缺省 false = 只认 https）。
     ///
     /// 只认两种自担风险的场景（都必须显式声明，默认一律不放行）：
-    /// ① 本地预演：`release:preview` 生成的派生索引会写 `allowHttp: true`（回环静态服务）；
-    /// ② 自建 CDN 只有 http：由发行方在索引里声明。
+    /// ① 本地预演：`release:preview` 生成的 per-target 本地清单会写 `allowHttp: true`（回环静态服务）；
+    /// ② 自建 CDN 只有 http：由发行方在 `releases/update/<platform>.json` 里手工加 `allowHttp: true`。
     #[serde(default, rename = "allowHttp")]
     pub allow_http: bool,
 }
@@ -108,6 +129,12 @@ pub struct UpdateInfo {
     /// 包类型提示：`full`（缺省，含 exe，需关闭启动器替换）/ `config`（纯配置，可直接应用）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
+    /// 更新方式（inplace / appimage / bundle / manual）——manual 时前端只提示手动下载
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub update_mode: Option<String>,
+    /// 更新包下载地址（manual 模式给前端「打开下载页」用）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
     /// 是否应**自动弹出**更新弹窗（可选更新感知 L4）：
     /// 有可选更新且未跳过时，每版本首次发现立即为 true；同版本距上次自动弹窗满 7 天才再次为 true。
     /// 手动检查（`force=true`）与强制更新恒为 false（前者由用户主动打开弹窗，后者走 `ForcedUpdateOverlay`）。
@@ -227,6 +254,12 @@ fn fetch_manifest(url: &str, force: bool) -> Result<(LauncherManifest, bool), St
             }
             Err(be_err("upd_server_304_no_cache", ""))
         }
+        Ok((404, _, _)) => {
+            // 目标平台无清单（未构建 / 已停更）→ "检查过、此平台无发布"，
+            // 按**无更新**静默处理（区别于未配置 = 零网络行为；ADR 0008 D6）。
+            // 不走缓存兜底：清单被撤下时不应再 offer 旧版本。
+            Err(be_err("upd_manifest_not_found", ""))
+        }
         Ok((_, new_etag, bytes)) => {
             let manifest = parse_manifest(&bytes)?;
             let v = serde_json::to_value(&manifest)
@@ -252,9 +285,8 @@ fn parse_manifest(bytes: &[u8]) -> Result<LauncherManifest, String> {
         .map_err(|e| be_err("upd_manifest_invalid_json", &format!("{}", e)))?;
     let m: LauncherManifest = serde_json::from_value(v)
         .map_err(|e| be_err("upd_manifest_schema_invalid", &format!("{}", e)))?;
-    if m.versions.is_empty() {
-        return Err(be_err("updater_manifest_empty_versions", ""));
-    }
+    // ⚠️ 空 versions **不是错误**：该平台尚未发布任何版本（冷启动 / 已撤下）=
+    //    无更新，由 check_update 静默处理（ADR 0008 D6 同 404 口径）。
     Ok(m)
 }
 
@@ -322,6 +354,8 @@ pub fn check_update(force: bool) -> UpdateInfo {
             cached: None,
             configured: false,
             kind: None,
+            update_mode: None,
+            download_url: None,
             should_prompt: false,
             ready_to_apply: false,
         };
@@ -340,6 +374,8 @@ pub fn check_update(force: bool) -> UpdateInfo {
         cached: None,
         configured: false,
         kind: None,
+        update_mode: None,
+        download_url: None,
         should_prompt: false,
         ready_to_apply: false,
     };
@@ -352,6 +388,11 @@ pub fn check_update(force: bool) -> UpdateInfo {
     let Some(url) = url else {
         return info; // 未配置清单：完全不检查（零网络行为）
     };
+    // `{platform}` 占位符 → 当前三元组（ADR 0008 D5）；解析不出（未知 OS/ARCH）→ 无更新
+    let Some(url) = super::platform::resolve_manifest_url(&url) else {
+        tracing::warn!(target: "updater", "manifest_url 含 {{platform}} 但无法解析当前三元组，按无更新处理");
+        return info;
+    };
     info.configured = true;
     if !force && !cfg.as_ref().map(|c| c.update.auto_check).unwrap_or(true) {
         return info; // 用户关闭了自动检查
@@ -360,14 +401,32 @@ pub fn check_update(force: bool) -> UpdateInfo {
     match fetch_manifest(&url, force) {
         Ok((manifest, cached)) => {
             info.cached = Some(cached);
-            match resolve_target(&manifest) {
-                Ok(entry) => {
+            // 清单声明的平台与当前二进制不一致 → 配置错位，按无更新处理（ADR 0008 D5）
+            if let Some(p) = manifest.platform.as_deref() {
+                if super::platform::target_triple() != Some(p) {
+                    tracing::warn!(
+                        target: "updater",
+                        "更新清单平台({p})与当前二进制({:?})不一致，按无更新处理",
+                        super::platform::target_triple()
+                    );
+                    return info;
+                }
+            }
+            // 空清单 = 该平台尚未发布任何版本（冷启动 / 已撤下）→ **无更新**，
+            // 静默处理（连 force 也不报错；与 404 同口径，ADR 0008 D6）
+            if manifest.versions.is_empty() {
+                tracing::info!(target: "updater", "更新清单无任何版本（平台尚未发布）→ 无更新");
+                return info;
+            }
+            match resolve_target(&manifest) {                Ok(entry) => {
                     info.latest_version = entry.version.clone();
                     info.critical = entry.critical;
                     info.size = entry.size;
                     info.published_at = entry.published_at.clone();
                     info.notes_i18n = Some(entry.notes.clone()).filter(|m| !m.is_empty());
                     info.kind = entry.kind.clone();
+                    info.update_mode = Some(entry.mode().as_str().to_string());
+                    info.download_url = Some(entry.download.clone());
                     // 强制判定：current < minSupported（缓存命中同样生效 → 离线可阻断）
                     info.forced = manifest
                         .min_supported
@@ -485,11 +544,14 @@ pub fn check_update(force: bool) -> UpdateInfo {
             }
         }
         Err(e) => {
-            if force {
-                info.error = Some(e);
-                info.state = "error";
-            } else {
-                tracing::warn!(target: "updater", "更新清单拉取失败（静默跳过，不阻塞使用）: {e}");
+            // 目标平台无清单 = 无更新（静默；连 force 也不报错）；其余失败维持原行为
+            if !e.contains("upd_manifest_not_found") {
+                if force {
+                    info.error = Some(e);
+                    info.state = "error";
+                } else {
+                    tracing::warn!(target: "updater", "更新清单拉取失败（静默跳过，不阻塞使用）: {e}");
+                }
             }
         }
     }

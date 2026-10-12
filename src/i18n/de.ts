@@ -802,6 +802,8 @@ export const de: LangDict = {
     skipVersion: "Diese Version überspringen",
     skipDefer: "Vorerst überspringen",
     downloadedNote: "Paket wurde heruntergeladen und behalten; jederzeit anwendbar",
+    manualHint: "In-App-Updates sind auf dieser Plattform nicht verfügbar — bitte die neue Version manuell herunterladen",
+    openDownload: "Download-Seite öffnen",
     skippedToast: "{ver} übersprungen; in den Einstellungen auf Updates prüfen, um Erinnerungen wieder zu aktivieren",
     undoSkip: "Rückgängig",
     redDotReady: "Update-Paket heruntergeladen, wartet auf Neustart zum Anwenden",

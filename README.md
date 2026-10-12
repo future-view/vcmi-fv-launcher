@@ -1,5 +1,7 @@
 # VCMI Future Vision Launcher
 
+> Currently, only the `windows-x86_64` system is supported
+
 A standalone external desktop launcher **compatible with VCMI configurations**, with a "Future Vision" interface style.
 
 A better mod management panel (supports visualizing and picking town mods).

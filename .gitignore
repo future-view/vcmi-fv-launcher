@@ -24,9 +24,14 @@ out/
 .vite/
 # Fingerprint files in the release directory (releases/<dir>/release.json, not contract files, do not submit)
 release.json
-# Release product directory (see scripts/release.mjs): binaries are not included in the repository, **only the repository-level index is submitted**
+# Release product directory (see scripts/release.mjs): binaries are not included in the repository,
+# only the repository-level index **and per-platform update manifests** (the update source read by the launcher) are submitted
 releases/*
 !releases/index.json
+!releases/index.json.init
+!releases/update/
+!releases/update/*.json
+releases/update/*.local.json
 target/
 
 # --------------------------------------------------------------------------

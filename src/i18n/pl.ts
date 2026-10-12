@@ -802,6 +802,8 @@ export const pl: LangDict = {
     skipVersion: "Pomiń tę wersję",
     skipDefer: "Odłóż na później",
     downloadedNote: "Pakiet został pobrany i zachowany; możesz go zastosować w dowolnym momencie",
+    manualHint: "Na tej platformie aktualizacja w aplikacji jest niedostępna — pobierz nową wersję ręcznie",
+    openDownload: "Otwórz stronę pobierania",
     skippedToast: "Pominięto {ver}; w ustawieniach sprawdź aktualizacje, aby przywrócić przypomnienia",
     undoSkip: "Cofnij",
     redDotReady: "Pakiet aktualizacji pobrany, oczekuje na zastosowanie po restarcie",

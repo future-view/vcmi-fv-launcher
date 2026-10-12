@@ -3085,6 +3085,13 @@ export interface UpdateInfo {
    */
   kind?: string;
   /**
+   * 更新方式（ADR 0008 D7）：`inplace`（缺省）/ `appimage` / `bundle` / `manual`。
+   * `manual` = 该平台不做应用内更新（如 macOS 无签名证书的过渡期）——UI 只提示手动下载。
+   */
+  updateMode?: string;
+  /** 更新包下载地址（`manual` 模式给「打开下载页」用） */
+  downloadUrl?: string;
+  /**
    * 是否应**自动弹出**更新弹窗（可选更新感知 L4，7 天节流）：
    * 有可选更新且未跳过时，每版本首次发现立即为 true；同版本距上次自动弹窗满 7 天才再次为 true。
    * 手动检查（`force`）与强制更新恒为 false。

@@ -16,7 +16,9 @@
  *
  * 关键不变式（勿破坏）：
  *   1. **索引只由 publish 追加版本条目**；pack 最多自举 repo/download/preset 配置区块。
- *   2. `versions[]` 是 `releases[]` 的**投影**（生成物，勿手改）；`releases[].notes` 派生自 `ChangeLog.md`。
+ *   2. **更新源是 per-target 清单**（ADR 0008 D5）：`releases/update/<platform>.json`，由 publish 写、
+ *      提交进 git；`releases/index.json` 降级为浏览数据（`versions[]` 投影已退役）。
+ *   3. `releases[].notes` 派生自 `ChangeLog.md`。
  *   3. **契约版本必须等于 exe 编译版本**（`Cargo.toml`）；`--version` 只是发行标识（tag / Release title）。
  *      两者不一致时只有 `--no-update-chain`（不进更新链）一条出路。
  *   4. token 只从环境变量 / `.env.local` / `--token-file` 读，**绝不落盘**，输出一律脱敏。
@@ -47,10 +49,6 @@ const PATCH_REL = ".vcmi-fv-launcher/launcher.patch.json";
 const PRESET_DIR = path.join(ROOT, "src-tauri", "resources", "release-preset");
 const INDEX_REL = "releases/index.json";
 const INDEX_PATH = path.join(ROOT, "releases", "index.json");
-const LATEST_PATH = path.join(ROOT, "releases", "latest.json");
-/** 本地预演的**派生索引**（永不进 git：`.gitignore` 已忽略 `releases/*` 中除 index.json 外的文件） */
-const LOCAL_INDEX_REL = "releases/index.local.json";
-const LOCAL_INDEX_PATH = path.join(ROOT, "releases", "index.local.json");
 const DEFAULT_PREVIEW_PORT = 8765;
 const DEFAULT_CHANGELOG = path.join(ROOT, "ChangeLog.md");
 const SCHEMA = "vcmi-fv-launcher-release-index/1";
@@ -62,6 +60,74 @@ const NAME_RE = /^[A-Za-z0-9._-]+$/;
 const ASCII_RE = /^[\x20-\x7E]+$/;
 /** ChangeLog 语言块别名（其余一律用 VCMI 语言标识） */
 const LANG_ALIAS = { 中文: "chinese", 英文: "english", 繁体中文: "tchinese", 繁體中文: "tchinese" };
+
+/* ────────────────────────────── 平台描述符（ADR 0008 D1） ────────────────────────────── */
+
+/**
+ * 平台描述符 = pack 侧平台知识的**唯一真相源**（与 `src-tauri/src/updater/platform.rs` 镜像，
+ * 改一处必须同步另一处）。字段：
+ * - `bin`：`src-tauri/target/<profile>/` 下的主产物名（`app` 形态是目录）；
+ * - `kind`：产物形态（exe / app / elf）——决定便携包怎么组装；
+ * - `build`：`tauri build` 的附加参数（交叉编译的 `--target`）；
+ * - `bundles`：该平台允许的安装包类型（`--bundles` 只能取子集）；
+ * - `updateMode`：该平台的更新方式（写进 per-target 清单，updater 按它分派）。
+ */
+const TARGETS = {
+  "windows-x86_64": { bin: "vcmi-fv-launcher.exe", kind: "exe", build: [], bundles: ["nsis", "msi"], updateMode: "inplace" },
+  "darwin-aarch64": { bin: "VCMI-FV-Launcher.app", kind: "app", build: ["--target", "aarch64-apple-darwin"], bundles: ["dmg", "app"], updateMode: "bundle" },
+  "darwin-x86_64": { bin: "VCMI-FV-Launcher.app", kind: "app", build: ["--target", "x86_64-apple-darwin"], bundles: ["dmg", "app"], updateMode: "bundle" },
+  "linux-x86_64": { bin: "vcmi-fv-launcher", kind: "elf", build: [], bundles: ["deb", "appimage"], updateMode: "inplace" },
+};
+
+/** 安装包类型 → Tauri 产物子目录与扩展名（`bundle/<dir>/` 下找） */
+const BUNDLE_KIND = {
+  nsis: { dir: "nsis", ext: [".exe"] },
+  msi: { dir: "msi", ext: [".msi"] },
+  dmg: { dir: "dmg", ext: [".dmg"] },
+  // ⚠️ `app`（更新用 `.app.tar.gz`）在 Tauri 里落在 `bundle/macos/`，不是 `bundle/app/`
+  app: { dir: "macos", ext: [".tar.gz"] },
+  deb: { dir: "deb", ext: [".deb"] },
+  appimage: { dir: "appimage", ext: [".appimage", ".AppImage"] },
+};
+
+/** 宿主（OS/ARCH）→ target triple（与 Rust `updater/platform.rs::target_triple` 同一张表） */
+function hostTriple() {
+  if (process.platform === "win32" && process.arch === "x64") return "windows-x86_64";
+  if (process.platform === "win32" && process.arch === "arm64") return "windows-aarch64";
+  if (process.platform === "darwin" && process.arch === "arm64") return "darwin-aarch64";
+  if (process.platform === "darwin" && process.arch === "x64") return "darwin-x86_64";
+  if (process.platform === "linux" && process.arch === "x64") return "linux-x86_64";
+  if (process.platform === "linux" && process.arch === "arm64") return "linux-aarch64";
+  return null;
+}
+
+/** 解析平台：CLI > 宿主推断；不认识 → die（**绝不静默回退 Windows**） */
+function resolvePlatform(opt) {
+  if (opt) {
+    if (!TARGETS[opt]) die(`未知平台 "${opt}"（可用：${Object.keys(TARGETS).join(" / ")}）`);
+    return opt;
+  }
+  const host = hostTriple();
+  if (host && !TARGETS[host]) {
+    die(
+      `当前主机是 ${host}，尚未纳入 TARGETS 描述符（暂不支持）。\n` +
+        `  请显式 --platform 选择已支持平台：${Object.keys(TARGETS).join(" / ")}`,
+    );
+  }
+  if (!host) {
+    die(
+      `无法从当前主机推断平台（${process.platform}-${process.arch}）。\n` +
+        `  请显式指定 --platform <triple>（可用：${Object.keys(TARGETS).join(" / ")}）`,
+    );
+  }
+  return host;
+}
+
+/** 发行目录名 → 平台三元组（`<version>_<stamp>[_flavor]_<platform>` 末段；认不出返回 null） */
+function dirPlatform(dir) {
+  const n = String(dir).replace(/\\/g, "/");
+  return Object.keys(TARGETS).find((t) => n.endsWith(`_${t}`)) ?? null;
+}
 
 /* ────────────────────────────── 日志与基础工具 ────────────────────────────── */
 
@@ -166,7 +232,9 @@ function crc32(buf) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-/** entries: [{ name, data }]（name 用 `/` 分隔）。小文件自动退化为 store。 */
+/** entries: [{ name, data, mode }]（name 用 `/` 分隔）。小文件自动退化为 store。
+ *  `mode` = Unix 权限位（ADR 0008 D3）：主程序 0755、其余 0644，缺省 0644。
+ *  ⚠️ 必须写权限位 + Unix 宿主标识：否则 mac/linux 解出的主程序是 0644 **不可执行**。 */
 function buildZip(entries) {
   const parts = [];
   const central = [];
@@ -195,7 +263,7 @@ function buildZip(entries) {
 
     const cd = Buffer.alloc(46);
     cd.writeUInt32LE(0x02014b50, 0);
-    cd.writeUInt16LE(20, 4);
+    cd.writeUInt16LE((3 << 8) | 20, 4); // version made by：Unix 宿主（高字节 3）+ 规格 2.0
     cd.writeUInt16LE(20, 6);
     cd.writeUInt16LE(0, 8);
     cd.writeUInt16LE(method, 10);
@@ -209,7 +277,7 @@ function buildZip(entries) {
     cd.writeUInt16LE(0, 32);
     cd.writeUInt16LE(0, 34);
     cd.writeUInt16LE(0, 36);
-    cd.writeUInt32LE(0, 38);
+    cd.writeUInt32LE((e.mode ?? 0o644) << 16, 38); // external attrs：Unix 权限位（ADR 0008 D3）
     cd.writeUInt32LE(offset, 42);
     central.push(cd, nameBuf);
 
@@ -291,6 +359,16 @@ function firstMatch(dir, exts) {
   return null;
 }
 
+/** 源文件的 Unix 权限位（供 zip external attrs 用）：带可执行位 → 0755，否则 0644 */
+function unixMode(abs) {
+  try {
+    if (fs.statSync(abs).mode & 0o111) return 0o755;
+  } catch {
+    /* 取不到 mode 就走兜底 */
+  }
+  return 0o644;
+}
+
 function readCargoVersion() {
   const cargo = fs.readFileSync(path.join(ROOT, "src-tauri", "Cargo.toml"), "utf8");
   const afterPkg = cargo.split(/^\s*\[package\s*\]/m)[1] ?? cargo;
@@ -308,6 +386,13 @@ function git(args, { quiet = true } = {}) {
   return (r.stdout || "").trim();
 }
 
+/** origin 的默认分支（`git symbolic-ref refs/remotes/origin/HEAD` → 如 `main`；取不到返回 ""） */
+function originDefaultBranch() {
+  const ref = git(["symbolic-ref", "refs/remotes/origin/HEAD"]);
+  const m = ref && ref.match(/^refs\/remotes\/origin\/(.+)$/);
+  return m ? m[1] : "";
+}
+
 /* ────────────────────────────── 索引 ────────────────────────────── */
 
 function loadIndex() {
@@ -317,7 +402,6 @@ function loadIndex() {
     die(`索引 schema 不认识（${v.schema} / v${v.schemaVersion}）：请升级发行脚本`);
   }
   if (!Array.isArray(v.releases)) v.releases = [];
-  if (!Array.isArray(v.versions)) v.versions = [];
   return v;
 }
 
@@ -330,22 +414,27 @@ function resolveRepo(opts, index) {
   let branch = opts.branch || r.defaultBranch || "";
   if (!owner || !name || !branch) {
     const url = git(["remote", "get-url", "origin"]);
-    const m = url && url.match(/github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?$/i);
+    // SSH（scp 风格 `git@host:owner/repo.git`）与 https 两种形态；**host 不限于 github.com**——
+    // 自定义 SSH 别名（如 git@github-future-view:…）与 GHE 域名都要能解析出 owner/repo
+    // （旧正则只认字面 github.com，自定义别名下整个推断静默失败 → 分支错落到了 master 兜底）。
+    const m = url && url.match(/^(?:git@|[^:/]+@|[a-z]+:\/\/)[^/:]+[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
     if (m) {
       owner = owner || m[1];
       name = name || m[2];
-      branch = branch || git(["rev-parse", "--abbrev-ref", "HEAD"]) || "master";
+      // 分支优先级：显式 --branch > 索引 > **origin 默认分支** > 当前 HEAD > main。
+      // ⚠️ 不再猜 master：GitHub 2020 后默认分支是 main；raw 地址指错分支 = 用户侧 404。
+      branch = branch || originDefaultBranch() || git(["rev-parse", "--abbrev-ref", "HEAD"]) || "main";
     }
   }
   if (!owner || !name) {
     die(
       "无法确定 GitHub 仓库（owner/repo）。请任选其一：\n" +
-        "  ① 传参：--owner <账号> --repo <仓库名> [--branch master]\n" +
+        "  ① 传参：--owner <账号> --repo <仓库名> [--branch main]\n" +
         "  ② 配置远端：git remote add origin https://github.com/<账号>/<仓库名>.git\n" +
         "  ③ 在 releases/index.json 顶部 repo 区块里写死（首次自举后即固化）",
     );
   }
-  if (!branch) branch = "master";
+  if (!branch) branch = "main";
   const host = provider === "gitee" ? "gitee.com" : "github.com";
   const rawBase =
     provider === "gitee"
@@ -402,16 +491,21 @@ function deepMerge(base, over) {
 }
 
 /**
- * 预置策略：缺省 = `{ base: { update.manifest_url: <repo.indexUrl> }, flavors: { ai: … } }`。
- * ⚠️ `manifest_url` 缺省（或仍等于索引自己声明的 indexUrl，即自举产物）→ 跟随解析出的仓库；
- *    开发者显式改成别的地址（如自建 CDN 索引）→ **原样尊重**。
+ * 预置策略：缺省 = `{ base: { update.manifest_url: <repo 的 per-target 清单模板> }, flavors: { ai: … } }`。
+ * ⚠️ `manifest_url` 缺省 / 仍等于旧的 indexUrl（自举产物或历史默认）→ 跟随解析出的仓库，
+ *    写成 **`{platform}` 占位符模板**（ADR 0008 D5：启动器只拉自己平台那一份；
+ *    冷启动时若沿用旧的 index.json 地址，更新链从第一天就是断的）；
+ *    开发者显式改成别的地址（如自建 CDN）→ **原样尊重**。
  */
 function resolvePreset(index, repo) {
   const p = index?.preset ?? {};
   const base = deepMerge({}, p.base ?? {});
   const oldUrl = index?.repo?.indexUrl;
-  const auto = !base.update?.manifest_url || (oldUrl && base.update.manifest_url === oldUrl);
-  if (auto) base.update = { ...(base.update ?? {}), manifest_url: repo.indexUrl };
+  // 新模型默认值：由 indexUrl 换路径后缀得到 per-target 清单模板
+  const defaultUrl = String(repo.indexUrl).replace(/releases\/index\.json$/, "releases/update/{platform}.json");
+  const cur = base.update?.manifest_url;
+  const auto = !cur || cur === oldUrl || cur === repo.indexUrl;
+  if (auto) base.update = { ...(base.update ?? {}), manifest_url: defaultUrl };
   const flavors = p.flavors && typeof p.flavors === "object" ? p.flavors : {};
   return { base, flavors };
 }
@@ -461,7 +555,6 @@ function bootstrapIndex(index, repo, dl, preset) {
   index.product = index.product ?? PRODUCT;
   index.channel = index.channel ?? "stable";
   index.latest = index.latest ?? null;
-  index.minSupported = index.minSupported ?? null;
   index.repo = {
     provider: repo.provider,
     owner: repo.owner,
@@ -473,7 +566,9 @@ function bootstrapIndex(index, repo, dl, preset) {
   index.download = {
     base: dl.base,
     pathTemplate: dl.tpl,
-    note: "换自建源 / CDN / Gitee 只改这里；{base} {tag} {name} {release} 为占位符",
+    // ⚠️ 只影响**今后的** publish：per-target 更新清单在发布时把**绝对 URL** 烘进条目，
+    //    改 base 不会重定向已发布的旧条目（要迁移旧条目得手工改 releases/update/*.json）。
+    note: "换自建源 / CDN / Gitee 改这里（仅影响今后的 publish；已发布清单里是绝对 URL）；占位符 {base} {tag} {name} {release}",
   };
   index.preset = {
     base: preset.base,
@@ -486,36 +581,44 @@ function bootstrapIndex(index, repo, dl, preset) {
   return changed;
 }
 
-/** `versions[]` 投影（生成物；§4.4） */
-function projectVersions(index) {
-  const rows = (index.releases ?? []).filter((r) => r && r.updateVersion);
-  const seen = new Set();
-  return rows
-    .map((r) => {
-      const a = (r.assets ?? []).find((x) => x.role === "update");
-      if (!a) die(`发行 ${r.release} 缺少 role=update 的资产，无法投影`);
-      if (seen.has(r.updateVersion)) die(`契约版本 ${r.updateVersion} 在 releases[] 中重复（同一版本只能有一条进更新链）`);
-      seen.add(r.updateVersion);
-      return {
-        version: r.updateVersion,
-        download: a.url,
-        sha256: a.sha256,
-        size: a.size,
-        publishedAt: r.publishedAt || "",
-        critical: !!r.critical,
-        format: String(a.name).toLowerCase().endsWith(".zip") ? "zip" : "exe",
-        kind: "full",
-        notes: { ...(r.notes ?? {}) },
-      };
-    })
-    .sort((a, b) => cmpVersion(b.version, a.version));
+/* ────────────────────────────── per-target 更新清单（ADR 0008 D5） ────────────────────────────── */
+
+/** 更新清单 schema（启动器 `updater/manifest.rs` 只认这个） */
+const UPDATE_SCHEMA = "vcmi-fv-launcher-update-manifest/2";
+
+/** per-target 清单路径：`releases/update/<platform>.json`（提交进 git；启动器唯一更新源） */
+function targetManifestPath(platform) {
+  return path.join(ROOT, "releases", "update", `${platform}.json`);
 }
 
-function refreshProjection(index) {
-  index.versions = projectVersions(index);
-  index.latest = index.versions.length ? index.versions[0].version : null;
-  index.updatedAt = todayLocal();
-  return index;
+/** 读 per-target 清单（不存在 → null；schema / platform 不符 → die） */
+function loadTargetManifest(platform) {
+  const p = targetManifestPath(platform);
+  if (!fs.existsSync(p)) return null;
+  const v = readJson(p, `更新清单 releases/update/${platform}.json`);
+  if (v.schema !== UPDATE_SCHEMA) die(`更新清单 schema 不认识（${v.schema}）：请升级发行脚本`);
+  if (v.platform !== platform) die(`更新清单 platform 字段（${v.platform}）与文件名（${platform}）不一致`);
+  return v;
+}
+
+/**
+ * upsert 一个版本条目到 per-target 清单（publish 调用；条目形状 = `updater/manifest.rs::ManifestEntry`）。
+ * 同版本号整体替换；`minSupported` 只升不降（调用方已校验，这里只落盘）。
+ */
+function upsertTargetManifest(platform, item, minSupported) {
+  const cur = loadTargetManifest(platform);
+  const versions = (cur?.versions ?? []).filter((v) => v.version !== item.version);
+  versions.unshift(item);
+  versions.sort((a, b) => cmpVersion(b.version, a.version));
+  const out = {
+    schema: UPDATE_SCHEMA,
+    platform,
+    latest: versions.length ? versions[0].version : null,
+    minSupported: minSupported ?? cur?.minSupported ?? null,
+    versions,
+  };
+  writeJsonAtomic(targetManifestPath(platform), out);
+  return out;
 }
 
 /* ────────────────────────────── ChangeLog 解析 ────────────────────────────── */
@@ -702,23 +805,30 @@ function stamp() {
 }
 
 /**
- * 把 `src-tauri/target/<profile>` 的产物整理到 `releases/<version>_<stamp>[_flavor]/`。
- * ⚠️ 便携 zip **只含程序文件**（exe + 组件 + 预置补丁），绝不含 `.vcmi-fv-launcher/` 下的用户数据。
- * ⚠️ 安装包只在"本次构建产出"（mtime ≥ exe − 5min）时才复制：bundle 失败/被跳过不会报错，
+ * 把 `src-tauri/target/<profile>` 的产物整理到 `releases/<version>_<stamp>[_flavor]_<platform>/`。
+ * ⚠️ 目录名**必须带 platform 后缀**：同一小时连打两个平台，第二次的 rmSync 会删掉第一次的产物。
+ * ⚠️ 便携 zip **只含程序文件**（主产物 + 组件 + 预置补丁），绝不含 `.vcmi-fv-launcher/` 下的用户数据。
+ * ⚠️ 安装包只在"本次构建产出"（mtime ≥ 主产物 − 5min）时才复制：bundle 失败/被跳过不会报错，
  *    旧包进新目录（时间戳新、内容旧）比缺文件更危险。
  */
-function extractArtifacts({ profile, flavor, zip }) {
+function extractArtifacts({ profile, flavor, zip, platform, bundles = [] }) {
+  const desc = TARGETS[platform];
   const profileDir = path.join(ROOT, "src-tauri", "target", profile);
-  const exe = path.join(profileDir, EXE_NAME);
-  if (!fs.existsSync(exe)) {
+  const bin = path.join(profileDir, desc.bin);
+  // `app` 形态是目录（.app）；exe/elf 是单文件
+  const binOk =
+    desc.kind === "app"
+      ? fs.statSync(bin, { throwIfNoEntry: false })?.isDirectory() === true
+      : fs.existsSync(bin);
+  if (!binOk) {
     die(
-      `未找到 ${path.relative(ROOT, exe)}（profile=${profile}）。\n` +
+      `未找到 ${path.relative(ROOT, bin)}（profile=${profile} / platform=${platform}）。\n` +
         `  请先构建，或去掉 --no-build（pack 缺省会自己跑构建）。`,
     );
   }
   const version = readCargoVersion();
   const ts = stamp();
-  const dirName = `${version}_${ts}${flavor ? `_${flavor}` : ""}`;
+  const dirName = `${version}_${ts}${flavor ? `_${flavor}` : ""}_${platform}`;
   const outDir = path.join(ROOT, "releases", dirName);
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
@@ -756,19 +866,29 @@ function extractArtifacts({ profile, flavor, zip }) {
   }
   const presetFiles = [{ name: PATCH_REL, abs: presetPath }];
 
-  // 1) 主程序
-  const exeDest = path.join(outDir, EXE_NAME);
-  fs.copyFileSync(exe, exeDest);
-  artifacts.exe = { file: EXE_NAME, ...sha256File(exeDest) };
-  artifacts.exe.sizeHuman = humanSize(artifacts.exe.size);
+  // 1) 主程序（exe/elf 复制进发行目录供手动分发；app 是目录、只进便携包，不单独落盘）
+  if (desc.kind !== "app") {
+    const exeDest = path.join(outDir, desc.bin);
+    fs.copyFileSync(bin, exeDest);
+    artifacts.exe = { file: desc.bin, ...sha256File(exeDest) };
+    artifacts.exe.sizeHuman = humanSize(artifacts.exe.size);
+  }
 
-  // 2) 便携 zip
+  // 2) 便携 zip（更新资产；按 kind 分派组装）
   let portable = null;
   if (zip) {
-    const entries = [{ name: EXE_NAME, data: fs.readFileSync(exe) }];
+    const entries = [];
+    if (desc.kind === "app") {
+      // `.app` 是目录：整体打包，权限位沿用源文件（可执行位 → 0755）
+      for (const f of walk(bin)) {
+        entries.push({ name: f.rel, data: fs.readFileSync(f.abs), mode: unixMode(f.abs) });
+      }
+    } else {
+      entries.push({ name: desc.bin, data: fs.readFileSync(bin), mode: 0o755 });
+    }
     for (const c of componentFiles) entries.push({ name: c.name, data: fs.readFileSync(c.abs) });
     for (const p of presetFiles) entries.push({ name: p.name, data: fs.readFileSync(p.abs) });
-    const zipName = `portable_${version}_${ts}${flavor ? `_${flavor}` : ""}.zip`;
+    const zipName = `portable_${version}_${ts}_${platform}${flavor ? `_${flavor}` : ""}.zip`;
     const zipDest = path.join(outDir, zipName);
     fs.writeFileSync(zipDest, buildZip(entries));
     portable = { file: zipName, ...sha256File(zipDest) };
@@ -777,18 +897,19 @@ function extractArtifacts({ profile, flavor, zip }) {
     artifacts.portable = portable;
   }
 
-  // 3) 安装包（可能不存在：网络受限 / bundle 被跳过）
-  const exeMtimeMs = fs.statSync(exe).mtimeMs;
-  const bundleBuiltAt = { nsis: null, msi: null };
-  const takeBundleArtifact = (kind, exts) => {
-    const src = firstMatch(path.join(profileDir, "bundle", kind), exts);
+  // 3) 安装包（按 --bundles 请求的类型逐个提取；可能不存在：bundle 被跳过 / 缺工具链）
+  const binMtimeMs = fs.statSync(bin).mtimeMs;
+  const bundleBuiltAt = {};
+  const takeBundleArtifact = (kind) => {
+    const spec = BUNDLE_KIND[kind];
+    const src = firstMatch(path.join(profileDir, "bundle", spec.dir), spec.ext);
     if (!src) return null;
     const mtimeMs = fs.statSync(src).mtimeMs;
-    if (mtimeMs + BUNDLE_MTIME_TOLERANCE_MS < exeMtimeMs) {
+    if (mtimeMs + BUNDLE_MTIME_TOLERANCE_MS < binMtimeMs) {
       warnPkg(
-        `跳过陈旧的 ${kind}：${path.basename(src)}（${new Date(mtimeMs).toISOString()}）早于本次 exe` +
-          `（${new Date(exeMtimeMs).toISOString()}）—— 本次构建没有生成安装包` +
-          `（离线缺 wix / NSIS 工具，或用了 --no-bundle）`,
+        `跳过陈旧的 ${kind}：${path.basename(src)}（${new Date(mtimeMs).toISOString()}）早于本次主产物` +
+          `（${new Date(binMtimeMs).toISOString()}）—— 本次构建没有生成它` +
+          `（缺该平台 bundler 工具链，或本次没请求）`,
       );
       return null;
     }
@@ -796,29 +917,24 @@ function extractArtifacts({ profile, flavor, zip }) {
     return src;
   };
 
-  const nsis = takeBundleArtifact("nsis", [".exe"]);
-  if (nsis) {
-    const dest = path.join(outDir, path.basename(nsis));
-    fs.copyFileSync(nsis, dest);
-    artifacts.nsis = { file: path.basename(nsis), ...sha256File(dest) };
-    artifacts.nsis.sizeHuman = humanSize(artifacts.nsis.size);
-  }
-  // ⚠️ AI 版**不看 msi**：`tauri.ai-runtime.conf.json` 里 `bundle.targets = ["nsis"]`
-  //    （WiX 侧不打包 `.vcmi-fv-launcher` 点开头目录）—— 出 MSI 等于产出"标称 AI 版却不含组件"的包。
-  if (flavor !== "ai") {
-    const msi = takeBundleArtifact("msi", [".msi"]);
-    if (msi) {
-      const dest = path.join(outDir, path.basename(msi));
-      fs.copyFileSync(msi, dest);
-      artifacts.msi = { file: path.basename(msi), ...sha256File(dest) };
-      artifacts.msi.sizeHuman = humanSize(artifacts.msi.size);
-    }
+  for (const kind of bundles) {
+    // ⚠️ AI 版**不出 msi**：WiX 不打包 `.vcmi-fv-launcher` 点开头目录——
+    //    出 MSI 等于产出"标称 AI 版却不含组件"的包。
+    if (kind === "msi" && flavor === "ai") continue;
+    const src = takeBundleArtifact(kind);
+    if (!src) continue;
+    const dest = path.join(outDir, path.basename(src));
+    fs.copyFileSync(src, dest);
+    artifacts[kind] = { file: path.basename(src), ...sha256File(dest) };
+    artifacts[kind].sizeHuman = humanSize(artifacts[kind].size);
   }
 
   // 4) release.json（顶层 sha256/size = 主更新产物）
   const primary = portable ?? artifacts.exe;
   const info = {
     version,
+    platform,
+    updateMode: desc.updateMode,
     sha256: primary.hash,
     size: primary.size,
     format: portable ? "zip" : "exe",
@@ -832,7 +948,7 @@ function extractArtifacts({ profile, flavor, zip }) {
     bundleBuiltAt,
     ...(flavor === "ai" ? { componentBytes } : {}),
     ...(warnings.length ? { warnings } : {}),
-    exe: EXE_NAME,
+    bin: desc.bin,
     sizeHuman: primary.sizeHuman,
     artifacts,
   };
@@ -1078,8 +1194,25 @@ function resolveNaming(index, opts, version) {
 }
 
 /** 单调性守卫：更新器只在 `current < version` 时提示 ⇒ 版本号不可回退、同号重发无效 */
+/** 全部 per-target 清单里已发布的契约版本（单调性守卫用） */
+function publishedVersions() {
+  const dir = path.join(ROOT, "releases", "update");
+  if (!fs.existsSync(dir)) return [];
+  const out = [];
+  for (const f of fs.readdirSync(dir)) {
+    if (!f.endsWith(".json") || f.endsWith(".local.json")) continue;
+    try {
+      const m = readJson(path.join(dir, f), `更新清单 releases/update/${f}`);
+      for (const v of m.versions ?? []) if (v.version) out.push(v.version);
+    } catch {
+      /* 坏清单不阻塞单调性判断（verify 会报出来） */
+    }
+  }
+  return out;
+}
+
 function checkMonotonic(index, version, { allow = false } = {}) {
-  const versions = (index?.versions ?? []).map((v) => v.version).filter(Boolean);
+  const versions = publishedVersions();
   if (!versions.length) return null;
   const max = versions.sort((a, b) => cmpVersion(b, a))[0];
   if (cmpVersion(version, max) > 0) return null;
@@ -1217,14 +1350,33 @@ function cmdPack(opts) {
         `  要改版本请去掉 --no-build；只想换发行标识请用 --tag / --title。`,
     );
   }
-  // Windows 安装包（WiX/MSI）只接受**纯数字**版本：`0.1.0-dev.1` 会让 bundle 直接失败
-  // （实测 `optional pre-release identifier in app version must be numeric-only ... for msi target`）
-  if (/[+-]/.test(targetVersion) && !noBundle) {
+  // ── 平台与安装包（ADR 0008 D1/D2）──
+  const platform = resolvePlatform(opts.platform);
+  const desc = TARGETS[platform];
+  let bundles = (opts.bundles ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (noBundle && bundles.length) {
+    warn(`${opts.test ? "--test" : "--no-bundle"} 下忽略 --bundles（${bundles.join(",")}）`);
+    bundles = [];
+  }
+  const badBundles = bundles.filter((b) => !desc.bundles.includes(b));
+  if (badBundles.length) {
+    die(`平台 ${platform} 不支持 bundles：${badBundles.join(", ")}（可用：${desc.bundles.join(", ")}）`);
+  }
+  if (opts.flavor === "ai" && platform !== "windows-x86_64") {
+    die(`--flavor ai 仅支持 windows-x86_64（onnxruntime 等原生组件当前只有 Windows 库；收到 ${platform}）`);
+  }
+  // Windows 安装包（WiX/MSI）只接受**纯数字**版本（实测 WiX 限制）；
+  // 默认不出安装包 ⇒ 只有显式请求 msi 时才触发该校验
+  if (bundles.includes("msi") && /[+-]/.test(targetVersion)) {
     die(
-      `版本 ${targetVersion} 带 prerelease/build 后缀，**打不出 Windows 安装包**（WiX 限制）。\n` +
+      `版本 ${targetVersion} 带 prerelease/build 后缀，**打不出 MSI**（WiX 限制）。\n` +
         `  请任选其一：\n` +
         `    ① 用纯数字版本：--version 0.2.0（正式发行推荐）\n` +
-        `    ② 加 --no-bundle：只出便携包（exe + zip），不出 NSIS/MSI —— 测试包建议直接用 --test`,
+        `    ② 不请求 msi：--bundles nsis（只出 NSIS）\n` +
+        `    ③ 完全不出安装包：默认即是 —— 测试包建议直接用 --test`,
     );
   }
   if (needInject) {
@@ -1302,10 +1454,19 @@ function cmdPack(opts) {
     // 先落标记：构建中途失败时 target/ 里也已是被注入版本编译出的产物，标记必须存在
     if (temp && needInject) writeJsonAtomic(TEST_BUILD_MARK, { version: contractVersion, at: nowIso() });
     runStep(process.execPath, [path.join(__dirname, "sync-version.mjs")], "同步版本号");
-    const buildArgs = ["run", "tauri", "--", "build"];
+    const buildArgs = ["run", "tauri", "--", "build", ...desc.build];
     if (opts.flavor === "ai") buildArgs.push("--config", "src-tauri/tauri.ai-runtime.conf.json");
-    if (noBundle) buildArgs.push("--no-bundle");
-    runStep("npm", buildArgs, `构建（release${opts.flavor ? ` / ${opts.flavor}` : ""}${noBundle ? "，不出安装包" : ""}）`, true);
+    // 安装包按需：请求了 --bundles 就透传；否则 --no-bundle（默认只出二进制 + 便携 zip）
+    if (bundles.length) buildArgs.push("--bundles", bundles.join(","));
+    else buildArgs.push("--no-bundle");
+    runStep(
+      "npm",
+      buildArgs,
+      `构建（release / ${platform}${opts.flavor ? ` / ${opts.flavor}` : ""}${
+        bundles.length ? ` / bundles=${bundles.join(",")}` : "，不出安装包"
+      }）`,
+      true,
+    );
     if (!temp) fs.rmSync(TEST_BUILD_MARK, { force: true }); // 正式构建 → 清掉测试标记
   } else {
     // ⚠️ 防坑（fail-closed）：`--test` 构建会把 target 里的 exe/安装包换成**测试版本**，
@@ -1326,7 +1487,7 @@ function cmdPack(opts) {
   }
 
   // 3) 提取产物（内部读一次 Cargo.toml 版本 → 必须在"临时注入还原"之前）
-  const ex = extractArtifacts({ profile, flavor: opts.flavor, zip: true });
+  const ex = extractArtifacts({ profile, flavor: opts.flavor, zip: true, platform, bundles });
   const info = ex.info;
 
   // 临时注入：产物已提取（版本已写进 release.json / 文件名），立刻把源码还原回原版本
@@ -1358,6 +1519,7 @@ function cmdPack(opts) {
 
   const entry = {
     release: releaseId,
+    platform,
     title: naming.title,
     tag,
     target: opts.target || git(["rev-parse", "--abbrev-ref", "HEAD"]) || repo.defaultBranch,
@@ -1365,7 +1527,6 @@ function cmdPack(opts) {
     page: `${repo.releaseBase}/tag/${tag}`,
     updateVersion: noChain ? null : contractVersion,
     prerelease: noChain,
-    channel: index0?.channel || "stable",
     publishedAt: opts.publishedAt || "",
     critical: !!opts.critical,
     notesSource: notesRes.source,
@@ -1375,22 +1536,10 @@ function cmdPack(opts) {
     pack: { dir: ex.dirName, profile, flavor: opts.flavor || null, builtAt: info.builtAt },
   };
 
-  // 6) 片段 + latest.json
-  const fragment = { release: entry, version: null, generatedAt: nowIso() };
-  const probeIndex = index0
-    ? { ...index0, releases: [...index0.releases.filter((r) => r.release !== releaseId), entry] }
-    : { releases: [entry] };
-  fragment.version = noChain ? null : projectVersions(probeIndex)[0] ?? null;
+  // 6) 条目片段（publish 读它）。version = 契约版本，仅供人看——
+  //    更新源已是 per-target 清单（releases/update/<platform>.json），这里不再是投影。
+  const fragment = { release: entry, version: noChain ? null : contractVersion, generatedAt: nowIso() };
   writeJsonAtomic(path.join(ex.outDir, "index.entry.json"), fragment);
-  writeJsonIfChanged(LATEST_PATH, {
-    dir: ex.dirName,
-    version: ex.version,
-    release: releaseId,
-    tag,
-    profile,
-    flavor: opts.flavor || null,
-    builtAt: info.builtAt,
-  });
 
   // 7) 索引自举（**只补配置区块，绝不写版本条目** —— D3）
   const index = index0 ?? {
@@ -1400,7 +1549,6 @@ function cmdPack(opts) {
     channel: "stable",
     latest: null,
     minSupported: null,
-    versions: [],
     releases: [],
   };
   const bootChanged = bootstrapIndex(index, repo, dl, preset);
@@ -1434,7 +1582,7 @@ function cmdPack(opts) {
 
 /* ────────────────────────────── 子命令：publish ────────────────────────────── */
 
-function findPackedEntry(version, dirOpt) {
+function findPackedEntry(version, dirOpt, platform) {
   if (dirOpt) {
     const d = abs(dirOpt);
     const f = path.join(d, "index.entry.json");
@@ -1460,8 +1608,30 @@ function findPackedEntry(version, dirOpt) {
         `  请先跑：npm run release:pack -- --version ${version}`,
     );
   }
-  hits.sort((a, b) => fs.statSync(b.dir).mtimeMs - fs.statSync(a.dir).mtimeMs);
-  return hits[0]; // 取最新打包的那份
+  // 同版本可能打了多个平台（目录名带 _<platform> 后缀）→ 指定了平台就只取该平台的
+  let pool = hits;
+  if (platform) {
+    const same = hits.filter((h) => dirPlatform(h.dir) === platform);
+    if (!same.length) {
+      const have = [...new Set(hits.map((h) => dirPlatform(h.dir)).filter(Boolean))];
+      die(
+        `没有找到 --platform ${platform} 的本地发行目录（现有：${have.join(" / ") || "无"}）。\n` +
+          `  请先跑：npm run release:pack -- --version ${version} --platform ${platform}`,
+      );
+    }
+    pool = same;
+  } else {
+    // ⚠️ 同版本多平台时不指定 = 按 mtime 静默取最新，**可能发错平台** → fail-loud 拒绝
+    const plats = [...new Set(hits.map((h) => dirPlatform(h.dir)).filter(Boolean))];
+    if (plats.length > 1) {
+      die(
+        `--version ${version} 存在多个平台的本地发行目录（${plats.join(" / ")}）。\n` +
+          `  请显式指定要发布/预演的平台：--platform <triple>`,
+      );
+    }
+  }
+  pool.sort((a, b) => fs.statSync(b.dir).mtimeMs - fs.statSync(a.dir).mtimeMs);
+  return pool[0]; // 取最新打包的那份
 }
 
 async function cmdPublish(opts) {
@@ -1481,8 +1651,19 @@ async function cmdPublish(opts) {
   const preset = resolvePreset(index, repo);
   if (repo.provider !== "github") die(`publish 目前只支持 GitHub（当前 repo.provider=${repo.provider}）`);
 
-  const { dir, fragment } = findPackedEntry(releaseId, opts.dir);
+  const { dir, fragment } = findPackedEntry(releaseId, opts.dir, opts.platform);
   const entry = fragment.release;
+  // 平台以 pack 时写进 release.json 的为准（CLI 的 --platform 只做目录过滤与校验）
+  const packInfo = fs.existsSync(path.join(dir, "release.json"))
+    ? readJson(path.join(dir, "release.json"), "release.json")
+    : null;
+  const platform = packInfo?.platform || resolvePlatform(opts.platform);
+  if (opts.platform && opts.platform !== platform) {
+    die(`--platform ${opts.platform} 与发行目录记录的平台 ${platform} 不一致（目录：${path.basename(dir)}）`);
+  }
+  const desc = TARGETS[platform];
+  const updateMode = packInfo?.updateMode || desc.updateMode;
+  log(`平台：${platform}（updateMode=${updateMode}）`);
   const tag = opts.tag || entry.tag || `v${releaseId}`;
   entry.tag = tag;
   if (opts.title) entry.title = opts.title;
@@ -1592,7 +1773,7 @@ async function cmdPublish(opts) {
     console.log("────────────");
     console.log(body || "(空)");
     console.log("────────────");
-    log(`索引将 upsert 发行 ${releaseId}（updateVersion=${entry.updateVersion ?? "null"}）并重投影 versions[]`);
+    log(`索引将 upsert 发行 ${releaseId}（updateVersion=${entry.updateVersion ?? "null"}；浏览数据），并写 releases/update/${platform}.json`);
     log("已跳过：创建 release / 上传资产 / 写索引");
     return;
   }
@@ -1636,7 +1817,9 @@ async function cmdPublish(opts) {
         `tag ${tag} 的发行已存在（id=${rel.id}）。请任选其一：\n` +
           `  ① --resume          续传（跳过已存在且一致的资产，只补差值）\n` +
           `  ② --replace-release 删除该发行后重建（tag 保留）\n` +
-          `  ③ --tag <新 tag>    换一个 tag`,
+          `  ③ --tag <新 tag>    换一个 tag\n` +
+          `  多平台发同一版本属正常流程：资产合入同一 Release（用 --resume），\n` +
+          `  索引台账按 (发行, 平台) 分条记录，各平台互不覆盖。`,
       );
     }
   } else if (found.status !== 404) {
@@ -1732,56 +1915,100 @@ async function cmdPublish(opts) {
   entry.title = entry.title || `${PRODUCT} ${releaseId}`;
   if (opts.noUpdateChain) entry.updateVersion = null;
 
-  const exists = index.releases.find((r) => r.release === releaseId);
+  // 台账键 = (release, platform)：同一版本的多平台发布各占一条（资产在 GitHub 上合入同一 Release），
+  // 互不覆盖 —— 早期按 release 单键 upsert 会被第二个平台整体顶掉（已修）。
+  const exists = index.releases.find((r) => r.release === releaseId && r.platform === platform);
   if (exists && !opts.resume && !opts.replaceRelease) {
-    log(`索引中已有同名发行 ${releaseId}，按 upsert 覆盖其条目`);
+    log(`索引中已有发行 ${releaseId}（${platform}）的台账条目，按 upsert 覆盖`);
   }
   if (entry.updateVersion) {
-    const dup = index.releases.find((r) => r.release !== releaseId && r.updateVersion === entry.updateVersion);
+    // 同一**平台**的同一契约版本只能有一条（不同平台各发各的，互不占用）
+    const dup = index.releases.find(
+      (r) => r.release !== releaseId && r.platform === platform && r.updateVersion === entry.updateVersion,
+    );
     if (dup) {
       if (!opts.replaceVersion) {
         die(
-          `契约版本 ${entry.updateVersion} 已被发行 ${dup.release} 占用（更新器按版本号定位，重复会导致行为不确定）。\n` +
-            `  请任选其一：① bump 版本号后重新 pack；② --replace-version（把更新链指向本次发行）`,
+          `契约版本 ${entry.updateVersion} 已被发行 ${dup.release} 在平台 ${platform} 上占用（更新器按版本号定位，重复会导致行为不确定）。\n` +
+            `  请任选其一：① bump 版本号后重新 pack；② --replace-version（把该平台的更新链指向本次发行）`,
         );
       }
-      warn(`契约版本 ${entry.updateVersion} 原本指向发行 ${dup.release}，已被本次发行接管（--replace-version）`);
+      warn(`契约版本 ${entry.updateVersion} 原本指向发行 ${dup.release}（${platform}），已被本次发行接管（--replace-version）`);
     }
   }
-  index.releases = [...index.releases.filter((r) => r.release !== releaseId), entry];
-  index.releases.sort((a, b) => cmpVersion(b.release, a.release));
+  index.releases = [...index.releases.filter((r) => !(r.release === releaseId && r.platform === platform)), entry];
+  index.releases.sort(
+    (a, b) => cmpVersion(b.release, a.release) || String(a.platform ?? "").localeCompare(String(b.platform ?? "")),
+  );
+  let pendingMinSupported = null;
   if (opts.minSupported) {
-    const cur = index.minSupported;
+    const cur = loadTargetManifest(platform)?.minSupported ?? null;
     if (cur && cmpVersion(opts.minSupported, cur) < 0) {
-      die(`minSupported 只升不降（当前 ${cur}，收到 ${opts.minSupported}）；确需回退请手工改索引`);
+      die(
+        `minSupported 只升不降（当前 ${cur}，收到 ${opts.minSupported}）；确需回退请手工改 releases/update/${platform}.json`,
+      );
     }
-    // ⚠️ 强制更新必须推送**含 exe** 的包，否则用户被阻断后仍拿不到新程序（launcher-auto-update §5.5.2）。
+    // ⚠️ 强制更新必须推送**含主程序**的包，否则用户被阻断后仍拿不到新程序（launcher-auto-update §5.5.2）。
     const upd = (entry.assets ?? []).find((a) => a.role === "update");
     if (upd && upd.name.toLowerCase().endsWith(".zip")) {
-      const info = fs.existsSync(path.join(dir, "release.json"))
-        ? readJson(path.join(dir, "release.json"), "release.json")
-        : null;
-      const entries = info?.artifacts?.portable?.entries;
+      const entries = packInfo?.artifacts?.portable?.entries;
       if (!entries) {
-        warn("无法确认更新包是否含 exe（release.json 缺 artifacts.portable.entries）—— 强制更新必须含 exe");
-      } else if (!entries.includes(EXE_NAME)) {
-        die(
-          `--min-supported（强制更新）要求本次更新包**含 ${EXE_NAME}**，但 portable 包内没有它。\n` +
-            `  纯配置包达不到"强制升级"的目的；请改用 pack 产出的含 exe 便携包。`,
-        );
+        warn("无法确认更新包是否含主程序（release.json 缺 artifacts.portable.entries）—— 强制更新必须含主程序");
+      } else {
+        // app 形态的 zip 里是 `.app/` 目录树；其余形态是单文件
+        const hasBin =
+          desc.kind === "app" ? entries.some((e) => e.startsWith(`${desc.bin}/`)) : entries.includes(desc.bin);
+        if (!hasBin) {
+          die(
+            `--min-supported（强制更新）要求本次更新包**含 ${desc.bin}**，但 portable 包内没有它。\n` +
+              `  纯配置包达不到"强制升级"的目的；请改用 pack 产出的含主程序的便携包。`,
+          );
+        }
       }
     }
-    index.minSupported = opts.minSupported;
+    pendingMinSupported = opts.minSupported;
   }
-  refreshProjection(index);
+  // 浏览索引只回答"整体最新是哪版"（各平台 latest 以各自清单为准）
+  const chainVersions = index.releases.map((r) => r.updateVersion).filter(Boolean).sort(cmpVersion);
+  index.latest = chainVersions.length ? chainVersions[chainVersions.length - 1] : (index.latest ?? null);
+  delete index.versions; // 投影退役（ADR 0008 D5）：更新源是 per-target 清单
+  delete index.minSupported; // 移入 per-target 清单
   writeJsonAtomic(INDEX_PATH, index);
+
+  // per-target 更新清单（启动器唯一更新源）
+  let manifestInfo = null;
+  if (entry.updateVersion) {
+    const updAsset = (entry.assets ?? []).find((a) => a.role === "update");
+    if (!updAsset) {
+      die(`发行 ${releaseId} 进更新链（updateVersion=${entry.updateVersion}）但没有 role=update 资产`);
+    }
+    manifestInfo = upsertTargetManifest(
+      platform,
+      {
+        version: entry.updateVersion,
+        download: updAsset.url,
+        sha256: updAsset.sha256,
+        size: updAsset.size,
+        format: String(updAsset.name).toLowerCase().endsWith(".zip") ? "zip" : "exe",
+        kind: "full",
+        updateMode,
+        critical: !!entry.critical,
+        publishedAt: entry.publishedAt || todayLocal(),
+        notes: { ...(entry.notes ?? {}) },
+      },
+      pendingMinSupported,
+    );
+  }
 
   console.log("");
   log(`已发布：${rel.html_url}`);
-  log(`索引已更新：${INDEX_REL}（latest=${index.latest} / versions=${index.versions.length} / releases=${index.releases.length}）`);
+  log(`索引已更新：${INDEX_REL}（latest=${index.latest} / releases=${index.releases.length}）`);
+  if (manifestInfo) {
+    log(`更新清单已写：releases/update/${platform}.json（latest=${manifestInfo.latest} / versions=${manifestInfo.versions.length}）`);
+  }
   console.log("");
-  log("🔴 下一步（推送后对所有用户生效）：");
-  log("  git add releases/index.json && git commit -m \"release: <版本>\" && git push");
+  log("🔴 下一步（推送后对该平台用户生效）：");
+  log(`  git add releases/index.json releases/update/${platform}.json && git commit -m "release: <版本>" && git push`);
   log("  提示：raw CDN 有分钟级缓存；启动器侧另有 24h TTL（设置页「检查更新」会立即拉取）。");
 }
 
@@ -1798,7 +2025,8 @@ function localPackDirs() {
     if (!fs.existsSync(f)) continue;
     try {
       const r = JSON.parse(fs.readFileSync(f, "utf8"))?.release;
-      if (r?.release) map.set(r.release, e.name);
+      // 键 = (release, platform)：同一版本多个平台的本地目录各占一项（ADR 0008 多平台台账）
+      if (r?.release) map.set(`${r.release}#${r.platform ?? ""}`, e.name);
     } catch {
       warn(`跳过坏片段：releases/${e.name}/index.entry.json`);
     }
@@ -1886,9 +2114,12 @@ async function cmdPreview(opts) {
 
   const dirs = localPackDirs();
   const local = JSON.parse(JSON.stringify(index));
-  local.releases = [...local.releases.filter((r) => r.release !== releaseId), entry];
+  local.releases = [
+    ...local.releases.filter((r) => !(r.release === releaseId && (r.platform ?? "") === (entry.platform ?? ""))),
+    entry,
+  ];
   for (const r of local.releases) {
-    const d = dirs.get(r.release);
+    const d = dirs.get(`${r.release}#${r.platform ?? ""}`);
     // 本地没有该发行的目录 → 保持索引里的原地址（只参与版本比较，latest 不会指向它）
     if (!d) continue;
     r.assets = (r.assets ?? []).map((a) => ({
@@ -1911,22 +2142,52 @@ async function cmdPreview(opts) {
     pathTemplate: dl.tpl,
     note: "release:preview 派生索引：地址已改写到本地预演服务（勿提交）",
   };
-  refreshProjection(local);
-  local.preview = { generatedAt: nowIso(), release: releaseId, dir: path.basename(dir), base };
-  writeJsonAtomic(LOCAL_INDEX_PATH, local);
+  // per-target 本地更新清单（ADR 0008 D5）：与线上同款形状，下载地址改写到本地静态服务
+  const packInfoLocal = fs.existsSync(path.join(dir, "release.json"))
+    ? readJson(path.join(dir, "release.json"), "release.json")
+    : null;
+  const platform = packInfoLocal?.platform || resolvePlatform(opts.platform);
+  const updateMode = packInfoLocal?.updateMode || TARGETS[platform].updateMode;
+  const updAsset = (entry.assets ?? []).find((a) => a.role === "update");
+  const localManifest = {
+    schema: UPDATE_SCHEMA,
+    platform,
+    latest: entry.updateVersion ?? null,
+    minSupported: null,
+    versions: updAsset
+      ? [
+          {
+            version: entry.updateVersion,
+            download: assetUrl(dl, tag, updAsset.name, releaseId, path.basename(dir)),
+            sha256: updAsset.sha256,
+            size: updAsset.size,
+            format: String(updAsset.name).toLowerCase().endsWith(".zip") ? "zip" : "exe",
+            kind: "full",
+            updateMode,
+            critical: !!entry.critical,
+            publishedAt: entry.publishedAt || todayLocal(),
+            notes: { ...(entry.notes ?? {}) },
+          },
+        ]
+      : [],
+    // 本地预演走明文 http：显式放行（线上清单不需要该字段）
+    allowHttp: true,
+  };
+  const localManifestRel = `releases/update/${platform}.local.json`;
+  writeJsonAtomic(path.join(ROOT, localManifestRel), localManifest);
 
   console.log("");
-  log(`派生索引已生成：${LOCAL_INDEX_REL}（latest=${local.latest ?? "无"} / versions=${local.versions.length}）`);
-  log(`真实索引 ${INDEX_REL} **未被修改**（版本条目仍只有 publish 能写）`);
+  log(`本地更新清单已生成：${localManifestRel}（latest=${localManifest.latest ?? "无"} / versions=${localManifest.versions.length}）`);
+  log(`真实索引 ${INDEX_REL} 与线上 update/*.json **未被修改**（版本条目仍只有 publish 能写）`);
   console.log("");
   log("被测启动器（一个**旧版本**的 release 包，且是 release 构建）→ 把「更新源」指向本地预演：");
   log("① 直接编辑 launcher.json（推荐，绕过 UI 的 https 限制）：");
   log("    文件：<启动器目录>/.vcmi-fv-launcher/launcher.json（exe 同级）");
-  log(`    配置键：update.manifest_url = "${base}/index.local.json"`);
+  log(`    配置键：update.manifest_url = "${base}/update/${platform}.local.json"`);
   log("    片段（合并进现有文件，不要整份替换；该文件是 JSON5，允许注释/尾逗号）：");
-  log(`      { "update": { "manifest_url": "${base}/index.local.json" } }`);
+  log(`      { "update": { "manifest_url": "${base}/update/${platform}.local.json" } }`);
   log("② 或用设置页（需先给启动器进程设 VCMI_FV_UPDATER_ALLOW_HTTP=1，UI 默认拒绝 http）：");
-  log(`    设置页「更新源」填 ${base}/index.local.json —— 改完重启启动器让环境变量生效`);
+  log(`    设置页「更新源」填 ${base}/update/${platform}.local.json —— 改完重启启动器让环境变量生效`);
   log("  然后点「检查更新」（force，绕过 24h TTL 缓存）");
   console.log("");
   log("前置条件（不满足就测不出东西）：");
@@ -1999,59 +2260,67 @@ async function cmdVerify(opts) {
     }
   }
 
-  // 2) versions 契约
-  if (!index.versions.length) wrn("versions[] 为空：启动器会静默认为「无更新」（尚未发布任何版本）");
-  const seen = new Set();
-  for (const v of index.versions) {
-    const at = `versions[${v.version}]`;
-    if (seen.has(v.version)) err(`${at}：版本号重复`);
-    seen.add(v.version);
-    if (!/^https:\/\//.test(v.download || "")) err(`${at}：download 不是 https 地址`);
-    if (!/^[0-9a-f]{64}$/.test(v.sha256 || "")) err(`${at}：sha256 不是 64 位小写 hex`);
-    if (!(v.size > 0)) err(`${at}：size 必须为正整数`);
-    if (!v.format) err(`${at}：缺少 format（缺它会按单 exe 处理 zip → 启动失败）`);
-    if (!v.notes || !Object.keys(v.notes).length) wrn(`${at}：没有更新说明（弹窗里会是空的）`);
-    if (v.publishedAt && !/^\d{4}-\d{2}-\d{2}$/.test(v.publishedAt)) wrn(`${at}：publishedAt 不是 YYYY-MM-DD`);
-  }
-  if (!errors.length) ok(`versions[]：${index.versions.length} 条，字段齐备`);
-
-  // 3) latest / 投影一致
-  if (index.versions.length && index.latest !== index.versions[0].version) {
-    err(`latest(${index.latest}) 与 versions[] 最大版本(${index.versions[0].version}) 不一致`);
-  }
-  // 3b) versions[] 必须严格递减（更新器只认 current < version；乱序/并列会让"是否有更新"失真）
-  for (let i = 1; i < index.versions.length; i++) {
-    if (cmpVersion(index.versions[i].version, index.versions[i - 1].version) >= 0) {
-      err(
-        `versions[] 第 ${i} 与第 ${i + 1} 条不满足严格递减：` +
-          `${index.versions[i - 1].version} → ${index.versions[i].version}`,
-      );
-      break;
+  // 2) per-target 更新清单（ADR 0008 D5：启动器唯一更新源）
+  const updateDir = path.join(ROOT, "releases", "update");
+  const manifestFiles = fs.existsSync(updateDir)
+    ? fs.readdirSync(updateDir).filter((f) => f.endsWith(".json") && !f.endsWith(".local.json"))
+    : [];
+  if (!manifestFiles.length) wrn("releases/update/ 为空：启动器会静默认为「无更新」（尚未发布任何版本）");
+  const floor = readMigrationFloor();
+  for (const f of manifestFiles) {
+    const platform = f.replace(/\.json$/, "");
+    const at = `update/${platform}`;
+    let m = null;
+    try {
+      m = loadTargetManifest(platform);
+    } catch (e) {
+      err(`${at}：${mask(e.message)}`);
+      continue;
     }
-  }
-  let projected;
-  try {
-    projected = projectVersions(index);
-    if (!deepEqual(projected, index.versions)) {
-      err("versions[] 与 releases[] 的投影不一致（跑 `release:verify --fix` 重算）");
-      for (let i = 0; i < Math.max(projected.length, index.versions.length); i++) {
-        const a = index.versions[i];
-        const b = projected[i];
-        if (JSON.stringify(a) !== JSON.stringify(b)) {
-          err(`  第 ${i + 1} 条差异：索引 ${a?.version ?? "(缺)"} / 投影 ${b?.version ?? "(缺)"}`);
-          break;
-        }
+    if (!m) continue;
+    const before = errors.length;
+    if (!TARGETS[platform]) err(`${at}：平台不在 TARGETS 描述符里（pack/publish 不认）`);
+    const versions = m.versions ?? [];
+    const seen = new Set();
+    for (const v of versions) {
+      const vat = `${at}[${v.version}]`;
+      if (seen.has(v.version)) err(`${vat}：版本号重复`);
+      seen.add(v.version);
+      if (!/^https:\/\//.test(v.download || "")) err(`${vat}：download 不是 https 地址`);
+      if (!/^[0-9a-f]{64}$/.test(v.sha256 || "")) err(`${vat}：sha256 不是 64 位小写 hex`);
+      if (!(v.size > 0)) err(`${vat}：size 必须为正整数`);
+      if (!v.format) err(`${vat}：缺少 format（缺它会按单 exe 处理 zip → 启动失败）`);
+      if (!v.notes || !Object.keys(v.notes).length) wrn(`${vat}：没有更新说明（弹窗里会是空的）`);
+      if (v.publishedAt && !/^\d{4}-\d{2}-\d{2}$/.test(v.publishedAt)) wrn(`${vat}：publishedAt 不是 YYYY-MM-DD`);
+    }
+    // 严格递减（更新器只认 current < version；乱序/并列会让"是否有更新"失真）
+    for (let i = 1; i < versions.length; i++) {
+      if (cmpVersion(versions[i].version, versions[i - 1].version) >= 0) {
+        err(`${at}：第 ${i} 与第 ${i + 1} 条不满足严格递减：${versions[i - 1].version} → ${versions[i].version}`);
+        break;
       }
-    } else {
-      ok("versions[] 与 releases[] 投影一致");
     }
-  } catch (e) {
-    err(`投影失败：${mask(e.message)}`);
+    // latest 必须指向最大版本；minSupported 不得高于 latest
+    if (versions.length && m.latest !== versions[0].version) {
+      err(`${at}：latest(${m.latest}) 与 versions[] 最大版本(${versions[0].version}) 不一致`);
+    }
+    if (m.minSupported && cmpVersion(m.minSupported, m.latest || "0.0.0") > 0) {
+      err(`${at}：minSupported(${m.minSupported}) 高于 latest(${m.latest})`);
+    }
+    if (m.minSupported && floor) {
+      if (cmpVersion(m.minSupported, floor) < 0) wrn(`${at}：minSupported 低于代码 MIGRATION_FLOOR(${floor})：建议保持一致`);
+      if (cmpVersion(m.minSupported, floor) > 0) wrn(`${at}：minSupported 高于 MIGRATION_FLOOR(${floor})：确认已 bump 迁移地板`);
+    }
+    if (errors.length === before) ok(`${at}：${versions.length} 条，字段齐备（latest=${m.latest ?? "无"}）`);
   }
 
-  // 4) releases 条目
+  // 4) releases 条目（台账键 = release + platform，ADR 0008 多平台）
+  const ledgerKeys = new Set();
   for (const r of index.releases) {
-    const at = `releases[${r.release}]`;
+    const at = `releases[${r.release}${r.platform ? `/${r.platform}` : ""}]`;
+    const key = `${r.release}#${r.platform ?? ""}`;
+    if (ledgerKeys.has(key)) err(`${at}：(release, platform) 组合在台账里重复`);
+    ledgerKeys.add(key);
     if (!NAME_RE.test(r.release || "")) err(`${at}：release 标识字符集非法`);
     if (!NAME_RE.test(r.tag || "")) err(`${at}：tag 字符集非法`);
     const ups = (r.assets ?? []).filter((a) => a.role === "update");
@@ -2073,19 +2342,9 @@ async function cmdVerify(opts) {
   }
   if (!index.releases.length) wrn("releases[] 为空");
 
-  // 5) minSupported
-  if (index.minSupported) {
-    if (cmpVersion(index.minSupported, index.latest || "0.0.0") > 0) {
-      err(`minSupported(${index.minSupported}) 高于 latest(${index.latest})`);
-    }
-    const floor = readMigrationFloor();
-    if (floor && cmpVersion(index.minSupported, floor) < 0) {
-      wrn(`minSupported(${index.minSupported}) 低于代码里的 MIGRATION_FLOOR(${floor})：建议保持一致`);
-    }
-    if (floor && cmpVersion(index.minSupported, floor) > 0) {
-      wrn(`minSupported(${index.minSupported}) 高于 MIGRATION_FLOOR(${floor})：确认已 bump 迁移地板`);
-    }
-  }
+  // 5) minSupported 已移入 per-target 清单（见第 2 节）；索引侧只确认没有残留旧字段
+  if (index.minSupported) wrn(`索引仍有 minSupported(${index.minSupported})：已迁到 releases/update/<platform>.json，请删除该字段`);
+  if (index.versions) wrn("索引仍有 versions[]：投影已退役（更新源是 per-target 清单），请删除该字段");
 
   // 6) 预置补丁一致性
   if (index.repo?.indexUrl) {
@@ -2137,10 +2396,10 @@ async function cmdVerify(opts) {
     wrn(`${path.relative(ROOT, clPath)} 不存在（更新说明只能靠 --notes / --notes-file）`);
   }
 
-  // 8) 本地片段
+  // 8) 本地片段（`update/` 是清单目录不是发行目录，必须排除，否则计数虚高）
   const root = path.join(ROOT, "releases");
   const localDirs = fs.existsSync(root)
-    ? fs.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)
+    ? fs.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== "update").map((e) => e.name)
     : [];
   let unpub = 0;
   for (const d of localDirs) {
@@ -2148,7 +2407,9 @@ async function cmdVerify(opts) {
     if (!fs.existsSync(f)) continue;
     try {
       const frag = JSON.parse(fs.readFileSync(f, "utf8"));
-      const hit = index.releases.find((r) => r.release === frag.release?.release);
+      const hit = index.releases.find(
+        (r) => r.release === frag.release?.release && (r.platform ?? "") === (frag.release?.platform ?? ""),
+      );
       if (!hit) unpub++;
       else if (!deepEqual(hit.assets, frag.release.assets)) wrn(`releases/${d} 的片段与索引条目不一致（索引可能已被 publish 更新）`);
     } catch {
@@ -2160,34 +2421,24 @@ async function cmdVerify(opts) {
 
   // 9) --online
   if (opts.online) {
-    for (const v of index.versions) {
-      const a = index.releases.find((r) => r.updateVersion === v.version)?.assets?.find((x) => x.role === "update");
-      if (!a) continue;
-      try {
-        const res = await httpGet(a.url, { method: "HEAD" });
-        const len = Number(res.headers["content-length"] ?? 0);
-        if (res.status !== 200) err(`在线探测 ${v.version}：HTTP ${res.status}（${a.url}）`);
-        else if (len && len !== a.size) err(`在线探测 ${v.version}：体积不符（远端 ${len} / 索引 ${a.size}）`);
-        else ok(`在线探测 ${v.version}：200 / ${humanSize(len || a.size)}`);
-      } catch (e) {
-        err(`在线探测 ${v.version} 失败：${mask(e.message)}`);
-      }
-      // 配了 CDN（download.base ≠ repo.releaseBase）→ **双探**：CDN 生效时也要确认原生地址可用
-      // （便于"CDN 挂掉回落到 GitHub"以及审计两端内容是否同步；原生地址不可达只告警，不算失败）
-      const nativeBase = (index.repo?.releaseBase || "").replace(/\/+$/, "");
-      const dlBase = (index.download?.base || index.repo?.releaseBase || "").replace(/\/+$/, "");
-      if (nativeBase && a.path && dlBase !== nativeBase) {
-        const nativeUrl = `${nativeBase}/${a.path}`;
+    for (const f of manifestFiles) {
+      const platform = f.replace(/\.json$/, "");
+      const m = loadTargetManifest(platform);
+      if (!m) continue;
+      for (const v of m.versions ?? []) {
         try {
-          const r2 = await httpGet(nativeUrl, { method: "HEAD" });
-          if (r2.status !== 200) wrn(`原生地址探测 ${v.version}：HTTP ${r2.status}（${nativeUrl}）`);
-          else ok(`原生地址探测 ${v.version}：200（${nativeBase.split("/")[2]}）`);
+          const res = await httpGet(v.download, { method: "HEAD" });
+          const len = Number(res.headers["content-length"] ?? 0);
+          if (res.status !== 200) err(`在线探测 ${platform}/${v.version}：HTTP ${res.status}（${v.download}）`);
+          else if (len && len !== v.size) err(`在线探测 ${platform}/${v.version}：体积不符（远端 ${len} / 清单 ${v.size}）`);
+          else ok(`在线探测 ${platform}/${v.version}：200 / ${humanSize(len || v.size)}`);
         } catch (e) {
-          wrn(`原生地址探测 ${v.version} 失败：${mask(e.message)}`);
+          err(`在线探测 ${platform}/${v.version} 失败：${mask(e.message)}`);
         }
       }
     }
     if (index.repo?.indexUrl) {
+      // 浏览索引（人/工具看的那份）与远端比对
       try {
         const bust = index.repo.indexUrl + (index.repo.indexUrl.includes("?") ? "&" : "?") + `t=${Date.now()}`;
         const res = await httpGet(bust);
@@ -2206,10 +2457,35 @@ async function cmdVerify(opts) {
       } catch (e) {
         wrn(`远端索引比对失败：${mask(e.message)}`);
       }
+      // 远端更新清单（启动器真正读的那份）逐平台比对：用 preset 里的 {platform} 模板
+      const tpl = resolvePreset(index, index.repo)?.base?.update?.manifest_url;
+      if (tpl && tpl.includes("{platform}")) {
+        for (const f of manifestFiles) {
+          const platform = f.replace(/\.json$/, "");
+          const url = tpl.replace("{platform}", platform) + `?t=${Date.now()}`;
+          try {
+            const res = await httpGet(url);
+            if (res.status !== 200) {
+              wrn(`远端更新清单 ${platform}：HTTP ${res.status}（未 push？）`);
+              continue;
+            }
+            const remote = JSON.parse(res.body.toString("utf8"));
+            const localIds = new Set((loadTargetManifest(platform)?.versions ?? []).map((v) => v.version));
+            const remoteIds = new Set((remote.versions ?? []).map((v) => v.version));
+            const ahead = [...localIds].filter((x) => !remoteIds.has(x));
+            const behind = [...remoteIds].filter((x) => !localIds.has(x));
+            if (ahead.length) wrn(`本地 update/${platform}.json 领先远端 ${ahead.length} 个版本（${ahead.join(" / ")}）—— 记得 push`);
+            if (behind.length) wrn(`远端 update/${platform}.json 领先本地 ${behind.length} 个版本 —— 记得 pull`);
+            if (!ahead.length && !behind.length) ok(`远端更新清单 ${platform} 与本地一致`);
+          } catch (e) {
+            wrn(`远端更新清单 ${platform} 比对失败：${mask(e.message)}`);
+          }
+        }
+      }
     }
   }
 
-  // --fix：只重建派生物（投影 + ChangeLog 派生的 notes），绝不改档案字段
+  // --fix：只重建派生物（ChangeLog 派生的 notes），绝不改档案字段
   let didFix = false;
   if (opts.fix && errors.length) {
     let fixedNotes = 0;
@@ -2225,10 +2501,9 @@ async function cmdVerify(opts) {
           }
         }
       }
-      refreshProjection(index);
       writeJsonAtomic(INDEX_PATH, index);
       didFix = true;
-      log(`--fix：已重算派生物并写回 ${INDEX_REL}（notes 修正 ${fixedNotes} 条 + versions[] 重投影）`);
+      log(`--fix：已重算派生物并写回 ${INDEX_REL}（notes 修正 ${fixedNotes} 条；per-target 清单无派生物，不重写）`);
     } catch (e) {
       err(`--fix 失败：${mask(e.message)}`);
     }
@@ -2249,7 +2524,7 @@ function cmdStatus() {
     log(`${INDEX_REL} 尚未初始化（首次 \`release:pack\` 会自举配置区块）。`);
   } else {
     console.log("");
-    log(`索引 ${INDEX_REL}：latest=${index.latest ?? "(无)"}  minSupported=${index.minSupported ?? "-"}  versions=${index.versions.length}`);
+    log(`索引 ${INDEX_REL}：latest=${index.latest ?? "(无)"}（浏览数据；更新源是 releases/update/<platform>.json）`);
     if (index.repo?.owner) log(`repo：${index.repo.owner}/${index.repo.name}@${index.repo.defaultBranch}`);
     // 当前有效版本 + 该版本会用的命名（零参数构建时用的就是这些值）
     try {
@@ -2262,14 +2537,17 @@ function cmdStatus() {
     if (index.releases.length) {
       console.log("");
       console.log(
-        ["发行".padEnd(14), "tag".padEnd(18), "更新链".padEnd(10), "资产".padEnd(6), "说明"].join(" "),
+        ["发行".padEnd(14), "平台".padEnd(16), "tag".padEnd(18), "更新链".padEnd(10), "资产".padEnd(6), "说明"].join(" "),
       );
-      console.log("─".repeat(72));
-      for (const r of [...index.releases].sort((a, b) => cmpVersion(b.release, a.release))) {
+      console.log("─".repeat(88));
+      for (const r of [...index.releases].sort(
+        (a, b) => cmpVersion(b.release, a.release) || String(a.platform ?? "").localeCompare(String(b.platform ?? "")),
+      )) {
         const notes = Object.keys(r.notes ?? {}).join("/") || "-";
         console.log(
           [
             String(r.release).padEnd(14),
+            String(r.platform ?? "—").padEnd(16),
             String(r.tag).padEnd(18),
             String(r.updateVersion ?? "—").padEnd(10),
             String((r.assets ?? []).length).padEnd(6),
@@ -2282,7 +2560,7 @@ function cmdStatus() {
 
   const root = path.join(ROOT, "releases");
   const dirs = fs.existsSync(root)
-    ? fs.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort()
+    ? fs.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== "update").map((e) => e.name).sort()
     : [];
   console.log("");
   log(`本地发行目录（releases/）：${dirs.length} 个`);
@@ -2295,9 +2573,13 @@ function cmdStatus() {
     try {
       const frag = JSON.parse(fs.readFileSync(f, "utf8"));
       const rel = frag.release ?? {};
-      const inIndex = index?.releases?.some((r) => r.release === rel.release);
+      // 台账键 = (release, platform)：只有同平台条目已入账才算"已在索引"
+      const inIndex = index?.releases?.some(
+        (r) => r.release === rel.release && (r.platform ?? "") === (rel.platform ?? ""),
+      );
       console.log(
-        `  ${d.padEnd(28)} release=${rel.release}  updateVersion=${rel.updateVersion ?? "—"}  ` +
+        `  ${d.padEnd(28)} release=${rel.release}${rel.platform ? `/${rel.platform}` : ""}  ` +
+          `updateVersion=${rel.updateVersion ?? "—"}  ` +
           `${(rel.assets ?? []).length} 个资产  ${inIndex ? "已在索引" : "⚠️ 未发布"}`,
       );
     } catch {
@@ -2328,14 +2610,20 @@ pack：
   --title <t>            Release title（缺省 "<product> <release>"；可用索引 naming.title 模板）
   --allow-downgrade      允许版本不高于索引里的最新版（默认拒绝：更新器只认 current < version）
   --allow-tag-mismatch   HEAD 停在某个 tag 上但与本 tag 不一致时放行（默认拒绝，防 CI 发错版本）
-  --flavor <ai>          构建 AI 版（含组件；作为同一 Release 的附件发布）
+  --flavor <ai>          构建 AI 版（含组件；作为同一 Release 的附件发布；仅 windows-x86_64）
+  --platform <triple>    目标平台（ADR 0008）：windows-x86_64 / darwin-aarch64 / darwin-x86_64 /
+                         linux-x86_64；缺省 = 当前主机推断（推断不出直接报错，不回退 Windows）
+  --bundles <csv>        安装包类型，透传 tauri build --bundles（可组合，逗号分隔）；
+                         **缺省 = 不出安装包**（只出二进制 + 便携 zip）。各平台可用值：
+                         windows: nsis,msi ｜ darwin: dmg,app ｜ linux: deb,appimage
   --no-build             跳过构建，只提取 src-tauri/target 里的现有产物（与版本注入互斥）
-  --no-bundle            不出 NSIS/MSI 安装包（⚠️ Windows 安装包只支持**纯数字**版本，
-                         0.2.0-rc1 这类必须加本开关，否则 bundler 直接失败）
+  --no-bundle            不出安装包（现已等同默认；--test 内部仍会带上）
   --profile <p>          仅允许 release（缺省）
 
 publish：
   --version <semver>     缺省 = 文件里的版本（定版后发布也可零参数）
+  --platform <triple>    只发布指定平台；同版本有多平台本地目录时**必填**（缺省且多平台共存会直接拒绝，
+                         避免按打包时间静默取错平台）；与目录记录的平台不一致也会拒绝
   --dir <path>           指定本地发行目录（缺省按 --version 自动匹配）
   --attach <path>        附加上传目录（可多次；如 AI 版目录）
   --update-asset <name>  指定哪个资产进更新链（多包时必填）
@@ -2348,6 +2636,7 @@ publish：
 
 preview（本地预演：publish 之前跑通「发现更新 → 下载 → 应用」整条链）：
   --version <semver>     缺省 = 文件里的版本
+  --platform <triple>    预演指定平台（缺省取发行目录记录的平台；多平台共存同样必填）
   --dir <path>           指定本地发行目录（缺省按 --version 自动匹配）
   --serve                同时起内置静态服务（根 = releases/）
   --port <n>             端口（缺省 8765）
@@ -2408,6 +2697,8 @@ function parseArgs(argv) {
     "title",
     "flavor",
     "profile",
+    "platform",
+    "bundles",
     "notes",
     "notes-lang",
     "notes-file",

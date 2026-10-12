@@ -1,7 +1,7 @@
 # 启动器自动更新
 
-> 状态：已实现 ｜ 最后核对：2026-10-09 ｜ 代码：`src-tauri/src/updater/`、`commands/updater.rs`、`src/lib/updater.ts`、`src/features/settings/updateFlow.ts`
-> 发行流程与 ChangeLog 见 [release 指南](../guides/release.zh-CN.md)。
+> 状态：已实现 ｜ 最后核对：2026-10-12 ｜ 代码：`src-tauri/src/updater/`、`commands/updater.rs`、`src/lib/updater.ts`、`src/features/settings/updateFlow.ts`
+> 发行流程与 ChangeLog 见 [release 指南](../guides/release.zh-CN.md)；跨平台模型见 [release-cross-platform](../guides/release-cross-platform.zh-CN.md) 与 ADR [0008](../decisions/0008-cross-platform-release-and-update.zh-CN.md)。
 
 ## 1. 目标与范围
 
@@ -19,10 +19,18 @@ manifest（清单比对）  →  download（下载校验）  →  apply（自替
 
 ## 3. 清单（manifest）
 
-- 结构：`LauncherManifest{latest, minSupported, versions[]}`；条目 `ManifestEntry{version, download, sha256, size, publishedAt, critical, notes{i18n}, format(exe|zip), kind(full|config)}`。
-- `download` 必须 https、`sha256` 必填。
-- 缓存 `cache/updateManifest/manifest.json`，**TTL 24 小时** + ETag（304 复用）；拉取失败用任意年龄缓存兜底，无缓存才报错。
-- semver：`parse_ver` + `semver_cmp`（逐段数值、缺段补 0、pre-release 更低）。
+**per-platform 清单（ADR 0008 D5，2026-10-12 起）**：启动器把 preset 里的 `manifest_url` 模板
+（含 `{platform}` 占位符）按当前三元组解析后，只拉 `releases/update/<platform>.json` 一份：
+
+- 结构：`{schema, platform, latest, minSupported, versions[]}`；条目
+  `ManifestEntry{version, download, sha256, signature?, size, publishedAt, critical, notes{i18n}, format(exe|zip), kind(full|config), updateMode}`；
+- 缓存 `cache/updateManifest/manifest.json`，**TTL 24 小时** + ETag（304 复用）；拉取失败用任意年龄缓存兜底，无缓存才报错；
+- semver：`parse_ver` + `semver_cmp`（逐段数值、缺段补 0、pre-release 更低）；
+- **两条容错规则**（D6）：目标平台无清单（**404**）= 无更新、静默（区别于未配置 = 零网络行为）；
+  非 200 / 非 JSON = 本次检查失败，走上面的缓存兜底，**不新增错误出口**；
+- 清单的 `platform` 字段与当前二进制三元组不一致 → 按无更新处理（防下载到别的平台的包）；
+- 三元组映射见 `updater/platform.rs::target_triple`（**macOS 的 `macos` → `darwin`**；运行时值而非
+  `cfg!`，Rosetta 下匹配二进制而非宿主 CPU）。
 
 **强制 vs 可选**：
 
@@ -56,29 +64,42 @@ manifest（清单比对）  →  download（下载校验）  →  apply（自替
 - zip 落 `VCMI-FV-Launcher_<ver>.zip`，exe 落 `.exe.update`（同版本可复用免重下）。
 - **解压白名单** `allowed_rel`：主 exe、`.vcmi-fv-launcher/{runtime,mods,realms}/`、配置补丁；**拒绝** `launcher.json`、`realms/`、`cache/`、`downloads/`、`mods/`（用户数据）。
 
-## 5. 应用（自替换）
+## 5. 应用（自替换，按 `updateMode` 分派 —— ADR 0008 D7）
+
+| 模式 | 适用 | 替换策略 |
+|---|---|---|
+| `inplace` | Windows / Linux（elf） | Windows：`update-apply.ps1`（PowerShell 静默脚本）；Linux：`update-apply.sh`（POSIX shell，与 PS1 同构） |
+| `appimage` | Linux AppImage | 保留枚举位（pack 当前不发这类更新资产；收到时报 `upd_mode_not_implemented`） |
+| `bundle` | macOS | `.app.tar.gz` 整包替换 + 重签（待签名基建就绪后启用；当前 mac 为 `manual`） |
+| `manual` | macOS（无证书过渡期） | **不应用**：`apply` 返回 `upd_manual_only`，UI 提示「当前平台不支持应用内更新」并给下载页链接 |
+
+`inplace` 共同细节：
 
 1. **可写性探测**：写 `.vcmi-fv-write-probe`；不可写报 `upd_launcher_dir_not_writable`，走手动替换降级。
-2. 生成**纯 ASCII** 的 `update-apply.ps1`（`apply.rs` 的 `APPLY_PS1` 常量），由 `powershell.exe -File` 静默承载；
-   **路径只经命令行参数传入**（Rust `.arg()` 负责引号），脚本体不含任何路径 → 非 ASCII 安装目录同样安全。
-   - 参数顺序：`<TargetPid> <Staged> <InstalledExe> <LogPath>`。
-   - **`Staged` 的含义随形态而变，务必对应**：单 exe 形态 = 暂存的 `.exe.update` **文件**（脚本把它移动到原位）；
-     **zip 多文件形态 = 已解压的暂存目录** `downloads/staged_<ver>/`（脚本递归逐文件移动）。
+2. 生成**纯 ASCII** 的替换脚本（`apply.rs` 的 `APPLY_PS1` / `APPLY_SH` 常量），**路径只经命令行参数传入**
+   （Rust `.arg()` 负责引号），脚本体不含任何路径 → 非 ASCII 安装目录同样安全。
+   - Windows：`powershell.exe -File` 静默承载 + `CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP` detached spawn；
+     参数序 `<TargetPid> <Staged> <InstalledExe> <LogPath> <Relaunch>`。
+   - Linux：`sh <script>` 承载（位置参数同序）。
    - ⚠️ 脚本体**必须纯 ASCII**：PowerShell 5.1 对无 BOM 的 `.ps1` 按 ANSI（中文 Windows = GBK）解码，
-     非 ASCII 会乱码，甚至**把下一行代码吞进注释**。单测 `apply_ps1_must_be_ascii` 守这条。
+     非 ASCII 会乱码，甚至**把下一行代码吞进注释**。单测 `apply_ps1_must_be_ascii` / `apply_sh_must_be_ascii` 守这条。
    - ⚠️ PS 5.1 **不支持** `Split-Path -LiteralPath X -Leaf/-Parent`（`AmbiguousParameterSet`，静默返回空串）→
      取父目录 / 文件名必须用 `[System.IO.Path]::GetDirectoryName` / `GetFileName`。
-3. `CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP` detached spawn：**不闪任何控制台窗口**，
-   且脚本在启动器进程退出后仍存活（已实测）。
-4. Windows 不能覆盖运行中的 exe 但**可以重命名** → `Move-Item 旧 → .old` + `Move-Item 新 → 原位`（不用覆盖式拷贝）。
-5. **必须原位替换**：数据目录在 exe 同级，换目录会丢数据。
-6. 脚本先按 PID 等进程退出（`WaitForExit(30s)`，超时则 `Stop-Process -Force`），再替换、
-   最后 `Start-Process` 拉起新版本；主程序排在文件列表**最后**替换，失败回滚并**保留暂存包**便于重试。
-7. 每次尝试写日志 `<data>/update-apply.log` —— 全程无窗口，日志是唯一现场；启动清理会删残留 `.ps1`。
+3. **`Staged` 的含义随形态而变，务必对应**：单文件形态 = 暂存的 `.exe.update` **文件**（脚本把它移动到原位）；
+   **zip 多文件形态 = 已解压的暂存目录** `downloads/staged_<ver>/`（脚本递归逐文件移动）。
+   主程序名**按平台**（`platform::binary_name`：Windows `.exe` / Linux 无后缀）。
+4. 不能覆盖运行中的 exe 但**可以重命名** → `旧 → .old` + `新 → 原位`（不用覆盖式拷贝；Linux 同理 `mv`）。
+5. **必须原位替换**：数据目录在 exe 同级（Windows 便携语义；macOS/Linux 走平台标准目录，见 ADR 0008 D10），
+   换目录 = 配置/领域/缓存全丢。
+6. 脚本先按 PID 等进程退出（30s，超时强杀），再替换、最后按 `Relaunch` 决定是否拉起新版本；
+   主程序排在文件列表**最后**替换，失败回滚并**保留暂存包**便于重试。
+7. 每次尝试写日志 `<data>/update-apply.log` —— 全程无窗口，日志是唯一现场；启动清理会删残留脚本。
 
 ⚠️ **不要退回 `cmd` / 批处理**（历史教训）：`cmd /C` + `start` + 批处理会同时踩「引号剥离、`%~dp1` 字符串拼接、
 ANSI 代码页」三重坑，且 `start` 会闪出黑框并报「文件名、目录名或卷标语法不正确。」，
 表现为**窗口关了但新启动器从未被拉起**。
+
+成功后前端**延迟 800ms 关窗**；`apply` 函数本身绝不调 `app.exit`。
 
 成功后前端**延迟 800ms 关窗**；`apply` 函数本身绝不调 `app.exit`。
 
@@ -137,3 +158,10 @@ npx tauri dev                             # 真机：改 manifest_url 指向本�
 ## 11. 开放问题
 
 - 更新包目前是整包替换，未来若要减小体积需引入差分更新。
+- **minisign 签名**：ADR 0008 D9 复议结论——默认通道（GitHub raw + Releases）是单一信任域，
+  CI 持密钥挡不住 `contents:write` 的 workflow 注入、本机持钥破坏零参数发布流，且同一威胁用
+  GitHub 侧硬化（2FA / fine-grained PAT / 分支保护）更便宜 ⇒ **本期不引入**；清单 schema 保留可选
+  `signature` 字段（前向兼容）。重新评估触发条件：用户量显著增长 / 第二位维护者或 CI runner /
+  分发渠道离开 GitHub Releases / 真实凭证泄露事件。
+- macOS `bundle` 模式（`.app.tar.gz` 整包替换 + 重签）待 Developer ID 证书与 notarytool 公证 CI 就绪后启用；
+  就绪前该平台为 `manual`（描述符一个字段切换）。

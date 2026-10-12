@@ -52,6 +52,7 @@
 |---|---|
 | [build-and-run](./guides/build-and-run.zh-CN.md) | 安装、运行、打包与各类校验脚本 |
 | [release](./guides/release.zh-CN.md) | ChangeLog 语法、本地发包、发布到 GitHub、`index.json`、本地预演、端到端流程与验收清单 |
+| [release-cross-platform](./guides/release-cross-platform.zh-CN.md) | 跨平台发行与更新实施计划（ADR 0008 配套）：平台描述符、per-target 清单、`updateMode` 分派、新用法演示 |
 | [portable-deployment](./guides/portable-deployment.zh-CN.md) | 便携目录机制、随包预置、AI 版变体、实测踩坑 |
 | [distribution-build](./guides/distribution-build.zh-CN.md) | 发行版定制构建：加密 zip 密码内置（路线 B）与 `launcher.json` 配置（路线 A） |
 | [repository-index](./guides/repository-index.zh-CN.md) | 领域仓库 `index.json` 编写与发布 |
@@ -75,6 +76,8 @@
 | [0004](./decisions/0004-modcache-index-no-prune.zh-CN.md) | 百科缓存索引只合并不删除 |
 | [0005](./decisions/0005-ai-runtime-external.zh-CN.md) | AI 超分组件外挂，不静态链接 |
 | [0006](./decisions/0006-guard-coexist-not-block.zh-CN.md) | 守卫分级：共存优先于硬阻断 |
+| [0007](./decisions/0007-version-injection-at-pack.zh-CN.md) | 发行版本由 `release:pack --version` 单点注入 |
+| [0008](./decisions/0008-cross-platform-release-and-update.zh-CN.md) | 跨平台分发与更新：平台描述符 + per-target 清单 + `updateMode` 分派（待评审） |
 
 ## 开发规则（给 AI / 协作者）
 

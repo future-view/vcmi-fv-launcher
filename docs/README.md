@@ -51,6 +51,7 @@
 |---|---|
 | [build-and-run](./guides/build-and-run.zh-CN.md) | Install, run, package, and verification scripts |
 | [release](./guides/release.zh-CN.md) | ChangeLog syntax, local packaging, GitHub publish, `index.json` |
+| [release-cross-platform](./guides/release-cross-platform.zh-CN.md) | Cross-platform release & update implementation plan (ADR 0008 companion): platform descriptors, per-target manifests, `updateMode` dispatch, usage demos |
 | [portable-deployment](./guides/portable-deployment.zh-CN.md) | Portable data dir, bundled presets, AI flavor, known pitfalls |
 | [repository-index](./guides/repository-index.zh-CN.md) | Authoring and publishing a realm repository index |
 | [replace-icon](./guides/replace-icon.zh-CN.md) | Which icon files to replace |
@@ -74,6 +75,7 @@
 | [0005](./decisions/0005-ai-runtime-external.zh-CN.md) | AI runtime is external, not statically linked |
 | [0006](./decisions/0006-guard-coexist-not-block.zh-CN.md) | Guards are graded: coexistence over hard blocking |
 | [0007](./decisions/0007-version-injection-at-pack.zh-CN.md) | `release:pack` injects the release version (persisted by default) |
+| [0008](./decisions/0008-cross-platform-release-and-update.zh-CN.md) | Cross-platform release & update: platform descriptors + per-target manifests + `updateMode` dispatch (confirmed) |
 
 ## IDE Rules
 

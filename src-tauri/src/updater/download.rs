@@ -22,8 +22,11 @@ use super::{
     UPDATE_DOWNLOAD_CANCELLED, UPDATE_MAX_BYTES,
 };
 
-/// zip 更新包内的主程序相对路径
-pub(crate) const STAGED_EXE: &str = "vcmi-fv-launcher.exe";
+/// zip 更新包内的主程序相对路径（**按平台**；与 `release.mjs::TARGETS[].bin` 镜像，
+/// 见 `platform::binary_name`）。未知三元组 → Linux 通用名。
+pub(crate) fn staged_binary_name() -> &'static str {
+    super::platform::binary_name(super::platform::target_triple().unwrap_or(""))
+}
 
 /// 暂存路径（`downloads/` 内，与 exe 同盘 → `move` 原子）。
 /// zip 形态落 `.zip`；exe 形态保持 `.exe.update`（旧约定，同版本可复用免重下）。
@@ -46,7 +49,7 @@ pub(crate) fn staged_dir(version: &str) -> Result<PathBuf, String> {
 /// ⚠️ 绝不触碰用户数据：`realms` / `cache` / `downloads` / `mods` / `launcher.json`
 /// 一律拒绝 —— 否则"解压覆盖"会清空用户的领域与缓存。
 fn allowed_rel(rel: &str) -> bool {
-    rel == STAGED_EXE
+    rel == staged_binary_name()
         // 组件**只认一个位置**（`.vcmi-fv-launcher/runtime/`）——
         // 与打包预置、远程安装、便携内置三者统一（见 `runtime::dir_of`）
         || rel.starts_with(".vcmi-fv-launcher/runtime/")
@@ -66,7 +69,7 @@ fn allowed_rel(rel: &str) -> bool {
 /// 解压结果是否含主程序 → 决定走"退出后脚本替换"还是"进程内直接落地"
 pub(crate) fn staged_has_exe(version: &str) -> bool {
     staged_dir(version)
-        .map(|d| d.join(STAGED_EXE).is_file())
+        .map(|d| d.join(staged_binary_name()).is_file())
         .unwrap_or(false)
 }
 
@@ -205,7 +208,7 @@ fn ensure_staged(entry: &ManifestEntry, dest: &Path) -> bool {
         return true;
     }
     match staged_dir(&entry.version) {
-        Ok(d) if d.join(STAGED_EXE).is_file() => true,
+        Ok(d) if d.join(staged_binary_name()).is_file() => true,
         Ok(d) => extract_zip(dest, &d).is_ok(),
         Err(_) => false,
     }
@@ -389,7 +392,7 @@ mod tests {
         write_zip(
             &z,
             &[
-                (STAGED_EXE, b"EXE"),
+                (staged_binary_name(), b"EXE"),
                 (".vcmi-fv-launcher/runtime/ai/onnxruntime.dll", b"DLL"),
                 (".vcmi-fv-launcher/runtime/ai/model.onnx", b"MODEL"),
                 (".vcmi-fv-launcher/realms/newrealm/realm.json", b"REALM"),
@@ -418,14 +421,14 @@ mod tests {
         write_zip(
             &z,
             &[
-                (STAGED_EXE, b"EXE"),
+                (staged_binary_name(), b"EXE"),
                 (".vcmi-fv-launcher/mods/stale/cache.json", stale),
                 (".vcmi-fv-launcher/mods/stale/other.txt", b"X"),
             ],
         );
         let out = d.join("out");
         let files = extract_zip(&z, &out).unwrap();
-        assert_eq!(files, vec![STAGED_EXE.to_string()], "过期缓存应整目录跳过");
+        assert_eq!(files, vec![staged_binary_name().to_string()], "过期缓存应整目录跳过");
         assert!(!out.join(".vcmi-fv-launcher/mods/stale").exists());
         let _ = fs::remove_dir_all(&d);
     }
@@ -447,7 +450,7 @@ mod tests {
             ".gitignore",
         ] {
             let z = d.join("bad.zip");
-            write_zip(&z, &[(STAGED_EXE, b"EXE"), (bad, b"X")]);
+            write_zip(&z, &[(staged_binary_name(), b"EXE"), (bad, b"X")]);
             let out = d.join("out");
             assert!(extract_zip(&z, &out).is_err(), "应当拒绝：{bad}");
         }
@@ -457,7 +460,7 @@ mod tests {
     /// 路径守卫：白名单前缀通过不代表安全（`runtime/../../x` 必须挡掉）
     #[test]
     fn rel_guard_blocks_traversal_and_empties() {
-        assert!(rel_ok(STAGED_EXE));
+        assert!(rel_ok(staged_binary_name()));
         assert!(rel_ok(".vcmi-fv-launcher/runtime/ai/onnxruntime.dll"));
         assert!(rel_ok(".vcmi-fv-launcher/runtime/ai/model.onnx"));
         // 旧的平铺位置（`<exe>/runtime/`）已废弃 —— 组件只认数据目录下那一处
@@ -503,7 +506,7 @@ mod tests {
 
     /// 测试用：判断某个解压目录里有没有主程序（生产走 [`staged_has_exe`]）
     fn staged_has_exe_from(dir: &Path) -> bool {
-        dir.join(STAGED_EXE).is_file()
+        dir.join(staged_binary_name()).is_file()
     }
 
     /// 清单漏写 `format:"zip"` 时的防线：zip 内容不得被当 exe 接受
@@ -511,7 +514,7 @@ mod tests {
     fn guard_rejects_zip_content_in_exe_format() {
         let d = tmp_dir("guard");
         let z = d.join("p.zip");
-        write_zip(&z, &[(STAGED_EXE, b"EXE")]);
+        write_zip(&z, &[(staged_binary_name(), b"EXE")]);
         assert!(guard_exe_not_zip(&z).is_err(), "zip 内容必须被拒绝");
 
         let exe = d.join("plain.exe");
@@ -532,8 +535,8 @@ mod tests {
         let out = tmp_dir("real");
         let files = extract_zip(Path::new(&p), &out).unwrap();
         println!("解出 {} 个文件：{files:?}", files.len());
-        assert!(files.iter().any(|f| f == STAGED_EXE), "必须含主程序");
-        assert!(out.join(STAGED_EXE).is_file());
+        assert!(files.iter().any(|f| f == staged_binary_name()), "必须含主程序");
+        assert!(out.join(staged_binary_name()).is_file());
         let _ = fs::remove_dir_all(out.parent().unwrap_or(&out));
     }
 }

@@ -1,5 +1,5 @@
 ---
-description: 构建、运行与验证命令速查：安装依赖、纯前端 mock、真实 modSettings 验证、Tauri 桌面运行、打包 Windows exe。需要跑命令时先看本规则。
+description: 构建、运行与验证命令速查：安装依赖、纯前端 mock、真实 modSettings 验证、Tauri 桌面运行、跨平台打包与发行。需要跑命令时先看本规则。
 globs: ["**/*.{ts,tsx,rs,json,mjs,html,md}"]
 ---
 
@@ -34,6 +34,26 @@ npx tauri dev
 
 # 打包 Windows exe（网络受限时仅 exe，不含 MSI）
 npx tauri build
+
+# 打包「带控制台窗口」的调试包（dev 档，体积小 —— 日常自测首选）
+npm run build:console
+
+# 打包「带控制台窗口 + release 性能」的包（验收 HD/AI 等耗时操作时用）
+npm run build:console:release
+
+# 发行第一步：本地发包（构建 → 提取 → 随包预置补丁 → 条目片段；不联网、不改索引）
+#   默认只出「二进制 + portable」；--platform 缺省按当前主机推断；安装包按需 --bundles 透传
+npm run release:pack -- --version 0.2.0
+npm run release:pack -- --version 0.2.0 --bundles nsis,msi         # 要安装包时才加（windows）
+npm run release:pack -- --version 0.2.0 --platform linux-x86_64   # 显式指定平台（跨 OS 需对应工具链）
+
+# 发行第二步：发布到 GitHub Releases（需 GITHUB_TOKEN）；多平台各跑一次，各写各的更新清单
+npm run release:publish -- --version 0.2.0 --platform windows-x86_64   # 只发这个平台（同版本有多平台目录时必填）
+npm run release:publish -- --version 0.2.0                            # 省略 --platform：仅当该版本只有单平台本地目录
+
+# 发行自检（--online 逐平台探测下载地址 + 比对远端清单/索引）
+npm run release:verify
+npm run release:status
 ```
 
 ## 命令说明
@@ -48,9 +68,9 @@ npx tauri build
 | `npm run build:debug` | dev 档打包 | 自带控制台；产物 `target/debug/` |
 | `npm run build:console` | dev 档 + `--features console` | **推荐的自测包**：有控制台 + 体积约 1/3 |
 | `npm run build:console:release` | release 档 + `--features console` | 有控制台 + 满性能 |
-| `npm run release:pack` | **对外发行的唯一构建入口** | release 档 + 提取产物 + 生成随包预置 + 写条目片段；`--flavor ai` 出 AI 版；`--no-build` 只提取 |
-| `npm run release:publish` | 发布到 GitHub Releases | 建 tag/release → 流式传资产 → 更新 `releases/index.json`；`--resume` / `--replace` / `--dry-run` |
-| `npm run release:verify` | 发行契约自检 | 结构与投影 / 预置 / ChangeLog 一致性；`--online` 探测下载地址与远端索引；`--fix` 重算派生物 |
+| `npm run release:pack` | **对外发行的唯一构建入口** | release 档 + 提取产物 + 生成随包预置 + 写条目片段；`--platform` 选平台（缺省宿主推断）；`--bundles` 按需出安装包（缺省不出）；`--flavor ai` 出 AI 版（仅 windows-x86_64）；`--no-build` 只提取 |
+| `npm run release:publish` | 发布到 GitHub Releases | 建 tag/release → 流式传资产 → 更新 `releases/index.json` + per-target 清单 `releases/update/<platform>.json`；`--platform` 只发指定平台（同版本多平台目录必填）；`--resume` / `--replace` / `--dry-run` |
+| `npm run release:verify` | 发行契约自检 | 结构 / 投影 / 预置 / ChangeLog 一致性；`--online` 探测下载地址与远端索引；`--fix` 重算派生物 |
 | `npm run release:status` | 索引版本 vs 本地已打包目录 | 只读 |
 
 ## 发行体系（`scripts/release.mjs` —— 唯一发行工具）
@@ -58,41 +78,69 @@ npx tauri build
 设计依据：`docs/guides/release.zh-CN.md`。**两步式**：
 
 ```bash
-npm run release:pack -- --version 0.2.0      # ① 本地发包：写入版本 → 构建 → 打包 → 预置 → 片段（不联网）
+npm run release:pack -- --version 0.2.0      # ① 本地发包：写入版本 → 构建 → 打包 → 预置 → 片段
+                                             #    （默认只出二进制 + portable；--platform 缺省按宿主推断）
 npm run release:pack -- --test               #    测试包：不改源码、不进更新链、不出安装包
 npm run release:pack                         #    零参数：用文件里的版本（CI / tag 构建）
-npm run release:publish -- --version 0.2.0   # ② 发布到 GitHub（--version 缺省 = 文件里的版本）
+npm run release:publish -- --version 0.2.0   # ② 发布到 GitHub（--version 缺省 = 文件里的版本）；
+                                             #    多平台各跑一次，各写 releases/update/<platform>.json
 # 索引推送到 GitHub 后，才对所有用户的启动器更新生效（raw CDN 分钟级缓存）
+# per-target 清单（releases/update/<platform>.json）才是启动器的更新源；索引只是浏览数据
 ```
 
 `release:pack` 输出到：
 
 ```
-releases/<version>_<YYYYMMDD-HH>[_<flavor>]/    ← 到小时；同一小时重跑直接覆盖
-├─ portable_<version>_<stamp>.zip      ← 主更新资产（程序文件；**不含用户数据**）
-├─ vcmi-fv-launcher.exe
-├─ VCMI-FV-Launcher_<v>_x64-setup.exe  ← NSIS
-├─ VCMI-FV-Launcher_<v>_x64_en-US.msi  ← MSI（AI 版不出 MSI）
-├─ release.json                        ← 全部资产指纹
-└─ index.entry.json                    ← 本版本条目片段（publish 读它）
-releases/index.json                     ← ✅ 提交进 git：仓库级索引 = 启动器的更新清单
-releases/latest.json                    ← ❌ 本地指针
+releases/<version>_<YYYYMMDD-HH>[_<flavor>]_<platform>/  ← 到小时；**目录名带平台**（同小时打多平台不互删）
+├─ portable_<version>_<stamp>_<platform>.zip  ← 主更新资产（程序文件；**不含用户数据**；Unix 权限位随包落盘）
+├─ vcmi-fv-launcher.exe                       ← 主程序（macOS .app 形态只进便携包，不单独落盘）
+├─ VCMI-FV-Launcher_<v>_x64-setup.exe         ← NSIS（仅 --bundles nsis）
+├─ VCMI-FV-Launcher_<v>_x64_en-US.msi         ← MSI（仅 --bundles msi；AI 版不出）
+└─ release.json                               ← 全部产物指纹（顶层 sha256/size = 主更新产物）
+releases/update/<platform>.json    ← ✅ 提交进 git：per-target 更新清单 = 启动器唯一更新源
+releases/index.json                ← ✅ 提交进 git：仓库级索引（浏览数据；versions[] 投影已退役）
+releases/index.json.init           ← ✅ 提交进 git：初始模板（空台账；重置时 cp 用，任何代码不读它）
+releases/update/<platform>.json.init ← ✅ 提交进 git：初始模板（空清单；同上）
 ```
 
-- **纯净版 zip 仅含 exe**；**AI 版（`--flavor ai`）额外含 `.vcmi-fv-launcher/runtime/ai/**`** + AI 预置。
-- ⚠️ zip 里**绝不能有** `.vcmi-fv-launcher/` 下的用户数据（realms / cache / mods / launcher.json）
+- **纯净版 zip 仅含 exe**（约 10MB）；**内置 AI 版 zip 额外含 `.vcmi-fv-launcher/runtime/ai/**`**（约 16MB）。
+- ⚠️ zip 里**绝不能有 `.vcmi-fv-launcher/` 下的用户数据**（realms / cache / mods / launcher.json）
   —— "解压覆盖"会清空用户的领域与缓存。
-- `.gitignore` 忽略 `releases/*`，**只提交 `releases/index.json`**。
+- zip 由 Node 内置 `zlib` **手写**（项目没有写 zip 的库），见 `scripts/release.mjs`。
+- 每个发行目录还含 `index.entry.json`（本版本条目片段，publish 读它）；`.gitignore` 忽略 `releases/*`，
+  **只提交 `releases/index.json`、`releases/update/*.json` 与两份 `.init` 初始模板**（`index.json.init` 被
+  `releases/*` 吞掉，需显式放行；`*.local.json` 预演产物不入库）。
+- **冷启动契约**：两份发行文件都不是 pack 的前置——索引缺失时首次 pack 自举（owner/repo 取 git remote，
+  **任意主机**含自定义 SSH 别名；branch 取 `origin/HEAD` → 当前 HEAD → `main`，**绝不猜 master**，
+  否则 raw 更新地址指错分支 = 用户侧 404）；清单缺失时 publish 自动新建。重置到初始态 =
+  `cp releases/index.json.init releases/index.json` + `cp releases/update/<platform>.json.init releases/update/<platform>.json`。
 - 随包预置补丁在 `src-tauri/resources/release-preset/*.json`：**提交进 git**（构建期要读），
   由 `releases/index.json` 的 `preset` 区块生成（改配置后重跑 `release:pack`）。
 - ⚠️ **`--version` 就是契约版本**（ADR 0007）：与文件不同时会在**构建前**写入 `Cargo.toml` + `tauri.conf.json`
   （持久注入，需随发行提交；`--temp-version` 为临时注入、构建后自动还原）。必须合法 semver + **严格单调递增**
   （更新器只认 `current < version`，同号重发无效）。
-- ⚠️ **Windows 安装包只支持纯数字版本**：`0.2.0-rc1` 这类必须加 `--no-bundle`，否则 bundler 直接失败。
+- ⚠️ **MSI 只支持纯数字版本**（WiX 限制）：`0.2.0-rc1` 请求 `--bundles msi` 会直接失败（默认不出安装包，不受影响）。
+- **跨平台（ADR 0008）**：`--platform` 选目标平台（缺省按宿主推断，推断不出直接报错、不回退 Windows）；
+  安装包按需 `--bundles` 透传（windows: nsis,msi｜darwin: dmg,app｜linux: deb,appimage；跨 OS 打包需对应
+  工具链——darwin 只能在 macOS 上构建）。平台矩阵、产物树与容错规则见 `docs/guides/release-cross-platform.zh-CN.md`。
 - ⚠️ HEAD 停在某个 tag 上而与本 tag 不一致 → `release:pack` **直接拒绝**（防"打了标签忘定版"；`--allow-tag-mismatch` 放行）。
 - ⚠️ 更新说明的唯一手写编辑点是仓库根 **`ChangeLog.md`**（`## v<版本>` → `### <lang>` → `- 一行`，严格解析）；
-  `--notes "…"` 可临时覆盖，`--body-file` 提供富文本正文。
+  `--notes "…"` 可临时覆盖。
 - ⚠️ 旧的 `build:release*` / `package:release` / `release:info` / `release:manifest` **已删除**（不做老兼容）。
+
+## 构建档位与控制台
+
+- **控制台由 `console` feature 控制**，不再由「是不是 dev 包」决定（见 `src-tauri/src/main.rs`）。
+  因此想看日志不必再打 60MB 的 dev 包 —— release 档加 `--features console` 同样有窗口。
+- **dev 档已调优**（`src-tauri/Cargo.toml`）：依赖 `opt-level = 2`、自身代码 `opt-level = 1`、
+  `debug = 1`。产物 `~61MB → ~18MB`、PDB `597MB → 数十 MB`、写盘 `~2.2GB → ~300MB`
+  （链接末段反而更快），运行时接近 release。
+  ⚠️ **首次生效会触发依赖全量重编**（十几分钟），之后 `tauri dev` 与 `tauri build --debug`
+  共用 `target/debug` 缓存，长期受益。
+- ⚠️ `build:console:release` 与 `release:pack` 的 exe **同路径同名**（`target/release/vcmi-fv-launcher.exe`），
+  会互相覆盖：对外发行请只跑 `release:pack`。
+- ⚠️ 不要在 `[profile.dev]` 里关 `debug-assertions` / `overflow-checks` 来"提速"：
+  那会改变 debug 语义（控制台已解耦到 feature，不受影响，但其它断言行为会变）。
 
 ## 验证通过标准
 

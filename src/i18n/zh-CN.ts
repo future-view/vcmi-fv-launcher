@@ -791,6 +791,8 @@ export const zhCN: LangDict = {
     skipVersion: "跳过此版本",
     skipDefer: "暂不应用",
     downloadedNote: "安装包已下载并保留，稍后可随时应用",
+    manualHint: "当前平台不支持应用内更新，请手动下载新版安装包",
+    openDownload: "打开下载页",
     skippedToast: "已跳过 {ver}；可在设置中检查更新恢复提醒",
     undoSkip: "撤销",
     redDotReady: "更新包已下载完成，待重启应用",

@@ -15,6 +15,7 @@ pub mod delete_patch;
 pub mod download;
 pub mod manifest;
 pub mod migrate;
+pub mod platform;
 
 use std::fs;
 use std::path::PathBuf;

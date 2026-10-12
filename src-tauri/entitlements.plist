@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- WebView2/WKWebView 的 JIT（Tauri 标准四项，见 tauri 官方 macOS 模板） -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <!-- 启动器需要网络出口：更新清单/资产、模组仓库索引与下载 -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <!-- 打开游戏目录/文件管理器（spawn 之外的文件访问由用户经对话框授权） -->
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <true/>
+</dict>
+</plist>

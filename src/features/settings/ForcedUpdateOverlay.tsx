@@ -27,6 +27,9 @@ export function ForcedUpdateOverlay({ info, onExit }: Props) {
   const notes = pickNotes(info, lang);
   const pct = flow.progress ? progressPercent(flow.progress.received, flow.progress.total) : null;
   const busy = flow.ui === "downloading" || flow.ui === "applying" || flow.ui === "restarting";
+  // manual 模式（ADR 0008 D7）：应用内替换不可用 → 阻断层改为引导手动下载
+  // （per-target minSupported 落在 manual 平台上时的诚实行为）
+  const manual = info.updateMode === "manual" && !!info.downloadUrl;
 
   return (
     <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-950 px-6">
@@ -96,7 +99,17 @@ export function ForcedUpdateOverlay({ info, onExit }: Props) {
 
         {/* 操作区：唯一主按钮 + 退出（下载中主按钮变「取消下载」） */}
         <div className="mt-8 flex w-full max-w-xs flex-col gap-2.5">
-          {flow.ui === "downloading" ? (
+          {manual ? (
+            <a
+              href={info.downloadUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90"
+            >
+              <DownloadCloud className="h-4 w-4" />
+              {t.update.openDownload}
+            </a>
+          ) : flow.ui === "downloading" ? (
             <button
               type="button"
               onClick={() => void flow.cancel()}

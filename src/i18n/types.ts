@@ -998,6 +998,10 @@ export interface LangDict {
     skipVersion: string;
     skipDefer: string;
     downloadedNote: string;
+    /** manual 模式（ADR 0008 D7）：该平台不应用内更新，引导手动下载的说明 */
+    manualHint: string;
+    /** manual 模式主按钮：打开下载页 */
+    openDownload: string;
     skippedToast: string;
     undoSkip: string;
     redDotReady: string;

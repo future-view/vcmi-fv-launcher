@@ -123,20 +123,53 @@ impl VcmiPaths {
             .unwrap_or_else(|| PathBuf::from("."))
     }
 
-    /// 持久化配置路径：exe 所在目录 / .vcmi-fv-launcher/launcher.json
+    /// 持久化配置路径：数据根目录 / launcher.json（数据根按平台分派，见 `launcher_data_dir`）
     pub fn launcher_config_path() -> Option<PathBuf> {
-        std::env::current_exe()
-            .ok()
-            .and_then(|exe| exe.parent().map(|d| d.to_path_buf()))
-            .map(|d| d.join(".vcmi-fv-launcher").join("launcher.json"))
+        Self::launcher_data_dir().map(|d| d.join("launcher.json"))
     }
 
-    /// 启动器数据根目录（exe 所在目录 / .vcmi-fv-launcher），用于缓存等
+    /// 启动器数据根目录（ADR 0008 D10：**按平台分派**），用于缓存 / 配置 / 领域 / 下载暂存等。
+    ///
+    /// - Windows：exe 同级 `.vcmi-fv-launcher`（**便携单文件夹是既定特性**，不变）；
+    /// - macOS：`~/Library/Application Support/com.vcmi.fv-launcher/`（`.app` 装进
+    ///   `/Applications` 后包内写数据会破坏代码签名，且整包替换即丢数据）；
+    /// - Linux：`$XDG_DATA_HOME/vcmi-fv-launcher`（缺省 `~/.local/share/...`；AppImage
+    ///   挂载的是**只读** squashfs，exe 同级根本不可写）。
+    ///
+    /// ⚠️ `mods_cache_dir` / `realm_vcmi_dir` / `downloads_dir` 等全部由本函数派生——
+    /// 只改这里即可全链路切换（当初分层收敛的好处）。
     pub fn launcher_data_dir() -> Option<PathBuf> {
-        std::env::current_exe()
-            .ok()
-            .and_then(|exe| exe.parent().map(|d| d.to_path_buf()))
-            .map(|d| d.join(".vcmi-fv-launcher"))
+        #[cfg(windows)]
+        {
+            // Windows 维持"exe 同级"：便携语义（解压覆盖换目录即丢数据）是产品特性
+            std::env::current_exe()
+                .ok()
+                .and_then(|exe| exe.parent().map(|d| d.to_path_buf()))
+                .map(|d| d.join(".vcmi-fv-launcher"))
+        }
+        #[cfg(not(windows))]
+        {
+            Self::platform_data_dir()
+        }
+    }
+
+    /// 非 Windows 的数据根（平台标准位置；ADR 0008 D10）
+    #[cfg(not(windows))]
+    fn platform_data_dir() -> Option<PathBuf> {
+        #[cfg(target_os = "macos")]
+        {
+            // identifier = com.vcmi.fv-launcher（tauri.conf.json）
+            dirs::data_dir().map(|d| d.join("com.vcmi.fv-launcher"))
+        }
+        #[cfg(target_os = "linux")]
+        {
+            // dirs::data_dir 在 Linux 上即 XDG_DATA_HOME（缺省 ~/.local/share）
+            dirs::data_dir().map(|d| d.join("vcmi-fv-launcher"))
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+        {
+            None
+        }
     }
 
     /// Wiki 数据源缓存根目录：exe 目录 / .vcmi-fv-launcher/mods

@@ -1,4 +1,4 @@
-//! Windows 就地替换：暂存文件 → **静默 PowerShell 脚本** → detached spawn。
+//! 就地替换（inplace）：暂存文件 → **静默替换脚本**（Windows：PowerShell；其余平台：sh）→ detached spawn。
 //!
 //! 核心事实（勿违背）：
 //! - Windows **不能覆盖运行中的 exe，但可重命名** → 脚本先等旧进程退出，再
@@ -18,6 +18,7 @@ use std::path::Path;
 use std::process::Command;
 
 use super::download;
+use super::platform::UpdateMode;
 use super::{data_dir, exe_path, pending_apply, phase, set_pending_apply, set_phase, target, UpdatePhase};
 
 #[cfg(windows)]
@@ -45,6 +46,15 @@ pub fn apply_update(relaunch: bool) -> Result<(), String> {
         return Err(be_err("updater_apply_not_downloaded", ""));
     }
     let entry = { target().clone().ok_or_else(|| be_err("updater_no_checked_update", ""))? };
+    // manual：不应用，只提示用户手动下载（macOS 无签名证书的过渡态，ADR 0008 D7）
+    if entry.mode() == UpdateMode::Manual {
+        return Err(be_err("upd_manual_only", ""));
+    }
+    // appimage / bundle 的整包替换策略待 pack 开始产出对应更新资产后启用
+    // （当前 pack 只发 inplace 便携包；预留下明确错误而非静默走错流程）
+    if matches!(entry.mode(), UpdateMode::Appimage | UpdateMode::Bundle) {
+        return Err(be_err("upd_mode_not_implemented", entry.mode().as_str()));
+    }
     let exe = exe_path()?;
     let dir = exe
         .parent()
@@ -74,12 +84,25 @@ pub fn apply_update(relaunch: bool) -> Result<(), String> {
     }
 
     let data = data_dir()?;
-    let ps1 = data.join("update-apply.ps1");
     let log = data.join("update-apply.log");
     let _ = fs::remove_file(&log);
-    fs::write(&ps1, APPLY_PS1).map_err(|e| be_err("upd_script_write_failed", &format!("{}", e)))?;
 
-    spawn_replacer(&ps1, &staged, &exe, &log, relaunch)?;
+    // inplace：Windows 写 PowerShell 脚本，其余平台写 POSIX shell（两者同构：等进程退出 →
+    // 逐文件 move（主程序最后、失败回滚、绝不删目录）→ 按需 relaunch）
+    #[cfg(windows)]
+    let script = {
+        let ps1 = data.join("update-apply.ps1");
+        fs::write(&ps1, APPLY_PS1).map_err(|e| be_err("upd_script_write_failed", &format!("{}", e)))?;
+        ps1
+    };
+    #[cfg(not(windows))]
+    let script = {
+        let sh = data.join("update-apply.sh");
+        fs::write(&sh, APPLY_SH).map_err(|e| be_err("upd_script_write_failed", &format!("{}", e)))?;
+        sh
+    };
+
+    spawn_replacer(&script, &staged, &exe, &log, relaunch)?;
     set_phase(UpdatePhase::Idle);
     // 记录「已应用目标版本」（注意：写的是 entry.version 而非 CURRENT——此刻 exe 尚未被替换，
     // CURRENT 仍是旧版）。用于识别「应用后又手工降级」：回退后
@@ -92,7 +115,7 @@ pub fn apply_update(relaunch: bool) -> Result<(), String> {
     set_pending_apply(None);
     tracing::info!(
         target: "updater",
-        "替换脚本已启动（powershell 静默），等待进程退出后原位应用新版本 {}（日志：{}）",
+        "替换脚本已启动（静默），等待进程退出后原位应用新版本 {}（日志：{}）",
         entry.version,
         log.display()
     );
@@ -234,46 +257,175 @@ Remove-Item -Force -LiteralPath $PSCommandPath -ErrorAction SilentlyContinue
 Write-Log ('done; failed={0}' -f $failed)
 "##;
 
+/// POSIX shell 版替换脚本（非 Windows 的 `inplace` 模式；与 `APPLY_PS1` 同构）。
+///
+/// 参数顺序：`TargetPid` / `Staged` / `InstalledExe` / `LogPath` / `Relaunch`。
+/// - `Staged` 是**目录**（zip 多文件包）→ 逐文件 move，主程序放最后；是**文件** → 直接 move 到原位；
+/// - **只移动、绝不删除目录**（目标已是目录可能是借用联接 junction，见 rules 04）；
+/// - 主程序 chmod 0755（zip 的 Unix 权限位在解压时已生效，这里是兜底）；
+/// - 失败回滚主程序并**保留暂存内容**便于重试；全程写日志（无窗口，日志是唯一现场）。
+///
+/// ⚠️ 脚本体保持**纯 ASCII、不含任何路径**（路径一律经命令行参数传入）。
+// Windows 构建不走本分支（用 APPLY_PS1），常量在 Windows 上天然未使用 —— 非 dead code。
+#[cfg_attr(windows, allow(dead_code))]
+const APPLY_SH: &str = r##"#!/bin/sh
+set -u
+TARGET_PID="$1"
+STAGED="$2"
+INSTALLED_EXE="$3"
+LOG_PATH="$4"
+RELAUNCH="$5"
+INSTALL_DIR=$(dirname "$INSTALLED_EXE")
+EXE_NAME=$(basename "$INSTALLED_EXE")
+
+log() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$LOG_PATH" 2>/dev/null
+}
+
+log "start; pid=$TARGET_PID; staged=$STAGED; exe=$INSTALLED_EXE; relaunch=$RELAUNCH"
+
+# wait for the old process to exit (max 30s; force kill on timeout; same as PS version)
+i=0
+while [ "$i" -lt 300 ]; do
+  if ! kill -0 "$TARGET_PID" 2>/dev/null; then
+    break
+  fi
+  sleep 0.1
+  i=$((i + 1))
+done
+if kill -0 "$TARGET_PID" 2>/dev/null; then
+  log "old process still alive after 30s; killing"
+  kill -9 "$TARGET_PID" 2>/dev/null
+  sleep 1
+fi
+
+failed=0
+main_ok=0
+
+place_file() {
+  rel="$1"
+  src="$STAGED/$rel"
+  [ -f "$src" ] || return 0
+  dst="$INSTALL_DIR/$rel"
+  mkdir -p "$(dirname "$dst")" 2>/dev/null
+  if [ -d "$dst" ]; then
+    log "skip directory: $rel"
+    return 0
+  fi
+  if [ -e "$dst" ]; then
+    mv -f "$dst" "$dst.old" 2>/dev/null
+  fi
+  if mv -f "$src" "$dst" 2>>"$LOG_PATH"; then
+    if [ "$rel" = "$EXE_NAME" ]; then
+      chmod 0755 "$dst" 2>/dev/null
+    fi
+    log "placed: $rel"
+  else
+    log "FAILED: $rel"
+    failed=1
+  fi
+}
+
+if [ -d "$STAGED" ]; then
+  # zip multi-file payload: place others first, main program last (same as PS version)
+  OLD_IFS="$IFS"
+  IFS='
+'
+  for src in $(find "$STAGED" -type f | sort); do
+    rel=${src#"$STAGED"/}
+    if [ "$rel" = "$EXE_NAME" ]; then
+      continue
+    fi
+    place_file "$rel"
+  done
+  IFS="$OLD_IFS"
+  if [ -f "$STAGED/$EXE_NAME" ]; then
+    place_file "$EXE_NAME"
+    if [ -f "$INSTALL_DIR/$EXE_NAME" ]; then
+      main_ok=1
+      log "main program replaced"
+    else
+      log "ERROR: main program replace failed; rolling back"
+      if [ -e "$INSTALL_DIR/$EXE_NAME.old" ]; then
+        mv -f "$INSTALL_DIR/$EXE_NAME.old" "$INSTALL_DIR/$EXE_NAME" 2>/dev/null
+      fi
+      failed=1
+    fi
+  else
+    log "ERROR: main program not found in staged payload"
+    failed=1
+  fi
+elif [ -f "$STAGED" ]; then
+  # single-file payload: move straight into place
+  place_file "$EXE_NAME"
+  if [ -f "$INSTALL_DIR/$EXE_NAME" ]; then
+    main_ok=1
+    log "main program replaced"
+  else
+    log "ERROR: main program replace failed; rolling back"
+    if [ -e "$INSTALL_DIR/$EXE_NAME.old" ]; then
+      mv -f "$INSTALL_DIR/$EXE_NAME.old" "$INSTALL_DIR/$EXE_NAME" 2>/dev/null
+    fi
+    failed=1
+  fi
+fi
+
+if [ "$main_ok" = "1" ]; then
+  if [ "$RELAUNCH" = "1" ]; then
+    (cd "$INSTALL_DIR" && "./$EXE_NAME" >/dev/null 2>&1 &)
+    log "new launcher started"
+  else
+    log "relaunch suppressed (relaunch=$RELAUNCH); launcher binary updated only, no auto start"
+  fi
+fi
+
+# keep staged payload on failure for retry; clean up on success
+if [ "$failed" = "0" ]; then
+  rm -rf "$STAGED" 2>/dev/null
+else
+  log "staged payload kept for retry (partial failure)"
+fi
+rm -f "$0" 2>/dev/null
+log "done; failed=$failed"
+"##;
+
 /// 关闭启动器时是否应**自动完成**待应用的（含 exe 的）更新。
 ///
 /// 前置：用户此前已下载该更新（`pendingApplyVersion` 已记录 = 升级意图明确），
 /// 但没点「重启并应用」就关闭。满足全部条件才自动替换：
 /// - 处于 `Downloaded` 阶段且 `target` 已解析；
 /// - 待应用版本 == target 版本（「跳过此版本」会清空 pending，自然不满足）；
-/// - **含 exe**（纯配置包在启动期已就地应用，不在此处理）；
-/// - 暂存内容就绪（解压目录 / 单 exe 文件存在）。
+/// - **含主程序**（纯配置包在启动期已就地应用，不在此处理）；
+/// - 暂存内容就绪（解压目录 / 单文件存在）；
+/// - `updateMode == inplace`（Windows PS 脚本 / Linux sh 脚本；appimage/bundle/manual 不走本条）。
 ///
 /// 返回 false 时 `close_window` 走普通关闭；pending 原样保留，下次启动仍提示。
-/// 该分支仅在 Windows 生效（就地替换逻辑是 Windows 专属）。
 pub fn should_auto_apply_on_close() -> bool {
-    #[cfg(not(windows))]
-    {
-        false
+    if cfg!(debug_assertions) {
+        return false;
     }
-    #[cfg(windows)]
-    {
-        if cfg!(debug_assertions) {
-            return false;
-        }
-        if phase() != UpdatePhase::Downloaded {
-            return false;
-        }
-        let entry = match target().clone() {
-            Some(e) => e,
-            None => return false,
-        };
-        if pending_apply().as_deref() != Some(entry.version.as_str()) {
-            return false;
-        }
-        // 纯配置包（无 exe）在启动期已就地应用，这里只处理需要替换 exe 的更新
-        if entry.is_zip() && !download::staged_has_exe(&entry.version) {
-            return false;
-        }
-        if !download::staged_ready(&entry) {
-            return false;
-        }
-        true
+    if phase() != UpdatePhase::Downloaded {
+        return false;
     }
+    let entry = match target().clone() {
+        Some(e) => e,
+        None => return false,
+    };
+    // 仅 inplace 支持"关闭时自动应用"（ADR 0008 D7）
+    if entry.mode() != UpdateMode::Inplace {
+        return false;
+    }
+    if pending_apply().as_deref() != Some(entry.version.as_str()) {
+        return false;
+    }
+    // 纯配置包（无主程序）在启动期已就地应用，这里只处理需要替换主程序的更新
+    if entry.is_zip() && !download::staged_has_exe(&entry.version) {
+        return false;
+    }
+    if !download::staged_ready(&entry) {
+        return false;
+    }
+    true
 }
 
 /// **进程内直接落地**：把已解压的更新内容逐文件写到目标位置（**无需退出 / 重启**）。
@@ -344,10 +496,12 @@ fn collect_rel_files(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(
     Ok(())
 }
 
-/// 静默拉起替换脚本（`powershell -File`，无窗口，独立进程组 → 不随本进程退出被回收）。
-/// `relaunch` 作为第 5 个位置参数传入脚本，决定是否替换后重新拉起。
+/// 静默拉起替换脚本（无窗口、独立进程组 → 不随本进程退出被回收）。
+/// `relaunch` 作为最后一个位置参数传入脚本，决定是否替换后重新拉起。
+///
+/// Windows：`powershell.exe -File`；其余平台：`sh <script>`（位置参数顺序一致）。
 #[cfg(windows)]
-fn spawn_replacer(ps1: &Path, staged: &Path, exe: &Path, log: &Path, relaunch: bool) -> Result<(), String> {
+fn spawn_replacer(script: &Path, staged: &Path, exe: &Path, log: &Path, relaunch: bool) -> Result<(), String> {
     let pid = std::process::id();
     Command::new("powershell.exe")
         .arg("-NoProfile")
@@ -357,7 +511,7 @@ fn spawn_replacer(ps1: &Path, staged: &Path, exe: &Path, log: &Path, relaunch: b
         .arg("-WindowStyle")
         .arg("Hidden")
         .arg("-File")
-        .arg(ps1)
+        .arg(script)
         .arg(pid.to_string())
         .arg(staged)
         .arg(exe)
@@ -369,9 +523,19 @@ fn spawn_replacer(ps1: &Path, staged: &Path, exe: &Path, log: &Path, relaunch: b
     Ok(())
 }
 
+/// 非 Windows：`sh <script>` 承载（路径只经命令行参数传入，脚本体不含路径）。
 #[cfg(not(windows))]
-fn spawn_replacer(_ps1: &Path, _staged: &Path, _exe: &Path, _log: &Path, _relaunch: bool) -> Result<(), String> {
-    Err(be_err("upd_windows_only", ""))
+fn spawn_replacer(script: &Path, staged: &Path, exe: &Path, log: &Path, relaunch: bool) -> Result<(), String> {
+    Command::new("sh")
+        .arg(script)
+        .arg(std::process::id().to_string())
+        .arg(staged)
+        .arg(exe)
+        .arg(log)
+        .arg(if relaunch { "1" } else { "0" })
+        .spawn()
+        .map_err(|e| be_err("upd_script_spawn_failed", &format!("{}", e)))?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -385,5 +549,12 @@ mod tests {
             super::APPLY_PS1.is_ascii(),
             "APPLY_PS1 含非 ASCII 字符，会在 PowerShell 5.1 下乱码"
         );
+    }
+
+    /// sh 脚本同样必须纯 ASCII：路径里的非 ASCII 由命令行参数承载，
+    /// 脚本体含非 ASCII 会在部分 locale 下乱码。
+    #[test]
+    fn apply_sh_must_be_ascii() {
+        assert!(super::APPLY_SH.is_ascii(), "APPLY_SH 含非 ASCII 字符");
     }
 }

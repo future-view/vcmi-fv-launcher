@@ -1,6 +1,6 @@
 # 发行流程
 
-> 状态：已实现 ｜ 最后核对：2026-10-01 ｜ 代码：`ChangeLog.md`、`releases/index.json`、`scripts/`（`release:*`）
+> 状态：已实现 ｜ 最后核对：2026-10-12 ｜ 代码：`ChangeLog.md`、`releases/index.json`、`scripts/`（`release:*`）
 
 ## 1. 总览
 
@@ -39,7 +39,7 @@
 ## 3. 第一步：本地发包
 
 ```bash
-npm run release:pack -- --version 0.2.0     # 正式版：写入版本 → 构建 → 出包
+npm run release:pack -- --version 0.2.0     # 正式版：写入版本 → 构建 → 出包（默认只出二进制 + 便携包）
 npm run release:pack -- --test              # 测试包：不改源码、不进更新链、不出安装包
 npm run release:pack                        # 零参数：用文件里的版本（CI / 换机器，见 §8）
 ```
@@ -50,38 +50,49 @@ npm run release:pack                        # 零参数：用文件里的版本�
 
 构建 → 提取产物 → 生成随包预置补丁 → 写发行目录与条目片段。**不联网、不改 index.json 的版本条目**。
 
+> **跨平台（ADR 0008）**：`--platform` 缺省 = 当前主机推断（Windows/mac/Linux 各自出各自平台的包，
+> 推断不出直接报错、**绝不回退 Windows**）；安装包从"默认全出"改为**按需 `--bundles` 透传**。
+> 完整平台矩阵、工具链现实与产物树见 [release-cross-platform](./release-cross-platform.zh-CN.md)。
+
 | 开关 | 用途 |
 |---|---|
 | `--test` | 一键测试包 = `--temp-version` + `--no-update-chain` + `--no-bundle` + 自动版本 `<现版本>-dev.<YYYYMMDD>` |
 | `--temp-version` | 临时注入：构建后还原版本文件（零源码改动；tag 复现需带 `--version`） |
-| `--no-bundle` | 不出 NSIS/MSI（⚠️ Windows 安装包只支持纯数字版本，`0.2.0-rc1` 必须加它） |
+| `--platform <triple>` | 目标平台：`windows-x86_64` / `darwin-aarch64` / `darwin-x86_64` / `linux-x86_64`；缺省 = 宿主推断 |
+| `--bundles <csv>` | 安装包类型（透传 `tauri build --bundles`）：windows=`nsis,msi`｜darwin=`dmg,app`｜linux=`deb,appimage`。**缺省 = 不出安装包** |
+| `--no-bundle` | 不出安装包（现已等同默认；`--test` 内部仍会带上） |
 | `--no-build` | 只提取 `target/` 现有产物（**不能**与版本注入/`--test` 同用；上次是 `--test` 构建会被拒绝） |
-| `--flavor ai` | AI 版（自带组件 + AI 预置），作同一 Release 的附件 |
+| `--flavor ai` | AI 版（自带组件 + AI 预置），作同一 Release 的附件；**仅 windows-x86_64**（原生组件当前只有 Windows 库） |
 | `--tag` / `--title` | 覆盖 tag / 标题（缺省可由索引 `naming` 模板生成） |
 | `--allow-downgrade` / `--allow-tag-mismatch` | 放行"版本不高于索引最新版" / "HEAD 的 tag 与本 tag 不一致"（默认都拒绝） |
 
-AI 版用 `tauri.ai-runtime.conf.json` 变体构建。
+AI 版用 `tauri.ai-runtime.conf.json` 变体构建。⚠️ 只有请求 `msi` 时才校验"版本必须纯数字"（WiX 限制）；
+默认不出安装包后，`0.2.0-rc1` 不再被误伤。
 
-产物落在 `releases/<version>_<stamp>[_flavor]/`：
+产物落在 `releases/<version>_<stamp>[_flavor]_<platform>/`（**目录名带平台后缀**：同一小时连打两个平台不会互删）：
 
 | 产物 | 说明 |
 |---|---|
-| `vcmi-fv-launcher.exe` | 主程序 |
-| `portable_<id>.zip` | 便携包，**只含程序文件**（exe + 组件 + 预置补丁），绝不含 `.vcmi-fv-launcher/` 下的用户数据 |
-| `VCMI-FV-Launcher_<ver>_x64-setup.exe` | NSIS 安装包 |
-| `VCMI-FV-Launcher_<ver>_x64_en-US.msi` | MSI（需联网下载 wix，网络受限时仅生成 exe） |
-| `release.json` | 各产物 hash / size |
+| `<bin>` | 主程序（Windows `vcmi-fv-launcher.exe` / macOS `VCMI-FV-Launcher.app` / Linux `vcmi-fv-launcher`；app 形态只进便携包不单独落盘） |
+| `portable_<ver>_<stamp>_<platform>[_flavor].zip` | 便携包 = **更新资产**：主程序 + 组件 + 预置补丁，**只含程序文件**，绝不含 `.vcmi-fv-launcher/` 下的用户数据；Unix 权限位随包落盘（主程序 0755） |
+| 安装包（按 `--bundles`） | `VCMI-FV-Launcher_<ver>_x64-setup.exe`（NSIS）/ `_x64_en-US.msi`（MSI，需联网下载 wix）/ `.dmg` + `.app.tar.gz`（darwin）/ `.deb` + `.AppImage`（linux） |
+| `release.json` | 各产物 hash / size，另记 `platform` / `updateMode` / `bin` |
 | `index.entry.json` | 写入索引的条目片段 |
 
 ## 4. 第二步：发布到 GitHub
 
 ```bash
-npm run release:publish [-- --version <ver>] [-- --body-file <file.md>]
+npm run release:publish [-- --version <ver>] [-- --platform <triple>] [-- --body-file <file.md>]
 ```
 
 `--version` 缺省 = 文件里的版本（与 `release:pack` 对称：定版之后发布也可零参数）。
+`--platform` 指定只发布某个平台；缺省时按本地发行目录匹配——该版本只有**单平台**目录时取之
+（权威平台 = 目录里 `release.json` 的记录，pack 时写入），**多平台目录共存时直接拒绝**并要求显式
+`--platform`（否则只能按打包时间猜，容易发错平台）；指定的平台没有对应目录同样拒绝并列出已有平台。
 
-建 tag / release → 流式传资产 → 用 API 结果更新 `releases/index.json`。
+建 tag / release → 流式传资产 → 更新 `releases/index.json`（浏览数据）**并写 per-target 更新清单**
+`releases/update/<platform>.json`（启动器的唯一更新源，见 §5）。**不同平台各跑一次 publish，
+各写各的清单文件**——天然无写争用、可并行、可单独灰度/回滚。
 
 辅助：
 
@@ -91,17 +102,70 @@ npm run release:verify   # 索引契约自检
 npm run release:status   # 索引 vs 本地目录比对
 ```
 
-## 5. `releases/index.json`
+## 5. `releases/index.json` 与 per-target 更新清单
 
-schema `vcmi-fv-launcher-release-index/1`，关键字段：
+### `releases/index.json`（浏览数据；schema `vcmi-fv-launcher-release-index/1`）
+
+关键字段：
 
 - `repo`、`download{base, pathTemplate}`；
 - `download.allowHttp` —— 放行**明文 http** 下载地址（本地预演 / 只有 http 的自建 CDN）；缺省 false = 只认 https；
-- `preset.base.update.manifest_url` —— 便携包预置的更新清单地址；
+- `preset.base.update.manifest_url` —— 便携包预置的更新清单地址，**带 `{platform}` 占位符的模板**（如 `.../releases/update/{platform}.json`；ADR 0008 D5）；
 - `preset.flavors.ai` —— 预置 `hd.enhance=true` + `hd.ai{enhance,model}`；
-- `product` / `channel` / `latest` / `minSupported` / `versions[]` / `releases[]`。
+- `product` / `channel` / `latest` / `releases[]`。
 
-`latest.json` 另存一份，供更新检查直接读取。
+`releases[]` 是**发行台账**（启动器不读它），键 = **`release` + `platform`**：
+
+- 同一版本的多个平台发布**各占一条**（如 `0.2.0/windows-x86_64` 与 `0.2.0/darwin-aarch64`），
+  资产在 GitHub 上合入**同一个 Release / tag**（publish 第二平台用 `--resume`），台账互不覆盖；
+- 记录 tag / commit / Release 页 / **全部资产指纹**（nsis/msi/dmg/deb 等安装包的 hash 只在这里）/
+  preset / pack——是"离线可查的发行史"；git tag 与 GitHub Release 页是权威源，这里是本地副本；
+- 与 per-target 清单**有意重叠**的字段：`updateVersion`↔`version`、`publishedAt`、`critical`、`notes`、
+  update 资产的 name/url/sha256/size（台账 = 镜像 + 附加管理信息；清单 = 客户端生效源）。
+
+⚠️ **`versions[]` 投影与 `minSupported` 已退役**（ADR 0008 D5）：更新源不再是本文件，而是下面的
+per-target 清单；本文件只回答"整体最新是哪版 / 有哪些发行"（人、`release:status`、文档站看它）。
+
+### `releases/update/<platform>.json`（启动器唯一更新源；提交进 git）
+
+```jsonc
+{ "schema": "vcmi-fv-launcher-update-manifest/2", "platform": "windows-x86_64",
+  "latest": "0.2.0", "minSupported": "0.1.0",
+  "versions": [{ "version": "0.2.0", "download": "https://…/portable_0.2.0_<ts>_windows-x86_64.zip",
+    "sha256": "…", "size": 1, "format": "zip", "kind": "full", "updateMode": "inplace",
+    "critical": false, "publishedAt": "2026-10-12", "notes": { } }] }
+```
+
+- 启动器把 preset 里的 `manifest_url` 模板按当前三元组解析后**只拉自己平台那一份**；
+- **目标平台没有清单（404）= 无更新，静默**（区别于未配置 = 零网络行为）；非 200/非 JSON = 检查失败，走既有 TTL+缓存兜底；
+- 条目带 `updateMode`：`inplace`（Windows PS 脚本 / Linux sh 脚本就地替换）/ `appimage` / `bundle`（macOS `.app.tar.gz` 整包替换+重签，待签名基建）/ `manual`（不应用内更新，只提示手动下载）；
+- 自建 CDN 只有 http 时：在清单顶层手工加 `allowHttp: true`（缺省 false = 只认 https；本地预演由 `release:preview` 自动写入）；
+
+`.gitignore` 只放行 `releases/index.json`、`releases/update/*.json` 与初始模板 `releases/index.json.init`（`*.local.json` 本地预演产物不入库）。
+
+### 初始模板（`.init`）与冷启动契约
+
+仓库提交两份**初始模板**（任何代码路径都不会读它们——`loadIndex`/`loadTargetManifest` 只认精确文件名，`publishedVersions` 与 verify 只收 `.json` 结尾；ADR 0008 D11）：
+
+- `releases/index.json.init` —— 空台账 + 真实仓库值（`repo`/`download`/`preset` 配置块 + `flavors.ai` + `{platform}` 模板）；
+- `releases/update/windows-x86_64.json.init` —— 空清单（`latest`/`minSupported`/`versions` 均空）；其他平台照此改 `platform` 字段。
+
+**哪些文件何时必需**（"版本构建"= `release:pack`）：
+
+| 场景 | `index.json` | `update/<platform>.json` |
+|---|---|---|
+| `release:pack` | **不必需**——缺失时首次 pack 自举配置块 | **不必需**——pack 不读不写它 |
+| `release:publish` / `preview` | 必需（缺失即 die 并提示先跑 pack；pack 本就先于它们） | **不必需**——缺失时 publish 自动新建 |
+| `release:verify` / `status` | 缺失 = 友好提示，不算失败 | 缺失 = 告警 |
+| 启动器 | 完全不读 | 404 / 空清单 = **静默无更新**（ADR 0008 D6） |
+
+**仓库信息解析回退链**（自举与 publish 共用；2026-10-12 实测修正）：
+
+- owner/repo：CLI `--owner`/`--repo` > 索引 `repo` 块 > `git remote get-url origin`（**任意主机**——自定义 SSH 别名如 `git@github-future-view:…`、GHE 域名都能解析；旧正则只认字面 `github.com`，会静默失败）；
+- branch：CLI `--branch` > 索引 `defaultBranch` > **`origin/HEAD`** > 当前 HEAD > `main`。
+  ⚠️ 绝不猜 `master`：raw 更新地址指错分支 = 用户侧 404（本仓库默认分支是 `main`）。
+
+重置到初始态：`cp releases/index.json.init releases/index.json` + `cp releases/update/<platform>.json.init releases/update/<platform>.json`（或直接删掉让系统自建，两者等价）。
 
 ## 6. 版本号
 
@@ -155,11 +219,11 @@ npm run release:preview -- --version 0.2.0 --serve     # --port 8765（缺省）
 
 它做四件事：
 
-1. 合并「真实索引里**已发布**的条目」+「本地待发布片段」→ `releases/index.local.json`
-   （保留旧版本条目，才能测真实的"旧版 → 新版"跳转）；
-2. 把下载地址改写到本地：`download.base = http://127.0.0.1:8765`、模板 `{base}/{dir}/{name}`；
-3. 写顶层 `allowHttp: true` —— **明文 http 必须显式放行**：更新器默认只认 https
-   （`src-tauri/src/updater/manifest.rs::download_scheme_ok`，读的是**顶层** `allowHttp`，不是 `download.allowHttp`）；
+1. 以本地待发布片段生成 **per-target 本地清单** `releases/update/<platform>.local.json`
+   （与线上同款形状；ADR 0008 D5）；
+2. 把下载地址改写到本地：模板 `{base}/{dir}/{name}`；
+3. 写 `allowHttp: true` —— **明文 http 必须显式放行**：更新器默认只认 https
+   （`src-tauri/src/updater/manifest.rs::download_scheme_ok`，读的是清单**顶层** `allowHttp`）；
 4. `--serve` 顺带起一个零依赖静态服务（根 = `releases/`），打印该填进设置页的地址。
 
 `.gitignore` 已忽略 `releases/*` 中除 `index.json` 外的文件 ⇒ 派生索引**天然不入库**，用完无需清理。
@@ -171,7 +235,7 @@ npm run release:preview -- --version 0.2.0 --serve     # --port 8765（缺省）
    - 配置键：`update.manifest_url`，把下面这段**合并进现有文件**（不要整份替换）：
      ```json
      {
-       "update": { "manifest_url": "http://127.0.0.1:8765/index.local.json" }
+       "update": { "manifest_url": "http://127.0.0.1:8765/update/<platform>.local.json" }
      }
      ```
    - 该文件是 JSON5（允许 `//` 注释、尾逗号），手工编辑很友好。
@@ -207,7 +271,7 @@ npm run release:preview -- --version 0.2.0 --serve     # --port 8765（缺省）
 npm run release:preview -- --version 0.2.0 --serve --port 8765
 ```
 
-派生索引 `releases/index.local.json` 只含 `--version` 指定的 0.2.0 条目（resolver 只比对"当前版本 < 目标版本"，**不要求当前版本进索引**，故无需把 0.1.0 也装进派生索引）。保持服务运行。
+本地清单 `releases/update/<platform>.local.json` 只含 `--version` 指定的 0.2.0 条目（resolver 只比对"当前版本 < 目标版本"，**不要求当前版本进索引**，故无需把 0.1.0 也装进派生索引）。保持服务运行。
 
 **② 部署旧版 0.1.0 作为被测端**
 
@@ -226,7 +290,7 @@ copy <repo>\releases\0.1.0_20261001-01\vcmi-fv-launcher.exe .
     "game_dir": "D:/test/vcmi",        // 指向任意存在的目录即可（不一定要真装了 VCMI）
     "user_data_dir": "D:/test/vcmi_ud" // 同上
   },
-  "update": { "manifest_url": "http://127.0.0.1:8765/index.local.json" }
+  "update": { "manifest_url": "http://127.0.0.1:8765/update/windows-x86_64.local.json" }
 }
 ```
 
@@ -266,11 +330,11 @@ npm run release:pack                        # 已定版后可零参数（版本�
 # ③ 先看计划（不联网、不写盘）
 npm run release:publish -- --version 0.2.0 --dry-run
 
-# ④ 发到 GitHub：建 tag/release → 传资产 → 用 API 结果写 releases/index.json
-npm run release:publish -- --version 0.2.0
+# ④ 发到 GitHub：建 tag/release → 传资产 → 写 releases/index.json（浏览）+ releases/update/<platform>.json（更新源）
+npm run release:publish -- --version 0.2.0 --platform windows-x86_64
 
-# ⑤ 推送索引 —— 这一步才对全体用户生效
-git add releases/index.json && git commit -m "release: v0.2.0" && git push
+# ⑤ 推送索引与该平台更新清单 —— 这一步才对该平台用户生效
+git add releases/index.json releases/update/windows-x86_64.json && git commit -m "release: v0.2.0" && git push
 ```
 
 `--version` 传的是**发行标识**（Release title / tag 的来源），缺省 = 契约版本（`Cargo.toml`）；正式发行两者默认一致，见 §6。
@@ -278,8 +342,8 @@ git add releases/index.json && git commit -m "release: v0.2.0" && git push
 发布前后各跑一次自检：
 
 ```bash
-npm run release:verify                 # 契约自检（--online 匿名探测下载地址 + 比对远端索引）
-npm run release:verify -- --fix        # 重算派生物（versions[] 投影 + ChangeLog 派生的 notes）后写回
+npm run release:verify                 # 契约自检（--online 逐平台探测下载地址 + 比对远端清单/索引）
+npm run release:verify -- --fix        # 重算 ChangeLog 派生的 notes 后写回（per-target 清单无派生物）
 npm run release:status                 # 索引 vs 本地已打包目录
 ```
 
@@ -287,7 +351,7 @@ npm run release:status                 # 索引 vs 本地已打包目录
 
 - [ ] `ChangeLog.md` 有 `## v0.2.0` 节，且 `release:verify` 报「索引 notes 与 ChangeLog 一致」
 - [ ] 片段里 `updateVersion` **非空**（`--no-update-chain` / `--test` 会让它为空 ⇒ 不进更新链）
-- [ ] 更新资产是 `portable_*.zip`：`verify` 校验「进更新链的发行有且仅有 1 个 `role=update` 资产」
+- [ ] 更新资产是 `portable_*_<platform>.zip`：`verify` 校验「进更新链的发行有且仅有 1 个 `role=update` 资产」
 - [ ] 便携包**不含** `.vcmi-fv-launcher/` 下的用户数据（§3 产物表）
 - [ ] 随包预置补丁与索引 `preset` 一致（`verify` 已校验）
 - [ ] 已用 §9.1 本地验收流程跑通「旧版 → 发现更新 → 下载 → 应用」整条链

@@ -54,12 +54,20 @@ use crate::vcmi::paths::VcmiPaths;
 /// ⚠️ 与用户的 `launcher.json` **刻意为不同文件**：同名就等于直接覆盖，合并逻辑无从介入。
 pub const PATCH_REL: &str = ".vcmi-fv-launcher/launcher.patch.json";
 
-/// 启动时调用：应用 `<exe>/.vcmi-fv-launcher/launcher.patch.json`（不存在则什么都不做）
+/// 启动时调用：应用配置补丁（不存在则什么都不做）。
+///
+/// 查找顺序（按序取第一个存在的；ADR 0008 D10 + macOS `.app` 布局）：
+/// 1. **数据目录**（与 `launcher.json` 同级）——Windows 便携版 / 更新包解压落地处；
+/// 2. **exe 同级** `.vcmi-fv-launcher/`——macOS/Linux 手动解压运行的便携布局；
+/// 3. **`<exe>/../Resources/.vcmi-fv-launcher/`**——macOS `.app`：`bundle.resources`
+///    把补丁放进 `Contents/Resources/`，而 exe 在 `Contents/MacOS/`（两者不同级）。
 pub fn apply() {
     let Some(config) = VcmiPaths::launcher_config_path() else {
         return;
     };
-    let patch = config.with_file_name("launcher.patch.json");
+    let Some(patch) = find_patch(&config) else {
+        return;
+    };
     match apply_at(&config, &patch) {
         Ok(true) => tracing::info!(
             target: "updater",
@@ -68,6 +76,23 @@ pub fn apply() {
         Ok(false) => {}
         Err(e) => tracing::warn!(target: "updater", "配置补丁未生效（可忽略）：{e}"),
     }
+}
+
+/// 补丁候选位置（按序取第一个存在的）
+fn find_patch(config_path: &Path) -> Option<PathBuf> {
+    let rel = ".vcmi-fv-launcher/launcher.patch.json";
+    let mut candidates = vec![config_path.with_file_name("launcher.patch.json")];
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            // 便携布局：exe 同级
+            candidates.push(dir.join(rel));
+            // macOS .app：exe 在 Contents/MacOS/，资源在 Contents/Resources/
+            if let Some(contents) = dir.parent() {
+                candidates.push(contents.join("Resources").join(rel));
+            }
+        }
+    }
+    candidates.into_iter().find(|p| p.is_file())
 }
 
 /// 合并实现（可测）：返回是否真的写回了配置。
