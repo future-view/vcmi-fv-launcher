@@ -22,6 +22,7 @@ import { installGlobalLogging, logInfo, logWarn } from "@/lib/log";
 import { UpdateDialog } from "@/features/settings/UpdateDialog";
 import { ForcedUpdateOverlay } from "@/features/settings/ForcedUpdateOverlay";
 import { backendErrorText } from "@/lib/backendError";
+import { Toast } from "@/shared/Toast";
 
 // 尽早安装全局错误钩子：window.onerror / unhandledrejection → 启动器日志文件
 installGlobalLogging();
@@ -46,7 +47,8 @@ function isImportCandidate(p: string): boolean {
 /** 启动器主界面的页签视图（领域不再是页签，而是**顶级页面**）。 */
 type ViewKey = "mods" | "wiki" | "settings";
 
-/** 全局提示条：领域页与启动器主界面都会用到，故抽成独立组件；可附带一个动作按钮（如语言模组「从仓库安装」）。 */
+/** 全局提示条：领域页与启动器主界面都会用到，故抽成独立组件；可附带一个动作按钮（如语言模组「从仓库安装」）。
+ * 统一用 `Toast` 实现，自动消失 + 点击可复制。 */
 function NoticeBar({
   msg,
   action,
@@ -56,28 +58,17 @@ function NoticeBar({
   action?: { label: string; run: () => void };
   onClose: () => void;
 }) {
-  const { t } = useI18n();
   return (
-    <div className="fixed left-1/2 top-[70px] z-[300] flex max-w-[92vw] -translate-x-1/2 items-center gap-3 rounded-xl bg-amber-500/95 px-5 py-2.5 shadow-xl">
-      <span className="min-w-0 break-words text-left text-sm text-white">{msg}</span>
-      {action && (
-        <button
-          type="button"
-          onClick={action.run}
-          className="flex-none rounded-lg bg-black/25 px-2.5 py-1 text-xs text-white hover:bg-black/40"
-        >
-          {action.label}
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label={t.common.close}
-        className="flex-none rounded px-1 text-sm text-white/90 hover:bg-black/20"
-      >
-        ✕
-      </button>
-    </div>
+    <Toast
+      text={msg}
+      kind="warning"
+      duration={6000}
+      resetKey={msg}
+      className="top-[70px] z-[300]"
+      action={action}
+      onDone={onClose}
+      onClose={onClose}
+    />
   );
 }
 
@@ -510,13 +501,6 @@ function AppContent() {
       }
     });
   }, [ready, vcmiLang, activeRealmObj?.id, activeRealmObj?.presetId, langSyncNonce]);
-
-  // 全局提示自动消失（6 秒，足够读完；点击也可立即关闭）
-  useEffect(() => {
-    if (!globalNotice) return;
-    const timer = window.setTimeout(() => setGlobalNotice(null), 6000);
-    return () => window.clearTimeout(timer);
-  }, [globalNotice]);
 
   /**
    * 领域页淡出期间轮询 VCMI 进程：先观测到「运行中」，再观测到「已退出」时淡回（§9.2.3）。

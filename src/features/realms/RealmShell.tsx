@@ -28,6 +28,7 @@ import { WindowControls } from "@/shared/WindowControls";
 import { LanguageMenuButton } from "@/shared/LanguageMenuButton";
 import { SettingsView } from "@/features/settings/SettingsView";
 import { ConfirmDialog } from "@/shared/ConfirmDialog";
+import { Toast } from "@/shared/Toast";
 import { RealmSwitchPage } from "@/features/realms/switch/RealmSwitchPage";
 import { RealmRepositoryPage } from "@/features/realms/repository/RealmRepositoryPage";
 import { RealmEditor } from "@/features/realms/editor/RealmEditor";
@@ -190,7 +191,6 @@ export function RealmShell({
 
   const showToast = (type: "success" | "error" | "info", msg: string) => {
     setToast({ type, msg });
-    window.setTimeout(() => setToast(null), 2600);
   };
 
   // 领域目录（§3.1）：壁纸 / 背景音乐等素材相对它存放，需经 convertFileSrc 才能加载（§5.4）
@@ -923,18 +923,15 @@ export function RealmShell({
       />
 
       {toast && (
-        <div
-          className={cn(
-            "pointer-events-none fixed bottom-6 left-1/2 z-[200] -translate-x-1/2 rounded-lg px-4 py-2 text-sm font-medium shadow-xl",
-            toast.type === "success"
-              ? "bg-green-500/95 text-white"
-              : toast.type === "info"
-                ? "bg-blue-500/95 text-white"
-                : "bg-red-500/95 text-white",
-          )}
-        >
-          {toast.msg}
-        </div>
+        <Toast
+          text={toast.msg}
+          kind={toast.type}
+          duration={2600}
+          resetKey={toast.msg}
+          className="z-[200]"
+          placement="bottom"
+          onDone={() => setToast(null)}
+        />
       )}
     </div>
   );

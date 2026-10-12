@@ -818,6 +818,8 @@ export const en: LangDict = {
     saving: "Saving…",
     selectAll: "Select all",
     selectNone: "Clear selection",
+    copyTip: "Click to copy to clipboard",
+    tipCopied: "Copied",
   },
   realm: {
     title: "Realms",

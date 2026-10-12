@@ -1033,29 +1033,17 @@ export function ModView({
       )}
 
       {/* 守卫/维护提示：fixed 浮层（顶栏下方居中），脱离文档流、不挤压页面布局。
-          手动关闭；下一次成功的勾选（handleToggle）也会自动清除。 */}
+          5 秒后自动关闭，点击内容可复制到剪贴板；下一次成功的勾选（handleToggle）也会自动清除。 */}
       {banner && (
-        <div
-          className={cn(
-            "fixed left-1/2 top-[68px] z-[60] flex max-w-[min(92vw,720px)] -translate-x-1/2 items-start justify-between gap-3 rounded-lg border px-4 py-2.5 text-xs shadow-xl backdrop-blur-sm",
-            banner.kind === "error"
-              ? "border-red-500/40 bg-red-950/95 text-red-200 shadow-red-900/40"
-              : "border-emerald-500/40 bg-emerald-950/95 text-emerald-200 shadow-emerald-900/40",
-          )}
-        >
-          <span className="min-w-0 break-words leading-relaxed">{banner.text}</span>
-          <button
-            type="button"
-            onClick={() => setBanner(null)}
-            className={cn(
-              "mt-0.5 flex-none rounded px-1.5 py-0.5",
-              banner.kind === "error" ? "text-red-300 hover:bg-red-500/20" : "text-emerald-300 hover:bg-emerald-500/20",
-            )}
-            aria-label={t.common.close}
-          >
-            ✕
-          </button>
-        </div>
+        <Toast
+          text={banner.text}
+          kind={banner.kind}
+          duration={5000}
+          resetKey={banner.text}
+          className="z-[60]"
+          onDone={() => setBanner(null)}
+          onClose={() => setBanner(null)}
+        />
       )}
 
       {/* 轻提示（自动消失）：复制/粘贴等瞬时反馈。z-[160] 高于报告面板（z-[151]），

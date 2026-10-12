@@ -830,6 +830,8 @@ export const de: LangDict = {
     saving: "Wird gespeichert…",
     selectAll: "Alle auswählen",
     selectNone: "Auswahl aufheben",
+    copyTip: "Zum Kopieren in die Zwischenablage klicken",
+    tipCopied: "Kopiert",
   },
   realm: {
     title: "Welten",

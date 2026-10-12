@@ -829,6 +829,8 @@ export const ru: LangDict = {
     saving: "Сохранение…",
     selectAll: "Выбрать всё",
     selectNone: "Снять выделение",
+    copyTip: "Нажмите, чтобы скопировать в буфер обмена",
+    tipCopied: "Скопировано",
   },
   realm: {
     title: "Миры",

@@ -12,6 +12,7 @@ import {
   type PreLaunchStep,
 } from "@/features/prelaunch/usePreLaunchChecks";
 import { makeLangPackStep } from "@/features/prelaunch/LangPackStepCard";
+import { Toast } from "@/shared/Toast";
 
 interface BottomBarProps {
   onShowData: () => void;
@@ -45,7 +46,6 @@ export function BottomBar({
 
   const showToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 2200);
   };
 
   // §9.2.0：领域激活时底部区要给出可见提示（此时「启动游戏」启动的仍是当前领域环境）
@@ -182,9 +182,15 @@ export function BottomBar({
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-20 left-1/2 z-[95] -translate-x-1/2 rounded-xl bg-green-500/95 px-5 py-2.5 text-sm text-white shadow-xl">
-          {toast}
-        </div>
+        <Toast
+          text={toast}
+          kind="success"
+          duration={2200}
+          resetKey={toast}
+          className="bottom-20 z-[95]"
+          placement="bottom"
+          onDone={() => setToast(null)}
+        />
       )}
 
       {/* 启动前检测弹窗（通用 step 框架）：步骤条总览 + 各检查项卡片。

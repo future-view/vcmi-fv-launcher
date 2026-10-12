@@ -819,6 +819,8 @@ export const zhCN: LangDict = {
     saving: "保存中…",
     selectAll: "全选",
     selectNone: "全不选",
+    copyTip: "点击复制到剪贴板",
+    tipCopied: "已复制",
   },
   realm: {
     title: "领域",

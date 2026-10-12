@@ -1035,6 +1035,10 @@ export interface LangDict {
     selectAll: string;
     /** 全不选（取消全部勾选） */
     selectNone: string;
+    /** 提示条点击复制提示（title 属性） */
+    copyTip: string;
+    /** 提示条复制成功后的简短反馈 */
+    tipCopied: string;
   };
   realm: {
     title: string;

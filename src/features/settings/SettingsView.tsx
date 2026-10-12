@@ -36,6 +36,7 @@ import { SettingCard } from "./SettingCard";
 import { RuntimeInfoDialog } from "./RuntimeInfoDialog";
 import { useSettingText, type SettingOption } from "./text";
 import { ConfirmDialog } from "@/shared/ConfirmDialog";
+import { Toast } from "@/shared/Toast";
 import {
   Select,
   SelectContent,
@@ -195,7 +196,6 @@ export function SettingsView({
 
   const showToast = (type: ToastType, msg: string) => {
     setToast({ type, msg });
-    window.setTimeout(() => setToast(null), 2600);
   };
 
   useEffect(() => {
@@ -707,16 +707,15 @@ export function SettingsView({
       />
 
       {toast && (
-        <div
-          className={cn(
-            "pointer-events-none fixed bottom-6 left-1/2 z-[200] -translate-x-1/2 rounded-lg px-4 py-2 text-sm font-medium shadow-xl",
-            toast.type === "success"
-              ? "bg-emerald-600/90 text-white"
-              : "bg-red-600/90 text-white"
-          )}
-        >
-          {toast.msg}
-        </div>
+        <Toast
+          text={toast.msg}
+          kind={toast.type}
+          duration={2600}
+          resetKey={toast.msg}
+          className="z-[200]"
+          placement="bottom"
+          onDone={() => setToast(null)}
+        />
       )}
     </div>
   );
