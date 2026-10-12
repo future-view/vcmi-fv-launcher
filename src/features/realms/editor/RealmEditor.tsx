@@ -229,6 +229,14 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
    * 会互相漏掉 → 统一置位，等这一轮 state 全部落地后，用**当前值**重算一次（见下方 effect）。
    */
   const normPendingRef = useRef(false);
+  /**
+   * 归一化发生**之前**表单是否已有用户改动。
+   *
+   * ⚠️ 归一化后重算基线是为了「让归一化本身不算改动」，但**整份重算**会把归一化之前
+   * 用户已做的编辑一并洗白 —— 症状就是「把默认语言切成英文后，保存一直置灰、切换不生效」。
+   * 故：归一化前若表单已 dirty，则**保留基线不动**，让用户的改动继续可见 / 可保存。
+   */
+  const normHadEditsRef = useRef(false);
   // B5 预览：临时全屏覆盖层，播放登场演出 + 领域主界面，不产生持久改动
   const [previewOpen, setPreviewOpen] = useState(false);
   // 巡礼预览：从「巡礼」Tab 直接全屏打开播放页，跳过登场演出（改完立刻能看到效果）。
@@ -281,17 +289,18 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
       setCurLang(v); // 启用即切换到该语言编辑（设计 §9.6.1）
     }
   };
-  /** 设为默认语言：在 i18nMap 内把「原默认语言」与「目标语言」的条目互换（顶层留空、由 defaultLang 指示） */
+  /**
+   * 设为默认语言：只切换「默认语言」标记与当前编辑语言，**不移动任何语言条目的内容**。
+   *
+   * ⚠️ 历史缺陷：旧实现把「原默认语言」与「目标语言」的条目内容互换，导致
+   * 「英文语言下显示原中文内容」——每个语言 key 永久拥有自己的内容（设计 §6 的
+   * `i18n.<lang>`），改变默认语言只是换个兜底 / 顶层镜像来源，不该改写其它语言的数据。
+   * 若目标语言尚无条目，则补一个空条目，保证默认语言在 i18nMap 中始终可编辑
+   * （绝不沿用原默认语言的内容，否则会污染目标语言）。
+   */
   const setAsDefaultLang = (v: string) => {
     if (v === defaultLang) return;
-    setI18nMap((m) => {
-      const c = { ...m };
-      const oldDefault = c[defaultLang] ?? {};
-      const incoming = c[v] ?? {};
-      c[v] = oldDefault; // 原默认语言降级为普通覆盖
-      c[defaultLang] = incoming; // 新默认语言顶到默认位
-      return c;
-    });
+    setI18nMap((m) => (m[v] !== undefined ? m : { ...m, [v]: {} }));
     setDefaultLang(v);
     setCurLang(v);
   };
@@ -368,6 +377,9 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
     });
   const [baselineSig, setBaselineSig] = useState(signatureOf);
   const dirty = signatureOf() !== baselineSig;
+  /** `dirty` 的最新值镜像：归一化的异步任务里读闭包 `dirty` 可能拿到旧值。 */
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
 
   /**
    * 加载期归一化（预设懒加载 / borrowed·bundled 收敛）**落地后重算基线**。
@@ -378,6 +390,13 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
   useEffect(() => {
     if (!normPendingRef.current) return;
     normPendingRef.current = false;
+    // ⚠️ 归一化前已有用户改动时**绝不**重算基线：整份重算会把用户的编辑（如「默认语言
+    // 切成英文」）一并洗白，表现为保存按钮明明该亮却一直置灰。归一化写回的正是磁盘既有值，
+    // 保留在 diff 里也不会产生脏数据。
+    if (normHadEditsRef.current) {
+      normHadEditsRef.current = false;
+      return;
+    }
     setBaselineSig(signatureOf());
   });
 
@@ -595,6 +614,7 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
      * 这是**老数据收敛**（带点子模组 id → 根模组），同样不是用户改动 ——
      * 基线跟着重算，否则老领域一进编辑器就被判"有未保存改动"。
      */
+    normHadEditsRef.current = normHadEditsRef.current || dirtyRef.current;
     normPendingRef.current = true;
     setBorrowed(nb);
     setBundled(nu);
@@ -728,7 +748,10 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
        * 只在"预设层还没被用户动过"（仍是空表）时置位 —— 用户改过就**不**重算，
        * 免得把真实改动当成基线吞掉。
        */
-      if (Object.keys(presets).length === 0) normPendingRef.current = true;
+      if (Object.keys(presets).length === 0) {
+        normHadEditsRef.current = normHadEditsRef.current || dirtyRef.current;
+        normPendingRef.current = true;
+      }
       presetMergedRef.current = currentId;
       setActivePreset(ap);
       setPresets(next);
