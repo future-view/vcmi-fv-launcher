@@ -1,10 +1,18 @@
 # 便携部署
 
-> 状态：已实现 ｜ 最后核对：2026-09-30 ｜ 代码：`src-tauri/src/vcmi/paths.rs`、`src-tauri/tauri.conf.json`、`tauri.ai-runtime.conf.json`
+> 状态：已实现 ｜ 最后核对：2026-10-12 ｜ 代码：`src-tauri/src/vcmi/paths.rs`、`src-tauri/tauri.conf.json`、`tauri.ai-runtime.conf.json`
 
 ## 1. 机制
 
-数据目录固定为 **exe 同级的 `.vcmi-fv-launcher/`**（`launcher_config_path()` / `launcher_data_dir()` 按 exe 路径推导，**不用进程 cwd**），因此便携包从任意工作目录启动都落在同一处，可直接整个文件夹拷走。
+数据目录由 `launcher_data_dir()` **按平台分派**（ADR 0008 D10）：
+
+| 平台 | 数据根 | 说明 |
+|---|---|---|
+| Windows | **exe 同级的 `.vcmi-fv-launcher/`** | 便携语义的核心：按 exe 路径推导、**不用进程 cwd**，从任意工作目录启动都落在同一处，可直接整个文件夹拷走 |
+| macOS | `~/Library/Application Support/com.vcmi.fv-launcher/` | 系统标准位置（`.app` 装进 `/Applications` 后包内不可写） |
+| Linux | `${XDG_DATA_HOME:-~/.local/share}/vcmi-fv-launcher/` | XDG 规范（AppImage 挂载只读 squashfs） |
+
+本文其余部分以 **Windows 便携形态**为主线（当前唯一日常发行平台）。
 
 领域目录 = `<data>/realms/<id>/vcmi`，随数据目录一起走。
 

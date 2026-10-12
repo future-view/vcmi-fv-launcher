@@ -1,6 +1,6 @@
 # 百科缓存管线（modcache）
 
-> 状态：已实现 ｜ 最后核对：2026-09-30 ｜ 代码：`src-tauri/src/modcache/`、`commands/cache.rs`、`src/lib/modcache/`
+> 状态：已实现 ｜ 最后核对：2026-10-12 ｜ 代码：`src-tauri/src/modcache/`、`commands/cache.rs`、`src/lib/modcache/`
 > 展示层见 [wiki](./wiki.zh-CN.md)。本文讲**缓存怎么建、产物长什么样**。
 
 ## 1. 目标与范围
@@ -48,7 +48,7 @@ mods/
 
 键格式：`v{WIKI_CACHE_VERSION}:{sourceHash}:{h3DataKey}:{h3CoreHash}:{schemaHash}`，**字符串相等**判定命中。
 
-当前值：`WIKI_CACHE_VERSION = 1`、`ASSETS_VERSION = 4`（另 `HD_SCHEME_VERSION = 5`）。
+当前值：`WIKI_CACHE_VERSION = 1`、`ASSETS_VERSION = 4`（另 `HD_SCHEME_VERSION = 6`）。
 
 失效条件：源哈希变化、游戏数据指纹变化、h3-core 文案表变化、schema 变化；素材未就绪或 `assetsVersion < ASSETS_VERSION` 或 HD 来源指纹变化时，清 `images/` 与 `hd-map.json` 重跑。
 
@@ -96,23 +96,9 @@ LOD (infra/lod.rs)  →  DEF 解码 (infra/def.rs)  →  PCX/BMP 解码 + WebP �
 
 UI 对应领域 `assets` 页（进度页 + 返回按钮走 `cancel_realm_cache_build`），就绪即自动放行。
 
-## 9. 命令清单（`commands/cache.rs`）
+## 9. 命令清单
 
-| 命令 | 用途 |
-|---|---|
-| `read_mod_cache` | 读单 mod `cache.json` |
-| `read_mod_metas` | 批量取 `modMeta` |
-| `read_town_cards` | 批量取城镇卡片 5 字段 |
-| `read_showcase_slides` | 巡礼 slide 载荷 |
-| `ensure_showcase_audio` | 抽取 zip 内阵营音乐落盘 |
-| `generate_town_preview` | 按需合成城镇幕布 |
-| `cache_build_progress` / `cancel_cache_build` | 全局进度与取消 |
-| `realm_cache_build_progress` / `cancel_realm_cache_build` | 领域独立通道 |
-| `build_realm_cache_urgent` | 领域加急（turbo + phase 2） |
-| `check_realm_assets` | 抽样就绪守门 |
-| `build_mods_cache_batch` | 全局批量（分块 rayon、分阶段、可选 hd） |
-| `build_all_mod_cache` | 旧入口批量构建并汇总索引 |
-| `read_cache_index` / `get_mods_cache_dir` | 读索引 / 取缓存根绝对路径 |
+百科缓存共 16 个命令，清单见 [ipc](../architecture/ipc.zh-CN.md) §2「百科缓存」段（冻结契约同篇 §4）。
 
 ## 10. 边界与容错
 

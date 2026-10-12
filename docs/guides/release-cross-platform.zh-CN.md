@@ -1,7 +1,7 @@
 # 跨平台发行与更新：实施计划与新用法
 
 > ADR [0008](../decisions/0008-cross-platform-release-and-update.zh-CN.md) 的配套实施文档。
-> 状态：**已实施**（2026-10-12；macOS `bundle` 模式与签名 CI 待证书基建，就绪前该平台 `manual` 交付）。
+> 状态：**已实施**（2026-10-12；macOS `bundle` 模式与签名 CI 待证书基建，就绪前该平台 `manual` 交付） ｜ 代码：`scripts/release.mjs`（`TARGETS`）、`src-tauri/src/updater/{platform,manifest,download,apply}.rs`、`src/lib/updater.ts`。
 > 实施已完成，本文保留作平台矩阵 / 改动点速查；命令细节以 [release.zh-CN.md](./release.zh-CN.md) 为准。
 
 ## 0. 三个真相源与不变量
@@ -11,7 +11,7 @@
 | 真相源 | 内容 |
 |---|---|
 | `scripts/release.mjs` 的 `TARGETS` | 构建命令、产物名、bundles、便携包组装方式 |
-| `src-tauri/src/updater/platform.rs`（新增） | `{target}` 映射、二进制名、updateMode |
+| `src-tauri/src/updater/platform.rs`（新增） | `{platform}` 映射、二进制名、updateMode |
 | 清单 schema `vcmi-fv-launcher-update-manifest/2` | 每平台更新条目的形状 |
 
 **不变量（任何一步都不得破坏）**：每 target 恰 1 个 `role=update` 资产；确定性三件套（条目排序 + 固定时间戳 + Unix 权限位）；更新包绝不碰用户数据；404 = 无更新（静默）/ 非 JSON = 检查失败（缓存兜底）。
@@ -81,14 +81,7 @@ if (bundles.length) {
 
 ### 1.5 索引与 publish
 
-- **新文件** `releases/update/<platform>.json`（schema `vcmi-fv-launcher-update-manifest/2`）：
-  ```jsonc
-  { "schema": "vcmi-fv-launcher-update-manifest/2", "platform": "windows-x86_64",
-    "latest": "0.2.0", "minSupported": "0.1.0",
-    "versions": [{ "version": "0.2.0", "download": ".../portable_0.2.0_<ts>_windows-x86_64.zip",
-      "sha256": "…", "signature": "…", "size": 1, "format": "zip", "kind": "full",
-      "updateMode": "inplace", "critical": false, "publishedAt": "2026-10-12", "notes": {} }] }
-  ```
+- **新文件** `releases/update/<platform>.json`（schema `vcmi-fv-launcher-update-manifest/2`；**形状与 `.init` 空模板见 [release.zh-CN.md](./release.zh-CN.md) §5，为唯一示例，本文不重复**）。
 - publish 加 `--platform`（缺省宿主推断）：上传资产后读/建该平台清单 → append 条目 → 更新 `latest` / `minSupported` → 原子写。**不同平台各写各的文件，天然无写争用、可并行。**
 - `releases/index.json`：**删除 `versions[]` 投影与 `minSupported`**（不再承担更新源）；保留 `releases[]`（浏览）+ repo/download/preset；`preset.base.update.manifest_url` 改为模板：
   `https://raw.githubusercontent.com/future-view/vcmi-fv-launcher/main/releases/update/{platform}.json`
@@ -99,7 +92,7 @@ if (bundles.length) {
 
 | 校验 | 新规则 |
 |---|---|
-| per-platform 清单 | schema 正确；`platform` 与文件名一致；`versions` 按 semver 单调；`latest` = 首条；`minSupported` 只升不降；进链条目**必须有 signature** |
+| per-platform 清单 | schema 正确；`platform` 与文件名一致；`versions` 按 semver 单调；`latest` = 首条；`minSupported` 只升不降；`signature` 为**可选字段、本期不校验**（ADR 0008 D9） |
 | release 目录 | 每平台恰 1 个 `role=update`；zip 名含 platform 段；`release.json.platform` 与目录名一致 |
 | `--online` | 对每个 per-platform 清单的 `latest.download` 做 HEAD |
 | 退役 | 针对 `index.json versions[]` 的旧断言 |
@@ -129,13 +122,15 @@ pub fn update_mode(triple: &str) -> UpdateMode     // inplace / appimage / bundl
 
 ### 2.4 `apply.rs`（按 `update_mode` 分派）
 
-| 模式 | 实现 |
-|---|---|
-| `inplace` + Windows | **保留 `APPLY_PS1` 全链路不动**（`apply.rs:110-370`） |
-| `inplace` + Linux | 新增 `APPLY_SH`：等 PID 退出 → `mv 旧 → .old` → `mv 新 → 原位` → `chmod +x` → 按需 relaunch；detached spawn（新进程组，不随父进程退出被回收）；脚本体保持"路径只经参数"纪律；纯 ASCII；单测 `apply_sh_must_be_ascii` 对齐 PS 既有测试 |
-| `appimage` | 下载的 `.AppImage` → `.AppImage.new` → 替换 → `chmod +x` → relaunch（无解压） |
-| `bundle`（macOS） | 下载 `.app.tar.gz` → 解压覆盖 `.app` → `codesign -f -s "$IDENTITY" -o runtime <app>`（identity 缺失回退 ad-hoc `-s -`）→ relaunch |
-| `manual` | `apply` 返回 `upd_manual_only`；前端展示"请手动下载"并打开条目 `download` 链接 |
+运行期语义（每种模式客户端实际做什么）见 [launcher-update](../features/launcher-update.zh-CN.md) §5；本表只记录**落地状态与实现位置**：
+
+| 模式 | 落地状态 | 实现位置 |
+|---|---|---|
+| `inplace` + Windows | 已实现 | **保留 `APPLY_PS1` 全链路不动**（`apply.rs:110-370`） |
+| `inplace` + Linux | 已实现 | 新增 `APPLY_SH`：等 PID 退出 → `mv 旧 → .old` → `mv 新 → 原位` → `chmod +x` → 按需 relaunch；detached spawn（新进程组，不随父进程退出被回收）；脚本体保持"路径只经参数"纪律、纯 ASCII；单测 `apply_sh_must_be_ascii` 对齐 PS 既有测试 |
+| `appimage` | **未实现**（枚举位保留） | `platform.rs:14`；`apply.rs:53-56` 返回错误码 |
+| `bundle`（macOS） | **未实现**：待 Developer ID 证书与 notarytool 公证 CI | 同上（该平台当前 `manual`） |
+| `manual` | 已实现 | `apply.rs`（`upd_manual_only`） |
 
 保留约束：绝不删目录（junction 风险，rules 04）、主程序最后替换、失败回滚并保留暂存、写日志。`should_auto_apply_on_close` 按模式分派（Linux `inplace` 支持关闭时自动应用）。
 
@@ -156,18 +151,14 @@ pub fn update_mode(triple: &str) -> UpdateMode     // inplace / appimage / bundl
 - CI（macos runner）：`tauri build --bundles dmg,app` → `codesign`（Developer ID Application）→ `notarytool submit --wait` → `stapler staple` → 上传。
 - 证书/公证基建就绪前，macOS 平台以 `updateMode: "manual"` 交付（描述符一个字段切换，无架构补丁）。
 
-## 5. Step 6：文档同步
+## 5. Step 6：文档同步（已完成）
 
-| 文档 | 改动 |
-|---|---|
-| `guides/release.zh-CN.md` | 产物清单 / 参数表 / 索引结构三节重写（本文 §7 并入） |
-| `features/launcher-update.zh-CN.md` | §3 清单（per-platform + signature）、§5 应用（分派表）、§11 开放问题（差分更新仍未做；minisign 已做） |
-| `ide/rules/05-build-run-commands.mdc` | 命令表 + `release:pack` 说明 + 产物树（**两份副本**） |
+三处已同步：`guides/release.zh-CN.md`（产物清单 / 参数表 / 索引结构三节重写）、`features/launcher-update.zh-CN.md`（§3 清单 / §5 应用分派 / §11 开放问题）、`ide/rules/05-build-run-commands.mdc`（两份副本）。**命令细节的唯一口径是 [release.zh-CN.md](./release.zh-CN.md)**，本文只保留平台矩阵与改动点速查。
 
 ## 6. 验收清单
 
 - [ ] `zipinfo` / `unzip -l` 验证便携包主程序为 `-rwxr-xr-x`（Unix 权限位真落盘）
-- [ ] `release:verify` 通过（含 per-platform 单调性与 signature 存在性）
+- [ ] `release:verify` 通过（含 per-platform 单调性；本期不校验 signature，信任模型见 ADR D9）
 - [ ] publish 后 `update/<platform>.json` 可拉、`{platform}` 模板三端各自解析正确
 - [ ] 真机升级链：Windows（PS1）/ Linux（shell）旧版 → 新版；macOS 过渡期 manual
 - [ ] 投毒演练：篡改 zip → sha256 不符被拒且不应用（本期无验签，信任模型见 ADR D9）
@@ -175,7 +166,9 @@ pub fn update_mode(triple: &str) -> UpdateMode     // inplace / appimage / bundl
 - [ ] 同小时连打两个平台 → 两个目录并存（`dirName` 后缀生效）
 - [ ] macOS 数据目录落在 `Application Support`，`.app` 内无用户数据写入
 
-## 7. 新用法演示（`npm run release:pack`）
+## 7. 平台补充（命令细节以 release 指南为唯一口径）
+
+`release:pack` / `release:publish` / `release:verify` 的完整参数表、产物树、本地预演与端到端流程见 [release.zh-CN.md](./release.zh-CN.md)，本文不重复；仅记录两条本篇独有的平台知识。
 
 ### 7.1 默认平台 = 当前主机（**不是**写死 Windows）
 
@@ -191,43 +184,11 @@ pub fn update_mode(triple: &str) -> UpdateMode     // inplace / appimage / bundl
 | Linux / arm64 | `linux-aarch64` |
 | 其他组合 | `die` 并列出可用值（**绝不静默回退 Windows**） |
 
-```bash
-# 在 Windows 上零参数 → windows-x86_64
-npm run release:pack -- --version 0.2.0
-#   → releases/0.2.0_20261012-14_windows-x86_64/
-#     ├─ vcmi-fv-launcher.exe
-#     ├─ portable_0.2.0_20261012-14_windows-x86_64.zip   ← 更新资产
-#     └─ release.json
+三端**同一行命令**，产物各自带平台后缀——这就是"默认只出二进制 + portable"的日常态（产物树见 [release.zh-CN.md](./release.zh-CN.md) §3）。
 
-# 同一行命令，在 mac（Apple Silicon）上 → darwin-aarch64
-npm run release:pack -- --version 0.2.0
-#   → releases/0.2.0_20261012-14_darwin-aarch64/
-#     ├─ VCMI-FV-Launcher.app
-#     ├─ portable_0.2.0_20261012-14_darwin-aarch64.zip   ← 更新资产
-#     └─ release.json
+### 7.2 跨 OS 打包的工具链现实
 
-# 同一行命令，在 Linux（x64）上 → linux-x86_64
-npm run release:pack -- --version 0.2.0
-#   → releases/0.2.0_20261012-14_linux-x86_64/
-#     ├─ vcmi-fv-launcher
-#     ├─ portable_0.2.0_20261012-14_linux-x86_64.zip
-#     └─ release.json
-```
-
-三端**同一行命令**，产物各自带平台后缀——这就是"默认只出二进制 + portable"的日常态。
-
-### 7.2 安装包与显式平台
-
-```bash
-# ── 需要安装包：--bundles 透传（可组合；不传 = 不出安装包）──
-npm run release:pack -- --version 0.2.0 --bundles nsis,msi
-
-# ── 显式指定平台 ──
-npm run release:pack -- --version 0.2.0 --platform darwin-aarch64 --bundles dmg,app
-npm run release:pack -- --version 0.2.0 --platform linux-x86_64 --bundles deb,appimage
-```
-
-⚠️ **跨 OS 打包的工具链现实**（脚本应在 bundler 失败前给出明确指引，而不是把 WiX/codesign 的底层错误直接抛给用户）：
+⚠️ 脚本应在 bundler 失败前给出明确指引，而不是把 WiX/codesign 的底层错误直接抛给用户：
 
 | 想打的平台 | 必须在哪构建 | 原因 |
 |---|---|---|
@@ -237,86 +198,25 @@ npm run release:pack -- --version 0.2.0 --platform linux-x86_64 --bundles deb,ap
 
 即 `--platform` 的典型用途是"**显式确认或多架构选择**"（mac 上同时打 aarch64 与 x86_64、Windows 上打 x86_64 与 aarch64）；跨 OS 请在该 OS 的机器或 CI runner 上执行。
 
-# ── AI 版（仅 windows-x86_64：原生组件当前只有 Windows 库）──
-npm run release:pack -- --version 0.2.0 --flavor ai
-
-# ── 测试包：不改源码、不进更新链、不签名 ──
-npm run release:pack -- --test
-
-# ── 已构建过，只重新提取 + 签名 ──
-npm run release:pack -- --version 0.2.0 --no-build
-
-# ── 发布：每平台各跑一次，各写各的 update/<platform>.json ──
-npm run release:publish -- --version 0.2.0 --platform windows-x86_64
-npm run release:publish -- --version 0.2.0 --platform darwin-aarch64
-npm run release:publish -- --version 0.2.0 --platform linux-x86_64
-
-# ── 自检 ──
-npm run release:verify              # 结构 / 签名 / per-platform 单调性
-npm run release:verify -- --online  # 追加下载地址可达性探测
-```
-
-**产物总览**（三平台各一份）：
-
-```
-releases/
-├─ 0.2.0_20261012-14_windows-x86_64/     ├─ 0.2.0_20261012-14_darwin-aarch64/   ├─ 0.2.0_20261012-14_linux-x86_64/
-│  ├─ vcmi-fv-launcher.exe               │  ├─ VCMI-FV-Launcher.app            │  ├─ vcmi-fv-launcher
-│  ├─ portable_…_windows-x86_64.zip      │  ├─ portable_…_darwin-aarch64.zip   │  ├─ portable_…_linux-x86_64.zip
-│  └─ release.json                       │  ├─ VCMI-FV-Launcher_0.2.0_aarch64.dmg │  ├─ vcmi-fv-launcher_0.2.0_amd64.deb
-│                                        │  └─ release.json                     │  └─ release.json
-├─ update/                               ← 启动器唯一更新源（publish 写，提交进 git）
-│  ├─ windows-x86_64.json                ← Windows 用户拉这份
-│  ├─ darwin-aarch64.json                ← Apple Silicon 用户拉这份
-│  └─ linux-x86_64.json                  ← Linux 用户拉这份
-├─ index.json                            ← 浏览数据（人/工具看）；preset 里是 {platform} 模板
-```
-
-**常见错误速查**：
-
-| 报错 | 原因 | 出路 |
-|---|---|---|
-| `平台 xxx 不支持 bundles：dmg` | 该平台描述符没声明 | 查 §1.1 表，换平台或去掉 |
-| `版本 0.2.0-rc1 带后缀且请求 msi` | WiX 只收纯数字版本 | 用纯数字版本，或不请求 msi |
-| `--flavor ai 仅支持 windows-x86_64` | AI 原生组件只有 Windows 库 | 换平台或去掉 flavor |
+`--bundles` 透传、`--flavor ai` / `--test` / `--no-build`、每平台 publish 与常见错误速查见 [release.zh-CN.md](./release.zh-CN.md) §3。
 
 ## 8. 重置到初始状态（冷启动）
 
-适用场景：推倒重来、清空所有发行记录、或新仓库第一次接入。初始状态 = **两个文件**，仓库已带 `.init` 模板（`releases/index.json.init` 与 `releases/update/windows-x86_64.json.init`，提交进 git 专供重置；任何代码路径都不会读它们——`loadIndex`/`loadTargetManifest` 只认精确文件名，`publishedVersions` 与 verify 只收 `.json` 结尾）：
+适用场景：推倒重来、清空所有发行记录、或新仓库第一次接入。初始态 = **两个文件**（形状见 [release.zh-CN.md](./release.zh-CN.md) §5「初始模板」；仓库已带 `.init` 模板，任何代码路径都不会读它们）：
 
-```jsonc
-// releases/index.json（首次 pack 会自举；也可手工写成这形态）
-{
-  "schema": "vcmi-fv-launcher-release-index/1", "schemaVersion": 1,
-  "repo": { "provider": "github", "owner": "<账号>", "name": "<仓库>", "defaultBranch": "main", … },
-  "download": { "base": "https://github.com/<账号>/<仓库>/releases", "pathTemplate": "{base}/download/{tag}/{name}" },
-  "preset": { "base": { "update": { "manifest_url": "https://raw.githubusercontent.com/<账号>/<仓库>/main/releases/update/{platform}.json" } } },
-  "product": "VCMI-FV-Launcher", "channel": "stable",
-  "latest": null,
-  "releases": []            // ← 空台账
-}
-
-// releases/update/<platform>.json（每个要支持的平台一份；空清单 = 尚未发布）
-{
-  "schema": "vcmi-fv-launcher-update-manifest/2", "platform": "windows-x86_64",
-  "latest": null, "minSupported": null,
-  "versions": []            // ← 空清单
-}
+```bash
+cp releases/index.json.init releases/index.json
+cp releases/update/<platform>.json.init releases/update/<platform>.json   # 或删掉让系统自建，两者等价
 ```
 
-步骤：
+**关键一步（重新生成随包预置，生成物但提交进 git）**：跑一次
+`npm run release:pack -- --version <当前版本> --no-build`——它会把 preset 规范成 `{platform}` 模板
+并重写 `src-tauri/resources/release-preset/*.json`（旧口径的 `manifest_url` 会被自动升级，见 `resolvePreset`）；
+然后 `git add releases/index.json releases/update/ src-tauri/resources/release-preset/` 提交，
+`npm run release:verify` 预期「`update/<platform>：0 条` + `releases[] 为空`」告警、**无错误**
+（启动器侧：空清单 / 404 → 静默无更新，手动"检查更新"也不报错）。
 
-1. `releases/index.json`：`cp releases/index.json.init releases/index.json`（或直接删掉——首次 pack 会自举出同形态内容）；
-2. `releases/update/*.json`：按平台 `cp releases/update/<platform>.json.init releases/update/<platform>.json`，或全部删除（两者等价：空清单与 404 都按"无更新"静默处理；其他平台的 `.init` 照 windows 的模板改 `platform` 字段即可）；
-3. 清理本地产物（可选，均 gitignored）：`releases/<版本>_*` 打包目录；
-4. **重新生成随包预置**（关键，生成物但提交进 git）：跑一次
-   `npm run release:pack -- --version <当前版本> --no-build`——它会把 preset 规范成 `{platform}` 模板
-   并重写 `src-tauri/resources/release-preset/*.json`（旧口径的 `manifest_url` 会被自动升级，见 `resolvePreset`）；
-5. 提交：`git add releases/index.json releases/update/ src-tauri/resources/release-preset/`；
-6. 验证：`npm run release:verify`（预期：`update/<platform>：0 条` + `releases[] 为空` 告警，**无错误**）；
-   启动器侧：拉到的空清单 / 404 → 静默无更新，手动"检查更新"也不报错。
-
-注意事项：
+注意事项（与 [release.zh-CN.md](./release.zh-CN.md) §5 冷启动契约互补）：
 
 - **单调性守卫随之重置**：清单为空后任何版本号都可再发（`publishedVersions()` 为空）——若要防止旧版本号被重发，
   记住之前的最高版本，或保留一条最小台账条目；
@@ -324,6 +224,5 @@ releases/
   对老用户不会提示（按 sha256 去重）——要么 bump 版本，要么接受无提示；
 - **GitHub 侧不受回退影响**：已发布的 Release / 资产还在网上，回退只改 git 里的索引与清单；
   要让用户彻底拿不到，需另行删除 GitHub Release 或把清单指向别处；
-- **冷启动自举的仓库解析**：无索引时 owner/repo 从 `git remote get-url origin` 推断（**任意主机**——自定义 SSH 别名 / GHE 域名都能解析；旧正则只认字面 `github.com` 会静默失败），branch 按 `origin/HEAD` → 当前 HEAD → `main` 回退（**绝不猜 `master`**，否则 raw 更新地址指错分支 = 用户侧 404）；都推断不出会 die 并给出 `--owner/--repo/--branch` 指引；
 - `manifest_url` 的 `{platform}` 模板从冷启动第一天就是默认值（`resolvePreset`），不会再出现指向
   `index.json` 的旧口径补丁。

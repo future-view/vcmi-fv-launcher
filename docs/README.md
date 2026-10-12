@@ -20,7 +20,7 @@
 | [overview](./architecture/overview.zh-CN.md) | Positioning, feature map, tech stack, layout, doc conventions |
 | [frontend](./architecture/frontend.zh-CN.md) | Four layers, placement rules, dependency direction, startup orchestration |
 | [backend](./architecture/backend.zh-CN.md) | Rust layering, `infra` modules, concurrency, do-not-change list |
-| [ipc](./architecture/ipc.zh-CN.md) | 135 commands, events, three-way parity, frozen contracts |
+| [ipc](./architecture/ipc.zh-CN.md) | 136 commands, events, three-way parity, frozen contracts |
 | [persistence](./architecture/persistence.zh-CN.md) | Data dir, `launcher.json` groups, realm / cache / log layout |
 
 ## Features
@@ -28,13 +28,16 @@
 | Document | Summary |
 |---|---|
 | [shell-and-navigation](./features/shell-and-navigation.zh-CN.md) | Top bar, bottom bar, game data, help, windowing, render priority |
+| [startup-responsiveness](./features/startup-responsiveness.zh-CN.md) | First-boot mods freeze: main-thread root causes and phased fixes (implemented 2026-10-08) |
 | [setup-wizard](./features/setup-wizard.zh-CN.md) | First-run wizard: trigger, steps, directory detection |
 | [mods](./features/mods.zh-CN.md) | Browsing and picking mods: dependency closure, conflicts, town backdrops |
 | [presets](./features/presets.zh-CN.md) | Presets: native format conversion, import/export, activation report |
+| [lang-mods](./features/lang-mods.zh-CN.md) | Language mod discovery by category (not by name) + pre-launch check dialog |
 | [mods-repository](./features/mods-repository.zh-CN.md) | Fetching and updating mods from the official repository |
 | [game-import](./features/game-import.zh-CN.md) | Importing maps / saves / mod zips / HD assets |
 | [wiki](./features/wiki.zh-CN.md) | Encyclopedia UI: 9 categories, detail dispatch, right-click popup |
 | [modcache](./features/modcache.zh-CN.md) | Cache pipeline: two phases, artifacts, cache keys, realm priority build |
+| [encrypted-zip-handling](./features/encrypted-zip-handling.zh-CN.md) | Encrypted `content.zip` password unpacking and the two distribution feeding routes |
 | [faction-showcase](./features/faction-showcase.zh-CN.md) | Faction showcase: deck scheduling, playback, audio sources |
 | [settings](./features/settings.zh-CN.md) | Settings panel: 13 groups, scope badge, launcher-owned cards |
 | [hd-assets](./features/hd-assets.zh-CN.md) | HD: `.pak` source / upscaling / AI super-resolution / external runtime |
@@ -53,6 +56,7 @@
 | [release](./guides/release.zh-CN.md) | ChangeLog syntax, local packaging, GitHub publish, `index.json` |
 | [release-cross-platform](./guides/release-cross-platform.zh-CN.md) | Cross-platform release & update implementation plan (ADR 0008 companion): platform descriptors, per-target manifests, `updateMode` dispatch, usage demos |
 | [portable-deployment](./guides/portable-deployment.zh-CN.md) | Portable data dir, bundled presets, AI flavor, known pitfalls |
+| [distribution-build](./guides/distribution-build.zh-CN.md) | Custom distribution builds: built-in encrypted zip passwords (route B) and `launcher.json` config (route A) |
 | [repository-index](./guides/repository-index.zh-CN.md) | Authoring and publishing a realm repository index |
 | [replace-icon](./guides/replace-icon.zh-CN.md) | Which icon files to replace |
 
@@ -80,7 +84,3 @@
 ## IDE Rules
 
 The source of truth for coding rules lives in `docs/ide/rules/` (`NN-<topic>.mdc`), **independent of any IDE**. Copy them into your IDE's rules directory; copies are not maintained in the repository — always edit the source of truth.
-
-## Prototypes
-
-Six interactive HTML prototypes live in `prototypes/` as historical artifacts. They are **not** implementation references — the feature documents are.

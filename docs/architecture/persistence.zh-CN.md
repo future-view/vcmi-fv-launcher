@@ -1,17 +1,21 @@
 # 磁盘持久化布局
 
-> 状态：已实现 ｜ 最后核对：2026-09-30 ｜ 代码：`src-tauri/src/vcmi/paths.rs`、`vcmi/config.rs`、`updater/migrate.rs`、`realms/base.rs`
+> 状态：已实现 ｜ 最后核对：2026-10-12 ｜ 代码：`src-tauri/src/vcmi/paths.rs`、`vcmi/config.rs`、`updater/migrate.rs`、`realms/base.rs`
 
 所有启动器自己的数据都在**单个数据目录**下，游戏侧只改动 VCMI 既有文件。本文是"磁盘上到底写了什么"的唯一权威清单。
 
 ## 1. 数据根目录
 
-```
-<exe 所在目录>/.vcmi-fv-launcher/
-```
+**按平台分派**（ADR 0008 D10，2026-10-12 起；`vcmi/paths.rs` 的 `launcher_data_dir()`）：
 
-- 由 exe 路径推导，**不使用进程 cwd**（`vcmi/paths.rs:126-140`），因此便携包从任意工作目录启动都落同一处。
+| 平台 | 数据根 | 理由 |
+|---|---|---|
+| Windows | `<exe 所在目录>/.vcmi-fv-launcher/` | 便携单文件夹是既定特性（"解压覆盖"语义依赖它）；按 exe 路径推导、**不用进程 cwd**，任意工作目录启动都落同一处 |
+| macOS | `~/Library/Application Support/com.vcmi.fv-launcher/` | 系统标准位置；`.app` 装进 `/Applications` 后包内写数据会破坏签名 |
+| Linux | `${XDG_DATA_HOME:-~/.local/share}/vcmi-fv-launcher/` | XDG 规范；AppImage 挂载的是只读 squashfs，exe 同级不可写 |
+
 - 禁止把数据目录放进游戏目录（会污染游戏、且被领域切换波及）。
+- `launcher_config_path` / `mods_cache_dir` / `realm_vcmi_dir` / `downloads_dir` 全部由这一个函数派生——只改它即全链路切换。
 
 ## 2. `launcher.json` —— 启动器配置
 
@@ -27,6 +31,7 @@
 | `update` | `manifest_url`、`auto_check`、`skip_version`、`prompt_version`、`prompt_at` | 自更新偏好与 7 天节流 |
 | `runtime` | `log_level`、`components{<id>:{dir,package{url,sha256,size,version}}}` | 外挂组件声明 |
 | `network` | `proxy`、`mirror_rules[{enabled,note,hosts,mode,prefix,template}]` | 网络出口，上限 10 条镜像规则 |
+| `archives` | `zip_passwords{<mod目录名\|_default>: 密码}` | 加密 `content.zip` 解密密码表（发行版经随包 `launcher.json` 预置；保存配置时**保留既有值**、UI 不暴露写入），见 [distribution-build](../guides/distribution-build.zh-CN.md) |
 
 **写入纪律**：`write_launcher_config` 走「宽容继承」回退（`read_launcher_config_lenient`），防止首次向导清掉便携包预置的语言 / 高清开关 / 组件地址。
 

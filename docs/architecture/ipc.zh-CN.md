@@ -1,7 +1,7 @@
 # IPC 命令契约
 
-> 状态：已实现 ｜ 最后核对：2026-09-30 ｜ 代码：`src-tauri/src/lib.rs`、`src/lib/tauri.ts`、`scripts/check-invoke-parity.mjs`
-> 当前基线 **135 个命令**。改后端必跑 `npm run check:invoke-parity`。
+> 状态：已实现 ｜ 最后核对：2026-10-12 ｜ 代码：`src-tauri/src/lib.rs`、`src/lib/tauri.ts`、`scripts/check-invoke-parity.mjs`
+> 当前基线 **136 个命令**。改后端必跑 `npm run check:invoke-parity`。
 
 ## 1. 三方一致性
 
@@ -37,9 +37,9 @@
 
 `read_mod_cache`、`read_mod_metas`、`read_town_cards`、`read_showcase_slides`、`ensure_showcase_audio`、`generate_town_preview`、`cache_build_progress`、`cancel_cache_build`、`realm_cache_build_progress`、`cancel_realm_cache_build`、`build_realm_cache_urgent`、`check_realm_assets`、`build_mods_cache_batch`、`build_all_mod_cache`、`read_cache_index`、`get_mods_cache_dir`
 
-### 领域（46）
+### 领域（47）
 
-`list_realms`、`get_active_realm`、`realm_config_dir`、`write_realm_presets`、`create_realm`、`check_realm_id`、`update_realm`、`delete_realm`、`activate_realm`、`deactivate_realm`、`set_realm_maps_blocked`、`kill_vcmi`、`realm_self_check`、`realm_self_heal`、`export_realm`、`cancel_realm_export`、`preview_realm_publish`、`import_realm`、`realm_dir`、`get_intro_state`、`mark_intro_played`、`get_bgm_muted`、`set_bgm_muted`、`import_realm_asset`、`check_realm_mod_conflicts`、`check_realm_mod_ready`、`rename_realm`、`list_realm_map`、`upload_realm_map`、`delete_realm_map`、`native_maps_status`、`repair_game_maps`、`import_realm_maps_dir`、`move_realm_map`、`apply_realm_maps_valve`、`set_realm_map_filter`、`is_vcmi_running`、`list_vcmi_processes`、`list_vcmi_game_processes`、`realm_mod_ops`、`list_realm_mods`、`realm_mod_ref`、`realm_mod_unref`、`realm_mod_bundle`、`realm_mod_delete`、`realm_mod_import`
+`list_realms`、`get_active_realm`、`realm_config_dir`、`write_realm_presets`、`create_realm`、`check_realm_id`、`update_realm`、`delete_realm`、`activate_realm`、`deactivate_realm`、`set_realm_maps_blocked`、`kill_vcmi`、`realm_self_check`、`realm_self_heal`、`export_realm`、`cancel_realm_export`、`preview_realm_publish`、`import_realm`、`realm_dir`、`get_intro_state`、`mark_intro_played`、`get_bgm_muted`、`set_bgm_muted`、`import_realm_asset`、`check_realm_mod_conflicts`、`check_realm_mods_ready`、`rename_realm`、`list_realm_maps`、`upload_realm_map`、`delete_realm_map`、`native_maps_status`、`repair_game_maps`、`import_realm_maps_dir`、`move_realm_map`、`apply_realm_maps_valve`、`set_realm_map_filter`、`is_vcmi_running`、`list_vcmi_processes`、`list_vcmi_game_processes`、`realm_mod_ops`、`list_realm_mods`、`realm_mod_ref`、`realm_mod_unref`、`realm_mod_bundle`、`realm_mod_delete`、`realm_mod_import`、`ensure_realm_lang_visible`
 
 ### 远程领域仓库（8）
 

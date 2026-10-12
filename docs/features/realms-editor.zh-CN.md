@@ -1,6 +1,6 @@
 # 领域编辑器
 
-> 状态：已实现 ｜ 最后核对：2026-09-30 ｜ 代码：`src/features/realms/editor/`、`src-tauri/src/realms/meta.rs`、`mod_manage.rs`、`maps.rs`
+> 状态：已实现 ｜ 最后核对：2026-10-12 ｜ 代码：`src/features/realms/editor/`、`src-tauri/src/realms/meta.rs`、`mod_manage.rs`、`maps.rs`
 > 领域运行时行为见 [realms](./realms.zh-CN.md)。
 
 ## 1. 目标与范围
@@ -27,15 +27,12 @@
 ## 3. 模组标签页
 
 - 复用 `features/mods/ModBrowser`（与主界面同源），勾选结果写回领域预设。
-- 依赖求解由 `lib/modDeps.ts` 提供：`solveRealmDeps` 给出 `byRoot` 缺陷（`installed | repo | unavailable`），徽标 / 角标 / 「去处理」消费它；`solveDepClosure` 给出 `refs / installs / deads` 供一键解析。
-- `detectTranslationLang` 按领域语言默认勾选翻译包。
+- 依赖求解能力（`solveRealmDeps` / `solveDepClosure` / `detectTranslationLang`）的口径见 [realms](./realms.zh-CN.md) §6；编辑器侧只负责消费——徽标 / 角标 / 「去处理」与一键解析弹窗。
 - `RealmModManagerPanel` 区分四种来源视图，对应 borrowed / bundled / pinned / 可下载，操作走 `realm_mod_{ref,unref,bundle,delete,import}`。
 
 ## 4. 地图标签页
 
-- 真相源是 `vcmi/Maps.vcmi-fv-realm/{maps,campaigns}/<lang>/…`；可视目录 `vcmi/Maps/` 全是 junction。
-- 操作：`import_realm_maps_dir`（`dry_run` 预检 + `skip|overwrite|rename`）、`upload_realm_map`、`move_realm_map`（禁止跨 kind）、`delete_realm_map`（路径穿越防护）、`list_realm_map`。
-- 阀门与语言过滤：`apply_realm_maps_valve`（仅激活时生效）、`set_realm_map_filter`（`filterLang` / `filterLangTarget` 决定挂载哪些语言 + `unknown`）。
+- 真相源 / junction / 语言过滤的运行时语义见 [realms](./realms.zh-CN.md) §5；编辑器操作：`import_realm_maps_dir`（`dry_run` 预检 + `skip|overwrite|rename`）、`upload_realm_map`、`move_realm_map`（禁止跨 kind）、`delete_realm_map`（路径穿越防护）、`list_realm_maps`；阀门 `apply_realm_maps_valve`（仅激活时生效）与语言过滤 `set_realm_map_filter`。
 
 ## 5. 保存语义
 

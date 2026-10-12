@@ -1,6 +1,6 @@
 # VCMI-FV 启动器 · 总览
 
-> 状态：已实现 ｜ 最后核对：2026-09-30 ｜ 代码：`src/`、`src-tauri/`、`package.json`
+> 状态：已实现 ｜ 最后核对：2026-10-12 ｜ 代码：`src/`、`src-tauri/`、`package.json`
 > 本文是整套文档的入口。按功能查 [README.zh-CN.md](../README.zh-CN.md) 索引表，按层查阅 [architecture/](./)。
 
 ## 1. 定位
@@ -24,24 +24,13 @@
 
 ## 2. 能力全景
 
-| 功能域 | 一句话 | 文档 |
-|---|---|---|
-| 外壳与导航 | 顶栏页签、底栏入口、窗口控件、启动编排 | [shell-and-navigation](../features/shell-and-navigation.zh-CN.md) |
-| 首启向导 | 首次运行时确定游戏目录 / 用户目录 / 界面语言 | [setup-wizard](../features/setup-wizard.zh-CN.md) |
-| 模组浏览与选择 | 左右分栏、城镇幕布、依赖自动勾选、冲突标红 | [mods](../features/mods.zh-CN.md) |
-| 预设管理 | VCMI 原生预设的增删切换、导入导出、启用报告 | [presets](../features/presets.zh-CN.md) |
-| 模组获取与更新 | 从 VCMI 官方仓库索引安装 / 更新 / 删除模组 | [mods-repository](../features/mods-repository.zh-CN.md) |
-| 游戏文件导入 | 把地图 / 存档 / 模组 zip / HD 素材导入到正确位置 | [game-import](../features/game-import.zh-CN.md) |
-| 百科 | 9 类目离线浏览、详情分发、右键悬停浮层 | [wiki](../features/wiki.zh-CN.md) |
-| 百科缓存管线 | 两阶段构建、素材抽取、HD 后处理、进度与取消 | [modcache](../features/modcache.zh-CN.md) |
-| 高清素材 | HD Edition `.pak` 真高清源 / 传统放大 / AI 超分 | [hd-assets](../features/hd-assets.zh-CN.md) |
-| 设置面板 | VCMI 12 节设置 + 启动器自有设置 | [settings](../features/settings.zh-CN.md) |
-| 领域系统 | 隔离环境的生命周期、激活、地图阀门、自检 | [realms](../features/realms.zh-CN.md) |
-| 领域编辑器 | 六标签页编辑领域元数据 / 模组 / 地图 / 巡礼 | [realms-editor](../features/realms-editor.zh-CN.md) |
-| 远程领域仓库 | 拉取领域索引、下载安装 `.vcmirealm` | [realms-repository](../features/realms-repository.zh-CN.md) |
-| 阵营巡礼 | 全屏播放阵营幕布 / 英雄 / 主题曲 | [faction-showcase](../features/faction-showcase.zh-CN.md) |
-| 启动器自动更新 | 清单比对、可选与强制更新、自替换 | [launcher-update](../features/launcher-update.zh-CN.md) |
-| 多语言 | UI 五语、百科取词、帮助文档五语 | [i18n](../features/i18n.zh-CN.md) |
+启动器的能力分五组。**一功能一篇的文档索引与一句话说明以 [README.zh-CN.md](../README.zh-CN.md) 为唯一口径**（本文不再复制表格——两处各维护一份必然腐烂，2026-10 已实测过一次）：
+
+- **模组线**：浏览勾选（mods）→ 预设落盘（presets）→ 仓库安装更新（mods-repository）→ 本地 / 拖放导入（game-import）→ 加密 zip 采集（encrypted-zip-handling）；
+- **内容线**：百科展示（wiki）+ 缓存构建管线（modcache）+ 高清三链路（hd-assets）+ 阵营巡礼（faction-showcase）；
+- **领域线**：领域运行时（realms）+ 编辑器（realms-editor）+ 远程仓库（realms-repository）；
+- **设置与语言**：VCMI 设置面板（settings）+ 网络出口（network-egress）+ 界面 / 内容 / 帮助三套语言（i18n）+ 语言模组管理（lang-mods）；
+- **外壳与运维**：外壳导航（shell-and-navigation）+ 首启向导（setup-wizard）+ 启动响应性（startup-responsiveness）+ 自动更新（launcher-update）。
 
 ## 3. 技术栈
 
@@ -58,7 +47,7 @@
 ## 4. 运行形态
 
 - **两种互斥模式**：启动器主界面（模组 / 百科 / 设置）与领域模式（领域首页 / 信息 / 素材 / 切换 / 编辑器 / 仓库 / 巡礼）。同一时刻只渲染其一，避免两个模组管理器争写同一份配置。
-- **便携部署**：数据目录固定为 exe 同级的 `.vcmi-fv-launcher/`（按 exe 路径推导，不用进程 cwd），见 [persistence](./persistence.zh-CN.md)。
+- **便携部署**：Windows 数据目录固定为 exe 同级的 `.vcmi-fv-launcher/`（按 exe 路径推导，不用进程 cwd）；macOS / Linux 按平台标准目录分派（ADR 0008 D10），见 [persistence](./persistence.zh-CN.md)。
 - **启动编排**（`src/App.tsx`）：目录探测 → 领域恢复 → 领域自检 → 百科缓存异步构建 → 更新静默检查。任一步失败都不阻断进入主界面（强制更新除外）。
 
 ## 5. 源码结构
@@ -93,7 +82,9 @@ src-tauri/src/            后端
 
 - 中文文档用 `.zh-CN.md`，英文用 `.md`；文件名 kebab-case，**不加数字前缀**，顺序由索引表决定。
 - 每篇头部标注「状态 / 最后核对日期 / 对应代码路径」。内容以**代码实测**为准，代码与文档冲突时改文档。
-- 文档分四层：`architecture/`（跨功能全局）、`features/`（一功能一篇）、`guides/`（可照做的步骤）、`reference/`（契约与硬事实），另有 `decisions/` 记录拍板理由、`prototypes/` 存放历史 HTML 原型。
+- **方案记录型**文档（`startup-responsiveness`、`lang-mods`）需在头部另标**体裁**，说明它是"问题诊断 / 方案 + 实施记录"而非功能规格——不套用"验证 / 开放问题"骨架，避免读者按规格类文档理解。
+- 行尾统一 **LF**（`.gitattributes` 已声明 `*.md text eol=lf`）；跨行改写时注意文件实际行尾，CRLF 文件的多行替换需带 `\r\n` 才能命中。
+- 文档分四层：`architecture/`（跨功能全局）、`features/`（一功能一篇）、`guides/`（可照做的步骤）、`reference/`（契约与硬事实），另有 `decisions/` 记录拍板理由。
 
 ## 7. 关键术语
 

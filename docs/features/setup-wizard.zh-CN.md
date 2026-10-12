@@ -23,11 +23,7 @@
 
 ## 4. 目录识别规则
 
-1. 优先读 `<游戏目录>/config/dirs.json` 的 5 个真实 key（`userDataPath` / `userConfigPath` / `userCachePath` / `userLogsPath` / `userSavePath`），支持环境变量展开（含增强版特有的 `%USERDOCUMENTS%` 映射）；
-2. 缺失则回退 Windows 默认用户目录；
-3. 未显式指定的 userCache / userConfig / userSave / userLogs 全部由 userDataPath 派生。
-
-VCMI **不会**自动创建 `Mods` 与 `Maps` 子目录，需要启动器自建。
+优先读 `<游戏目录>/config/dirs.json` 的 5 个真实 key（支持环境变量展开，含增强版特有的 `%USERDOCUMENTS%` 映射），缺失则回退 Windows 默认用户目录；未显式指定的 4 个 key 由 `userDataPath` 派生。完整硬事实（双重挂载、junction、预设迁移等）见 [vcmi-dirs](../reference/vcmi-dirs.zh-CN.md)。VCMI **不会**自动创建 `Mods` 与 `Maps` 子目录，需要启动器自建。
 
 ## 5. 边界与容错
 

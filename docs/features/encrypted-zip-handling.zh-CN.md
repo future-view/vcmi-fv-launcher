@@ -1,6 +1,7 @@
 # 加密 zip 模组资源采集方案
 
-> 状态：已定稿，进入实现。决策树闭合：X（默认安全行为）+ A（主路线：运行时配置）+ B（备选：构建期注入）；监控磁盘与逆向两条路径已证伪。
+> 状态：已实现（2026-10-10 落地） ｜ 最后核对：2026-10-12 ｜ 代码：`src-tauri/src/vcmi/resource.rs`（`zip_password_for` / `BUILTIN_ZIP_PASSWORDS`）、`src-tauri/src/vcmi/scan.rs`（`contentZipEncrypted`）、`src-tauri/src/vcmi/config.rs`（`ArchivesCfg`）
+> 决策树闭合：X（默认安全行为）+ A（主路线：运行时配置）+ B（备选：构建期注入）；监控磁盘与逆向两条路径已证伪。逐步操作见 [distribution-build](../guides/distribution-build.zh-CN.md)。
 
 ## 1. 背景与问题
 
@@ -43,39 +44,12 @@
 
 ## 5. 发行版喂密码的两种接入方式
 
-### 路线 A：`launcher.json` 运行时配置（免构建，推荐）
+两条路线任选，**取密码优先级：配置按目录名 → 内置按目录名 → 配置 `_default` → 内置 `_default`**：
 
-随包的 `launcher.json` 预置，用 stock FV 即可：
+- **路线 A（免构建，推荐）**：随包 `launcher.json` 预置 `archives.zip_passwords`（键 = mod 目录名或 `_default` 兜底），用 stock FV 即可，适配所有发行版；
+- **路线 B（需发行版自行构建）**：把密码填进 `src-tauri/src/vcmi/resource.rs` 的常量数组 `BUILTIN_ZIP_PASSWORDS`（public 源码为空数组 = 通用二进制不携带任何发行版密码），自行 `cargo build`。
 
-```json5
-{
-  "archives": {
-    // 键：mod 目录名（如 "adeptorium"）或 "_default"（全局兜底）；值：解密密码
-    "zip_passwords": {
-      "adeptorium": "发行版自设密码",
-      "_default": "通用兜底密码"
-    }
-  }
-}
-```
-
-### 路线 B：rs 源码内置密码（需发行版自行构建）
-
-**在 `src-tauri/src/vcmi/resource.rs` 的常量数组 `BUILTIN_ZIP_PASSWORDS` 里填入密码**（取消注释并改成你们的真实值），再自行 `cargo build`：
-
-```rust
-// src-tauri/src/vcmi/resource.rs
-pub(crate) const BUILTIN_ZIP_PASSWORDS: &[(&str, &str)] = &[
-    ("adeptorium", "你们的真实密码"),          // ← 某 mod 的专用密码
-    ("_default", "所有未单独列出的 mod 共用的密码"), // ← 所有加密包共用同一密码时只填这一行
-];
-```
-
-- 每行 `(mod 目录名, 密码)`；目录名为 mod 最末级目录（如 `adeptorium`），嵌套子 mod 用最末级。
-- `("_default", 密码)` 是全局兜底：**任何没有单独列出的 mod 都用它**。若你们所有加密包都用同一个主密码，只填这一行即可，新增 mod 也不会漏。
-- public 源码该数组为空 → 构建出的通用 FV 二进制**不携带任何发行版密码**，解不开任一发行版加密包；只有发行版自己填了并构建的二进制才携带。
-
-**取密码优先级（见 `zip_password_for`）**：`launcher.json` 按目录名匹配 → 内置按目录名匹配 → `launcher.json` 的 `_default` → 内置的 `_default`。
+逐步操作、完整示例（json5 / rust）与安全边界见 [distribution-build](../guides/distribution-build.zh-CN.md)。
 
 ## 6. 安全分析
 

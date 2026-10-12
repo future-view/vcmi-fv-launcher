@@ -8,7 +8,7 @@
 | 核对点 | 结论 |
 |---|---|
 | 1 移动端 | **排除**——`launch.rs:20-23` 靠 `Command::new(VCMI_client.exe).spawn()` 工作，Tauri 移动端沙箱不能 spawn 进程且 exe 是 Windows PE，产品上不成立 |
-| 2 清单结构 | **按推荐**：per-target 清单 + `{target}` 占位符模板（一个 indexUrl） |
+| 2 清单结构 | **按推荐**：per-target 清单 + `{platform}` 占位符模板（一个 `manifest_url`） |
 | 3 macOS | **按标准流程**：Developer ID 签名 → `notarytool` 公证 → `stapler`；更新用 `.app.tar.gz` 整包替换 + 重签 |
 | 4 `--no-bundle` 默认 | **确定** |
 | 5 minisign | **评估后本期不引入**（复议：GitHub 单信任域 + CI 持钥边界窄 + 更便宜的硬化替代；schema 保留可选 `signature`，见 D9） |
@@ -57,17 +57,18 @@ const TARGETS = {
 
 `portable_<ver>_<ts>_<target>.zip`（如 `portable_0.2.0_20261012-14_linux-x86_64.zip`）。安装包名由 Tauri 生成、已含平台信息，不动。GitHub Release 内资产名必须唯一——无 target 段会跨平台同名冲突。
 
-### D5 分平台更新清单；`indexUrl` 是**一个模板**而非每平台一个配置
+### D5 分平台更新清单；`manifest_url` 是**一个模板**而非每平台一个配置
 
-- `releases/update/<target-triple>.json` 是启动器的**唯一更新源**：
+- `releases/update/<platform-triple>.json` 是启动器的**唯一更新源**：
   ```jsonc
-  { "schema": "vcmi-fv-launcher-update-manifest/2", "target": "linux-x86_64",
+  { "schema": "vcmi-fv-launcher-update-manifest/2", "platform": "linux-x86_64",
     "latest": "0.2.0", "minSupported": "0.1.0",
     "versions": [{ "version": "0.2.0", "download": ".../portable_0.2.0_<ts>_linux-x86_64.zip",
       "sha256": "…", "signature": "…", "size": 1, "format": "zip", "kind": "full",
       "updateMode": "inplace", "critical": false, "notes": {} }] }
   ```
-- `manifest_url` 存**带 `{target}` 占位符的模板**，原样穿过 preset → patch → `launcher.json`（`config.rs:363-370`），在 `manifest.rs:347` 取到 url 之后、发起请求之前替换。这样随包预置补丁保持**与平台无关**，一份 patch 三端通用。
+- `manifest_url` 存**带 `{platform}` 占位符的模板**，原样穿过 preset → patch → `launcher.json`（`config.rs:363-370`），在 `manifest.rs` 取到 url 之后、发起请求之前由 `platform.rs::resolve_manifest_url` 替换。这样随包预置补丁保持**与平台无关**，一份 patch 三端通用。
+- 实施注记（2026-10-12）：决策文原写 `target`，落地时统一为 `platform`——与清单 schema 字段、文件名 `releases/update/<platform>.json` 一致（`updater/platform.rs:85-93`、`manifest.rs:391-393`）。照旧文写 `{target}` 会产出无效的 `manifest_url`。
 - 占位符映射**必须查显式表**（`std::env::consts::OS` 在 macOS 是 `macos`，而 triple 是 `darwin`，字符串拼接必错）；用**运行时** `std::env::consts` 而非编译期 `cfg!`——Rosetta 下 x86_64 构建报 `darwin-x86_64` 是正确的（更新必须换同架构二进制）。
 
   | `(OS, ARCH)` | triple | | `(OS, ARCH)` | triple |
@@ -103,6 +104,8 @@ const TARGETS = {
 | `bundle` | macOS | **标准流程**（核对点 3）：Developer ID Application 证书签名（hardened runtime + entitlements）→ `notarytool` 提交公证 → `stapler` 盖章；分发 dmg，**更新用 `.app.tar.gz`**（`tauri build --bundles app`）整包替换 + 本地重签后拉起。替换后必须仍是系统信任的签名，否则 Gatekeeper 拦截 |
 | `manual` | macOS（无证书过渡期） | 不应用：提示"有新版，请手动下载"并打开下载页。这不是将就——未签名包替换内容即破签名，`manual` 是该状态下唯一诚实的行为；证书与公证 CI 就绪后翻 `bundle`（改一个字段） |
 | `store` | — | 占位；移动端已排除（见背景） |
+
+> 实施注记（2026-10-12）：上表是**决策**的替换策略；截至该日仅 `inplace` 与 `manual` 落地，`appimage` / `bundle` 仍返回 `upd_mode_not_implemented`（`apply.rs:53-56`）。落地状态见 [release-cross-platform](../guides/release-cross-platform.zh-CN.md) §2.4，运行期语义见 [launcher-update](../features/launcher-update.zh-CN.md) §5。
 
 用户态字段（`skip_version`/`prompt_*`/`appliedUpdateSha`）语义不变，按平台各自独立。
 
@@ -156,15 +159,15 @@ const TARGETS = {
 - **每 target 恰好 1 个 `role=update` 资产**（替代现有"每目录 1 个"）；`classifyAsset` 与 `verify` 的 zip 命名识别改为带 target 段解析。
 - 更新包仍**绝不含用户数据**（`realms`/`cache`/`downloads`/`mods`/`launcher.json`）——跨平台同样成立。
 - 确定性三件套保持：条目排序、固定时间戳、**新增的 Unix 权限位**。
-- `{target}` 无法映射（未知 OS/ARCH）→ 按"无更新"静默处理，不报错。
-- `set_update_manifest_url`（`commands/updater.rs:141-158`）取值宽容化：含 `{target}` 则解析，不含则原样使用；设置页 UI 说明可用该占位符。
+- `{platform}` 无法映射（未知 OS/ARCH）→ 按"无更新"静默处理，不报错。
+- `set_update_manifest_url`（`commands/updater.rs:141-158`）取值宽容化：含 `{platform}` 则解析，不含则原样使用；设置页 UI 说明可用该占位符。
 
 ## 实施顺序（一次性，核对点 6）
 
 | # | 内容 | 依赖 |
 |---|---|---|
 | 1 | pack 平台化：描述符、`--bundles` 透传、zip 权限位、资产带 target | 无 |
-| 2 | 分平台清单生成 + `{target}` 解析 + 两条容错规则 | 1 |
+| 2 | 分平台清单生成 + `{platform}` 解析 + 两条容错规则 | 1 |
 | 3 | updater `updateMode` 分派：Windows PS1 保留、Linux shell replacer、AppImage、macOS `.app.tar.gz` + 重签 | 1,2 |
 | 4 | GitHub 侧硬化（2FA / fine-grained PAT / 分支保护）与信任模型入档 | 2 |
 | 5 | macOS 标准流程 CI（签名/公证/staple）与 `manual` → `bundle` 翻转 | 3 + 证书基建 |
@@ -174,7 +177,7 @@ const TARGETS = {
 
 ## 后果
 
-- **行为变更（不做老兼容）**：`manifest_url` 语义（模板 + `{target}`）、资产命名（带 target）、`--no-bundle` 成为默认、`releases/index.json` 不再是更新源、updater 按 `updateMode` 分派、清单 schema 保留可选 `signature` 字段（本期不签）。
+- **行为变更（不做老兼容）**：`manifest_url` 语义（模板 + `{platform}`）、资产命名（带 target）、`--no-bundle` 成为默认、`releases/index.json` 不再是更新源、updater 按 `updateMode` 分派、清单 schema 保留可选 `signature` 字段（本期不签）。
 - **冷启动契约**（D11）：两份发行文件均非 pack 前置（自举 / 按需创建）；初始态由 `.init` 模板定义；仓库解析回退链固定为"任意主机 remote + `origin/HEAD` → 当前 HEAD → `main`"，消灭 `master` 误判导致的用户侧 404。
 - 需同步文档：`guides/release.zh-CN.md`（产物清单/参数表/索引结构三节）、`features/launcher-update.zh-CN.md`（§3 清单 / §5 应用 / §11 开放问题）、`ide/rules/05-build-run-commands.mdc`（两份副本）。
 - **仍开放**：派生的 `releases/update/index.json` 平台目录（可选增强，把"静默无更新"升级为"明确告知此平台未发布"）；macOS 证书基建的归属与排期；增量/差分更新仍不在范围（`launcher-update` §1）。

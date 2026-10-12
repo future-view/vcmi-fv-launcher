@@ -72,7 +72,7 @@
 ## 10. 验证
 
 ```bash
-npm run gen:settings   # 从官方 schema 重新生成默认值（改动 schema 后）
+npm run gen:settings   # 从官方 schema（docs/config/settings_vcmi-1.7.5.json）重新生成默认值（改动 schema 后）
 npm run build
 npx tauri dev          # 真机：三档等级切换、领域作用域徽标、运行信息
 ```

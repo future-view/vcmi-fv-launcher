@@ -1,6 +1,6 @@
 # 启动期响应性（首次启动模组页卡死）
 
-> 状态：**已实施**（2026-10-08；方案第 2 版为「蒙层对齐 wiki 页」路线，第 3 版补 §8 实施记录）｜ 代码：`src/App.tsx`、`src/features/mods/**`、`src/lib/{tauri,modcache/status}.ts`、`src/shared/{LoadingOverlay,useInViewport,WikiBuildOverlay}.tsx`、`src-tauri/src/commands/{mods,cache,mod_settings,settings,paths,app}.rs`
+> 状态：**已实施**（2026-10-08；方案第 2 版为「蒙层对齐 wiki 页」路线，第 3 版补 §8 实施记录）｜ **体裁：方案记录**（问题诊断 + 方案 + 实施记录，非功能规格，不套用"验证 / 开放问题"骨架）｜ 代码：`src/App.tsx`、`src/features/mods/**`、`src/lib/{tauri,modcache/status}.ts`、`src/shared/{LoadingOverlay,useInViewport,WikiBuildOverlay}.tsx`、`src-tauri/src/commands/{mods,cache,mod_settings,settings,paths,app}.rs`
 
 ## 1. 问题现象
 
@@ -195,35 +195,23 @@ if (boot !== "ready") {
 | P4 | 切走再切回**不再重扫**；启动期只扫一次 |
 | P0+P1+P2 | 首屏就绪时间明显提前、滚动/输入不掉帧、IPC 数量从千级降到十级 |
 
-## 5. 待拍板问题
+## 5. 拍板结论（2026-10-08）
 
-> 拍板结果见 §8（2026-10-08）：Q1 ① / Q2 ①（蒙层用 **loading 图标**，不用假进度条）/ Q3 ① / Q4 ① / Q5 ① / Q6 ① / Q7 ③ / Q8 ① / Q9 ③。
+九个问题的完整选项清单从略（决策过程留档于 git 历史），结论：
 
-**必做**
-
-| # | 问题 | 选项（**粗体 = 建议**） |
+| # | 问题 | 结论 |
 |---|---|---|
-| Q1 | P0 后端 async 化范围（唯一消除"整窗冻结"的手段） | **① 10 个只读命令**；② 最小集（`scan_mods` + `read_mod_cache` + `get_mods_cache_dir`）；③ 连写命令一起 |
+| Q1 | P0 async 化范围 | ① 10 个只读命令 |
+| Q2 ★ | 蒙层等待边界 | ① 只等列表就绪；蒙层用 **loading 图标**，不用假进度条 |
+| Q3 ★ | 蒙层组件形态 | ① 抽 `shared/LoadingOverlay` 展示壳，`WikiBuildOverlay` 改为其特例 |
+| Q4 ★ | 切页重扫（R5） | ① 扫描结果模块级缓存（升级为必做） |
+| Q5 ★ | 蒙层防闪烁 | ① 延迟 200ms 显示 |
+| Q6 | P1+P2 是否同批 | ① 一起做 |
+| Q7 | 后台构建错峰 | ③ 都不做（与 `status.ts` 的"data 优先"冲突） |
+| Q8 | 虚拟化方式 | ① CSS `content-visibility`（后实测放弃，见 §8 偏差） |
+| Q9 | `read_town_cards` 扩展 | ③ 保持现状走懒加载 |
 
-**本次核心（蒙层路线）**
-
-| # | 问题 | 选项（**粗体 = 建议**） |
-|---|---|---|
-| Q2 ★ | **蒙层等待边界** | **① 只等列表就绪**（视觉与 wiki 一致、无出口、以秒计）；② 等 data 段 +「先进入列表」出口（首次多等数分钟、对列表零增益）；③ 等 data+assets + 出口（首次可能十几分钟） |
-| Q3 ★ | 蒙层组件形态 | **① 抽 `shared/LoadingOverlay` 展示壳、`WikiBuildOverlay` 改为其特例**（一套视觉，防分叉）；② ModView 内联复刻样式（改动最小，两套视觉各自演化） |
-| Q4 ★ | 切页重扫（R5） | **① 扫描结果模块级缓存**（含安装 / 删除后的失效入口，调用点待梳理）；② 保持现状（每次切回重扫） |
-| Q5 ★ | 蒙层防闪烁 | **① 延迟 200ms 显示**；② 不延迟（scan 快时闪一下） |
-| Q6 | P1 + P2 是否随本次一起做（渲染可中断 / 卡片 IPC 收敛） | **① 一起做**（P0 之后紧接着）；② 分批，先 P0 实测观察；③ 只做 P0 |
-
-**可延后（不阻塞本轮拍板）**
-
-| # | 问题 | 选项（**粗体 = 建议**） |
-|---|---|---|
-| Q7 | P3 是否允许后台构建错峰（与 `status.ts` 的"data 优先"既有决策冲突） | ① 推迟构建；② data 降档 normal；③ **都不做**（保持现状） |
-| Q8 | P1-3 虚拟化方式 | **① CSS `content-visibility`（零依赖）**；② 引入虚拟化库 |
-| Q9 | P2-2 是否扩展 `read_town_cards` 出参加图标字段 | ① 扩展（出参兼容）；② 新增专用命令；③ **保持现状走懒加载** |
-
-> 上一轮编号映射：旧 Q2（pill 位置）已随蒙层路线**取消**；旧 Q3/Q4/Q5 → 新 Q7/Q8/Q9；旧 Q6 → 新 Q4（升级为必做）。
+> 编号映射：旧 Q2（pill 位置）已随蒙层路线**取消**；旧 Q3/Q4/Q5 → 新 Q7/Q8/Q9；旧 Q6 → 新 Q4（升级为必做）。
 
 ## 6. 验证方式
 

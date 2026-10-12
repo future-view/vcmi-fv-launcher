@@ -1,6 +1,6 @@
 # 领域系统（Realm）
 
-> 状态：已实现 ｜ 最后核对：2026-09-30 ｜ 代码：`src-tauri/src/realms/`、`src/features/realms/`、`src/lib/realm/`
+> 状态：已实现 ｜ 最后核对：2026-10-12 ｜ 代码：`src-tauri/src/realms/`、`src/features/realms/`、`src/lib/realm/`
 > 编辑器见 [realms-editor](./realms-editor.zh-CN.md)；远程分发见 [realms-repository](./realms-repository.zh-CN.md)。
 
 ## 1. 目标与范围
@@ -98,7 +98,7 @@ VCMI 会把**游戏目录的 `Maps/`** 与用户目录的 `Maps/` 同时挂载�
 - ZIP 注释写魔数 `vcmirealm`；已压缩扩展名走 `Stored`；单遍流式求 `checksum`（按相对路径排序的 `(路径, 原始内容)` SHA-256）。
 - **checksum ≠ sha256**：前者是包内条目集合的完整性校验和（导入侧复现比对），后者是整包文件哈希（写入索引供下载校验）。
 - 导入：`conflict ∈ {error, overwrite, rename}`，冲突返回 `{code:"id_conflict", realmId, realmName}`；ZIP 路径净化只放行 `vcmi/` 与 `assets/`；导入**不写 `lock`**（只读）。
-- 发布预览 `preview_realm_publish` 只读 `index.json` + `.git`，返回 `downloadUrl / prevVersion / nextVersion / versionRel(none|up|same|down) / entryExists`；`url_base` 推导优先级：手工覆盖 > 仓库声明 > git 元数据 > 既有条目多数派；发布前阻断版本降级。
+- 发布预览 `preview_realm_publish` 只读 `index.json` + `.git`，返回 `downloadUrl / prevVersion / nextVersion / versionRel(none|up|same|down) / entryExists`；`url_base` 推导优先级与版本降级阻断见 [repository-index](../guides/repository-index.zh-CN.md) §3。
 
 ## 9. 登场演出与素材（persona）
 

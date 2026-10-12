@@ -69,15 +69,7 @@ npm run realms:index -- --dir <dir> --dry-run
 
 ## 5. 状态判定
 
-本地与索引条目的五态矩阵（决定是否显示「有更新」）：
-
-| 条件 | 状态 |
-|---|---|
-| sha256 相同 | installed |
-| 索引缺 version | installed |
-| 本地版本更低 | updatable |
-| 同版本但 sha 不同 | updatable |
-| 本地版本更高 | installed |
+本地与索引条目的五态矩阵（决定是否显示「有更新」）属启动器消费端行为，见 [realms-repository](../features/realms-repository.zh-CN.md) §5，本文不重复。
 
 ## 6. 注意事项
 

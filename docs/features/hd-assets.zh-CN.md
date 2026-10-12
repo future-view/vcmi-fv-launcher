@@ -1,6 +1,6 @@
 # 高清素材（HD）
 
-> 状态：已实现 ｜ 最后核对：2026-09-30 ｜ 代码：`src-tauri/src/modcache/hd.rs`、`hd_map.rs`、`infra/{pak,upscale,sharpen,ai}.rs`、`vcmi/hd_edition.rs`、`src-tauri/src/runtime/`
+> 状态：已实现 ｜ 最后核对：2026-10-12 ｜ 代码：`src-tauri/src/modcache/hd.rs`、`hd_map.rs`、`infra/{pak,upscale,sharpen,ai}.rs`、`vcmi/hd_edition.rs`、`src-tauri/src/runtime/`
 
 ## 1. 目标与范围
 
@@ -54,7 +54,7 @@
 - 构建完成后对 `images/**` 做**幂等**后处理：`<name>@<rate>x.webp`，与原图同目录。
 - `stem` 已含 `@` 的跳过（防二次放大）；`MAX_HD_RATE = 6`。
 - 倍率来自用户显示器，按用途分级（`hd_target_box`）。
-- `HD_SCHEME_VERSION = 5`：编码 / 分级 / 命名规则变更时递增，递增后清理全部旧变体重建。v5 的语义是**变体源优先用官方 HD 素材**。
+- `HD_SCHEME_VERSION = 6`：编码 / 分级 / 命名规则变更时递增，递增后清理全部旧变体重建。v5 的语义是**变体源优先用官方 HD 素材**；v6（2026-10-09）为**小尺寸抖动插画改判像素画**——源图长边 ≤ `SMALL_DITHER_EDGE` 的试算"插画"（creature/hero 58×64 抖动头像）在 AI 未接管时改走 xBRZ + 无损（实测 Lanczos3 把抖动磨成糊斑，xBRZ 可辨识度显著更高）。
 - `hd_map.rs`：阶段三只有缓存图路径、反查不到原版资源名，故素材阶段把「缓存图 → HD 资源名」登记进 `<mod>/hd-map.json`（线程局部、按 owner 分组 flush），阶段三据此用 `hd_edition::lookup_for` 取真高清源，而不是从 1x 插值。
 
 ## 7. 外挂运行时（`runtime/`）

@@ -69,6 +69,14 @@ npm run release:pack                        # 零参数：用文件里的版本�
 AI 版用 `tauri.ai-runtime.conf.json` 变体构建。⚠️ 只有请求 `msi` 时才校验"版本必须纯数字"（WiX 限制）；
 默认不出安装包后，`0.2.0-rc1` 不再被误伤。
 
+**常见错误速查**：
+
+| 报错 | 原因 | 出路 |
+|---|---|---|
+| `平台 xxx 不支持 bundles：dmg` | 该平台描述符没声明 | 查 [release-cross-platform](./release-cross-platform.zh-CN.md) §1.1 平台表，换平台或去掉 |
+| `版本 0.2.0-rc1 带后缀且请求 msi` | WiX 只收纯数字版本 | 用纯数字版本，或不请求 msi |
+| `--flavor ai 仅支持 windows-x86_64` | AI 原生组件只有 Windows 库 | 换平台或去掉 flavor |
+
 产物落在 `releases/<version>_<stamp>[_flavor]_<platform>/`（**目录名带平台后缀**：同一小时连打两个平台不会互删）：
 
 | 产物 | 说明 |
@@ -137,7 +145,7 @@ per-target 清单；本文件只回答"整体最新是哪版 / 有哪些发行"�
 ```
 
 - 启动器把 preset 里的 `manifest_url` 模板按当前三元组解析后**只拉自己平台那一份**；
-- **目标平台没有清单（404）= 无更新，静默**（区别于未配置 = 零网络行为）；非 200/非 JSON = 检查失败，走既有 TTL+缓存兜底；
+- **目标平台没有清单（404）= 无更新，静默**；非 200/非 JSON = 检查失败，走既有 TTL+缓存兜底——完整容错规则见 [launcher-update](../features/launcher-update.zh-CN.md) §3；
 - 条目带 `updateMode`：`inplace`（Windows PS 脚本 / Linux sh 脚本就地替换）/ `appimage` / `bundle`（macOS `.app.tar.gz` 整包替换+重签，待签名基建）/ `manual`（不应用内更新，只提示手动下载）；
 - 自建 CDN 只有 http 时：在清单顶层手工加 `allowHttp: true`（缺省 false = 只认 https；本地预演由 `release:preview` 自动写入）；
 
@@ -149,6 +157,28 @@ per-target 清单；本文件只回答"整体最新是哪版 / 有哪些发行"�
 
 - `releases/index.json.init` —— 空台账 + 真实仓库值（`repo`/`download`/`preset` 配置块 + `flavors.ai` + `{platform}` 模板）；
 - `releases/update/windows-x86_64.json.init` —— 空清单（`latest`/`minSupported`/`versions` 均空）；其他平台照此改 `platform` 字段。
+
+两份模板的形状（首次 pack 会自举出同形态内容，也可手工写成这样）：
+
+```jsonc
+// releases/index.json
+{
+  "schema": "vcmi-fv-launcher-release-index/1", "schemaVersion": 1,
+  "repo": { "provider": "github", "owner": "<账号>", "name": "<仓库>", "defaultBranch": "main", … },
+  "download": { "base": "https://github.com/<账号>/<仓库>/releases", "pathTemplate": "{base}/download/{tag}/{name}" },
+  "preset": { "base": { "update": { "manifest_url": "https://raw.githubusercontent.com/<账号>/<仓库>/main/releases/update/{platform}.json" } } },
+  "product": "VCMI-FV-Launcher", "channel": "stable",
+  "latest": null,
+  "releases": []            // ← 空台账
+}
+
+// releases/update/<platform>.json（每个要支持的平台一份；空清单 = 尚未发布）
+{
+  "schema": "vcmi-fv-launcher-update-manifest/2", "platform": "windows-x86_64",
+  "latest": null, "minSupported": null,
+  "versions": []            // ← 空清单
+}
+```
 
 **哪些文件何时必需**（"版本构建"= `release:pack`）：
 
@@ -231,7 +261,7 @@ npm run release:preview -- --version 0.2.0 --serve     # --port 8765（缺省）
 被测端（一个**旧版本**的 release 包，且是 release 构建）：
 
 1. 把「更新源」指向本地预演。**设置页默认拒绝 http**（安全起见），最稳的做法是**直接编辑 `launcher.json`**：
-   - 文件位置：`<启动器目录>/.vcmi-fv-launcher/launcher.json`（exe 同级；便携版解压目录里就有）
+   - 文件位置（Windows 便携版）：`<启动器目录>/.vcmi-fv-launcher/launcher.json`（exe 同级；解压目录里就有；macOS / Linux 走平台标准目录，见 ADR 0008 D10）
    - 配置键：`update.manifest_url`，把下面这段**合并进现有文件**（不要整份替换）：
      ```json
      {

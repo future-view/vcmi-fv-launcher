@@ -1,6 +1,6 @@
 # 语言模组自动管理（按类型发现，非按名字）
 
-> 状态：实现中（决策 B/C 已拍板） ｜ 最后核对：2026-10-10 ｜ 代码：`src/lib/builtinPresets.ts`、`src/lib/langMods.ts`、`src/features/mods/ModView.tsx`、`src-tauri/src/repository/mods.rs`、`src-tauri/src/vcmi/scan.rs`、`src/features/prelaunch/PreLaunchCheckDialog.tsx`(新)、`src/features/prelaunch/LangPackCheckWidget.tsx`(新)、`src/shell/BottomBar.tsx`、`src/features/realms/RealmShell.tsx`
+> 状态：已实现（2026-10-10 落地；§10 step 编排框架与语言包检查项均已上线） ｜ 最后核对：2026-10-12 ｜ **体裁：设计 + 实施记录**（§1–§9 为方案与决策，§10 为通用框架设计）｜ 代码：`src/lib/builtinPresets.ts`、`src/lib/langMods.ts`、`src/features/mods/ModView.tsx`、`src-tauri/src/repository/mods.rs`、`src-tauri/src/vcmi/scan.rs`、`src/features/prelaunch/{PreLaunchCheckDialog,PreLaunchStepper,usePreLaunchChecks,LangPackStepCard}.tsx`、`src/shell/BottomBar.tsx`、`src/features/realms/RealmShell.tsx`
 
 ## 1. 背景与问题
 
@@ -50,7 +50,7 @@
 
 **架构：通用外壳 + 检查项 widget（可按需扩展）**。弹窗**不认识任何具体检查项**，只提供
 「遮罩 + 卡片 + 标题 + 显式关闭按钮 + 内容槽」（`features/prelaunch/PreLaunchCheckDialog.tsx`）；
-每个检查项各自实现为一个 widget（当前为 `LangPackCheckWidget`），经 `children` 并列展示。
+每个检查项各自实现为一个 step 卡片（当前为 `LangPackStepCard`），经 `children` 并列展示。
 后续新增检查类型（缺依赖 / 文件完整性 / 版本不匹配……）只需再写一个 widget，**外壳与已有 widget 均不改**。
 
 - 定位是**阻断式确认、不是硬阻断**：始终提供逃生口「跳过并启动」（警告色 `variant="warning"`；通用词，不限"英文/中文"，未来其它语言发行版同样适用），点了照常启动。
@@ -118,7 +118,7 @@
 | `src/features/mods/ModCard.tsx` | 「语言匹配」正向角标（与既有「语言不符」警告对称） |
 | `src-tauri/src/repository/mods.rs` | `parse_mod_json_meta` + `normalize_mod_entry` + `CachedModVersion` 补提取 `language`；缓存版本 `3→4` |
 | `src/features/prelaunch/PreLaunchCheckDialog.tsx`(新) | **通用外壳**：遮罩 + 卡片 + 标题 + 显式关闭按钮（✕ / 遮罩 / Esc）+ 内容槽；与具体检查项解耦，可按需并列多个 widget |
-| `src/features/prelaunch/LangPackCheckWidget.tsx`(新) | 语言包**检查项 widget**：三态结论 + 正文 + 操作（启用并启动 / 下载并启用 / 跳过并启动（警告色）/ 前往模组管理）+ 会话级不再提示 |
+| `src/features/prelaunch/LangPackStepCard.tsx`(新) | 语言包**检查项 step 卡片**：三态结论 + 正文 + 操作（启用并启动 / 下载并启用 / 跳过并启动（警告色）/ 前往模组管理）+ 会话级不再提示 |
 | `src/shared/ui/button.tsx` | 新增 `warning` 变体（琥珀/橙，供"跳过并启动"这类带后果的非破坏性动作） |
 | `src/shell/BottomBar.tsx` | 启动前检查 + 通用弹窗 + 语言包 widget + `scope` + `onGoToMods`（切「模组」页）+ **动作即关闭** |
 | `src/features/realms/RealmShell.tsx` | 启动前检查 + 通用弹窗 + 语言包 widget + `scope` + 领域名 + `onGoToMods`（退出领域并切「模组」页）+ **动作即关闭** |
@@ -183,19 +183,7 @@ interface StepResolve { severity: "ok" | "warn" | "error"; node: ReactNode }
 - **预留滚动兼容**：节点点击 → `scrollIntoView` 聚焦对应卡片。props/ref 结构现在就预留（即便当前项少未启用交互），项多时一键开启。
 
 ### 10.5 交互文本（四场景）
-（文案 key 待填 `src/i18n/*`）
-
-| key | 文本 |
-|---|---|
-| `launch.preLaunchTitle` | 启动前检测 |
-| `launch.checking` | 检查中… |
-| `launch.launching` | 启动中… |
-| `launch.stepLangPack` | 语言包 |
-| `launch.reportLangOk` | 已启用与游戏语言匹配的语言包（{lang}）。 |
-| `launch.reportLangDisabled` | 检测到 {lang} 语言包，但当前未启用。游戏将以英文运行。 |
-| `launch.reportLangMissing` | 未检测到与游戏语言（{lang}）匹配的语言包。游戏将以英文运行。 |
-| `launch.resolvingRepo` | 正在查询可下载的语言包… |
-| `launch.repoUnreachable` | 暂时无法连接模组仓库，无法自动下载。可前往模组管理手动安装，或直接以英文启动。 |
+文案 key（`launch.preLaunch*` / `launch.reportLang*` / `launch.resolvingRepo` / `launch.repoUnreachable`）已在 `src/i18n/*` 五语词典落地，**以词典为唯一口径**，本文不列文本。
 
 - **场景 A（全 ok）**：不弹窗，按钮 `检查中…`→`启动中…`→ 拉起（可选 toast「正在启动 VCMI…」）。
 - **场景 B（已装未启）**：步骤条 `① 语言包 ⚠`；卡片 = 报告 + ☐以后自动启用 + [启用并启动][跳过并启动]。
@@ -207,7 +195,7 @@ interface StepResolve { severity: "ok" | "warn" | "error"; node: ReactNode }
 
 #### 10.6.1 依赖完整性（必要，本期设计、后续实现）
 - **调研结论（运行前 vs 运行后）**：VCMI 官方启动器有配置项 `launcher.validateMods`
-  （bool，默认 true，描述 "Validates enabled mods before launching"，见 `docs/prototypes/prototype.html:700`）
+  （bool，默认 true，描述 "Validates enabled mods before launching"）
   → **运行前检测**。另 VCMI 引擎层还有 `general.validationLevel`（运行**时**加载校验严格度），二者是两层；本 step 对应**启动器层** `validateMods`。
 - **结论**：依赖完整性做成**启动前 step**，对齐官方语义——校验**已启用**模组的依赖是否满足 + 文件完整性。
 - severity 偏硬（缺依赖 / 文件损坏 → `error`/`warn`），但保留「仍要启动」逃生口：VCMI 运行时自身也会禁用坏 mod 后继续，与逃生口一致。
