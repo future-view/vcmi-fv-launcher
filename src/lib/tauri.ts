@@ -1777,6 +1777,8 @@ export interface ExportRealmResult {
   bytesTotal?: number;
   /** 是否附带了模组巡礼素材缓存 */
   showcaseCache?: boolean;
+  /** 分片片数（0 = 未分片）。仅发布分支可能产生分片（分享分支恒为 0） */
+  partCount?: number;
 }
 
 /** 发布自检告警（与后端 `realms::transfer::warn` 同构）。 */
@@ -1808,6 +1810,18 @@ export interface RealmPublishResult {
   urlSource: RealmUrlSource;
   /** 本次是否把推导结果回写成了仓库的 `urlBase`（自举） */
   urlBootstrapped?: boolean;
+  /** 分片片数（0 = 未分片，包未超过单片上限） */
+  partCount?: number;
+  /** 分片产物清单（仅分片时非空；路径由后端给出，前端不自行拼名） */
+  parts?: RealmPartInfo[];
+}
+
+/** 分片产物（`docs/features/realms-sharded-package.zh-CN.md` §5）。 */
+export interface RealmPartInfo {
+  /** 分片在仓库工作树内的绝对路径 */
+  path: string;
+  size: number;
+  sha256: string;
 }
 
 /**
@@ -1840,6 +1854,13 @@ export interface RealmPublishPreview {
   nextVersion: string;
   /** 版本关系：none = 无基准；down = 降级（发布将被阻断）；up = 升版；same = 同版 */
   versionRel: "none" | "down" | "up" | "same";
+  /**
+   * 分片预估片数：0 = 预计不分包（包未超过单片上限）。
+   * 由后端按待打包内容字节数估算（不读文件内容），**实际片数以打包后为准**。
+   */
+  estimatedPartCount?: number;
+  /** 单片上限字节数（提示语用，避免前端写死 45 MiB） */
+  partMaxBytes?: number;
 }
 
 /** 导出进度（事件 `realm-export-progress`）。 */

@@ -1048,6 +1048,15 @@ export const de: LangDict = {
     exportWarnPkgUnchanged:
       "Version ist jetzt {arg}, aber das Paket ist identisch mit dem alten im Repository — Empfänger sehen nur die Versionserhöhung, ohne inhaltliche Änderung.",
     exportWarnCopiedIntoRepo: "Exportpfad liegt außerhalb des Repositories — zusätzlich nach {arg} kopiert.",
+    exportShardEstimate:
+      "Das Paket wird automatisch in etwa {count} Teile (je ≤ 45 MiB) aufgeteilt; siehe Ergebnisseite nach der Veröffentlichung.",
+    exportFieldParts: "Teile",
+    exportWarnSharded: "Paket wurde in {arg} aufgeteilt; die Einzeldatei wird im Repository nicht mehr behalten.",
+    exportWarnOverTotalHint:
+      "Gesamtpaket: {arg} — alle Teile gehen in die Git-Historie ein; Repository-Größe im Blick behalten.",
+    exportWarnShardNeedsUrlBase:
+      "Paket {arg} muss geteilt werden, aber es konnte kein URL-Präfix ermittelt werden — als einzelne Datei veröffentlicht (Push kann abgelehnt werden).",
+    exportWarnShardFailed: "Aufteilung fehlgeschlagen; als einzelne Datei veröffentlicht (Push kann abgelehnt werden).",
     exportOpenRepo: "Repository-Ordner öffnen",
     exportOpenIndex: "Index-Ordner öffnen",
     realmFile: "VCMI-Weltdatei",
@@ -1707,6 +1716,9 @@ export const de: LangDict = {
     repo_mod_install_sha: "Mod-Paket-Prüfsumme fehlgeschlagen (sha256 ungleich); Installation abgebrochen",
     repo_mod_install_cache: "Paket-Cache konnte nicht geschrieben werden",
     repo_realm_sharded: "Dieser Bereich nutzt Sharding-Verteilung; bitte Launcher aktualisieren vor der Installation",
+    repo_realm_parts_invalid:
+      "Der Bereichsindex hat einen ungültigen parts-Eintrag (Element {arg} fehlt url oder sha256)",
+    repo_realm_part_sha: "Prüfsumme von Teil {arg} fehlgeschlagen (sha256 ungleich); Installation abgebrochen",
     repo_realm_install_sha: "Bereichs-Paket-Prüfsumme fehlgeschlagen (sha256 ungleich); Installation abgebrochen",
     realm_publish_no_repo: "Noch kein Repository-Verzeichnis ausgewählt",
     realm_import_src_missing: "Quelldatei existiert nicht",

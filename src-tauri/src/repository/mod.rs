@@ -9,7 +9,9 @@
 //! 关键实测约束（勿违背）：
 //! - Gitee raw / 附件都是 **302 跳转**，客户端必须跟随重定向
 //! - Gitee 返回的 `Content-Type` 是 `text/plain`，**不能靠它判定成功**，只能"2xx + JSON 可解析"
-//! - Gitee 附件**不支持 Range**（请求分片会返回全量），故一期只做单文件下载，分片仅保留契约
+//! - Gitee 附件**不支持 Range**（请求分片会返回全量）：HTTP Range 续传不可用，
+//!   但**分片分发**（索引 `parts[]`：整包切成 ≤45 MiB 的多文件，逐片下载后拼回）已实现，
+//!   规格见 `docs/features/realms-sharded-package.zh-CN.md`
 
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
@@ -25,7 +27,11 @@ use crate::vcmi::paths::VcmiPaths;
 /// 手动「检查更新」另有 manual 强制校验路径不受此限（A1/A2 + TTL 调大，2026-09-27）。
 const INDEX_TTL_SECS: u64 = 30 * 60;
 /// 单个领域包硬上限（Gitee 附件单文件上限 100 MB，见方案 §1.0）。
+/// 分片场景下该护栏作用于**单片**（单片 ≤ 45 MiB，故只有当索引被写脏时才会触发）。
 const PACKAGE_MAX_BYTES: u64 = 100 * 1024 * 1024;
+/// 分片**总量** sanity 上限：分片让「整包 > 100 MB」成为合法形态，
+/// 但仍要挡住索引误填的天文数字（否则会一路下载到磁盘满）。
+const SHARDED_TOTAL_MAX_BYTES: u64 = 1024 * 1024 * 1024;
 /// 单个封面体积上限：防止索引误填大文件拖垮列表。
 const COVER_MAX_BYTES: u64 = 2 * 1024 * 1024;
 /// 取消下载的哨兵错误：前端识别后不弹错误提示。

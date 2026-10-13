@@ -1048,6 +1048,15 @@ export const pl: LangDict = {
     exportWarnPkgUnchanged:
       "Wersja to teraz {arg}, ale paczka jest identyczna ze starą w repozytorium — odbiorcy zobaczą tylko zmianę numeru wersji, bez realnych zmian treści.",
     exportWarnCopiedIntoRepo: "Ścieżka eksportu jest poza repozytorium — skopiowano także do {arg}.",
+    exportShardEstimate:
+      "Pakiet zostanie automatycznie podzielony na około {count} części (≤ 45 MiB każda); zobacz stronę wyników po publikacji.",
+    exportFieldParts: "Części",
+    exportWarnSharded: "Pakiet podzielono na {arg}; pojedynczy plik pakietu nie jest już przechowywany w repozytorium.",
+    exportWarnOverTotalHint:
+      "Cały pakiet: {arg} — wszystkie części trafiają do historii git; zwróć uwagę na rozmiar repozytorium.",
+    exportWarnShardNeedsUrlBase:
+      "Pakiet {arg} wymaga podziału, ale nie udało się ustalić prefiksu URL — opublikowano jako jeden plik (push może zostać odrzucony).",
+    exportWarnShardFailed: "Podział nie udał się; opublikowano jako jeden plik (push może zostać odrzucony).",
     exportOpenRepo: "Otwórz katalog repozytorium",
     exportOpenIndex: "Otwórz katalog indeksu",
     realmFile: "Plik świata VCMI",
@@ -1707,6 +1716,9 @@ export const pl: LangDict = {
     repo_mod_install_sha: "Suma kontrolna pakietu modu nie zgadza się (sha256); instalacja przerwana",
     repo_mod_install_cache: "Nie udało się zapisać pamięci podręcznej pakietu",
     repo_realm_sharded: "Ten obszar używa rozproszonej dystrybucji; zaktualizuj launcher przed instalacją",
+    repo_realm_parts_invalid:
+      "Indeks obszaru zawiera niepoprawny wpis parts (element {arg} nie ma url lub sha256)",
+    repo_realm_part_sha: "Suma kontrolna części {arg} nie zgadza się (sha256); instalacja przerwana",
     repo_realm_install_sha: "Suma kontrolna pakietu obszaru nie zgadza się (sha256); instalacja przerwana",
     realm_publish_no_repo: "Katalog repozytorium nie został jeszcze wybrany",
     realm_import_src_missing: "Plik źródłowy nie istnieje",

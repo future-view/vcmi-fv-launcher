@@ -31,6 +31,8 @@
 
 **必填与强约束**：`sha256` 必填（远程安装强制校验，不符拒装）；`download` 必须 https；包体积 ≤100MB、封面 ≤2MB。
 
+> 超过 git 托管站单文件容忍线（GitHub 50MB 告警 / 100MB 拒绝）的大包，由启动器**自动分片**落库：`parts` 字段代替 `download`（两者互斥，条目级 `sha256`/`size` 仍描述整包）。规格与决策见 [realms-sharded-package](../features/realms-sharded-package.zh-CN.md)；脚本侧用 `--part-size`（缺省 45 MiB，与启动器同值）产出分片与条目。
+
 ## 2. 用脚本生成（推荐）
 
 ```bash

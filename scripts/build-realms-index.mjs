@@ -16,7 +16,8 @@
  *   author / description 与自定义扩展字段不会被无配置的发布抹掉；`tags` 例外：
  *   键存在即声明（数组含空 = 显式清空，编辑器删光标签可生效），缺键才保留既有值；
  *   `i18n` 按「语言级 + 块内字段级」两级合并（手工加译的语言与块内缺键的手工字段保留）；
- *   `parts` 不主动写入（一期不实现分片，省略即不分片）。
+ *   `parts` 与 `download` 互斥且完全派生：分片时写 `parts` 并删除 `download`，
+ *   未分片时写 `download` 并删除 `parts`（与启动器 `merge_repo_index` 同口径）。
  *
  * 用法：
  *   node scripts/build-realms-index.mjs --in <包文件或目录> [选项]
@@ -30,6 +31,7 @@
  *   --tag <tag>            Release 标签，替换 {tag}（缺省用领域 version）
  *   --cover-base <url>     封面 URL 前缀（如 .../raw/master/covers）；给了才写 cover
  *   --covers-dir <dir>     本地封面目录，用于推断扩展名（配合 --cover-base）
+ *   --part-size <bytes>    单片上限（缺省 45 MiB，与启动器一致）；超过即切成 <name>.partNNN
  *   --dry                  只打印结果，不写文件
  *
  * 示例：
@@ -47,6 +49,8 @@ const repo = path.resolve(__dirname, "..");
 
 /** Gitee 附件单文件上限：超过启动器会在下载时直接放弃 */
 const PACKAGE_MAX_BYTES = 100 * 1024 * 1024;
+/** 单片上限：与启动器 `REALM_PART_MAX_BYTES` 同值（45 MiB），见 docs/features/realms-sharded-package.zh-CN.md */
+const DEFAULT_PART_MAX_BYTES = 45 * 1024 * 1024;
 const DEFAULT_DOWNLOAD_BASE =
   "https://gitee.com/futureview/vcmi-fv-launcher-realms/releases/download/{tag}/";
 
@@ -84,6 +88,11 @@ const tag = args.tag ? String(args.tag) : "";
 const coverBase = args["cover-base"] ? String(args["cover-base"]) : "";
 const coversDir = args["covers-dir"] ? path.resolve(String(args["covers-dir"])) : "";
 const dry = args.dry === true;
+const partSizeRaw = Number(args["part-size"] ?? DEFAULT_PART_MAX_BYTES);
+const partSize =
+  Number.isFinite(partSizeRaw) && partSizeRaw > 0
+    ? Math.floor(partSizeRaw)
+    : DEFAULT_PART_MAX_BYTES;
 
 /* ----------------------------- 工具 ----------------------------- */
 
@@ -133,6 +142,57 @@ function sha256File(file) {
     s.on("end", () => resolve(h.digest("hex")));
     s.on("error", reject);
   });
+}
+
+/**
+ * 按字节区间切分整包（与启动器 `split_realm_package` 同口径）：`<name>.part001`… 落在源文件同目录。
+ * 逐片算 sha256；**数组序即拼接顺序**（启动器下载端按序拼回后校验整包 sha256）。
+ */
+async function splitPackage(file, size) {
+  const dir = path.dirname(file);
+  const name = path.basename(file);
+  const total = fs.statSync(file).size;
+  const count = Math.max(1, Math.ceil(total / size));
+  const out = [];
+  let idx = 0;
+  let ws = null;
+  let hasher = null;
+  let written = 0;
+  const openPart = () => {
+    idx += 1;
+    const pname = `${name}.part${String(idx).padStart(3, "0")}`;
+    ws = fs.createWriteStream(path.join(dir, pname));
+    hasher = crypto.createHash("sha256");
+    written = 0;
+    out.push({ name: pname, size: 0, sha256: "" });
+  };
+  const closePart = () =>
+    new Promise((resolve, reject) => {
+      ws.end((err) => {
+        if (err) return reject(err);
+        out[idx - 1].sha256 = hasher.digest("hex");
+        resolve();
+      });
+    });
+
+  openPart();
+  for await (const chunk of fs.createReadStream(file)) {
+    let off = 0;
+    while (off < chunk.length) {
+      const slice = chunk.subarray(off, off + (size - written));
+      hasher.update(slice);
+      ws.write(slice);
+      written += slice.length;
+      off += slice.length;
+      out[idx - 1].size += slice.length;
+      if (written >= size && idx < count) {
+        await closePart();
+        openPart();
+      }
+    }
+  }
+  await closePart();
+  return out;
 }
 
 function openZip(file) {
@@ -306,8 +366,10 @@ for (const file of packages) {
     console.warn(`⚠ ${name}：ZIP 注释为 "${comment.trim()}"，启动器导入会拒绝（应为 vcmirealm）`);
     warned++;
   }
-  if (size > PACKAGE_MAX_BYTES) {
-    console.warn(`⚠ ${name}：${fmtSize(size)} 超过 100 MB，启动器下载时会放弃`);
+  // 是否需要分片：包超过单片上限（缺省 45 MiB）→ 切成 <name>.partNNN，索引改走 `parts`
+  const sharded = size > partSize;
+  if (!sharded && size > PACKAGE_MAX_BYTES) {
+    console.warn(`⚠ ${name}：${fmtSize(size)} 超过 100 MB，启动器下载时会放弃（超单片上限的包会自动分片，不受此限）`);
     warned++;
   }
   if (Array.isArray(meta.mods?.bundled) && meta.mods.bundled.length > 0) {
@@ -369,8 +431,23 @@ for (const file of packages) {
   }
   // `tags` 键存在即声明：数组（含空数组 = 显式清空）照常写回；缺键（undefined）才保留既有值
   if (Array.isArray(meta.tags)) entry.tags = meta.tags;
-  entry.download = `${base.endsWith("/") ? base : `${base}/`}${name}`;
-  // 一期不实现分片：不主动写 parts（省略即不分片）；条目既有值不触碰
+  // `parts` 与 `download` 互斥且完全派生（与启动器 `merge_repo_index` 同口径）：
+  // 分片条目只写 parts，单包条目只写 download，另一侧一律删除（否则来回切换会残留矛盾字段）。
+  const prefix = base.endsWith("/") ? base : `${base}/`;
+  if (sharded) {
+    const parts = await splitPackage(file, partSize);
+    entry.parts = parts.map((p) => ({ url: `${prefix}${p.name}`, size: p.size, sha256: p.sha256 }));
+    delete entry.download;
+    console.warn(
+      `⚠ ${name}：${fmtSize(size)} 超过单片上限 ${fmtSize(partSize)}，已切分为 ${parts.length} 个分片` +
+        `（整包仍留在目录里，可自行删除或交由启动器下次发布清理）`,
+    );
+    warned++;
+  } else {
+    entry.download = `${prefix}${name}`;
+    delete entry.parts;
+  }
+  // 条目级 sha256 / size 恒为**整包**（拼回后才比对），分片与否语义不变
   entry.sha256 = sha256;
   entry.size = size;
   const reqMods = Array.isArray(meta.mods?.borrowed) ? meta.mods.borrowed : [];

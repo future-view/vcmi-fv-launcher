@@ -37,6 +37,7 @@
 | [realms](./features/realms.zh-CN.md) | 领域系统：生命周期、隔离、地图阀门、自检、导入导出 |
 | [realms-editor](./features/realms-editor.zh-CN.md) | 领域编辑器六标签页与保存语义 |
 | [realms-repository](./features/realms-repository.zh-CN.md) | 远程领域仓库：索引、状态矩阵、安装校验 |
+| [realms-sharded-package](./features/realms-sharded-package.zh-CN.md) | 领域包分片分发：>45 MiB 自动切分、`parts` 索引契约、下载拼回（已实施，真机待验） |
 | [launcher-update](./features/launcher-update.zh-CN.md) | 自动更新：清单、强制 / 可选、自替换、配置补丁 |
 | [i18n](./features/i18n.zh-CN.md) | 三套语言体系：界面 / VCMI 内容 / 帮助文档 |
 

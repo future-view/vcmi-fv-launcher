@@ -1265,6 +1265,19 @@ export interface LangDict {
     /** 版本号已变但包与旧包逐字节相同（黄） */
     exportWarnPkgUnchanged: string;
     exportWarnCopiedIntoRepo: string;
+    /* —— 分片分发（docs/features/realms-sharded-package.zh-CN.md）—— */
+    /** 「将写入」区的预估提示行：{count} = 预估片数（仅超阈值时显示） */
+    exportShardEstimate: string;
+    /** 结果态「分片」字段标签 */
+    exportFieldParts: string;
+    /** 已自动分片（信息级）：{arg} = 「N × ≤45.0 MB」 */
+    exportWarnSharded: string;
+    /** 分片后整包仍 >100MB：提示仓库体积增长（黄）：{arg} = 整包体积 */
+    exportWarnOverTotalHint: string;
+    /** 推不出 URL 前缀 ⇒ 给不出分片地址，已退回整包（黄）：{arg} = 整包体积 */
+    exportWarnShardNeedsUrlBase: string;
+    /** 切分失败，已按整包发布（黄） */
+    exportWarnShardFailed: string;
     /** 结果态动作 chips */
     exportOpenRepo: string;
     exportOpenIndex: string;

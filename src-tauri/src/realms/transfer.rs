@@ -667,6 +667,12 @@ pub fn export_realm_impl(
         "size": pkg_size,
         "bytesTotal": bytes_total,
         "showcaseCache": include_showcase_cache.unwrap_or(false),
+        // 分片只在发布分支发生（分享分支恒为 0）；片数来自发布产物
+        "partCount": repo_info
+            .as_ref()
+            .and_then(|r| r.get("partCount"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
     }))
 }
 
@@ -706,6 +712,108 @@ const PUBLISH_GIT_MAX: u64 = 50 * 1024 * 1024;
 
 fn fmt_mb(bytes: u64) -> String {
     format!("{:.1} MB", bytes as f64 / 1024.0 / 1024.0)
+}
+
+/* ----------------------------- 分片（Sharding） ----------------------------- */
+
+/// 单个分片的最大字节数 = **45 MiB**（47,185,920 B）。
+///
+/// 依据：GitHub 对 >50 MB 的单文件告警、>100 MB 拒绝 push；无论把 50 MB 按 MiB
+/// （52,428,800）还是十进制 MB（50,000,000）理解，45 MiB 都留有余量（Gitee 免费版 git 同为 50 MB 线）。
+/// 规格见 `docs/features/realms-sharded-package.zh-CN.md` §4。
+pub(crate) const REALM_PART_MAX_BYTES: u64 = 45 * 1024 * 1024;
+
+/// 单个分片规格（落库与索引条目 `parts[]` 共用）。
+pub(crate) struct RealmPart {
+    /// 分片文件名（`<stem>.part001`），相对 `realms/<id>/`
+    pub(crate) name: String,
+    pub(crate) size: u64,
+    pub(crate) sha256: String,
+}
+
+/// 分片文件名：`<stem>.part001`（3 位零填充 → 999 片上限，约 43.9 GiB）。
+pub(crate) fn part_name(stem: &str, index: usize) -> String {
+    format!("{stem}.part{index:03}")
+}
+
+/// 分片文件名前缀（用于清理陈旧分片）：`<id>.part`。
+fn part_prefix(id: &str) -> String {
+    format!("{id}.part")
+}
+
+/// 把整包按**字节区间**切成固定大小的分片，产物写在源文件同目录。
+///
+/// 为什么是「成品切分」而不是改包结构：分片是托管站单文件上限的**传输层适配**，
+/// 与 ZIP 内部结构无关——拼回 = 按序拼接，与原文逐字节一致。于是包格式、
+/// `realm.json`、条目 checksum、导入校验全部零改（设计 §3 方案 A）。
+///
+/// 单遍 IO：逐片边读边写边算 SHA-256，不把整文件驻内存。任一步失败直接返回错误，
+/// **半成品由调用方清理**（发布流程据此保证「单包已删、分片残缺」不会出现）。
+pub(crate) fn split_realm_package(src: &Path, part_size: u64) -> Result<Vec<RealmPart>, String> {
+    let total = fs::metadata(src)
+        .map_err(|e| be_err("realm_export_size_read_failed", &format!("{}", e)))?
+        .len();
+    let dir = src.parent().unwrap_or_else(|| Path::new(""));
+    let stem = src
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "realm".to_string());
+    let count = ((total + part_size - 1) / part_size).max(1) as usize;
+    let mut out: Vec<RealmPart> = Vec::with_capacity(count);
+    let mut reader =
+        fs::File::open(src).map_err(|e| be_err("infra_file_read_failed", &format!("{}", e)))?;
+    let mut buf = vec![0u8; 1024 * 1024];
+    for i in 0..count {
+        let name = part_name(&stem, i + 1);
+        let dest = dir.join(&name);
+        let mut writer = fs::File::create(&dest)
+            .map_err(|e| be_err("realm_export_file_create_failed", &format!("{}", e)))?;
+        let mut hasher = Sha256::new();
+        let mut written = 0u64;
+        while written < part_size {
+            let n = reader
+                .read(&mut buf)
+                .map_err(|e| be_err("infra_file_read_failed", &format!("{}", e)))?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(&buf[..n]);
+            writer
+                .write_all(&buf[..n])
+                .map_err(|e| be_err("realm_file_write_failed", &format!("{}", e)))?;
+            written += n as u64;
+        }
+        drop(writer);
+        out.push(RealmPart {
+            name,
+            size: written,
+            sha256: crate::infra::hash::to_hex(&hasher.finalize()),
+        });
+    }
+    Ok(out)
+}
+
+/// 删除领域目录下的陈旧分片：只保留前 `keep` 片，其余（含不同 stem 的历史分片）一并清理。
+///
+/// 为什么必须主动清理：`index.json` 的 `parts` 只列当前片，仓库里多出来的旧片会被
+/// 永久留在 git 历史里占体积，且与索引不一致（维护者看到的文件比索引多）。
+fn prune_stale_parts(dir: &Path, id: &str, keep: usize) {
+    let prefix = part_prefix(id);
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    let mut names: Vec<String> = Vec::new();
+    for e in entries.flatten() {
+        let name = e.file_name().to_string_lossy().to_string();
+        if name.starts_with(&prefix) && e.path().is_file() {
+            names.push(name);
+        }
+    }
+    // 前 keep 片按名升序保留（`part001`…），其余删除 —— 名序即片序（3 位零填充）
+    names.sort();
+    for name in names.iter().skip(keep) {
+        let _ = fs::remove_file(dir.join(name));
+    }
 }
 
 /// 从既有索引条目推导仓库的 raw URL 前缀（形如 `https://host/owner/repo/raw/master/`）：
@@ -1073,6 +1181,14 @@ pub fn preview_realm_publish(
         .url_base
         .as_ref()
         .map(|b| format!("{b}/realms/{id}/{}", plan.pkg_path.file_name().and_then(|s| s.to_str()).unwrap_or("")));
+    // 分片预估（设计 §7.3）：只做 metadata 遍历求字节数（**不读文件内容**），仍是快操作。
+    // 0 = 预计不分包。实际片数以打包后为准（ZIP 压缩会改变最终体积），故弹窗仅作提示。
+    let estimated_bytes = estimate_realm_bytes(&id);
+    let estimated_part_count = if estimated_bytes > REALM_PART_MAX_BYTES {
+        ((estimated_bytes + REALM_PART_MAX_BYTES - 1) / REALM_PART_MAX_BYTES) as usize
+    } else {
+        0
+    };
     Ok(json!({
         "repoDir": repo.to_string_lossy(),
         "indexExists": index_exists,
@@ -1086,7 +1202,25 @@ pub fn preview_realm_publish(
         "nextVersion": next_version,
         "versionRel": version_rel,
         "entryExists": existing.get("realms").and_then(|r| r.get(&id)).is_some(),
+        "estimatedPartCount": estimated_part_count,
+        "partMaxBytes": REALM_PART_MAX_BYTES,
     }))
+}
+
+/// 领域待打包内容的字节数（用于分片预估）：与导出同源地收集文件（**只读 metadata**），
+/// 保证「预览说的」与「打包做的」是同一份清单。任何一步失败都返回 0（预估可缺，不可错）。
+fn estimate_realm_bytes(id: &str) -> u64 {
+    let Ok(root) = realm_data_root(id) else {
+        return 0;
+    };
+    let mut files: Vec<(String, PathBuf)> = Vec::new();
+    if collect_realm_files(&root, &mut files).is_err() {
+        return 0;
+    }
+    files
+        .iter()
+        .map(|(_, p)| fs::metadata(p).map(|m| m.len()).unwrap_or(0))
+        .sum()
 }
 
 /// 索引条目里「可从包与产物推导」的字段；其余（如 `gameEdition`）属发布者手工字段，合入时保留。
@@ -1192,8 +1326,22 @@ pub(crate) fn merge_repo_index(
         }
         target.insert((*key).to_string(), new.clone());
     }
-    // 一期不实现分片：不主动写 `parts`（省略即不分片，读取端只拦非空数组）。强制写 null 只会
-    // 给每个条目增添无意义的 diff 噪声；条目既有值（维护者手工填写的）一律不触碰。
+    // `parts` / `download` 是**互斥且完全派生**的一对：由本次发布产物决定，不存在手工维护值。
+    // 新条目没有的那一侧必须从既有条目删除，否则「单包 → 分片 → 单包」来回切换后索引会
+    // 残留矛盾字段——残留 `download` 会让新启动器走单包分支（文件已删，必然 404）；
+    // 残留 `parts` 会让旧启动器报「请升级」而实际早已回退成单包（设计 §7.2）。
+    let sharded = entry
+        .get("parts")
+        .and_then(|v| v.as_array())
+        .map(|a| !a.is_empty())
+        .unwrap_or(false);
+    if sharded {
+        if target.remove("download").is_some() {
+            push_changed(&mut changed, "download");
+        }
+    } else if target.remove("parts").is_some() {
+        push_changed(&mut changed, "parts");
+    }
     realms.insert(id.to_string(), Value::Object(target));
     let mut out = existing.as_object().cloned().unwrap_or_default();
     if !out.contains_key("schemaVersion") {
@@ -1202,6 +1350,13 @@ pub(crate) fn merge_repo_index(
     out.insert("updatedAt".to_string(), json!(updated_at));
     out.insert("realms".to_string(), Value::Object(realms));
     (Value::Object(out), changed)
+}
+
+/// 记录变更字段（去重）：删除也算子段变化，`entryState` 的三态判定依赖它。
+fn push_changed(changed: &mut Vec<String>, key: &str) {
+    if !changed.iter().any(|c| c == key) {
+        changed.push(key.to_string());
+    }
 }
 
 /// 空值判定：`null` / 空数组 / 空串（含纯空白）/ 空对象 → 一律视为「未声明」。
@@ -1281,19 +1436,69 @@ fn publish_realm_to_repo(
         warnings.push(warn("copied-into-repo", &pkg_path.display().to_string()));
     }
 
-    // 2) 下载地址：前缀由 plan 给出（手工覆盖 > 声明 > git > 条目）；全推不出则沿用既有条目并告警
-    match &plan.url_base {
-        Some(b) => {
-            entry["download"] = json!(format!("{b}/realms/{id}/{pkg_name}"));
+    // 1.5) 分片：包超过单文件容忍线（45 MiB）时切成固定大小的分片落库。
+    //
+    // 放在**这里**切而不是「打包完立刻切」的唯一理由：分片 URL 需要 `urlBase`，
+    // 而它要到 `plan_publish` 才定下来——给不出地址就不能切，否则仓库会留下
+    // 「单包已删、索引无 parts」的死状态（设计 §7.1）。
+    let needs_shard = pkg_size > REALM_PART_MAX_BYTES;
+    let mut parts: Vec<RealmPart> = Vec::new();
+    if needs_shard {
+        match &plan.url_base {
+            Some(b) => match split_realm_package(&pkg_path, REALM_PART_MAX_BYTES) {
+                Ok(p) => {
+                    parts = p;
+                    // 整包与分片二选一落库：分片已就位，单包即成陈旧文件
+                    let _ = fs::remove_file(&pkg_path);
+                    prune_stale_parts(&dir, id, parts.len());
+                    entry["parts"] = json!(parts
+                        .iter()
+                        .map(|p| json!({
+                            "url": format!("{b}/realms/{id}/{}", p.name),
+                            "size": p.size,
+                            "sha256": p.sha256,
+                        }))
+                        .collect::<Vec<_>>());
+                    // 分片条目不带 `download`（两者互斥，见 `merge_repo_index`）
+                    if let Some(o) = entry.as_object_mut() {
+                        o.remove("download");
+                    }
+                }
+                Err(_) => {
+                    // 切分失败：单包原样留在仓库，索引走单包路径。
+                    // 宁可「不分片」，也绝不留「单包已删、分片残缺」。
+                    prune_stale_parts(&dir, id, 0);
+                    warnings.push(warn("shard-failed", ""));
+                }
+            },
+            None => {
+                // 推不出 URL 前缀 ⇒ 给不出分片地址，只能保留单包（超限告警照常触发）
+                prune_stale_parts(&dir, id, 0);
+                warnings.push(warn("shard-needs-url-base", &fmt_mb(pkg_size)));
+            }
         }
-        None => {
-            warnings.push(warn("no-url-base", ""));
-            if let Some(prev) = existing
-                .get("realms")
-                .and_then(|r| r.get(id))
-                .and_then(|e| e.get("download"))
-            {
-                entry["download"] = prev.clone(); // 沿用既有条目，不致把地址写空
+    } else {
+        // 未超阈值：仓库里若残留上次的分片必须清掉（索引只会列单包）
+        prune_stale_parts(&dir, id, 0);
+    }
+    let sharded = !parts.is_empty();
+
+    // 2) 下载地址：分片条目不写 `download`（`parts` 是其唯一来源）；单包沿用既有推导链
+    //    前缀由 plan 给出（手工覆盖 > 声明 > git > 条目）；全推不出则沿用既有条目并告警
+    if !sharded {
+        match &plan.url_base {
+            Some(b) => {
+                entry["download"] = json!(format!("{b}/realms/{id}/{pkg_name}"));
+            }
+            None => {
+                warnings.push(warn("no-url-base", ""));
+                if let Some(prev) = existing
+                    .get("realms")
+                    .and_then(|r| r.get(id))
+                    .and_then(|e| e.get("download"))
+                {
+                    entry["download"] = prev.clone(); // 沿用既有条目，不致把地址写空
+                }
             }
         }
     }
@@ -1319,10 +1524,22 @@ fn publish_realm_to_repo(
     }
 
     // 4) 发布前自检（与 `scripts/build-realms-index.mjs` 的告警清单同源）
-    if pkg_size > PUBLISH_DOWNLOAD_MAX {
-        warnings.push(warn("over-download-max", &fmt_mb(pkg_size)));
-    } else if pkg_size > PUBLISH_GIT_MAX {
-        warnings.push(warn("over-git-max", &fmt_mb(pkg_size)));
+    if sharded {
+        // 分片后不再受单文件上限约束，`over-*` 两条体积告警语义失效：
+        // 只提示「已分片」与（超 100 MB 时的）仓库体积增长——分片全部进 git 历史。
+        warnings.push(warn(
+            "sharded",
+            &format!("{} × ≤{}", parts.len(), fmt_mb(REALM_PART_MAX_BYTES)),
+        ));
+        if pkg_size > PUBLISH_DOWNLOAD_MAX {
+            warnings.push(warn("over-total-hint", &fmt_mb(pkg_size)));
+        }
+    } else {
+        if pkg_size > PUBLISH_DOWNLOAD_MAX {
+            warnings.push(warn("over-download-max", &fmt_mb(pkg_size)));
+        } else if pkg_size > PUBLISH_GIT_MAX {
+            warnings.push(warn("over-git-max", &fmt_mb(pkg_size)));
+        }
     }
     let bundled: Vec<String> = realm
         .get("mods")
@@ -1384,6 +1601,17 @@ fn publish_realm_to_repo(
             "changedFields": changed,
             "urlSource": plan.url_source,
             "urlBootstrapped": bootstrapped,
+            // 分片产物（0 = 未分片）。路径由后端给，前端不自行拼文件名
+            // （延续「不抄仓库布局约定」，见 `willWriteDir` 的由来）
+            "partCount": parts.len(),
+            "parts": parts
+                .iter()
+                .map(|p| json!({
+                    "path": dir.join(&p.name).to_string_lossy(),
+                    "size": p.size,
+                    "sha256": p.sha256,
+                }))
+                .collect::<Vec<_>>(),
         }),
         warnings,
     ))
@@ -1721,8 +1949,9 @@ mod tests {
         PackOutcome, URL_SOURCE_DECLARED, URL_SOURCE_ENTRIES, URL_SOURCE_GIT,
         build_package_realm_json, derive_repo_url_base, derive_url_base, downgrade_error,
         insert_url_base, is_core_mod_id, is_precompressed, merge_repo_index, normalize_remote_url,
-        parse_git_branch, parse_git_remote_url, publish_realm_to_repo, resolve_gitdir,
-        version_change_warnings, write_zip_entries, DERIVED_INDEX_FIELDS,
+        parse_git_branch, parse_git_remote_url, part_name, prune_stale_parts,
+        publish_realm_to_repo, resolve_gitdir, split_realm_package, version_change_warnings,
+        write_zip_entries, DERIVED_INDEX_FIELDS, REALM_PART_MAX_BYTES,
     };
     use serde_json::{Value, json};
     use sha2::{Digest, Sha256};
@@ -1771,12 +2000,151 @@ mod tests {
         assert_eq!(demo["gameEdition"], json!("enhanced"));
         assert_eq!(merged["realms"]["other"]["version"], json!("9.9.9"));
         assert_eq!(merged["updatedAt"], json!("2026-09-28"));
-        // 一期不主动写 parts：既有条目没有就不会凭空多出来
-        assert!(demo.get("parts").is_none(), "不主动写 parts：{demo}");
+        // 单包发布：既有条目若残留分片必须被清掉（否则新启动器会走分片分支而文件已不在）
+        assert!(demo.get("parts").is_none(), "单包发布应清除残留 parts：{demo}");
         for k in ["version", "sha256", "size"] {
             assert!(changed.iter().any(|c| c == k), "changed 应含 {k}，实际 {changed:?}");
         }
         assert!(!changed.iter().any(|c| c == "gameEdition"));
+    }
+
+    #[test]
+    fn part_names_are_zero_padded_so_lexical_order_matches_part_order() {
+        assert_eq!(part_name("demo", 1), "demo.part001");
+        assert_eq!(part_name("demo", 12), "demo.part012");
+        // 清理陈旧分片按文件名排序取前 N 个，故字典序必须等于数值序
+        let mut names = vec![part_name("d", 10), part_name("d", 2), part_name("d", 1)];
+        names.sort();
+        assert_eq!(names, vec!["d.part001", "d.part002", "d.part010"]);
+    }
+
+    /// 切分 → 拼回闭环：拼回文件必须与原文**逐字节一致**——导入侧的整包 sha256 校验依赖这一点。
+    #[test]
+    fn split_then_concat_reproduces_the_original_package() {
+        use std::fs;
+        let dir = sandbox("split-roundtrip");
+        let src = dir.join("demo.vcmirealm");
+        let part = REALM_PART_MAX_BYTES as usize;
+        // 2 整片 + 1 个不足整片的尾巴
+        let blob: Vec<u8> = (0..(part * 2 + 1234)).map(|i| (i % 251) as u8).collect();
+        fs::write(&src, &blob).unwrap();
+        let want_sha = crate::infra::hash::sha256_file(&src).unwrap();
+
+        let parts = split_realm_package(&src, REALM_PART_MAX_BYTES).unwrap();
+        assert_eq!(parts.len(), 3, "2 整片 + 1 尾片：{:?}", parts.iter().map(|p| p.size).collect::<Vec<_>>());
+        assert_eq!(parts[0].size as usize, part);
+        assert_eq!(parts[2].size as usize, 1234);
+        assert_eq!(parts.iter().map(|p| p.size).sum::<u64>(), blob.len() as u64);
+        for (i, p) in parts.iter().enumerate() {
+            assert_eq!(p.name, part_name("demo", i + 1));
+            assert_eq!(fs::metadata(dir.join(&p.name)).unwrap().len(), p.size);
+            assert_eq!(
+                crate::infra::hash::sha256_file(&dir.join(&p.name)).unwrap(),
+                p.sha256,
+                "逐片 sha256 必须与产物一致"
+            );
+        }
+
+        // 按数组序拼回（下载端同口径）
+        let joined = dir.join("joined.vcmirealm");
+        let mut out = fs::File::create(&joined).unwrap();
+        for p in &parts {
+            let mut f = fs::File::open(dir.join(&p.name)).unwrap();
+            std::io::copy(&mut f, &mut out).unwrap();
+        }
+        drop(out);
+        assert_eq!(fs::read(&joined).unwrap(), blob, "拼回必须逐字节一致");
+        assert_eq!(crate::infra::hash::sha256_file(&joined).unwrap(), want_sha);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn split_boundary_sizes_do_not_produce_trailing_empty_parts() {
+        use std::fs;
+        let dir = sandbox("split-boundary");
+        // 恰好一整片 → 只出 1 片，不产生空尾巴
+        let src = dir.join("exact.vcmirealm");
+        fs::write(&src, vec![7u8; REALM_PART_MAX_BYTES as usize]).unwrap();
+        let parts = split_realm_package(&src, REALM_PART_MAX_BYTES).unwrap();
+        assert_eq!(parts.len(), 1);
+        assert_eq!(parts[0].size, REALM_PART_MAX_BYTES);
+
+        // 比一片多 1 字节 → 2 片，尾片 1 字节
+        let src2 = dir.join("one-over.vcmirealm");
+        fs::write(&src2, vec![7u8; REALM_PART_MAX_BYTES as usize + 1]).unwrap();
+        let parts2 = split_realm_package(&src2, REALM_PART_MAX_BYTES).unwrap();
+        assert_eq!(parts2.len(), 2);
+        assert_eq!(parts2[1].size, 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn stale_parts_are_pruned_by_name_order() {
+        use std::fs;
+        let dir = sandbox("prune-parts");
+        for n in [1, 2, 3, 4] {
+            fs::write(dir.join(part_name("demo", n)), b"x").unwrap();
+        }
+        fs::write(dir.join(part_name("other", 1)), b"y").unwrap();
+        fs::write(dir.join("demo.vcmirealm"), b"pkg").unwrap();
+        fs::write(dir.join("cover.webp"), b"img").unwrap();
+        prune_stale_parts(&dir, "demo", 2);
+        assert!(dir.join("demo.part001").is_file());
+        assert!(dir.join("demo.part002").is_file());
+        assert!(!dir.join("demo.part003").is_file(), "多余分片应删除");
+        assert!(!dir.join("demo.part004").is_file());
+        // 其它领域的分片与非分片文件一概不动
+        assert!(dir.join("other.part001").is_file());
+        assert!(dir.join("demo.vcmirealm").is_file());
+        assert!(dir.join("cover.webp").is_file());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// `parts` / `download` 互斥且完全派生：单包 ↔ 分片互转时旧的一侧必须被删除（设计 §7.2）。
+    #[test]
+    fn merge_switches_between_sharded_and_single_package() {
+        let existing = json!({
+            "realms": { "demo": {
+                "version": "1.0.0",
+                "download": "https://x/raw/master/realms/demo/demo.vcmirealm",
+                "sha256": "old",
+                "size": 1
+            }}
+        });
+        // 单包 → 分片：`download` 必须消失（否则新启动器走单包分支，而文件已删）
+        let sharded = json!({
+            "version": "1.1.0", "sha256": "new", "size": 2,
+            "parts": [{ "url": "https://x/raw/master/realms/demo/demo.part001", "size": 1, "sha256": "p1" }]
+        });
+        let (m1, c1) = merge_repo_index(&existing, "demo", &sharded, "2026-10-13");
+        assert_eq!(m1["realms"]["demo"]["parts"], sharded["parts"]);
+        assert!(
+            m1["realms"]["demo"].get("download").is_none(),
+            "分片条目不得残留 download：{}",
+            m1["realms"]["demo"]
+        );
+        // `download` 是被删除的一侧 → 计入变更；`parts` 属「新增字段」，按既有语义
+        // （`merge_is_idempotent_and_absent_keys_do_not_erase_existing`）新增不算变化
+        assert!(c1.iter().any(|c| c == "download"), "删除应计入变更：{c1:?}");
+        assert!(!c1.iter().any(|c| c == "parts"), "新增 parts 不计变化：{c1:?}");
+
+        // 分片 → 单包：`parts` 必须消失（否则旧启动器会报「请升级」而实际早已回退）
+        let single = json!({
+            "version": "1.2.0", "sha256": "new2", "size": 3,
+            "download": "https://x/raw/master/realms/demo/demo.vcmirealm"
+        });
+        let (m2, c2) = merge_repo_index(&m1, "demo", &single, "2026-10-13");
+        assert_eq!(m2["realms"]["demo"]["download"], single["download"]);
+        assert!(
+            m2["realms"]["demo"].get("parts").is_none(),
+            "单包条目不得残留 parts：{}",
+            m2["realms"]["demo"]
+        );
+        assert!(c2.iter().any(|c| c == "parts"), "删除应计入变更：{c2:?}");
+        // 二次合并幂等且不再报变化
+        let (m3, c3) = merge_repo_index(&m2, "demo", &single, "2026-10-13");
+        assert_eq!(m2, m3);
+        assert!(c3.is_empty(), "二次合并不应再报变化：{c3:?}");
     }
 
     #[test]

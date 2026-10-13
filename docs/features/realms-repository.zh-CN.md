@@ -42,6 +42,8 @@
 }
 ```
 
+> **分片分发**（`parts` 字段，包 >45 MiB 时自动切分、下载端拼回）已实施，契约与决策见 [realms-sharded-package](./realms-sharded-package.zh-CN.md)。分片条目不带 `download`，安装流程见该文 §8；状态判定与本文 §5 五态矩阵完全一致（`sha256` 恒为整包哈希）。
+
 ## 4. 源管理
 
 命令：`get_realm_repositories` / `add_realm_repository` / `remove_realm_repository` / `test_realm_repository`。源列表存 `launcher.json` 的 `realms.repository_urls`，**支持多源**，按 id 合并时**靠前的源优先**。

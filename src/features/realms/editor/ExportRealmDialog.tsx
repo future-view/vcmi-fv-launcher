@@ -412,6 +412,15 @@ export function ExportRealmDialog({
                       )}
                       <li className="truncate text-slate-400">{t.realm.exportIndexMerge}</li>
                     </ul>
+                    {/* 分片预估：只在预计会切分时露面（常态小包零噪声）。
+                        分片是自动行为、不给用户选项——这里只负责「知情」，见设计 §9。 */}
+                    {(preview.estimatedPartCount ?? 0) > 0 && (
+                      <p className="pt-1 text-[11px] leading-relaxed text-slate-400">
+                        {fill(t.realm.exportShardEstimate, {
+                          count: preview.estimatedPartCount ?? 0,
+                        })}
+                      </p>
+                    )}
                     {/* 下载地址：只读显示推导结果 + 「改」覆盖入口。
                         不再要求用户凭空填 URL——把「填空」换成「确认」，出错率天差地别。 */}
                     <div className="pt-1">
@@ -549,6 +558,19 @@ export function ExportRealmDialog({
                 />
                 <ResultRow label={t.realm.exportFieldIndex} value={repo.indexPath} mono />
                 {repo.coverPath ? <ResultRow label={t.realm.exportFieldCover} value={repo.coverPath} mono /> : null}
+                {/* 分片产物（0 = 未分片）：片数 + 各片相对仓库的路径（路径由后端给，前端不拼名） */}
+                {(repo.partCount ?? 0) > 0 && (
+                  <ResultRow label={t.realm.exportFieldParts} value={String(repo.partCount ?? 0)} />
+                )}
+                {(repo.parts?.length ?? 0) > 0 && (
+                  <ul className="space-y-0.5 font-mono text-[11px] text-slate-400">
+                    {repo.parts?.map((p) => (
+                      <li key={p.path} className="truncate" title={p.path}>
+                        {relToRepo(repo.repoDir, p.path)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {repo.entryState === "updated" && (
                   <p className="pt-1 text-[11px] leading-relaxed text-slate-500">
                     {fill(t.realm.exportRepoChanged, { fields: repo.changedFields.join(", ") })}
@@ -735,6 +757,15 @@ function warningText(t: ReturnType<typeof useI18n>["t"], code: string, arg: stri
       return fill(r.exportWarnPkgUnchanged, { arg });
     case "copied-into-repo":
       return fill(r.exportWarnCopiedIntoRepo, { arg });
+    // 分片（包 >45 MiB 时自动切分，非错误——见 realms-sharded-package 设计 §9）
+    case "sharded":
+      return fill(r.exportWarnSharded, { arg });
+    case "over-total-hint":
+      return fill(r.exportWarnOverTotalHint, { arg });
+    case "shard-needs-url-base":
+      return fill(r.exportWarnShardNeedsUrlBase, { arg });
+    case "shard-failed":
+      return r.exportWarnShardFailed;
     default:
       return arg ? `${code}: ${arg}` : code;
   }

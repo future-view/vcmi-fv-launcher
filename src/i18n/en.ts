@@ -1034,6 +1034,15 @@ export const en: LangDict = {
     exportWarnPkgUnchanged:
       "Version is now {arg}, but the package is identical to the old one in the repository — recipients only see the version bump, with no actual content change.",
     exportWarnCopiedIntoRepo: "Export path is outside the repository — also copied to {arg}.",
+    exportShardEstimate:
+      "The package will be split into about {count} parts (≤ 45 MiB each); see the result page after publishing.",
+    exportFieldParts: "Parts",
+    exportWarnSharded: "Package was split into {arg}; the single-file package is no longer kept in the repo.",
+    exportWarnOverTotalHint:
+      "Whole package is {arg}: all parts enter git history — watch the repository size.",
+    exportWarnShardNeedsUrlBase:
+      "Package {arg} needs sharding, but no download URL base could be derived — published as a single package (push may be rejected).",
+    exportWarnShardFailed: "Sharding failed; published as a single package (push may be rejected).",
     exportOpenRepo: "Open repository folder",
     exportOpenIndex: "Open index folder",
     realmFile: "VCMI realm file",
@@ -1693,6 +1702,9 @@ export const en: LangDict = {
     repo_mod_install_sha: "Mod package checksum failed (sha256 mismatch); installation aborted",
     repo_mod_install_cache: "Failed to write package cache",
     repo_realm_sharded: "This realm uses sharded distribution; please update the launcher before installing",
+    repo_realm_parts_invalid:
+      "The realm index has an invalid parts entry (item {arg} is missing url or sha256)",
+    repo_realm_part_sha: "Part {arg} failed checksum (sha256 mismatch); installation aborted",
     repo_realm_install_sha: "Realm package checksum failed (sha256 mismatch); installation aborted",
     realm_publish_no_repo: "No repository directory selected yet",
     realm_import_src_missing: "Source file does not exist",
