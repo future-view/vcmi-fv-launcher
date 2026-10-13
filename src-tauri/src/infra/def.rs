@@ -63,7 +63,15 @@ impl<'a> DefReader<'a> {
     }
 
     fn parse_header(&self) -> Option<DefHeader> {
-        if self.data.len() < 784 + 768 {
+        // 文件头 = def_type(4) + width(4) + height(4) + total_blocks(4) + 调色板(768) = **784** 字节，
+        // 分组表紧随其后（下方 `pos = 784`）。
+        //
+        // ⚠️ 此处原写 `784 + 768`（把调色板长度重复加了一次 → 门槛变成 1552）：
+        // 任何小于 1552 字节的 DEF 都会被直接判为不可解析，小尺寸素材**整批静默丢失**
+        // （实测 horde-town `silo.def` 1398B、cetatea-town `TBRMBLAK.def` 1387B、
+        // hota.factory `TBFadw_1`/`TBFaup_1`、atlantis-town `tbrhall.def` 849B 的城镇结构帧）。
+        // 调色板已被包含在 784 内，故门槛就是 784（同时保证下方 `data[16..16+768]` 切片安全）。
+        if self.data.len() < 784 {
             return None;
         }
         let def_type = self.read_u32(0);
@@ -95,9 +103,18 @@ impl<'a> DefReader<'a> {
             }
 
             // 自动检测表头大小（16 或 20 字节）
+            //
+            // ⚠️ 判定口径（2026-10-14 修正）：**必须用"偏移是否指向可信帧头"当证据**，
+            // 不能用"帧名里 ASCII 字符多不多"当 tie-break —— 单帧 DEF（`total_entries=1`）
+            // 的两个候选各只有 1 个偏移，只要落在 `[32, file_size)` 就都算"有效"打平，
+            // 此时旧实现的 ASCII 打分会看走眼：20 字节候选的 13 字节窗口右移 4 字节，
+            // 正好覆盖"帧名尾部 + 后面的偏移表字节"（如 `.bip\0\0\0\0` + `1\x03`），
+            // ASCII 数反而更多 → 误选 20 → 偏移表整体错位 4 字节 → 帧头读出天文数字
+            // （实测 kremlin-town 24/40、atlantis-town 23/37 的结构帧因此整批丢失）。
+            // 帧名多是非 ASCII（西里尔字母），ASCII 打分对它们本就无判别力。
             if block_header_size.is_none() {
                 let mut best_hdr = 16usize;
-                let mut best_score = -1.0f64;
+                let mut best_score = 0i32;
                 for test_hdr in [16usize, 20usize] {
                     let ns = pos + test_hdr;
                     if ns + 12 > file_size {
@@ -110,15 +127,13 @@ impl<'a> DefReader<'a> {
                     let mut valid_cnt = 0i32;
                     for j in 0..total_entries as usize {
                         let o = self.read_u32(os_off + j * 4);
-                        if (32..file_size as u32).contains(&o) {
+                        if self.frame_header_plausible(o) {
                             valid_cnt += 1;
                         }
                     }
-                    let name_raw = &self.data[ns..(ns + 13).min(file_size)];
-                    let ascii_score = name_raw.iter().filter(|&&b| (32..127).contains(&b)).count();
-                    let score = valid_cnt as f64 + ascii_score as f64 / 100.0;
-                    if score > best_score {
-                        best_score = score;
+                    // 严格 `>`：打平时保留先测的 16（VCMI 标准分块表头宽度）
+                    if valid_cnt > best_score {
+                        best_score = valid_cnt;
                         best_hdr = test_hdr;
                     }
                 }
@@ -161,6 +176,22 @@ impl<'a> DefReader<'a> {
             palette,
             groups,
         })
+    }
+
+    /// 指定偏移处的帧头是否"可信"——供分块表头尺寸（16/20）自动检测当证据。
+    ///
+    /// 判定口径与 [`Self::read_frame`] 的拒绝条件**严格对齐**：`read_frame` 会丢弃
+    /// `fmt>3 || w==0 || h==0 || w>4096 || h>4096` 的帧，故这类偏移不算"这个表头尺寸可信"的证据
+    /// （否则会像旧实现那样被落在文件范围内的垃圾偏移蒙对，见 `parse_header` 的说明）。
+    fn frame_header_plausible(&self, offset: u32) -> bool {
+        let off = offset as usize;
+        if off + SSPRITE_DEF_SIZE > self.data.len() {
+            return false;
+        }
+        let fmt = self.read_u32(off + 4);
+        let w = self.read_u32(off + 16);
+        let h = self.read_u32(off + 20);
+        !(fmt > 3 || w == 0 || h == 0 || w > 4096 || h > 4096)
     }
 
     /// 读取指定偏移处的帧头与像素数据（末尾两个 i32 = left/top margin）。
@@ -631,5 +662,54 @@ mod tests {
         // 期望值来自 2026-09-24 对 H3sprite.lod 的独立解析（Python）：船坞帧 tm=53
         // —— 结构 y(134) + 53 才是它该在的岸边位置；丢了这 53px 就会盖住战神像。
         assert_eq!(def.frame_margins(0, 0), Some((0, 53)));
+    }
+
+    /// DEF 分块表头尺寸（16/20）自动检测 + 最小长度门槛的回归（2026-10-14）。
+    ///
+    /// 构造一个**单帧** DEF（`total_entries=1`），帧名是非 ASCII（西里尔字母）——这正是
+    /// kremlin-town 24/40 结构帧丢失的形态：
+    /// ① 旧逻辑在「两个候选各只有 1 个有效偏移」时用「帧名 ASCII 字符数」做 tie-break，
+    ///    会误选 20 字节表头 → 偏移表整体错位 4 字节 → 帧头读出垃圾、整批丢帧；
+    /// ② 旧 `parse_header` 门槛写成 `784 + 768 = 1552`，本 DEF 仅 865 字节会被直接判无效。
+    /// 新逻辑改用「偏移是否指向可信帧头」做证据、门槛改回 784，两者都应判出正好 1 帧。
+    #[test]
+    fn single_frame_def_nonascii_name_decodes() {
+        let mut b = vec![0u8; 865];
+        // 文件头：type=0x42, w=4, h=4, total_blocks=1（16 字节）
+        b[0..4].copy_from_slice(&0x42u32.to_le_bytes());
+        b[4..8].copy_from_slice(&4u32.to_le_bytes());
+        b[8..12].copy_from_slice(&4u32.to_le_bytes());
+        b[12..16].copy_from_slice(&1u32.to_le_bytes());
+        // 调色板（16..784）保持 0
+        // 分组表：block0 id=0 (784..788), total_entries=1 (788..792)
+        b[784..788].copy_from_slice(&0u32.to_le_bytes());
+        b[788..792].copy_from_slice(&1u32.to_le_bytes());
+        // 16 字节表头口径：帧名 13 字节（非 ASCII + ".bip\0"）@800..813
+        let name = b"\xd0\x91\xd0\x92\xd0\x93.bip\x00\x00\x00"; // 13 bytes
+        b[800..813].copy_from_slice(name);
+        // 偏移表：offsets[0] = 817 @813..817
+        b[813..817].copy_from_slice(&817u32.to_le_bytes());
+        // 帧头 @817：frame_size=48, fmt=0, fw=4, fh=4, w=4, h=4, lm=0, tm=0（32 字节）
+        let fh = 817usize;
+        b[fh..fh + 4].copy_from_slice(&48u32.to_le_bytes());
+        b[fh + 4..fh + 8].copy_from_slice(&0u32.to_le_bytes()); // fmt=0
+        b[fh + 8..fh + 12].copy_from_slice(&4u32.to_le_bytes()); // fw
+        b[fh + 12..fh + 16].copy_from_slice(&4u32.to_le_bytes()); // fh
+        b[fh + 16..fh + 20].copy_from_slice(&4u32.to_le_bytes()); // w
+        b[fh + 20..fh + 24].copy_from_slice(&4u32.to_le_bytes()); // h
+        // 像素数据 @849..865（fmt=0：fw*fh = 16 字节）
+        for i in 849..865 {
+            b[i] = (i % 256) as u8;
+        }
+
+        let def = DefReader::new(&b);
+        let frames = def
+            .decode_animation_full()
+            .expect("单帧 DEF 应至少解出 1 帧");
+        assert_eq!(
+            frames.len(),
+            1,
+            "单帧 DEF 必须解出正好 1 帧（旧逻辑会误判 0 帧：16/20 误检 + 784+768 门槛）"
+        );
     }
 }

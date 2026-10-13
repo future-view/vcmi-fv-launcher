@@ -607,15 +607,22 @@ pub(crate) fn read_sprite_json(p: &Path, res: &str) -> Option<Value> {
         }
     }
     // 2) 磁盘/zip 统一解析（zip 内定义，或引用与实际文件名大小写/扩展名不一致）
+    //
+    // ⚠️ 必须用**容错**解析器 `parse_vcmi_json`（与 step1 一致）：VCMI 社区 / 第三方 mod 的
+    // sprites-json 普遍带 `//` 注释与尾逗号（实测 new-pavilion 的 `26-grail ani.json`、
+    // `21-special-2.json` 等）。step1 的磁盘精确读取走容错解析，但**仅覆盖 `Content/Sprites` 等
+    // 目录**；zip 内定义（pavilion 是 content.zip，精灵在根 `Sprites/`）只能经此步 `resolve_resource`
+    // 取出——若此处用严格 `serde_json::from_slice`，注释会让解析直接失败 → `read_sprite_json`
+    // 返回 None → 这些建筑被误判为 DEF、再因后缀不符解码失败 → 幕布图丢失整组建筑。
     for t in &exact {
         if let Some((buf, ext)) = resolve_resource(p, t) {
             if !ext.eq_ignore_ascii_case("json") {
                 continue;
             }
-            if let Ok(v) = serde_json::from_slice::<Value>(&buf) {
-                if !v.is_null() {
-                    return Some(v);
-                }
+            let text = String::from_utf8_lossy(&buf);
+            let v = parse_vcmi_json(&text);
+            if !v.is_null() {
+                return Some(v);
             }
         }
     }

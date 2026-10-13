@@ -288,7 +288,14 @@ pub(crate) fn read_town_configs(mod_path: &Path) -> Vec<TownConfig> {
 /// （实测发条城 / Pavilion 等）。
 pub(crate) fn is_town_config_path(name: &str) -> bool {
     /// 城镇目录下允许的文件名（去掉 .json 后缀、小写）。
-    const TOWN_SUB_STEMS: &[&str] = &["building", "buildings", "structures", "puzzle", "siege", "spells"];
+    ///
+    /// 含单数 `structure`（无 s）：老中文包 `Celestial-master`（发条城）把结构写进
+    /// `config/celestial/town/structure.json`（**单数**），此前漏入导致 `structures` 为空、
+    /// 幕布图只剩裸底图。与 `structures`、`building`/`buildings`、`spell`/`spells` 等
+    /// 单复数变体一并纳入，避免这类老 mod 漏读。
+    const TOWN_SUB_STEMS: &[&str] = &[
+        "building", "buildings", "structure", "structures", "puzzle", "siege", "spell", "spells",
+    ];
 
     let n = name.replace('\\', "/");
     let lower = n.to_lowercase();
@@ -370,7 +377,7 @@ pub(crate) fn is_town_config_path_in(name: &str, idx: &DirFileIndex) -> bool {
     // （实测 xanadu 顶层为 `core:creatureGeneratorCommon`），采入会产出 `core:*` 伪 faction；
     // 城镇招募建筑数据由 `buildings.json` 承载（家园验证：buildings.json 已含全部建筑）。
     const VARIANT_STEMS: &[&str] = &[
-        "building", "buildings", "structures", "puzzle", "siege", "spells",
+        "building", "buildings", "structure", "structures", "puzzle", "siege", "spell", "spells",
     ];
     let n = name.replace('\\', "/");
     let lower = n.to_lowercase();
@@ -757,5 +764,28 @@ pub(crate) fn resolve_creature_background(v: &Value) -> Option<String> {
             None
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 发条城（老中文包 `Celestial-master`）把结构写进 `config/celestial/town/structure.json`
+    /// （**单数** `structure`），漏入会让 `structures` 为空、幕布图只剩裸底图（2026-10-14 回归）。
+    #[test]
+    fn singular_structure_json_is_town_config() {
+        assert!(
+            is_town_config_path("config/celestial/town/structure.json"),
+            "单数 structure.json 必须被识别为城镇配置"
+        );
+        assert!(
+            is_town_config_path("config/celestial/town/structures.json"),
+            "复数 structures.json 仍应识别"
+        );
+        // 非城镇目录下的 structure.json 不应误识别（防幽灵条目）
+        assert!(!is_town_config_path("config/other/structure.json"));
+        // sprites 目录下的同名结构定义不应误识别
+        assert!(!is_town_config_path("sprites/celestial/town/structure.json"));
     }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Search } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -56,6 +56,13 @@ export function WikiView() {
   // 供右侧详情栏展示描述（索引条目本身不含 description，需读 cache.json）。
   const [modCacheMap, setModCacheMap] = useState<Record<string, Record<string, unknown>>>({});
   const [loading, setLoading] = useState(false);
+  /**
+   * 中栏列表**已装载完成**的类目（`loadCategory` 异步，装载期间 `entries` 还是上一个类目的数据）。
+   *
+   * 只有「返回后定位并滚动到恢复行」需要区分这一点：靠 `entries[0].category` 推断在
+   * "上一个类目恰好为空" 时会误判成"目标不在列表"，所以显式记一个已装载类目。
+   */
+  const [loadedCategory, setLoadedCategory] = useState<WikiCategory | null>(null);
   // 列表分页渲染：数万条目时避免一次性挂载全部 DOM（卡死防护）
   const [visibleCount, setVisibleCount] = useState(300);
   const [indexed, setIndexed] = useState<Set<string>>(new Set());
@@ -72,6 +79,11 @@ export function WikiView() {
   // 任一 mod 缓存缺失原版 H3 数据文件：百科图标/背景将无图（提示用户补放 Data/*.lod）
   const [h3Missing, setH3Missing] = useState(false);
   const cacheRef = useRef<Record<string, Record<string, unknown>>>({});
+  // 右栏详情滚动容器：切换条目时要把滚动位置归零（见下方「切换条目后右栏回到顶部」）
+  const detailScrollRef = useRef<HTMLDivElement | null>(null);
+  // 中栏列表滚动容器 + 「返回后需要把列表滚到恢复行」的待办标记（见下方「返回后把中栏滚到恢复的高亮行」）
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
+  const pendingListScrollRef = useRef(false);
   // 缓存代数：后台构建（尤其阶段二补图）完成后自增，驱动当前分类重新拉取 mod.json，
   // 否则 cacheRef 里阶段一的旧对象（图片字段为 null）会一直用到刷新页面为止。
   const [epoch, setEpoch] = useState(0);
@@ -145,6 +157,7 @@ export function WikiView() {
           }
         }
         setEntries(result);
+        setLoadedCategory(cat);
         setLoading(false);
         return result;
       }
@@ -284,6 +297,7 @@ export function WikiView() {
         // 左栏计数 = 实际聚合条目数（原版法术等已跨 mod 去重，与列表一致）
         setCounts((prev) => ({ ...prev, [cat]: result.length }));
         setEntries(result);
+      setLoadedCategory(cat);
       setLoading(false);
       return result;
     },
@@ -300,13 +314,27 @@ export function WikiView() {
     [selected],
   );
 
-  // 返回上一条目
+  /**
+   * 返回上一条目（对齐 VCMI WebsiteWindow::navigateBack）。
+   *
+   * ⚠️ 必须**连同来源类目一起还原**：`navStack` 里的条目带自己的 `category`，
+   * 而跳转时 `navigateTo` 会 `setCategory` 切走。只 `setSelected(prev)` 的话，
+   * 会出现「左栏高亮建筑 / 中栏是建筑列表 / 右栏却显示城镇」三栏互相矛盾的状态
+   * （VCMI 原实现 `WikiWindow.cpp:1786-1802` 就是取 `prev.category` 切回去的）。
+   *
+   * 搜索词处理与 VCMI 保持一致：仅在**类目真的变了**时清空
+   * （VCMI 的返回不清搜索框 `:1774-1841`，只有切类目 `:1668` 才清）；
+   * 清空的目的是让还原的条目不被旧类目的搜索词过滤掉，从而能在中栏高亮。
+   */
   const navigateBack = useCallback(() => {
     if (navStack.length === 0) return;
     const prev = navStack[navStack.length - 1];
     setNavStack((s) => s.slice(0, -1));
+    if (prev.category !== selected?.category) setQuery("");
+    pendingListScrollRef.current = true;
+    setCategory(prev.category);
     setSelected(prev);
-  }, [navStack]);
+  }, [navStack, selected]);
 
   // 联动跳转：根据 (modId, category, id) 定位条目并切换详情
   const navigateTo = useCallback(
@@ -370,6 +398,22 @@ export function WikiView() {
     if (hit && hit !== selected) setSelected(hit);
   }, [entries, selected]);
 
+  /**
+   * 切换条目后右栏回到顶部。
+   *
+   * ⚠️ 右栏 `<section>` 是**跨条目复用的同一个滚动容器**：DOM 节点不变，
+   * 浏览器会保留 `scrollTop`。城镇详情页很长，从 A 城镇滚到中段再点 B 城镇，
+   * 新内容会停在中段（甚至底部），体验上是"点了没反应/直接跳到末尾"。
+   * 只在**条目身份真的变了**时归零：后台构建补图后 `selected` 会被同 id 的新对象
+   * 替换（见上方刷新 effect），那时不该打断用户已滚动的位置。
+   */
+  const selectedKey = selected ? `${selected.modId}:${selected.category}:${selected.id}` : "";
+  // 用 layout effect：在浏览器绘制新详情**之前**归零，否则会闪一帧"滚到中段"的旧位置
+  useLayoutEffect(() => {
+    const el = detailScrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, [selectedKey]);
+
   // 「全部模组」选中后按需加载该 mod 完整缓存（含 description），供右侧栏展示
   useEffect(() => {
     if (selected?.category !== "mods") return;
@@ -397,6 +441,32 @@ export function WikiView() {
   useEffect(() => {
     setVisibleCount(300);
   }, [category, query]);
+
+  /**
+   * 返回后把中栏滚到恢复的高亮行（对齐 VCMI `WikiWindow.cpp:1836 elementList->scrollTo(foundIdx)`）。
+   *
+   * 时序陷阱：中栏内容由 `loadCategory(category)` **异步**填充。`setCategory` 之后、装载完成之前，
+   * `entries` 仍是上一个类目的数据 —— 此刻既找不到目标行，也不代表「目标不在列表里」，
+   * 必须等 `loadedCategory` 追平 `category` 再定位（见 `loadedCategory` 的说明，勿用
+   * `entries[0].category` 推断："上一个类目恰好为空" 时会误判成目标丢失）。
+   * 行数超出分页窗口（`visibleCount`）时先扩容，等下一次 render 再滚。
+   */
+  useEffect(() => {
+    if (!pendingListScrollRef.current) return;
+    if (loadedCategory !== category) return; // 列表尚未装载完当前类目 → 继续等
+    const idx = filtered.findIndex((e) => e.modId === selected?.modId && e.id === selected?.id);
+    if (idx < 0) {
+      // 目标确实不在当前列表（数据缺失 / 被跨 mod 去重），无法定位，放弃
+      pendingListScrollRef.current = false;
+      return;
+    }
+    if (idx >= visibleCount) {
+      setVisibleCount(idx + 300);
+      return;
+    }
+    pendingListScrollRef.current = false;
+    listScrollRef.current?.querySelector('[data-wiki-active="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [filtered, selected, visibleCount, category, loadedCategory]);
 
   // ⚠️ **未就绪时只渲染蒙层，不渲染任何内容**（早返回）：
   // 被蒙层遮住的内容照样会渲染、跑 effect、拉数据（列表、图片、甚至按需合成预览），
@@ -470,6 +540,7 @@ export function WikiView() {
           </div>
         </div>
         <div
+          ref={listScrollRef}
           className="min-h-0 flex-1 overflow-y-auto"
           onScroll={(ev) => {
             const el = ev.currentTarget;
@@ -551,34 +622,41 @@ export function WikiView() {
         </div>
       </section>
 
-      {/* 右栏：详情 */}
-      <section className="relative min-w-0 flex-1 overflow-y-auto rounded-xl border border-slate-800/60 bg-slate-900/40">
-        {/* 返回按钮（对齐 VCMI wiki navHistory/backButton） */}
+      {/* 右栏：详情。**两层结构**：外层卡片只做定位（返回按钮挂这里，不滚动），内层才是滚动核 */}
+      <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-800/60 bg-slate-900/40">
+        {/* 返回按钮（对齐 VCMI `WikiWindow.cpp:793-801` 的 backButton：位置固定、不显示级数、
+            无历史时不出现）。
+            ⚠️ 必须挂**卡片层**而非滚动核内：挂在滚动核里会随内容滚走 ——
+            城镇详情页很长，滚下去恰好是最想返回的时候，按钮却已滚出视口。
+            目标条目名只进 `title`（tooltip），不进布局：否则名字会压在当前详情标题上方，
+            既容易被误读成"当前条目"，又会随每次跳转在同一位置反复换字。 */}
         {navStack.length > 0 && (
           <button
             type="button"
             onClick={navigateBack}
             className="absolute right-3 top-3 z-10 rounded-lg border border-slate-700/60 bg-slate-800/80 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-700 hover:text-slate-100"
-            title={t.wiki.sections.back}
+            title={`${t.wiki.sections.back}: ${pickName(navStack[navStack.length - 1].name, contentLang) || navStack[navStack.length - 1].id}`}
           >
-            ← {navStack.length}
+            ← {t.wiki.sections.back}
           </button>
         )}
-        {selected ? (
-          <EntryDetail
-            key={`${selected.modId}:${selected.id}`}
-            entry={selected}
-            contentLang={contentLang}
-            t={t}
-            cacheDir={cacheDir}
-            modCache={modCacheMap[selected.modId] ?? cacheRef.current[selected.modId]}
-            onNavigate={navigateTo}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-600">
-            {t.wiki.search}
-          </div>
-        )}
+        <div ref={detailScrollRef} className="min-h-0 flex-1 overflow-y-auto">
+          {selected ? (
+            <EntryDetail
+              key={`${selected.modId}:${selected.id}`}
+              entry={selected}
+              contentLang={contentLang}
+              t={t}
+              cacheDir={cacheDir}
+              modCache={modCacheMap[selected.modId] ?? cacheRef.current[selected.modId]}
+              onNavigate={navigateTo}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-slate-600">
+              {t.wiki.search}
+            </div>
+          )}
+        </div>
       </section>
 
     </div>
@@ -611,6 +689,8 @@ function EntryRow({
     <button
       type="button"
       onClick={onClick}
+      // 返回后中栏要滚到恢复的行：列表容器据此查询高亮行（见 scrollListToSelection）
+      data-wiki-active={active ? "true" : undefined}
       // VCMI WikiListItem::showPopupWindow：条目行右键 = subtitle 文本气泡（居中于光标）
       {...(sub ? triggers((p) => popup.showText(sub, p)) : {})}
       className={cn(
