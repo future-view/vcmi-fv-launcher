@@ -43,11 +43,11 @@
       "title": "VCMI-FV-Launcher 0.1.0",
       "tag": "v0.1.0",
       "target": "main",
-      "commit": "d94e12aab2c30ff7bc91509f915fd2c812f13a21",
+      "commit": "1dac52f3a68c5f53d0f7ed2685f9bf00d005e8d6",
       "page": "https://github.com/future-view/vcmi-fv-launcher/releases/tag/v0.1.0",
       "updateVersion": "0.1.0",
       "prerelease": false,
-      "publishedAt": "2026-10-13",
+      "publishedAt": "2026-10-14",
       "critical": false,
       "notesSource": "changelog",
       "notes": {
@@ -74,20 +74,20 @@
       },
       "assets": [
         {
-          "name": "portable_0.1.0_20261013-15_windows-x86_64.zip",
+          "name": "portable_0.1.0_20261014-00_windows-x86_64.zip",
           "role": "update",
-          "path": "download/v0.1.0/portable_0.1.0_20261013-15_windows-x86_64.zip",
-          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/portable_0.1.0_20261013-15_windows-x86_64.zip",
-          "size": 9812123,
-          "sha256": "9c386bdd15188f88232cf3debace0795ce4f54fe7e309213172ac5e103b6219c"
+          "path": "download/v0.1.0/portable_0.1.0_20261014-00_windows-x86_64.zip",
+          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/portable_0.1.0_20261014-00_windows-x86_64.zip",
+          "size": 9775319,
+          "sha256": "1822d5cbf4163a2fb4eed489e8cc77d829b6af7f5164bafc7d59c135e7a86857"
         },
         {
           "name": "vcmi-fv-launcher.exe",
           "role": "binary",
           "path": "download/v0.1.0/vcmi-fv-launcher.exe",
           "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/vcmi-fv-launcher.exe",
-          "size": 25202688,
-          "sha256": "7902c58d4a0b212a39d648272cdba9fd69c93a3d3f2e228b2db90682d7625086"
+          "size": 24886784,
+          "sha256": "d874bef979f0ee4cbd72573b0a7c187ff154841a78e4e9e5949b446c2ff4a39d"
         }
       ],
       "preset": {
@@ -95,10 +95,10 @@
         "sha256": "c1253bddb5ee9df9c99320b4dde91bc49c9968936b3a09eaafa992d1918e8b81"
       },
       "pack": {
-        "dir": "0.1.0_20261013-15_windows-x86_64",
+        "dir": "0.1.0_20261014-00_windows-x86_64",
         "profile": "release",
         "flavor": null,
-        "builtAt": "2026-10-13T07:12:26.038Z"
+        "builtAt": "2026-10-13T16:04:38.306Z"
       }
     }
   ]
