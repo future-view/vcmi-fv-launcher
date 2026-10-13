@@ -73,7 +73,7 @@ export const zhCN: LangDict = {
     },
     allMods: "全部模组",
     search: "搜索",
-    searchPlaceholder: "搜索名称（中/英）…",
+    searchPlaceholder: "搜索名称…",
     empty: "未找到匹配条目",
     noImage: "暂无图片",
     enableAnimation: "开启动画",

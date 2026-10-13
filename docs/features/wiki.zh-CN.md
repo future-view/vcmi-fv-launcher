@@ -13,7 +13,7 @@
 
 类目（9）：`factions` / `creatures` / `heroes` / `artifacts` / `spells` / `skills` / `buildings` / `terrains` / `mods`。
 
-- 搜索按「中文名 + 英文名 + 条目 id」做小写子串匹配；
+- 搜索按**条目的全部语言名**（`name` 多语言对象的每个值：chinese / tchinese / english / …）+ 条目 `id` 做小写子串匹配，**不枚举具体语言**（新增界面语言无需改这里）；
 - 列表滚动分页窗口 300 条，避免长列表卡顿。
 
 ## 3. 数据来源

@@ -87,7 +87,7 @@ export const ru: LangDict = {
     },
     allMods: "Все моды",
     search: "Поиск",
-    searchPlaceholder: "Поиск по названию (кит./англ.)…",
+    searchPlaceholder: "Поиск по названию…",
     empty: "Нет подходящих записей",
     noImage: "Нет изображения",
     enableAnimation: "Включить анимацию",

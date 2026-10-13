@@ -24,7 +24,7 @@ export interface WikiEntry {
   id: string;
   /** 来源 mod id */
   modId: string;
-  /** 多语言名 {zh-CN, en} */
+  /** 多语言名：VCMI 语言键 → 文本（chinese / tchinese / english / …），**不限于中英** */
   name: Record<string, string>;
   /** 图标相对路径（images/...），需 convertFileSrc 转换 */
   image?: string;

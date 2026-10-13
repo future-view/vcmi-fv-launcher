@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { LangDict } from "@/i18n/types";
 import { getModsCacheDir, getRuntimeInfo, isTauri } from "@/lib/tauri";
 import { visibleModKeySet } from "@/lib/modcache/buildTargets";
+import { vcmiLangTag } from "@/lib/vcmiLangs";
 import {
   buildEntry,
   contentLangKey,
@@ -131,6 +132,32 @@ export function WikiView() {
     await applyIndex();
   }, [applyIndex]);
 
+  /**
+   * 中栏列表的统一排序：按「当前界面语言的显示名」升序。
+   *
+   * 对齐 VCMI `WikiWindow.cpp` —— 官方对**每个**分类都做了 `std::sort(a.name < b.name)`
+   * （town / hero / creature / artifact / spell / skill / terrain 与 glossary；mods 见
+   * `WikiModContent.cpp`）。启动器此前漏了这一步，而数据到达顺序来自 Rust 侧
+   * `std::collections::HashMap` 的迭代序（`modcache/batch.rs` 的索引聚合、
+   * `modcache/collect.rs` 的实体合并），每次进程运行、每次缓存重建都不同 ——
+   * 这就是「中栏顺序总是不固定」的根因，在此兜底为全序。
+   *
+   * 名称回退链与列表显示一致（当前语言 → english → id），避免缺名条目在语言切换后乱序；
+   * 比较交给 `Intl.Collator`（1420 条生物逐个 `localeCompare` 会明显变慢，且中文需按拼音）。
+   */
+  const nameCollator = useMemo(
+    () => new Intl.Collator(vcmiLangTag(contentLang) ?? "en", { numeric: true, sensitivity: "base" }),
+    [contentLang],
+  );
+  const sortByName = useCallback(
+    (a: WikiEntry, b: WikiEntry) =>
+      nameCollator.compare(
+        pickName(a.name, contentLang) || pickName(a.name, "english") || a.id,
+        pickName(b.name, contentLang) || pickName(b.name, "english") || b.id,
+      ),
+    [nameCollator, contentLang],
+  );
+
   // 按需加载目标类目的条目（聚合各 mod）
   const loadCategory = useCallback(
     async (cat: WikiCategory) => {
@@ -156,6 +183,7 @@ export function WikiView() {
             });
           }
         }
+        result.sort(sortByName);
         setEntries(result);
         setLoadedCategory(cat);
         setLoading(false);
@@ -284,15 +312,19 @@ export function WikiView() {
           for (const { mod, obj } of terrainAcc.values()) {
             result.push(buildEntry(mod, cat, obj));
           }
-          result.sort((a, b) => Number((a.data as Record<string, unknown>).index ?? 0) - Number((b.data as Record<string, unknown>).index ?? 0));
         }
-        // 建筑：中立建筑置顶，避免被 370+ 条城镇建筑淹没（用户实测"看不到中立建筑"）
+        // 建筑：中立建筑置顶，避免被 370+ 条城镇建筑淹没（用户实测"看不到中立建筑"）。
+        // 置顶语义**优先于**名称序，组内再按显示名升序。
         if (cat === "buildings") {
           result.sort((a, b) => {
             const an = String((a.data as Record<string, unknown>).factionId ?? "") === "neutral" ? 0 : 1;
             const bn = String((b.data as Record<string, unknown>).factionId ?? "") === "neutral" ? 0 : 1;
-            return an - bn;
+            return an - bn || sortByName(a, b);
           });
+        } else {
+          // 其余分类统一按显示名升序（含地形：原按 `index` 排序是启动器自创，
+          // 官方 `WikiWindow.cpp` 的地形列表同样按 `a.name < b.name`，此处对齐官方）
+          result.sort(sortByName);
         }
         // 左栏计数 = 实际聚合条目数（原版法术等已跨 mod 去重，与列表一致）
         setCounts((prev) => ({ ...prev, [cat]: result.length }));
@@ -301,7 +333,7 @@ export function WikiView() {
       setLoading(false);
       return result;
     },
-    [indexed, visibleKeys],
+    [indexed, visibleKeys, sortByName],
   );
 
   // 压栈跳转：记录当前选中，再切换（对齐 VCMI navigateTo + navHistory）
@@ -427,14 +459,20 @@ export function WikiView() {
   }, [selected]);
 
   // 搜索过滤
+  //
+  // 匹配**条目的全部语言名**（`name` 是 VCMI 多语言对象，键为 chinese / tchinese / english / …），
+  // 而不是枚举某几种语言：界面语言已达 5 种且会继续增加，任何"写死中/英"的口径在新增语言时
+  // 都会静默失效（只改文案救不了）。`id` 一并参与匹配，便于按 jsonKey 定位。
+  // 这套「跨语言可搜」是**有意超出 VCMI 官方**的：官方只对当前语言显示名做模糊匹配
+  // （`WikiWindow.cpp` 的 `isFuzzyMatch(filter, entry.name)`），而用户常常只记得另一种语言名。
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return entries;
-    return entries.filter((e) => {
-      const zh = pickName(e.name, "chinese").toLowerCase();
-      const en = pickName(e.name, "english").toLowerCase();
-      return zh.includes(q) || en.includes(q) || e.id.toLowerCase().includes(q);
-    });
+    return entries.filter(
+      (e) =>
+        e.id.toLowerCase().includes(q) ||
+        Object.values(e.name).some((v) => typeof v === "string" && v.toLowerCase().includes(q)),
+    );
   }, [entries, query]);
 
   // 切换类目/搜索时重置分页窗口

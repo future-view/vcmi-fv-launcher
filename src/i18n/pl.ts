@@ -87,7 +87,7 @@ export const pl: LangDict = {
     },
     allMods: "Wszystkie mody",
     search: "Szukaj",
-    searchPlaceholder: "Szukaj nazwy (zh/en)…",
+    searchPlaceholder: "Szukaj nazwy…",
     empty: "Brak pasujących pozycji",
     noImage: "Brak obrazu",
     enableAnimation: "Włącz animację",
