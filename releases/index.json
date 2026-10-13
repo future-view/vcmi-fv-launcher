@@ -43,7 +43,7 @@
       "title": "VCMI-FV-Launcher 0.1.0",
       "tag": "v0.1.0",
       "target": "main",
-      "commit": "1e4873715975bacef8b620b6d589d61b86a9e941",
+      "commit": "d94e12aab2c30ff7bc91509f915fd2c812f13a21",
       "page": "https://github.com/future-view/vcmi-fv-launcher/releases/tag/v0.1.0",
       "updateVersion": "0.1.0",
       "prerelease": false,
@@ -74,12 +74,12 @@
       },
       "assets": [
         {
-          "name": "portable_0.1.0_20261013-14_windows-x86_64.zip",
+          "name": "portable_0.1.0_20261013-15_windows-x86_64.zip",
           "role": "update",
-          "path": "download/v0.1.0/portable_0.1.0_20261013-14_windows-x86_64.zip",
-          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/portable_0.1.0_20261013-14_windows-x86_64.zip",
-          "size": 9811538,
-          "sha256": "0c4c649d07f84d116a5368ec10bcea6035302468eddee4f666ab9946401ccbab"
+          "path": "download/v0.1.0/portable_0.1.0_20261013-15_windows-x86_64.zip",
+          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/portable_0.1.0_20261013-15_windows-x86_64.zip",
+          "size": 9812123,
+          "sha256": "9c386bdd15188f88232cf3debace0795ce4f54fe7e309213172ac5e103b6219c"
         },
         {
           "name": "vcmi-fv-launcher.exe",
@@ -87,7 +87,7 @@
           "path": "download/v0.1.0/vcmi-fv-launcher.exe",
           "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/vcmi-fv-launcher.exe",
           "size": 25202688,
-          "sha256": "a063e65beb8947a3298b355ae36afc83a1c1c4d33d8f1a575f5830750a56e175"
+          "sha256": "7902c58d4a0b212a39d648272cdba9fd69c93a3d3f2e228b2db90682d7625086"
         }
       ],
       "preset": {
@@ -95,10 +95,10 @@
         "sha256": "c1253bddb5ee9df9c99320b4dde91bc49c9968936b3a09eaafa992d1918e8b81"
       },
       "pack": {
-        "dir": "0.1.0_20261013-14_windows-x86_64",
+        "dir": "0.1.0_20261013-15_windows-x86_64",
         "profile": "release",
         "flavor": null,
-        "builtAt": "2026-10-13T06:00:32.996Z"
+        "builtAt": "2026-10-13T07:12:26.038Z"
       }
     }
   ]

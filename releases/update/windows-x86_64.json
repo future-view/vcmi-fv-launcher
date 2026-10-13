@@ -6,9 +6,9 @@
   "versions": [
     {
       "version": "0.1.0",
-      "download": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/portable_0.1.0_20261013-14_windows-x86_64.zip",
-      "sha256": "0c4c649d07f84d116a5368ec10bcea6035302468eddee4f666ab9946401ccbab",
-      "size": 9811538,
+      "download": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/portable_0.1.0_20261013-15_windows-x86_64.zip",
+      "sha256": "9c386bdd15188f88232cf3debace0795ce4f54fe7e309213172ac5e103b6219c",
+      "size": 9812123,
       "format": "zip",
       "kind": "full",
       "updateMode": "inplace",
