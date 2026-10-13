@@ -61,8 +61,13 @@ export function resolveTownIds(
     return enabled ? enabled.has(modIdKey(id)) : true;
   });
 
-  // 原版优先（与领域信息页一致），其余保持 wiki 索引顺序（稳定）
-  return kept.sort((a, b) => Number(b.startsWith("core.")) - Number(a.startsWith("core.")));
+  // 原版优先（与领域信息页一致），同组内按 id 排序。
+  // ⚠️ 不依赖「wiki 索引顺序」：返回顺序会经 `buildShowcaseDeck` 的 `order` 映射 → `shuffleBySeed`
+  //    洗牌 → 截断，若上游顺序漂移，同一 seed 下"展示哪几个城镇"就会变，
+  //    破坏"编辑器预览 = 实际播放"。读侧自足排序，不假设任何外部顺序。
+  return kept.sort(
+    (a, b) => Number(b.startsWith("core.")) - Number(a.startsWith("core.")) || a.localeCompare(b),
+  );
 }
 
 /** 自动生成 deck：候选城镇 → TownCard → 截断到 maxSlides。

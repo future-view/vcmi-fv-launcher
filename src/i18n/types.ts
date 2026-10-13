@@ -131,6 +131,38 @@ export interface LangDict {
     allMods: string;
     search: string;
     searchPlaceholder: string;
+    /** 中栏「筛选」浮层：维度按类目声明，见 features/wiki/filters.ts */
+    filter: {
+      title: string;
+      reset: string;
+      all: string;
+      /** 该类目暂无可筛选维度时的按钮提示 */
+      none: string;
+      byAlignment: string;
+      byFaction: string;
+      byCreatureLevel: string;
+      bySpellLevel: string;
+      bySchool: string;
+      byCombined: string;
+      byModType: string;
+      combinedYes: string;
+      combinedNo: string;
+      levelWarMachine: string;
+      byHeroClass: string;
+      byArtifactClass: string;
+      byCreatureTier: string;
+      byAbility: string;
+      byMod: string;
+      tierBase: string;
+      tierUpgraded: string;
+      /** 选项搜索无结果 */
+      noOption: string;
+      byHeroSkill: string;
+      byArtifactSlot: string;
+      byBuildingDwelling: string;
+      dwellingYes: string;
+      dwellingNo: string;
+    };
     empty: string;
     noImage: string;
     enableAnimation: string;
@@ -218,6 +250,8 @@ export interface LangDict {
       classMajor: string;
       classRelic: string;
       classScroll: string;
+      /** 特殊宝物（VCMI ArtifactClass::SPECIAL，如战役/剧情宝物） */
+      classSpecial: string;
       classOther: string;
       slotHead: string;
       slotShoulders: string;

@@ -412,6 +412,10 @@ pub(crate) fn build_heroes(
             "imageIndex": image_index,
             // heroClass affinity：might/magic（wiki 英雄表分组依据）
             "affinity": hero_class_affinity.get(&class_id).cloned().unwrap_or_default(),
+            // 阵营 id（由 heroClass.faction 推导）：百科「英雄按阵营筛选」用。
+            // `alignment` 只表达善恶、无法区分具体阵营，故单独输出 id；
+            // 显示名由 cache.json 顶层 `factionNames` 映射解析（见 build/mod.rs）
+            "factionId": hero_class_faction.get(&class_id).cloned().unwrap_or_default(),
             // 阵营（由 heroClass.faction 推导，用于副标题带色，对齐 VCMI wiki 英雄页副标题）
             "alignment": hero_class_faction
                 .get(&class_id)

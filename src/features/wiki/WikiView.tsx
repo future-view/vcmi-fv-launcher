@@ -24,6 +24,8 @@ import { EntryDetail } from "@/features/wiki/detail/EntryDetail";
 import { WikiPopupProvider } from "@/features/wiki/detail/WikiPopup";
 import { useWikiPopup, usePopupTriggers } from "@/features/wiki/detail/WikiPopupContext";
 import { HdIcon } from "@/shared/HdIcon";
+import { WikiFilterPanel } from "@/features/wiki/WikiFilterPanel";
+import { artifactClassLabel, WIKI_FILTERS } from "@/features/wiki/filters";
 
 const CATEGORIES: { key: WikiCategory; label: (t: LangDict) => string }[] = [
   { key: "factions", label: (t) => t.wiki.factions },
@@ -49,6 +51,12 @@ export function WikiView() {
   const contentLang = contentLangKey(lang);
   const [category, setCategory] = useState<WikiCategory>("factions");
   const [query, setQuery] = useState("");
+  // 筛选：维度 key → 选中值（空串 / 缺省 = 全部）。切类目时清空，对齐 VCMI 切类目清空搜索框的语义
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  // 阵营 id → 多语言名（cache.json 顶层 `factionNames`，跨 mod 合并）：供「按阵营筛选」显示名字
+  const [factionNames, setFactionNames] = useState<Record<string, Record<string, string>>>({});
+  // modId（小写归一）→ 多语言名（取自索引条目名）：供「来源模组」筛选显示名字
+  const [modNames, setModNames] = useState<Record<string, Record<string, string>>>({});
   const [entries, setEntries] = useState<WikiEntry[]>([]);
   const [selected, setSelected] = useState<WikiEntry | null>(null);
   // 导航历史栈（对齐 VCMI wiki navHistory）：内容区链接/列表点选前压栈，返回按钮回退
@@ -108,6 +116,18 @@ export function WikiView() {
     setCounts(collectCounts(mods));
     setIndexed(new Set(mods.map((m) => m.modId)));
     setH3Missing(mods.some((m) => m.h3DataMissing));
+    // modId（小写归一）→ 多语言名：供「来源模组」筛选显示名字，顺带在此复用索引条目，
+    // 不对每个类目额外发 IPC。索引 name 为多语言对象；兼容旧缓存 / 外部 mock 的单串回退。
+    setModNames(
+      Object.fromEntries(
+        mods.map((m) => [
+          modIdKey(m.modId),
+          typeof m.name === "object" && m.name
+            ? (m.name as Record<string, string>)
+            : { chinese: String(m.name ?? m.modId), english: String(m.name ?? m.modId) },
+        ]),
+      ),
+    );
   }, []);
 
   // 首次进入：读 index；构建中则订阅状态，完成后自动刷新
@@ -200,6 +220,9 @@ export function WikiView() {
       // 法术/技能/宝物/生物：跨 mod 按 id 去重（builtin/原版收敛到 core，mod 定义优先覆盖原版）
       const spellMap = new Map<string, { mod: Record<string, unknown>; item: Record<string, unknown>; builtin: boolean }>();
       const entityMap = new Map<string, { mod: Record<string, unknown>; item: Record<string, unknown>; core: boolean }>();
+      // 阵营 id → 多语言名（cache.json 顶层 `factionNames`）：与分类数据同一次读取拿到，
+      // 无须为取标签额外发 IPC；跨 mod 合并，后见者覆盖。
+      const namesAcc: Record<string, Record<string, string>> = {};
       for (const mid of modIds) {
         let mod = cacheRef.current[mid];
         if (!mod) {
@@ -207,6 +230,9 @@ export function WikiView() {
           if (mod) cacheRef.current[mid] = mod;
         }
         if (!mod) continue;
+        if (mod.factionNames && typeof mod.factionNames === "object") {
+          Object.assign(namesAcc, mod.factionNames as Record<string, Record<string, string>>);
+        }
         const arr = (mod[cat] as unknown[]) ?? [];
         if (cat === "terrains") {
           for (const item of arr) {
@@ -328,6 +354,8 @@ export function WikiView() {
         }
         // 左栏计数 = 实际聚合条目数（原版法术等已跨 mod 去重，与列表一致）
         setCounts((prev) => ({ ...prev, [cat]: result.length }));
+        // 阵营名映射：合并各 mod 的顶层表（渲染时按 id 取词）
+        setFactionNames((prev) => ({ ...prev, ...namesAcc }));
         setEntries(result);
       setLoadedCategory(cat);
       setLoading(false);
@@ -458,22 +486,30 @@ export function WikiView() {
     };
   }, [selected]);
 
-  // 搜索过滤
+  // 搜索 + 筛选过滤
   //
-  // 匹配**条目的全部语言名**（`name` 是 VCMI 多语言对象，键为 chinese / tchinese / english / …），
+  // 搜索匹配**条目的全部语言名**（`name` 是 VCMI 多语言对象，键为 chinese / tchinese / english / …），
   // 而不是枚举某几种语言：界面语言已达 5 种且会继续增加，任何"写死中/英"的口径在新增语言时
   // 都会静默失效（只改文案救不了）。`id` 一并参与匹配，便于按 jsonKey 定位。
   // 这套「跨语言可搜」是**有意超出 VCMI 官方**的：官方只对当前语言显示名做模糊匹配
   // （`WikiWindow.cpp` 的 `isFuzzyMatch(filter, entry.name)`），而用户常常只记得另一种语言名。
+  //
+  // 筛选维度按类目取用（`WIKI_FILTERS`，见 filters.ts）：同一维度单选、不同维度取交集（AND）；
+  // 与搜索叠加时先筛后搜（两者都是纯过滤，先后不影响结果）。
   const filtered = useMemo(() => {
+    const activeSpecs = WIKI_FILTERS[category].filter((s) => filters[s.key]);
+    let list = entries;
+    if (activeSpecs.length) {
+      list = list.filter((e) => activeSpecs.every((s) => s.match(e, filters[s.key])));
+    }
     const q = query.trim().toLowerCase();
-    if (!q) return entries;
-    return entries.filter(
+    if (!q) return list;
+    return list.filter(
       (e) =>
         e.id.toLowerCase().includes(q) ||
         Object.values(e.name).some((v) => typeof v === "string" && v.toLowerCase().includes(q)),
     );
-  }, [entries, query]);
+  }, [entries, query, category, filters]);
 
   // 切换类目/搜索时重置分页窗口
   useEffect(() => {
@@ -545,6 +581,8 @@ export function WikiView() {
                 setCategory(c.key);
                 setSelected(null);
                 setQuery("");
+                // 筛选随类目清空：维度按类目定义，沿用上一个类目的选择没有意义
+                setFilters({});
               }}
               className={cn(
                 "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors",
@@ -567,13 +605,30 @@ export function WikiView() {
       {/* 中栏：条目 + 搜索 */}
       <section className="flex w-[300px] flex-none flex-col overflow-hidden rounded-xl border border-slate-800/60 bg-slate-900/60">
         <div className="border-b border-slate-800/60 p-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t.wiki.searchPlaceholder}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800/70 py-2 pl-8 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-blue-500"
+          {/* 头部：输入框（flex-1）+ 固宽工具槽。槽位宽度**不随类目变化** ——
+              筛选维度按类目变化的部分全部收进浮层（见 WikiFilterPanel），
+              以保证任何类目下输入框宽度与列表上沿都恒定。 */}
+          <div className="flex items-center gap-1.5">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t.wiki.searchPlaceholder}
+                className="w-full rounded-lg border border-slate-700 bg-slate-800/70 py-2 pl-8 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-blue-500"
+              />
+            </div>
+            <WikiFilterPanel
+              key={category}
+              specs={WIKI_FILTERS[category]}
+              entries={entries}
+              filters={filters}
+              onChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
+              onReset={() => setFilters({})}
+              contentLang={contentLang}
+              factionNames={factionNames}
+              modNames={modNames}
+              t={t}
             />
           </div>
         </div>
@@ -606,20 +661,9 @@ export function WikiView() {
               } else if (e.category === "creatures") {
                 sub = Number(ed.level) > 0 ? `T${ed.level}` : "";
               } else if (e.category === "artifacts") {
-                // 等级（class）：数字 0-4 → 珍藏/宝物/...；字符串 → class+PascalCase 键本地化
-                const cnum = Number(ed.class);
-                sub =
-                  Number.isFinite(cnum) && String(ed.class ?? "") !== ""
-                    ? [t.wiki.artifact.classTreasure, t.wiki.artifact.classMinor, t.wiki.artifact.classMajor, t.wiki.artifact.classRelic, t.wiki.artifact.classScroll][cnum] ??
-                      t.wiki.artifact.classOther
-                    : (() => {
-                        const raw = String(ed.class ?? "");
-                        const key =
-                          "class" + raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
-                        return (
-                          (t.wiki.artifact as Record<string, string>)[key] ?? raw
-                        );
-                      })();
+                // 等级：与「宝物等级」筛选项共用同一份实现（见 filters.ts 的 artifactClassLabel），
+                // 避免"列表显示的等级"与"筛选项文字"各写一遍而漂移
+                sub = artifactClassLabel(ed.class, t);
               } else if (e.category === "spells" || e.category === "skills") {
                 // VCMI 法术/技能列表行只有图标+名称，无副标题
                 sub = "";

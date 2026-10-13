@@ -513,7 +513,17 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
             merged.insert(id.to_string(), entry);
         }
     }
-    let index_mods: Vec<Value> = merged.into_values().collect();
+    // 索引条目顺序必须**确定**：此前直接取 `HashMap::into_values()`，顺序随进程随机种子变化，
+    // 每次重建缓存都不同。而消费方会把它当作稳定顺序使用（领域巡礼 `resolveTownIds` →
+    // `shuffleBySeed` → 截断），于是同一 seed 下"展示哪几个城镇"在重建后漂移，
+    // 破坏"编辑器预览 = 实际播放"的可复现性。按 modId 排序（与 index.rs 的全量入口同口径）。
+    let mut index_mods: Vec<Value> = merged.into_values().collect();
+    index_mods.sort_by(|a, b| {
+        a.get("modId")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .cmp(b.get("modId").and_then(|x| x.as_str()).unwrap_or(""))
+    });
     let index = json!({
         "generatedAt": crate::infra::time::now_millis(),
         "version": 2,

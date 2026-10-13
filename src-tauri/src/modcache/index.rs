@@ -195,6 +195,14 @@ pub(crate) fn build_all_wiki_inner(mods: &Value, cache_root: &Path) -> Value {
         }));
     }
 
+    // 与批量入口（batch.rs）统一顺序口径：按 modId 排序，使 index.json 的 mods 数组确定
+    // （扫描顺序受目录枚举影响，不该外泄到产物里）
+    index_mods.sort_by(|a, b| {
+        a.get("modId")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .cmp(b.get("modId").and_then(|x| x.as_str()).unwrap_or(""))
+    });
     let index = json!({
         "generatedAt": crate::infra::time::now_millis(),
         "version": 2,

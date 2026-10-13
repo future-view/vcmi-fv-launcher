@@ -14,7 +14,33 @@
 类目（9）：`factions` / `creatures` / `heroes` / `artifacts` / `spells` / `skills` / `buildings` / `terrains` / `mods`。
 
 - 搜索按**条目的全部语言名**（`name` 多语言对象的每个值：chinese / tchinese / english / …）+ 条目 `id` 做小写子串匹配，**不枚举具体语言**（新增界面语言无需改这里）；
+- **列表排序**：按当前界面语言的显示名升序（`Intl.Collator`，对齐 VCMI `WikiWindow.cpp` 各分类的 `std::sort(a.name < b.name)`）。`buildings` 额外保留「中立置顶」；
 - 列表滚动分页窗口 300 条，避免长列表卡顿。
+
+### 2.1 筛选
+
+中栏头部右侧是一个**固宽工具槽**（图标按钮，带已启用维度计数徽标），点击弹出筛选浮层。维度按类目声明在 `src/features/wiki/filters.ts` 的 `WIKI_FILTERS`：
+
+| 类目 | 维度 |
+|---|---|
+| `factions` | 阵营类型（`alignment`） |
+| `heroes` | 英雄职业（`class`，标签用条目自带 `className`）、英雄技能（`secondarySkills[].skill`，**多值**）、阵营名称（`factionId`，由 `heroClass.faction` 推导） |
+| `creatures` | 阵营名称（`faction`）、生物级别（`level`，0 = 战争机器）、生物形态（`upgradedFrom`：基础/升级）、生物能力（`abilities`，**多值**） |
+| `artifacts` | 宝物等级（`class`，标签与列表副标题共用 `artifactClassLabel`）、装备位（`slots`，**多值**）、是否组合宝物（`isCombined`）、来源模组 |
+| `spells` | 法术派系（`schools`，**多值**：命中即属于该学派）、法术等级（`level`）、来源模组 |
+| `buildings` | 阵营名称（`factionId`）、建筑类型（是否为招募建筑，按 id 前缀 `dwelling` 判定） |
+| `mods` | 模组类型（`type`，标签复用 `t.mods.typeLabels`） |
+| `skills` / `terrains` | 无（按钮保持**禁用态但占位**） |
+
+约定：
+
+- **新增一个筛选维度 = 往 `WIKI_FILTERS` 加一项**，UI 与布局零改动；选项与计数从当前类目**未筛选**的全量条目聚合；
+- 浮层内**一次只展开一个维度**（维度 ≥2 时显示 Tab 行，已选值的维度带小圆点）——否则多个大列表各带搜索框与独立滚动区，会叠成「面板滚动套列表滚动」的嵌套滚动。当前维度的控件形态由选项数决定（≤6 用 chip 行、>6 用「搜索 + 单选列表」），浮层整体限高 70vh；
+- 同一维度单选、不同维度取交集（AND），与搜索叠加；切类目时清空筛选（对齐 VCMI 切类目清空搜索框）；
+- **多值维度的语义是「命中即属于」**（法术学派、英雄技能、宝物装备位、生物能力），且同一实体内重复值只计一次：装备位要先经 `slotKeyOf` 归并 —— VCMI 用 `MISC1`~`MISC5` 表达「可放任一杂物槽」，直接展开会得到 5 个同义选项；
+- 显示名映射两条：阵营名取 `cache.json` 顶层 `factionNames`（后端按 `factions[].name` 输出，前端跨 mod 合并）；来源模组名取 `index.json` 条目名（前端在 `applyIndex` 建 `modId → 多语言名`，无需额外 IPC）。两者缺失时均回退 id 本身；
+- 「来源模组」**只挂在 `artifacts` / `spells`**（这两个类目没有阵营维度，且原版内容全部收敛到 `core`，故该维度等价于「原版 vs 某个 mod」）。不挂载的理由：`factions`（1 个城镇 mod 恰好提供 1 个阵营 → 筛选结果与列表一一对应、计数恒为 1）、`heroes` / `creatures`（条目按 `core.<faction>` 伪模组分散，与「阵营名称」重复）、`buildings`（已被「阵营」覆盖）、`skills`（原版技能全收敛到 core）、`terrains`（游戏级数据、跨 mod 去重后不归属单一模组）、`mods`（本身即模组清单）；
+- **布局不变量**：工具槽宽度、浮层都不参与列表布局 —— 任何类目下输入框宽度与列表上沿均恒定（列表上方不新增任何行）。
 
 ## 3. 数据来源
 

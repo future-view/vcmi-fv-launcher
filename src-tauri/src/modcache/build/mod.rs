@@ -698,6 +698,16 @@ pub(crate) fn build_mod_wiki_once(
     let objects = crate::infra::metrics::scope("ent.objects", || {
         data::object::build_objects(&i18n, raw_cfgs.get("objects").and_then(|x| x.as_object()), mod_id)
     });
+    // 阵营 id → 多语言名（取自 `factions[].name`）：供百科「按阵营筛选」把 id 显示为名字。
+    // 放在**顶层**而非塞进每个 creature / hero 条目：前端在同一次 cache.json 读取里即可拿到，
+    // 无须为取标签额外发 IPC；跨 mod 时前端合并各 mod 的映射即可。
+    let faction_names: serde_json::Map<String, Value> = factions
+        .iter()
+        .filter_map(|f| {
+            let id = f.get("factionId").and_then(|x| x.as_str())?;
+            Some((id.to_string(), f.get("name")?.clone()))
+        })
+        .collect();
     let mod_json = json!({
         "modId": mod_id,
         "sourceHash": source_hash,
@@ -738,6 +748,8 @@ pub(crate) fn build_mod_wiki_once(
         // 建筑图标提取失败诊断（声明了 buildingsIcons 但多通道全失败）：空数组 = 全部成功。
         // 阶段一不产图（assets 关闭）→ 恒为空，仅阶段二有意义；批次结束按汇总 WARN 提示。
         "iconFailures": icon_failures,
+        // 阵营 id → 多语言名映射（百科筛选用；见上方 faction_names 的说明）
+        "factionNames": faction_names,
         "factions": factions,
         "buildings": buildings,
         "creatures": creatures,
