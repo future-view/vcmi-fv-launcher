@@ -281,3 +281,22 @@ if (boot !== "ready") {
 ### 仍未处理（建议单独一期）
 
 **勾选 / 交互路径的全量重渲染**：`selected` 变化会连锁重算 `conflictSet`、`leftTree`（含 `localeCompare` 全树排序、`matchesQuery` 逐项正则）、右栏 `groups` / `allItems` / `forest`（两次排序），且 **600 行 `ModListItem` 无 `memo`**（其函数 props 是内联闭包，需先把 props 契约改为"稳定回调 + id 传参"；或改为 `portal` 预览层 + `content-visibility` / 虚拟化）。搜索已由 `useDeferredValue` 缓解；勾选路径暂无并发 / 切片保护 —— 若实测仍有"勾选一下卡一下"，从这里入手。
+
+## 10. 启动期"每次开 wiki 都弹重建进度条"（2026-10-14，方案 B+C）
+
+### 现象与判定
+缓存已构建，但每次重启启动器打开 `wiki` 页仍出现「生成模组缓存 / Generating mod cache」整页蒙层（两段进度条 `0/N`）。判定：**逐个核对是必要的，但把它渲染成"重建"不合理。**
+
+- **必要**：每次启动 `ensureWikiCacheBuilt`（`App.tsx`）都要逐个 mod 核对缓存（`scanRealMods` + `compute_source_hash`：`mod.json` 全文 + `content.zip` 首尾 64 KiB 采样）——否则无法发现新增 / 删除 / 改动的模组。这是硬需求。
+- **不合理**：核对极廉价且**不是重建**（命中即 `cached` 跳过，不解码 DEF / 不编码 webp），但旧实现一进来就置 `busy = true`，于是 wiki 页被重型"生成缓存"蒙层整页阻塞到两段扫完（`WikiView` 的 `ready = useWikiStagesDone(["data","assets"])`）；且阶段二在"阶段一已全 cached"时仍整批重跑一遍哈希。
+
+### 方案（B + C）★ 已实施
+- **B 预检**：新增命令 `wiki_cache_state`（`commands/cache.rs`）+ 前端 `probeWikiCacheState`（`lib/tauri.ts`）。判定逻辑抽为 `probe_mod_cache`（`modcache/build/mod.rs`），**与真实构建共用同一判定**（防两处口径漂移；回归锁 `smoke_tests/build_phase.rs::probe_mod_cache_matches_build`）。返回 `needData` / `needAssets` / `indexReady`。
+- **C 非阻塞**：`ensureWikiCacheBuilt` 把"扫描 + 预检"放到置 `busy` **之前** —— 预检期间 wiki / mods / 领域页用现有 `index.json` **立即渲染**，不再被蒙层整页阻塞；仅当"确有重建需求（或有数据但索引未就绪）"时才置 `busy`（蒙层此刻才出现）并走既有两阶段构建。
+- **全部命中且索引就绪 → 完全跳过构建**（不置 `busy`、不弹蒙层）。预检返回 `null`（命令缺失 / 异常）→ 退化为既有流程，**绝不因预检失败而漏建**。
+- 并发保护：预检期 `busy` 仍为 `false`，故新增模块级 `probing` 标志充当互斥（否则并发调用会重复预检并各自启动一次构建）。
+
+### 代价与取舍
+- 全命中：由"2 趟哈希"降为"1 趟预检"，**更快**；
+- 确需重建：多 1 趟预检哈希（共 3 趟），仅在重建时发生，可接受（未做"只建子集"以避免阶段 `total=0` 的语义坑）；
+- 首次运行（无缓存）：预检期间 wiki 会短暂空态再出蒙层，属一次性可接受。

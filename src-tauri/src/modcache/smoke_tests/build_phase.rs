@@ -306,6 +306,56 @@ fn test_wiki_all_types() {
     println!("abyss 生物带动画引用数: {}", anim_refs);
 }
 
+/// 回归：预检 `probe_mod_cache` 必须与真实构建**同源判定**（防两处口径漂移 —— 预检与构建
+/// 若分叉，就会出现"预检说不用建、构建却重建"或反之，直接表现为进度条行为错乱）。
+///
+/// 覆盖四种状态：无缓存 → `NeedData`；全量构建后 → `Cached`；图目录被删 → `NeedAssets`；
+/// 内容变化 → `NeedData`。全程在**临时副本**上操作，绝不改动仓库 fixture。
+#[test]
+#[ignore = "需真实游戏目录（Mods/vcmi 的 core.castle）"]
+fn probe_mod_cache_matches_build() {
+    use crate::modcache::build::{probe_mod_cache, ModCacheState};
+    let game_dir = game_dir();
+    let core_mod = game_dir.join("Mods").join("vcmi");
+    if !core_mod.is_dir() {
+        eprintln!("未检测到 {} 内的 Mods/vcmi，跳过", game_dir.display());
+        return;
+    }
+    let cache = std::env::temp_dir().join("vcmi_fv_test_probe");
+    let _ = fs::remove_dir_all(&cache);
+    let _ = fs::create_dir_all(&cache);
+    let mp = core_mod.to_string_lossy().to_string();
+    let cache_json = cache.join("core.castle").join("cache.json");
+    let state = |c: &Path| probe_mod_cache(&mp, "core.castle", c, &game_dir).state;
+
+    // 1) 无缓存 → 需要数据重建
+    assert_eq!(state(&cache), ModCacheState::NeedData, "无缓存应判 NeedData");
+
+    // 2) 两阶段全量构建 → 完全命中
+    let b = build_mod_wiki_inner(&mp, "core.castle", &cache, &game_dir);
+    assert_eq!(b.get("ok").and_then(|x| x.as_bool()), Some(true), "构建应成功: {b}");
+    assert_eq!(state(&cache), ModCacheState::Cached, "全量构建后应判 Cached");
+
+    // 3) 素材版本落后（篡改 `assetsVersion`）→ 仅素材缺失，强制重提取
+    let images = cache.join("core.castle").join("images");
+    assert!(images.is_dir(), "全量构建应产出 images/");
+    let mut v: Value = serde_json::from_str(&fs::read_to_string(&cache_json).unwrap()).unwrap();
+    v["assetsVersion"] = json!(0);
+    fs::write(&cache_json, serde_json::to_string(&v).unwrap()).unwrap();
+    assert_eq!(state(&cache), ModCacheState::NeedAssets, "assetsVersion 落后应判 NeedAssets");
+    // 重建补素材 → 回到命中
+    let _ = build_mod_wiki_inner(&mp, "core.castle", &cache, &game_dir);
+    assert_eq!(state(&cache), ModCacheState::Cached, "补素材后应回到 Cached");
+
+    // 4) 篡改缓存里的 sourceHash（等价于内容变化，且**不动游戏目录**）→ 缓存键失效
+    let mut v: Value = serde_json::from_str(&fs::read_to_string(&cache_json).unwrap()).unwrap();
+    v["sourceHash"] = json!("deadbeefdeadbeef");
+    fs::write(&cache_json, serde_json::to_string(&v).unwrap()).unwrap();
+    assert_eq!(state(&cache), ModCacheState::NeedData, "缓存键失效应判 NeedData");
+
+    println!("probe_mod_cache 与构建同源判定回归通过（NeedData→Cached→NeedAssets→Cached→NeedData）");
+}
+
 #[test]
 #[ignore = "需 references/Heroes3-VCMI 游戏 fixture"]
 fn test_wiki_incremental_cache() {

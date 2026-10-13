@@ -62,6 +62,8 @@ pub use cache::{
     build_all_mod_cache, build_mods_cache_batch, cancel_cache_build, generate_town_preview,
     get_mods_cache_dir, read_mod_cache, read_cache_index, cache_build_progress, read_mod_metas,
     read_town_cards, read_showcase_slides, ensure_showcase_audio,
+    // 启动预检：是否需要重建缓存（供前端决定是否弹蒙层）
+    wiki_cache_state,
     // 领域加急队列（S1）：独立进度通道 + 就绪检查
     build_realm_cache_urgent, cancel_realm_cache_build, check_realm_assets,
     realm_cache_build_progress,

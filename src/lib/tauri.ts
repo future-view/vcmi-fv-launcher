@@ -894,6 +894,34 @@ export async function buildModsWikiBatch(
   }
 }
 
+/** 预检返回：哪些 mod 需要重建（数据 / 素材），以及索引是否已可用。 */
+export interface WikiCacheState {
+  ok: boolean;
+  total: number;
+  indexReady: boolean;
+  needData: string[];
+  needAssets: string[];
+}
+
+/**
+ * **启动预检**：本次是否需要重建缓存（与真实构建**同源判定**，见后端 `wiki_cache_state`）。
+ *
+ * 用途：`ensureWikiCacheBuilt` 据此在"全部命中"时**完全跳过构建**（不置 `busy` → 不弹进度蒙层），
+ * 让 wiki / mods / 领域页直接用现有 `index.json` 渲染 —— 修复"每次启动都弹重建进度条"。
+ * 返回 `null`（命令不可用 / 异常）时调用方须退化为"照常构建"，**绝不因预检失败而漏建**。
+ */
+export async function probeWikiCacheState(
+  gameDir: string,
+  mods: { modId: string; modPath: string }[]
+): Promise<WikiCacheState | null> {
+  if (!isTauri()) return null;
+  try {
+    return await invoke<WikiCacheState>("wiki_cache_state", { gameDir, mods });
+  } catch {
+    return null;
+  }
+}
+
 /** 把领域**整合模组（bundled）**的资料分析进百科缓存 `.vcmi-fv-launcher/mods`。
  *
  * 这些模组随领域导入解包到 `{realm-dir}/vcmi/Mods/<modId>`，**不在全局已安装模组列表**里，

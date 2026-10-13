@@ -2,7 +2,7 @@
  * Wiki 缓存后台构建状态（轻量事件总线）。
  * App 初始化后后台触发构建；WikiView 订阅状态显示进度条。
  */
-import { buildModsWikiBatch, cancelWikiBuild, fetchWikiBuildProgress, isTauri, readLauncherConfig, scanRealMods } from "@/lib/tauri";
+import { buildModsWikiBatch, cancelWikiBuild, fetchWikiBuildProgress, isTauri, probeWikiCacheState, readLauncherConfig, scanRealMods } from "@/lib/tauri";
 import { clearHdMissing, getHdPhys, getHdRate } from "@/lib/hd";
 import { buildCoreEntries, flattenTree, toBatchPayload } from "./buildTargets";
 
@@ -92,6 +92,14 @@ const WIKI_BUILD_THROTTLE = 0;
 /** 暂停标志：由 pauseWikiBuild 置位，后端 job 在每个 mod 开始前检查（最多等已分发的少量 mod 跑完） */
 let cancelRequested = false;
 
+/**
+ * 预检中标志（模块级）。
+ *
+ * 预检阶段**不置 `busy`**（好让页面立即渲染），故 `busy` 不能再兼任"已有任务在跑"的互斥锁 ——
+ * 否则并发调用（如领域流程的 `ensureWikiCacheBuilt`）会重复跑预检并各自启动一次构建。
+ */
+let probing = false;
+
 /** 请求暂停后台构建（已完成的 mod 缓存保留，下次续跑） */
 export async function pauseWikiBuild(): Promise<void> {
   cancelRequested = true;
@@ -106,11 +114,10 @@ export async function pauseWikiBuild(): Promise<void> {
 export async function ensureWikiCacheBuilt(): Promise<void> {
   // 浏览器自测模式：无 Tauri 后端，构建不可用，直接消费 mock 缓存目录数据
   if (!isTauri()) return;
-  if (status.busy) return;
+  if (status.busy || probing) return;
+  probing = true;
   cancelRequested = false;
-  status = { busy: true, progress: { done: 0, total: 0 } };
   let lastEmit = 0;
-  emit();
   try {
     const cfg = await readLauncherConfig();
     const gameDir = cfg?.gameDir ?? "";
@@ -126,6 +133,22 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
     // 后端由 modId 本身识别作用域（见 parse_core_mod），无需额外参数。
     // 条目构造统一走 `buildCoreEntries`（原版伪模组的显示名由后端派生，前端不携带文案）。
     const all = [...buildCoreEntries(gameDir), ...scanned];
+    if (all.length === 0) return;
+
+    // ── B/C：启动预检（**刻意不置 `busy`**）─────────────────────────────
+    // 与真实构建**同源判定**（后端 `wiki_cache_state`，二者共用 `probe_mod_cache`）：
+    // "全部命中 + 索引已就绪" → 本次无需任何构建，直接返回。
+    // 因未置 `busy`：预检期间 wiki/mods/领域页用现有 `index.json` **立即渲染**（C，
+    // 不再被"生成模组缓存"的重型蒙层整页阻塞）；全部命中时更不会出现进度条（B）。
+    // 预检返回 `null`（命令缺失/异常）或有活要干 → 落入下方既有两阶段构建
+    // （兜底：预检失败绝不漏建）。
+    const probe = await probeWikiCacheState(gameDir, all);
+    if (probe?.ok && probe.indexReady && probe.needData.length === 0 && probe.needAssets.length === 0) {
+      return;
+    }
+    // 有活要干：**此刻才置 `busy`**（蒙层才出现），随后进入既有两阶段构建。
+    status = { busy: true, progress: { done: 0, total: 0 } };
+    emit();
 
     // 分两批：城镇类型优先 —— 模组页的城镇卡片依赖 preview 合成图，
     // 先构建城镇可让模组页尽快可用；其余类型后置，由后台逐步补充
@@ -272,6 +295,7 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
   } catch {
     status = { ...status, progress: null };
   } finally {
+    probing = false;
     status = { ...status, busy: false };
     emit();
   }

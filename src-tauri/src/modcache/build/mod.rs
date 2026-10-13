@@ -216,6 +216,103 @@ fn assets_dir_nonempty(cache_root: &Path, mod_id: &str) -> bool {
     false
 }
 
+/// 单个 mod 的缓存状态（**预检与构建共用同一判定**，避免两处口径漂移）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum ModCacheState {
+    /// 数据缓存失效（版本键不符 / 无缓存文件）→ 需要阶段一重建（连带阶段二）
+    NeedData,
+    /// 数据就绪，仅素材需补跑：`assetsVersion` 落后 / HD 来源变化 / 图已不在磁盘
+    NeedAssets,
+    /// 完全命中，无需任何工作
+    Cached,
+}
+
+/// [`probe_mod_cache`] 的结果：状态 + 旧缓存内容计数（免构建命中分支二次读盘）+ 是否需清旧产物。
+pub(crate) struct ModCacheProbe {
+    pub state: ModCacheState,
+    /// 旧 `cache.json` 的 `contentCount`（无缓存时为 `{}`）
+    pub content_count: Value,
+    /// `NeedAssets` 且需先清空 `images/` 与 `hd-map.json`（assets 版本落后 / HD 来源变化）
+    pub clear_stale: bool,
+}
+
+/// 判定单个 mod 的缓存状态 —— **构建与预检的唯一判定入口**。
+///
+/// 缓存键 = `v{WIKI_CACHE_VERSION}:{sourceHash}:{h3DataKey}:{h3CoreHash}:{schemaHash}`，
+/// 任一变化即整体失效（见 `modcache/version.rs`）。调用方：
+/// - [`build_mod_wiki_phase_inner`]（真实构建，据状态决定跳过 / 补素材 / 重建）；
+/// - `commands::cache::wiki_cache_state`（启动预检，据状态决定是否弹进度蒙层）。
+///
+/// ⚠️ 成本 = 一次 [`compute_source_hash`]（`mod.json` 全文 + `content.zip` 首尾 64 KiB 采样），
+/// 与真实构建同源，故预检不会引入"第二次不同口径的判断"。
+pub(crate) fn probe_mod_cache(
+    mod_path: &str,
+    mod_id: &str,
+    cache_root: &Path,
+    game_dir: &Path,
+) -> ModCacheProbe {
+    let need_data = ModCacheProbe {
+        state: ModCacheState::NeedData,
+        content_count: json!({}),
+        clear_stale: false,
+    };
+    let p = PathBuf::from(mod_path);
+    if !p.is_dir() {
+        // 目录不存在：交由构建路径报 notfound，预检按"需重建"处理（保守：宁可多建不少建）
+        return need_data;
+    }
+    let source_hash = compute_source_hash(&p);
+    // 以下三个指纹与构建入口完全一致（原版数据状态 / h3-core 文案 / 内置 schema）
+    let h3_key = h3_data_key(game_dir, &wiki_user_data_dir().unwrap_or_default());
+    let schema_key = crate::modcache::schema::schema_content_hash();
+    let h3_core_hash = h3_core_data_hash();
+    let version_key = format!("v{WIKI_CACHE_VERSION}:{source_hash}:{h3_key}:{h3_core_hash}:{schema_key}");
+    let out_path = cache_root.join(format!("{}/cache.json", sanitize_id(mod_id)));
+    if let Ok(text) = fs::read_to_string(&out_path) {
+        if let Ok(v) = serde_json::from_str::<Value>(&text) {
+            let h3_core_hash_old = v.get("h3CoreHash").and_then(|x| x.as_str()).unwrap_or("");
+            let old_key = format!(
+                "v{}:{}:{}:{}:{}",
+                v.get("cacheVersion").and_then(|x| x.as_u64()).unwrap_or(0),
+                v.get("sourceHash").and_then(|x| x.as_str()).unwrap_or(""),
+                v.get("h3DataKey").and_then(|x| x.as_str()).unwrap_or(""),
+                h3_core_hash_old,
+                v.get("schemaHash").and_then(|x| x.as_str()).unwrap_or("")
+            );
+            let cc = v.get("contentCount").cloned().unwrap_or(json!({}));
+            if v.get("sourceHash").is_some() && old_key == version_key {
+                let assets_ver_ok = v.get("assetsDone").and_then(|x| x.as_bool()).unwrap_or(false)
+                    && v.get("assetsVersion").and_then(|x| x.as_u64()).unwrap_or(0)
+                        >= ASSETS_VERSION as u64;
+                // HD 来源（`hd-edition`）指纹：装 / 卸 / 升级或切档位后需重跑素材阶段补登记，
+                // 即使 `assetsVersion` 未变（见 `modcache::hd_map::source_mark_matches`）。
+                let hd_ok = crate::modcache::hd_map::source_mark_matches(cache_root, mod_id);
+                if assets_ver_ok && hd_ok {
+                    // 方案 B 兜底：若该 mod 本应产出图像素材，但磁盘上的图已不在，则放弃命中、强制重提取
+                    // （前线 `check_realm_assets` 会据此再次判缺失并重跑，否则陷入"每次打开都重跑"死循环）。
+                    let image_bearing = ["faction", "creature", "hero", "building"].iter().any(|k| {
+                        v.get("contentCount")
+                            .and_then(|c| c.get(k))
+                            .and_then(|x| x.as_u64())
+                            .unwrap_or(0)
+                            > 0
+                    });
+                    if !image_bearing || assets_dir_nonempty(cache_root, mod_id) {
+                        return ModCacheProbe { state: ModCacheState::Cached, content_count: cc, clear_stale: false };
+                    }
+                    // 图不在磁盘 → 仅需重提取（无需清理：本来就没有）
+                    return ModCacheProbe { state: ModCacheState::NeedAssets, content_count: cc, clear_stale: false };
+                }
+                // 素材版本落后 / HD 来源变化 → 需补跑并清旧产物：
+                // 前者避免"改了编码策略但旧图还在"；后者保证 `hd-map.json` 被重新写入
+                // （图已存在时会走短路、不再登记，只有强制重提取才能补上）。
+                return ModCacheProbe { state: ModCacheState::NeedAssets, content_count: cc, clear_stale: true };
+            }
+        }
+    }
+    need_data
+}
+
 fn build_mod_wiki_phase_inner(
     mod_path: &str,
     mod_id: &str,
@@ -227,73 +324,31 @@ fn build_mod_wiki_phase_inner(
     if !p.is_dir() {
         return json!({ "ok": false, "error": "notfound" });
     }
-    let source_hash = compute_source_hash(&p);
-    // 原版数据状态指纹并入缓存键：用户补放 / 移除 `Data/*.lod` 时状态变化，触发一次重建
-    // （修复"缺数据却误判素材完成、之后放数据也不重读"）；数据稳定时指纹不变，零重建。
-    // 探测结果按目录对缓存，正常构建路径仅一次哈希查询，无额外开销。
-    let h3_key = h3_data_key(game_dir, &wiki_user_data_dir().unwrap_or_default());
-    // 内置 VCMI 配置定义（schema）的 contentHash 并入缓存键：
-    // 启动器升级（自带新 schema）或手动替换 `resources/vcmi-schemas/` 后，
-    // schema 变化即触发缓存重建——即便开发者忘了递增 `WIKI_CACHE_VERSION` 也不会出现
-    // "换了协议但缓存不重建 → 新字段不生效"的假象。用户无感（后台静默重建）。
-    let schema_key = crate::modcache::schema::schema_content_hash();
-    // h3-core 内容指纹：改其文案（如原版城镇描述）后自动触发重建，无需手动 bump 版本号
-    // （仿 schema_content_hash 的设计；`h3_key` 只表示 LOD 在不在，不含内容）。
-    let h3_core_hash = h3_core_data_hash();
-    let version_key = format!("v{WIKI_CACHE_VERSION}:{source_hash}:{h3_key}:{h3_core_hash}:{schema_key}");
-    let out_path = cache_root.join(format!("{}/cache.json", sanitize_id(mod_id)));
-    if out_path.is_file() {
-        if let Ok(text) = fs::read_to_string(&out_path) {
-            if let Ok(v) = serde_json::from_str::<Value>(&text) {
-                let h3_core_hash_old = v.get("h3CoreHash").and_then(|x| x.as_str()).unwrap_or("");
-                let old_key = format!(
-                    "v{}:{}:{}:{}:{}",
-                    v.get("cacheVersion").and_then(|x| x.as_u64()).unwrap_or(0),
-                    v.get("sourceHash").and_then(|x| x.as_str()).unwrap_or(""),
-                    v.get("h3DataKey").and_then(|x| x.as_str()).unwrap_or(""),
-                    h3_core_hash_old,
-                    v.get("schemaHash").and_then(|x| x.as_str()).unwrap_or("")
-                );
-                if v.get("sourceHash").is_some() && old_key == version_key {
-                    let assets_done = v.get("assetsDone").and_then(|x| x.as_bool()).unwrap_or(false);
-                    let assets_ver = v.get("assetsVersion").and_then(|x| x.as_u64()).unwrap_or(0);
-                    // HD 来源（`hd-edition`）指纹：装 / 卸 / 升级或切档位后需重跑素材阶段补登记，
-                    // 即使 `assetsVersion` 未变（见 `modcache::hd_map::source_mark_matches`）。
-                    let hd_ok = crate::modcache::hd_map::source_mark_matches(cache_root, mod_id);
-                    if assets_done && assets_ver >= ASSETS_VERSION as u64 && hd_ok {
-                        // 方案 B 兜底：若该 mod 本应产出图像素材，但磁盘上的图已不在，则放弃命中、强制重提取
-                        // （前线 `check_realm_assets` 会据此再次判缺失并重跑，否则陷入"每次打开都重跑"死循环）。
-                        let image_bearing = ["faction", "creature", "hero", "building"]
-                            .iter()
-                            .any(|k| {
-                                v.get("contentCount")
-                                    .and_then(|c| c.get(k))
-                                    .and_then(|x| x.as_u64())
-                                    .unwrap_or(0)
-                                    > 0
-                            });
-                        if !image_bearing || assets_dir_nonempty(cache_root, mod_id) {
-                            let cc = v.get("contentCount").cloned().unwrap_or(json!({}));
-                            return json!({ "ok": true, "cached": true, "cachePath": out_path.to_string_lossy(), "contentCount": cc });
-                        }
-                    }
-                    // 阶段一：数据已就绪，无事由，直接视为命中
-                    if phase == 0 {
-                        let cc = v.get("contentCount").cloned().unwrap_or(json!({}));
-                        return json!({ "ok": true, "cached": true, "cachePath": out_path.to_string_lossy(), "contentCount": cc });
-                    }
-                    // 素材版本落后 / HD 来源变化 → 清掉旧图与登记再补跑：
-                    // 前者避免"改了编码策略但旧图还在"；后者保证 `hd-map.json` 被重新写入
-                    // （图已存在时会走短路、不再登记，只有强制重提取才能补上）。
-                    if assets_ver < ASSETS_VERSION as u64 || !hd_ok {
-                        let dir = cache_root.join(sanitize_id(mod_id));
-                        let _ = fs::remove_dir_all(dir.join("images"));
-                        let _ = fs::remove_file(dir.join("hd-map.json"));
-                    }
-                    return build_mod_wiki_once(mod_path, mod_id, cache_root, game_dir, true);
-                }
+    let probe = probe_mod_cache(mod_path, mod_id, cache_root, game_dir);
+    let cached_json = |cc: &Value| {
+        json!({
+            "ok": true,
+            "cached": true,
+            "cachePath": cache_root.join(format!("{}/cache.json", sanitize_id(mod_id))).to_string_lossy(),
+            "contentCount": cc,
+        })
+    };
+    match probe.state {
+        // 完全命中
+        ModCacheState::Cached => return cached_json(&probe.content_count),
+        ModCacheState::NeedAssets => {
+            // 阶段一只要数据：数据已命中 → 直接视为命中（素材留到阶段二）
+            if phase == 0 {
+                return cached_json(&probe.content_count);
             }
+            if probe.clear_stale {
+                let dir = cache_root.join(sanitize_id(mod_id));
+                let _ = fs::remove_dir_all(dir.join("images"));
+                let _ = fs::remove_file(dir.join("hd-map.json"));
+            }
+            return build_mod_wiki_once(mod_path, mod_id, cache_root, game_dir, true);
         }
+        ModCacheState::NeedData => { /* 落到下方完整构建 */ }
     }
     // 要求"只补素材"却连数据都没有（首次构建直接跑阶段二）→ 退化为完整构建
     if phase == 1 {

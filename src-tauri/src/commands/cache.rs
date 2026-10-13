@@ -5,15 +5,18 @@
 use crate::infra::berror::be_err;
 use serde_json::{json, Value};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::State;
 
 use crate::state::AppPaths;
 use crate::vcmi::paths::VcmiPaths;
+use crate::vcmi::resource::{set_wiki_mod_paths, set_wiki_user_data_dir};
+use crate::vcmi::scan::cached_mod_paths;
 use crate::modcache::batch::{
     BatchWikiMod, BuildSlot, REALM_BUILD_CANCEL, REALM_BUILD_DONE, REALM_BUILD_TOTAL,
     WIKI_BUILD_CANCEL, WIKI_BUILD_DONE, WIKI_BUILD_TOTAL,
 };
+use crate::modcache::build::{probe_mod_cache, ModCacheState};
 use crate::modcache::index::{build_all_wiki_inner, read_mod_wiki_inner};
 use crate::modcache::preview::generate_town_preview_inner;
 
@@ -261,6 +264,67 @@ pub fn check_realm_assets(ids: Vec<String>) -> Value {
         }
     }
     json!({ "ready": missing.is_empty(), "missing": missing, "checked": ids.len() })
+}
+
+/// 启动预检：本次是否**真的需要重建缓存**（供前端决定是否弹进度蒙层 / 是否整批跳过）。
+///
+/// 与真实构建**共用同一判定**（[`probe_mod_cache`]），故口径一致 —— 不会出现"预检说不用建、
+/// 构建却重建"或反之的错位。成本 = 每个 mod 一次 `compute_source_hash`（`mod.json` 全文 +
+/// `content.zip` 首尾 64 KiB 采样），`652 个 mod` 量级为秒级，远低于真实构建。
+///
+/// 返回 `needData` / `needAssets` 两类 modId 列表 + `indexReady`（索引是否已可用）。
+/// 三者皆"空 / 就绪"时，前端**不置 busy、不弹蒙层**，直接用现有 `index.json` 渲染
+/// （见 `src/lib/modcache/status.ts::ensureWikiCacheBuilt`）—— 这是"每次启动都弹重建进度条"的修复点。
+#[tauri::command]
+pub async fn wiki_cache_state(
+    game_dir: String,
+    mods: Vec<BatchWikiMod>,
+) -> Result<Value, String> {
+    let cache_root = VcmiPaths::mods_cache_dir()
+        .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
+    tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
+        // 与构建入口（`batch::build_mods_cache_batch_inner_hd`）同源的进程级注入：
+        // 判定依赖 user_data_dir（原版数据指纹）、跨模组资源路径、HD 来源指纹，缺一都会误判。
+        let paths = VcmiPaths::detect();
+        set_wiki_user_data_dir(&paths.user_dir);
+        set_wiki_mod_paths(&cached_mod_paths(&paths));
+        crate::vcmi::hd_edition::setup_from_config(
+            VcmiPaths::read_launcher_config().as_ref(),
+            Path::new(&game_dir),
+        );
+        // 索引是否已可用（存在且非空）：决定"零重建"时能否直接跳过构建。
+        let index_ready = {
+            let p = cache_root.join("index.json");
+            fs::read_to_string(&p)
+                .ok()
+                .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+                .and_then(|v| v.get("mods").and_then(|m| m.as_array()).map(|a| !a.is_empty()))
+                .unwrap_or(false)
+        };
+        let gd = Path::new(&game_dir);
+        let mut need_data: Vec<Value> = Vec::new();
+        let mut need_assets: Vec<Value> = Vec::new();
+        for m in &mods {
+            match probe_mod_cache(&m.mod_path, &m.mod_id, &cache_root, gd).state {
+                // 数据失效 → 阶段一重建，阶段二必然跟着补素材
+                ModCacheState::NeedData => {
+                    need_data.push(json!(m.mod_id));
+                    need_assets.push(json!(m.mod_id));
+                }
+                ModCacheState::NeedAssets => need_assets.push(json!(m.mod_id)),
+                ModCacheState::Cached => {}
+            }
+        }
+        Ok(json!({
+            "ok": true,
+            "total": mods.len(),
+            "indexReady": index_ready,
+            "needData": need_data,
+            "needAssets": need_assets,
+        }))
+    })
+    .await
+    .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?
 }
 
 /// 多线程批量构建 Wiki 缓存（rayon 并行，增量：hash 命中即跳过）。
