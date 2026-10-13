@@ -43,11 +43,11 @@
       "title": "VCMI-FV-Launcher 0.1.0",
       "tag": "v0.1.0",
       "target": "main",
-      "commit": "532d1348ba48557a20ad90e4151e4b863f6624a9",
+      "commit": "1e4873715975bacef8b620b6d589d61b86a9e941",
       "page": "https://github.com/future-view/vcmi-fv-launcher/releases/tag/v0.1.0",
       "updateVersion": "0.1.0",
       "prerelease": false,
-      "publishedAt": "2026-10-11",
+      "publishedAt": "2026-10-13",
       "critical": false,
       "notesSource": "changelog",
       "notes": {
@@ -74,47 +74,31 @@
       },
       "assets": [
         {
-          "name": "VCMI-FV-Launcher_0.1.0_x64-setup.exe",
-          "role": "installer",
-          "path": "download/v0.1.0/VCMI-FV-Launcher_0.1.0_x64-setup.exe",
-          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/VCMI-FV-Launcher_0.1.0_x64-setup.exe",
-          "size": 7504659,
-          "sha256": "ee26d0ee6142bdbce508803dfb15e1312a7305b3a0b24c6762c4f8d6e15cd0cb"
-        },
-        {
-          "name": "VCMI-FV-Launcher_0.1.0_x64_en-US.msi",
-          "role": "installer",
-          "path": "download/v0.1.0/VCMI-FV-Launcher_0.1.0_x64_en-US.msi",
-          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/VCMI-FV-Launcher_0.1.0_x64_en-US.msi",
-          "size": 10108928,
-          "sha256": "d92476748a5201c0034d31c8f33e7af7fa7822a59e3c2070a310c0f387d64c5a"
-        },
-        {
-          "name": "portable_0.1.0_20261011-00.zip",
+          "name": "portable_0.1.0_20261013-14_windows-x86_64.zip",
           "role": "update",
-          "path": "download/v0.1.0/portable_0.1.0_20261011-00.zip",
-          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/portable_0.1.0_20261011-00.zip",
-          "size": 9742307,
-          "sha256": "2720979eeab622042195c26c999b6106365f4fdc78ee4a1b0b6c43aaa398fd86"
+          "path": "download/v0.1.0/portable_0.1.0_20261013-14_windows-x86_64.zip",
+          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/portable_0.1.0_20261013-14_windows-x86_64.zip",
+          "size": 9811538,
+          "sha256": "0c4c649d07f84d116a5368ec10bcea6035302468eddee4f666ab9946401ccbab"
         },
         {
           "name": "vcmi-fv-launcher.exe",
           "role": "binary",
           "path": "download/v0.1.0/vcmi-fv-launcher.exe",
           "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/vcmi-fv-launcher.exe",
-          "size": 24830464,
-          "sha256": "3b3de76e04c9eaf2847b7aa06845622632f81cf2d6404a3d136087e5ac27b563"
+          "size": 25202688,
+          "sha256": "a063e65beb8947a3298b355ae36afc83a1c1c4d33d8f1a575f5830750a56e175"
         }
       ],
       "preset": {
         "file": "launcher.patch.json",
-        "sha256": "cf3d6cf32536dc6d90432889525800d155b41b45d5391f65d7cf71f8b7f9a584"
+        "sha256": "c1253bddb5ee9df9c99320b4dde91bc49c9968936b3a09eaafa992d1918e8b81"
       },
       "pack": {
-        "dir": "0.1.0_20261011-00",
+        "dir": "0.1.0_20261013-14_windows-x86_64",
         "profile": "release",
         "flavor": null,
-        "builtAt": "2026-10-10T16:06:21.734Z"
+        "builtAt": "2026-10-13T06:00:32.996Z"
       }
     }
   ]

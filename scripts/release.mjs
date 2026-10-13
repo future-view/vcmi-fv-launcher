@@ -9,8 +9,9 @@
  *            `--version <semver>` 定版并注入 Cargo.toml + tauri.conf.json；`--temp-version` 改为构建后还原；
  *            `--test` = 一键测试包（临时注入 + 不进更新链 + 不出安装包 + 自动 `<现版本>-dev.<日期>`）
  *   publish  发布到 GitHub Releases（建 tag/release → 流式传资产 → 用 API 结果更新索引）
- *   preview  本地预演：生成**派生索引** releases/index.local.json（下载地址改写到本地静态服务）
- *            —— 用于在 publish 之前跑通「发现更新 → 下载 → 应用」；⚠️ 永不写 releases/index.json
+ *   preview  本地预演：生成 **per-target 本地清单** releases/update/<platform>.local.json（下载地址
+ *            改写到本地静态服务，ADR 0008 D5）—— 用于在 publish 之前跑通「发现更新 → 下载 → 应用」；
+ *            ⚠️ 永不写 releases/index.json 与线上的 update/*.json
  *   verify   索引契约自检（结构 / 投影一致性 / 预置一致性 / ChangeLog 一致性 / --online 可达性）
  *   status   索引版本 vs 本地已打包目录
  *
@@ -774,7 +775,9 @@ function resolveNotes(opts, ctx) {
       `  ① 在 ${path.relative(ROOT, clPath)} 里加一节 "## v${ctx.release}"（推荐）\n` +
       `  ② --notes "第一条;第二条"（--notes-lang 指定语言，缺省 chinese）\n` +
       `  ③ --notes-file <说明.md|说明.json>\n` +
-      `  ④ --allow-empty-notes（不推荐：更新弹窗里将没有任何说明）`,
+      `  ④ --allow-empty-notes（不推荐：更新弹窗里将没有任何说明）\n` +
+      `  ℹ️ 说明只写进 release.json / 条目片段，**不影响二进制与便携 zip 内容**——若产物已构建好，\n` +
+      `     可加 --no-build 直接重打发行包（复用 src-tauri/target 里的现有产物，无需重新编译）`,
   );
 }
 
@@ -1440,7 +1443,17 @@ function cmdPack(opts) {
   /** 标记"target 里的产物是测试版本"（防 --no-build 把测试 exe 当正式包发出去） */
   const TEST_BUILD_MARK = path.join(ROOT, "src-tauri", "target", profile, ".fv-test-build.json");
 
-  // 1) 随包预置补丁（**必须早于构建**：bundle.resources 构建期要读它）
+  // 1) 更新说明（**fail-fast：必须早于构建**）
+  //    说明只写进 release.json / 条目片段，**不影响二进制与便携 zip 内容** ⇒ 完全可以在编译前校验。
+  //    放在构建前是为了"没写 ChangeLog 就别白烧一次编译"（历史上这里排在构建之后，用户补完
+  //    ChangeLog 重跑要重新编译一遍）。
+  //    不进更新链的包（--test / 预发行）缺说明只告警：它们不会出现在更新弹窗里。
+  const notesRes = resolveNotes(opts, { release: releaseId, contractVersion, allowMissing: noChain });
+  if (!Object.keys(notesRes.notes).length) {
+    warn(`没有更新说明（ChangeLog.md 里没有 "${releaseId}" 节）—— 本包不进更新链，按测试/预发行处理`);
+  }
+
+  // 2) 随包预置补丁（**必须早于构建**：bundle.resources 构建期要读它）
   const presetChanged = writePresetFiles(preset);
   const presetPath = activePresetFile(opts.flavor || "");
   const presetSha = sha256File(presetPath).hash;
@@ -1449,7 +1462,7 @@ function cmdPack(opts) {
     warn(`索引未声明 preset.flavors.${opts.flavor}：本次 ${opts.flavor} 包只用 base 预置（不会默认启用该 flavor 的功能）`);
   }
 
-  // 2) 构建
+  // 3) 构建
   if (!opts.noBuild) {
     // 先落标记：构建中途失败时 target/ 里也已是被注入版本编译出的产物，标记必须存在
     if (temp && needInject) writeJsonAtomic(TEST_BUILD_MARK, { version: contractVersion, at: nowIso() });
@@ -1486,7 +1499,7 @@ function cmdPack(opts) {
     log("跳过构建（--no-build）：直接用 src-tauri/target 里的现有产物");
   }
 
-  // 3) 提取产物（内部读一次 Cargo.toml 版本 → 必须在"临时注入还原"之前）
+  // 4) 提取产物（内部读一次 Cargo.toml 版本 → 必须在"临时注入还原"之前）
   const ex = extractArtifacts({ profile, flavor: opts.flavor, zip: true, platform, bundles });
   const info = ex.info;
 
@@ -1494,12 +1507,6 @@ function cmdPack(opts) {
   if (temp && needInject) {
     restoreVersionFiles();
     PENDING_TEMP_RESTORE = false;
-  }
-
-  // 4) 说明（**不进更新链**的包缺说明只告警：测试/预发行不该因 ChangeLog 没写而卡住）
-  const notesRes = resolveNotes(opts, { release: releaseId, contractVersion, allowMissing: noChain });
-  if (!Object.keys(notesRes.notes).length) {
-    warn(`没有更新说明（ChangeLog.md 里没有 "${releaseId}" 节）—— 本包不进更新链，按测试/预发行处理`);
   }
 
   // 5) 条目
@@ -2014,27 +2021,7 @@ async function cmdPublish(opts) {
 
 /* ────────────────────────────── 子命令：preview（本地预演，不推送） ────────────────────────────── */
 
-/** 扫 `releases/<dir>/index.entry.json` →（发行标识 ⇒ 本地目录名）：只有这些发行能由本地服务提供 */
-function localPackDirs() {
-  const root = path.join(ROOT, "releases");
-  const map = new Map();
-  if (!fs.existsSync(root)) return map;
-  for (const e of fs.readdirSync(root, { withFileTypes: true })) {
-    if (!e.isDirectory()) continue;
-    const f = path.join(root, e.name, "index.entry.json");
-    if (!fs.existsSync(f)) continue;
-    try {
-      const r = JSON.parse(fs.readFileSync(f, "utf8"))?.release;
-      // 键 = (release, platform)：同一版本多个平台的本地目录各占一项（ADR 0008 多平台台账）
-      if (r?.release) map.set(`${r.release}#${r.platform ?? ""}`, e.name);
-    } catch {
-      warn(`跳过坏片段：releases/${e.name}/index.entry.json`);
-    }
-  }
-  return map;
-}
-
-/** 预演静态服务：以 `releases/` 为根（`/index.local.json` + `/<dir>/<asset>`） */
+/** 预演静态服务：以 `releases/` 为根（`/update/<platform>.local.json` + `/<dir>/<asset>`） */
 function serveLocal({ port }) {
   const root = path.resolve(ROOT, "releases");
   const MIME = {
@@ -2083,10 +2070,12 @@ function serveLocal({ port }) {
 }
 
 /**
- * 本地预演：生成**派生索引** `releases/index.local.json`（把下载地址改写到本地静态服务），
- * 可顺带起一个零依赖服务 —— 用于在 publish 之前跑通「旧版 → 发现更新 → 下载 → 应用」整条链。
+ * 本地预演：生成 **per-target 本地清单** `releases/update/<platform>.local.json`（把下载地址改写到
+ * 本地静态服务，ADR 0008 D5），可顺带起一个零依赖服务 —— 用于在 publish 之前跑通
+ * 「旧版 → 发现更新 → 下载 → 应用」整条链。
  *
  * ⚠️ 永不写 `releases/index.json`：索引里出现的必须可下载，未发布的包写进真索引 = 全网 404。
+ * ⚠️ 也不再写 `releases/index.local.json`：更新源已是 per-target 清单，派生索引没有消费者。
  */
 async function cmdPreview(opts) {
   const releaseId = opts.version ? String(opts.version) : readCargoVersion();
@@ -2112,36 +2101,11 @@ async function cmdPreview(opts) {
   // 本地形状：服务以 releases/ 为根 ⇒ 资产在 `/<dir>/<name>`
   const dl = { base, tpl: "{base}/{dir}/{name}" };
 
-  const dirs = localPackDirs();
-  const local = JSON.parse(JSON.stringify(index));
-  local.releases = [
-    ...local.releases.filter((r) => !(r.release === releaseId && (r.platform ?? "") === (entry.platform ?? ""))),
-    entry,
-  ];
-  for (const r of local.releases) {
-    const d = dirs.get(`${r.release}#${r.platform ?? ""}`);
-    // 本地没有该发行的目录 → 保持索引里的原地址（只参与版本比较，latest 不会指向它）
-    if (!d) continue;
-    r.assets = (r.assets ?? []).map((a) => ({
-      ...a,
-      path: `${d}/${a.name}`,
-      url: assetUrl(dl, r.tag, a.name, r.release, d),
-    }));
-    for (const a of r.assets) {
-      if (!fs.existsSync(path.join(ROOT, "releases", d, a.name))) {
-        warn(`本地缺少资产 releases/${d}/${a.name} —— 预演时该地址会 404`);
-      }
-    }
-  }
-  // 明文 http 必须**显式放行**：更新器默认只认 https，且读的是**顶层** allowHttp
-  // （不是 download.allowHttp —— src-tauri/src/updater/manifest.rs::download_scheme_ok）
-  local.allowHttp = true;
-  local.download = {
-    ...(local.download ?? {}),
-    base,
-    pathTemplate: dl.tpl,
-    note: "release:preview 派生索引：地址已改写到本地预演服务（勿提交）",
-  };
+  // ⚠️ 这里**不再生成**派生索引 `releases/index.local.json`（ADR 0008 之后更新源是下面的 per-target
+  //    清单，派生索引已无消费者/无写入点）。曾残留一段"给索引里每个条目改写本地地址 + 检查本地资产
+  //    齐备"的死代码，它把**旧版本台账条目**（资产是已发布到 GitHub 的历史资产，本地通常已清理）
+  //    与本地目录按 (release, platform) 错配，误报一串"本地缺少资产…预演时该地址会 404"。
+  //    预演只需保证**本次预演的那个版本**能被本地服务提供 —— 见下面的清单构造（它只含当前条目）。
   // per-target 本地更新清单（ADR 0008 D5）：与线上同款形状，下载地址改写到本地静态服务
   const packInfoLocal = fs.existsSync(path.join(dir, "release.json"))
     ? readJson(path.join(dir, "release.json"), "release.json")
@@ -2596,7 +2560,7 @@ VCMI-FV 启动器发行工具（唯一入口）
 用法：
   node scripts/release.mjs pack     [选项]    本地发包（构建 → 提取 → 预置补丁 → 条目片段）
   node scripts/release.mjs publish  [选项]    发布到 GitHub Releases 并更新 releases/index.json
-  node scripts/release.mjs preview  [选项]    本地预演：派生索引 + 静态服务（不推送、不写真索引）
+  node scripts/release.mjs preview  [选项]    本地预演：per-target 本地清单 + 静态服务（不推送、不写真索引）
   node scripts/release.mjs verify   [选项]    索引契约自检
   node scripts/release.mjs status             索引版本 vs 本地已打包目录
 
@@ -2640,8 +2604,8 @@ preview（本地预演：publish 之前跑通「发现更新 → 下载 → 应�
   --dir <path>           指定本地发行目录（缺省按 --version 自动匹配）
   --serve                同时起内置静态服务（根 = releases/）
   --port <n>             端口（缺省 8765）
-  --base <url>           只生成派生索引、改用这个 base（自带 nginx / python 静态服务时）
-  ⚠️ 只写 releases/index.local.json（git 已忽略），**永不**写 releases/index.json
+  --base <url>           本地清单里下载地址的 base（自带 nginx / python 静态服务时用；缺省 127.0.0.1:<port>）
+  ⚠️ 只写 releases/update/<platform>.local.json（git 已忽略）；**永不**写 releases/index.json 与线上 update/*.json
 
 说明（pack / publish / preview 通用）：
   --notes <文本>         （最高优先级）更新说明，";" 分行

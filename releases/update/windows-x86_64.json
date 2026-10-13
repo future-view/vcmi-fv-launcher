@@ -6,14 +6,14 @@
   "versions": [
     {
       "version": "0.1.0",
-      "download": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/portable_0.1.0_20261011-00.zip",
-      "sha256": "2720979eeab622042195c26c999b6106365f4fdc78ee4a1b0b6c43aaa398fd86",
-      "size": 9742307,
+      "download": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.1.0/portable_0.1.0_20261013-14_windows-x86_64.zip",
+      "sha256": "0c4c649d07f84d116a5368ec10bcea6035302468eddee4f666ab9946401ccbab",
+      "size": 9811538,
       "format": "zip",
       "kind": "full",
       "updateMode": "inplace",
       "critical": false,
-      "publishedAt": "2026-10-11",
+      "publishedAt": "2026-10-13",
       "notes": {
         "english": [
           "**Mod view**: split panel with town backgrounds — left gallery with search & category, right panel groups selected mods by type; dependencies auto-checked, conflicts flagged red",

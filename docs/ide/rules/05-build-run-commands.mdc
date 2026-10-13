@@ -41,7 +41,7 @@ npm run build:console
 # 打包「带控制台窗口 + release 性能」的包（验收 HD/AI 等耗时操作时用）
 npm run build:console:release
 
-# 发行第一步：本地发包（构建 → 提取 → 随包预置补丁 → 条目片段；不联网、不改索引）
+# 发行第一步：本地发包（构建 → 提取 → 随包预置补丁 → 条目片段；不联网、不写台账）
 #   默认只出「二进制 + portable」；--platform 缺省按当前主机推断；安装包按需 --bundles 透传
 npm run release:pack -- --version 0.2.0
 npm run release:pack -- --version 0.2.0 --bundles nsis,msi         # 要安装包时才加（windows）
@@ -69,7 +69,7 @@ npm run release:status
 | `npm run build:console` | dev 档 + `--features console` | **推荐的自测包**：有控制台 + 体积约 1/3 |
 | `npm run build:console:release` | release 档 + `--features console` | 有控制台 + 满性能 |
 | `npm run release:pack` | **对外发行的唯一构建入口** | release 档 + 提取产物 + 生成随包预置 + 写条目片段；`--platform` 选平台（缺省宿主推断）；`--bundles` 按需出安装包（缺省不出）；`--flavor ai` 出 AI 版（仅 windows-x86_64）；`--no-build` 只提取 |
-| `npm run release:publish` | 发布到 GitHub Releases | 建 tag/release → 流式传资产 → 更新 `releases/index.json` + per-target 清单 `releases/update/<platform>.json`；`--platform` 只发指定平台（同版本多平台目录必填）；`--resume` / `--replace` / `--dry-run` |
+| `npm run release:publish` | 发布到 GitHub Releases | 建 tag/release → 流式传资产 → 更新 `releases/index.json` + per-target 清单 `releases/update/<platform>.json`；`--platform` 只发指定平台（同版本多平台目录必填）；`--resume`（补缺）/ `--replace`（同名先删再传）/ `--replace-release`（整 Release 删后重建）/ `--dry-run` |
 | `npm run release:verify` | 发行契约自检 | 结构 / 投影 / 预置 / ChangeLog 一致性；`--online` 探测下载地址与远端索引；`--fix` 重算派生物 |
 | `npm run release:status` | 索引版本 vs 本地已打包目录 | 只读 |
 
@@ -124,8 +124,22 @@ releases/update/<platform>.json.init ← ✅ 提交进 git：初始模板（空�
   安装包按需 `--bundles` 透传（windows: nsis,msi｜darwin: dmg,app｜linux: deb,appimage；跨 OS 打包需对应
   工具链——darwin 只能在 macOS 上构建）。平台矩阵、产物树与容错规则见 `docs/guides/release-cross-platform.zh-CN.md`。
 - ⚠️ HEAD 停在某个 tag 上而与本 tag 不一致 → `release:pack` **直接拒绝**（防"打了标签忘定版"；`--allow-tag-mismatch` 放行）。
-- ⚠️ 更新说明的唯一手写编辑点是仓库根 **`ChangeLog.md`**（`## v<版本>` → `### <lang>` → `- 一行`，严格解析）；
-  `--notes "…"` 可临时覆盖。
+- ⚠️ 更新说明的唯一手写编辑点是仓库根 **`ChangeLog.md`**（`## v<版本>` → `### <lang>` → `- 一行`，严格解析；
+  层级写错或写成自由文本会带行号报错）；
+  `--notes "…"` 可临时覆盖。**说明校验在编译前 fail-fast**（说明只进 release.json / 条目片段，不影响二进制与
+  便携 zip）——没写 ChangeLog 不会白烧一次编译；产物已就绪时加 `--no-build` 可只重打发行包（复用现有产物）。
+- **重新发布同一版本**（资产过时）：用 `--replace-release`（整 Release 删除重建 ⇒ 旧 nsis/msi/旧 zip 一并清掉）或
+  `--resume`（保留既有、只补差值）/ `--replace`（同名先删再传）。publish **没有** tag 守卫与单调性守卫，
+  台账按 `(release, platform)` upsert 覆盖 ⇒ 不需要 `--replace-version`。⚠️ **脚本不移动 git tag**：
+  `--replace-release` 会保留旧 tag，重建 Release 时 GitHub 复用旧 tag（`target_commitish` 被忽略）⇒
+  "新资产 + 旧 tag 指向"，要修正只能手工 `git tag -f` + `git push -f`（破坏性）。⚠️ 重发同一版本号
+  **不会**让已装用户收到更新（更新器只在 `current < version` 时提示）。
+- ⚠️ **台账（`index.json` 的 `releases[]`）只由 `publish` 写**：`release:pack` 只写本地片段
+  `releases/<dir>/index.entry.json`（自举时另补 repo/download/preset 配置区块）。**本地重打包某个版本
+  （含 `--allow-downgrade` 重打旧版）不会更新台账**——台账是 GitHub 上实际已上传资产的镜像；两者不一致时
+  `verify` 的"片段与索引条目不一致"提示属正常信号。
+- **重打旧版本做本地预演**（如 §9.1 的"部署旧版被测端"）务必加 **`--temp-version`**：否则 `--version <旧版>`
+  会按 ADR 0007 **持久**改写 `Cargo.toml`/`tauri.conf.json`，让进行中的新版在源码里丢掉定版。
 - ⚠️ 旧的 `build:release*` / `package:release` / `release:info` / `release:manifest` **已删除**（不做老兼容）。
 
 ## 构建档位与控制台

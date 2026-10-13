@@ -50,6 +50,10 @@ npm run release:pack                        # 零参数：用文件里的版本�
 
 构建 → 提取产物 → 生成随包预置补丁 → 写发行目录与条目片段。**不联网、不改 index.json 的版本条目**。
 
+> **说明校验前移（fail-fast）**：`ChangeLog.md` 的更新说明只写进 `release.json` / 条目片段，**不影响二进制与便携 zip 内容**，
+> 因此校验排在**编译之前**——没写 ChangeLog 会在编译前直接报错，不会白烧一次构建。若产物已构建好、只是改了说明或代码外
+> 元数据，加 `--no-build` 直接重打发行包（复用 `src-tauri/target` 里的现有产物），无需重新编译。
+
 > **跨平台（ADR 0008）**：`--platform` 缺省 = 当前主机推断（Windows/mac/Linux 各自出各自平台的包，
 > 推断不出直接报错、**绝不回退 Windows**）；安装包从"默认全出"改为**按需 `--bundles` 透传**。
 > 完整平台矩阵、工具链现实与产物树见 [release-cross-platform](./release-cross-platform.zh-CN.md)。
@@ -102,10 +106,46 @@ npm run release:publish [-- --version <ver>] [-- --platform <triple>] [-- --body
 `releases/update/<platform>.json`（启动器的唯一更新源，见 §5）。**不同平台各跑一次 publish，
 各写各的清单文件**——天然无写争用、可并行、可单独灰度/回滚。
 
+### 4.1 重新发布同一版本（资产过时 / 需要覆盖）
+
+同一 tag 的 Release 已存在时，按"要对既有资产做什么"选开关：
+
+| 开关 | GitHub 上既有资产的处置 | 适用 |
+|---|---|---|
+| `--resume` | 保留，只补缺失/不一致的（按 sha256 比对，一致则跳过） | 多平台发同一 Release；只补新资产 |
+| `--replace` | **同名**资产先删再传 | 同名但内容变了（如 `vcmi-fv-launcher.exe`） |
+| `--replace-release` | **整个 Release 删除后重建** ⇒ 旧资产（nsis/msi/旧 portable zip）一并清除 | 发行包整体过时，要"只剩本次的资产" |
+
+不受阻的守卫（逐条确认过）：publish **没有** tag 守卫（`--exact-match` 只在 `pack`）、**没有**单调性守卫
+（`checkMonotonic` 只在 `pack`）；台账按 `(release, platform)` 直接 upsert 覆盖，同 releaseId 不触发重复版本检查
+⇒ **不需要 `--replace-version`**；清单 upsert 是"同版本号整体替换" ⇒ 该版本的 sha256 / URL 会被刷新。
+
+⚠️ **git tag 不会被脚本移动**：`--replace-release` 只删 Release 对象，**tag 保留**；重建时 `tag_name` 已存在，
+GitHub **复用旧 tag**（`target_commitish` 被忽略）⇒ 会出现"新资产 + 旧 tag 指向"。要修正必须手工动 tag：
+
+```bash
+git log -1 --format=%H v0.1.0     # 先看旧 tag 指向
+git tag -f v0.1.0 <目标commit>     # ⚠️ 破坏性：他人/CI 已拉取的 tag 会分叉
+git push -f origin v0.1.0         # 强制推送 tag
+```
+
+⚠️ **先把工作区提交干净**：publish 会告警"工作区有未提交改动"，且台账记的是 `HEAD` 的 commit——
+tag 指向提交、上传的二进制却由脏工作区构建，tag 的 source zipball 无法复现这批资产。
+
+⚠️ **对已装用户无效**：更新器只在 `current < version` 时提示，重发同一版本号不会让已装用户收到更新。
+"让新下载者拿到正确包" → `--replace-release`；"让已装用户升级" → 必须 bump 版本。
+
+```bash
+# 干跑（不联网、不写盘、不需要 token）
+npm run release:publish -- --version 0.1.0 --platform windows-x86_64 --replace-release --dry-run
+# 正式重发（需 GITHUB_TOKEN）
+npm run release:publish -- --version 0.1.0 --platform windows-x86_64 --replace-release
+```
+
 辅助：
 
 ```bash
-npm run release:preview  # 本地预演：派生索引 + 静态服务（见 §9）
+npm run release:preview  # 本地预演：per-target 本地清单 + 静态服务（见 §9）
 npm run release:verify   # 索引契约自检
 npm run release:status   # 索引 vs 本地目录比对
 ```
@@ -133,6 +173,13 @@ npm run release:status   # 索引 vs 本地目录比对
 
 ⚠️ **`versions[]` 投影与 `minSupported` 已退役**（ADR 0008 D5）：更新源不再是本文件，而是下面的
 per-target 清单；本文件只回答"整体最新是哪版 / 有哪些发行"（人、`release:status`、文档站看它）。
+
+⚠️ **台账只由 `publish` 写**：`release:pack` 只写**本地片段** `releases/<dir>/index.entry.json`，**从不改台账**
+（自举时也只补 repo/download/preset 配置区块）。所以**本地重新打包某个版本**——包括用 `--allow-downgrade`
+重打旧版本——**不会**更新台账里的既有条目：台账记录的是 GitHub 上**实际已上传**的资产（url/sha256/size 来自
+上传 API 的返回值），而本地重打包必然产出不同资产（新时间戳、zip 名带平台、默认不出安装包）。若 pack 也改台账，
+就会出现"索引声称可下载、GitHub 上并没有该文件"的假记录 ⇒ 用户点更新拿到 404。两者不一致时 `verify` 会提示
+"片段与索引条目不一致 / 有已打包但未发布的版本"——那是**正常信号**（跑 publish 即对齐）。
 
 ### `releases/update/<platform>.json`（启动器唯一更新源；提交进 git）
 
@@ -241,7 +288,8 @@ npm run release:publish     # 仅在需要发布时；token 由 GITHUB_TOKEN 环
 ## 9. 本地预演（`release:preview`）：publish 之前自测升级链
 
 `release:pack` **不写** `releases/index.json` 的版本条目（索引只由 publish 写），所以光靠 pack 测不出更新提示。
-`release:preview` 补上这一环，但写的是**派生索引**，永不碰真索引：
+`release:preview` 补上这一环：写 **per-target 本地清单** `releases/update/<platform>.local.json`（更新源的本地副本），
+**永不碰真索引与线上清单**：
 
 ```bash
 npm run release:preview -- --version 0.2.0 --serve     # --port 8765（缺省）/ --base <url> 换自带服务
@@ -256,7 +304,8 @@ npm run release:preview -- --version 0.2.0 --serve     # --port 8765（缺省）
    （`src-tauri/src/updater/manifest.rs::download_scheme_ok`，读的是清单**顶层** `allowHttp`）；
 4. `--serve` 顺带起一个零依赖静态服务（根 = `releases/`），打印该填进设置页的地址。
 
-`.gitignore` 已忽略 `releases/*` 中除 `index.json` 外的文件 ⇒ 派生索引**天然不入库**，用完无需清理。
+`.gitignore` 已忽略 `releases/*`（含 `*.local.json`）⇒ 本地清单**天然不入库**，用完无需清理。
+⚠️ 不再生成 `releases/index.local.json`（派生索引已退役：更新源是 per-target 清单，它没有消费者）。
 
 被测端（一个**旧版本**的 release 包，且是 release 构建）：
 
@@ -285,9 +334,9 @@ npm run release:preview -- --version 0.2.0 --serve     # --port 8765（缺省）
 其它：
 
 - `--no-update-chain` / `--test` 的条目 `updateVersion` 为空 ⇒ 不在 `versions[]` 里，**测不到更新提示**（脚本会告警）。
-- 只生成索引不起服务：`--base http://127.0.0.1:8080`，再用任意静态服务以 `releases/` 为根暴露。
+- 只生成清单不起服务：`--base http://127.0.0.1:8080`（清单里下载地址的基址），再用任意静态服务以 `releases/` 为根暴露。
 - 自建 CDN 只有 http 时同理：索引里写顶层 `allowHttp: true`（或让使用者设 `VCMI_FV_UPDATER_ALLOW_HTTP=1`）；若要从设置页填 http 地址，还需给启动器进程设同一个环境变量（放行 UI 的 https 校验）。
-- **清单缓存会"钉住"旧清单**：启动器把拉到的清单缓存在 `<启动器目录>/.vcmi-fv-launcher/cache/updateManifest/manifest.json`（24h TTL；**拉取失败时任意年龄缓存兜底**）。改了派生索引后，静默检查与弹窗核对（force=false）读到的仍是缓存 —— 用设置页「检查更新」（force=true，绕过 TTL 并回写缓存）或直接删掉该缓存文件；且预演服务必须保持运行，否则 force 重拉失败又会回退到旧缓存。
+- **清单缓存会"钉住"旧清单**：启动器把拉到的清单缓存在 `<启动器目录>/.vcmi-fv-launcher/cache/updateManifest/manifest.json`（24h TTL；**拉取失败时任意年龄缓存兜底**）。改了本地清单后，静默检查与弹窗核对（force=false）读到的仍是缓存 —— 用设置页「检查更新」（force=true，绕过 TTL 并回写缓存）或直接删掉该缓存文件；且预演服务必须保持运行，否则 force 重拉失败又会回退到旧缓存。
 
 ### 9.1 本地验收流程（部署旧版 → 验证升级）
 
@@ -295,13 +344,13 @@ npm run release:preview -- --version 0.2.0 --serve     # --port 8765（缺省）
 
 把"旧版用户"在本地仿真出来，走完整升级链：
 
-**① 起本地预演服务**（写派生索引 + 起静态服务，根 = `releases/`）
+**① 起本地预演服务**（写 per-target 本地清单 + 起静态服务，根 = `releases/`）
 
 ```bash
 npm run release:preview -- --version 0.2.0 --serve --port 8765
 ```
 
-本地清单 `releases/update/<platform>.local.json` 只含 `--version` 指定的 0.2.0 条目（resolver 只比对"当前版本 < 目标版本"，**不要求当前版本进索引**，故无需把 0.1.0 也装进派生索引）。保持服务运行。
+本地清单 `releases/update/<platform>.local.json` 只含 `--version` 指定的 0.2.0 条目（resolver 只比对"当前版本 < 目标版本"，**不要求当前版本进索引**，故无需把 0.1.0 也装进本地清单）。保持服务运行。
 
 **② 部署旧版 0.1.0 作为被测端**
 
@@ -309,8 +358,19 @@ npm run release:preview -- --version 0.2.0 --serve --port 8765
 
 ```bash
 mkdir D:\test\launcher && cd D:\test\launcher
-copy <repo>\releases\0.1.0_20261001-01\vcmi-fv-launcher.exe .
+copy <repo>\releases\0.1.0_20261013-14_windows-x86_64\vcmi-fv-launcher.exe .
 ```
+
+> 若旧版本的本地目录已被清理、需要重新生成一个：用 **`--temp-version`**（临时注入，构建后自动还原版本文件，
+> 零源码改动）——否则 `--version 0.1.0` 会按 ADR 0007 **持久**把 `Cargo.toml`/`tauri.conf.json` 写回 0.1.0，
+> 让进行中的新版发行在源码里"丢掉了定版"：
+>
+> ```bash
+> npm run release:pack -- --version 0.1.0 --allow-downgrade --temp-version
+> ```
+>
+> （`--allow-downgrade` 是单调性守卫的放行：更新器只在 `current < version` 时提示，重发同号/更低版本对已装用户无效；
+> 该守卫只看 per-target 清单里的已发布版本，与台账无关。）
 
 首次运行会生成 `.vcmi-fv-launcher\launcher.json`。更新器要求其中 `paths.game_dir` / `paths.user_data_dir` **非空**才会发起检查，最稳的做法是手动落地一份（JSON5，允许注释/尾逗号）：
 

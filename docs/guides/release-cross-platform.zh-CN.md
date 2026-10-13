@@ -86,7 +86,7 @@ if (bundles.length) {
 - `releases/index.json`：**删除 `versions[]` 投影与 `minSupported`**（不再承担更新源）；保留 `releases[]`（浏览）+ repo/download/preset；`preset.base.update.manifest_url` 改为模板：
   `https://raw.githubusercontent.com/future-view/vcmi-fv-launcher/main/releases/update/{platform}.json`
 - `projectVersions` / `refreshProjection` 随之退役；`verify --fix` 改为校验 per-platform 清单。
-- preview 的 `index.local.json`：本地预演只服务本机平台，派生逻辑按 `--platform` 生成。
+- preview 的产物：**只写 `releases/update/<platform>.local.json`**（本地预演只服务本平台，按 `--platform` 生成）；`index.local.json` 派生索引已退役——更新源是 per-target 清单，派生索引没有消费者（旧的"给台账每个条目改写本地地址 + 检查本地资产齐备"逻辑随之删除：它会把旧版本台账与本地目录错配，误报一串 404 警告）。
 
 ### 1.6 verify 改写
 
