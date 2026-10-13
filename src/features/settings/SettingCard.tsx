@@ -41,7 +41,8 @@ export function SettingCard({ item, value, showDesc, highlight, onEdit, candidat
           )}
         </div>
       </div>
-      <div className="flex items-center">
+      {/* [&>*]:min-w-0 允许控件在窄卡片里收缩换行，而不是把分段按钮组顶出卡片右缘 */}
+      <div className="flex items-center [&>*]:min-w-0">
         <SettingControl item={item} value={value} onChange={onEdit} candidatesOverride={candidatesOverride} value2={value2} onChangeMulti={onEditMulti} disabled={disabled} />
       </div>
     </div>

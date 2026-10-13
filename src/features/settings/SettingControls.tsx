@@ -30,6 +30,47 @@ interface ControlProps {
   disabled?: boolean;
 }
 
+/**
+ * 选项 chip 组（toggleGroup / fullscreenGroup / creatureDisplay / btnList 四类控件共用）。
+ * 每个候选项是独立 chip（自带边框+底色）：可点击性明确，且天然支持换行——
+ * 窄卡片或长文案（俄/德语翻译）下逐个折行，不会整组溢出卡片右缘被裁切。
+ * 选中态用实底蓝 + 前置圆点强化「单选」语义，与 Switch 的蓝色呼应。
+ */
+function SegmentedButtons({ options, value, disabled, onSelect }: {
+  options: SettingOption[];
+  value?: string;
+  disabled?: boolean;
+  onSelect: (v: string) => void;
+}) {
+  return (
+    <div className="flex max-w-full flex-wrap gap-1.5" role="radiogroup">
+      {options.map((c) => {
+        const active = value === c.v;
+        return (
+          <button
+            key={c.v}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            disabled={disabled}
+            onClick={() => onSelect(c.v)}
+            className={cn(
+              "flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40",
+              active
+                ? "border-blue-400/50 bg-blue-500/25 font-medium text-blue-100"
+                : "border-slate-700 bg-slate-800/50 text-muted hover:border-slate-600 hover:bg-slate-800 hover:text-slate-300"
+            )}
+          >
+            {active && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" aria-hidden />}
+            {c.text}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** 按控件类型渲染对应编辑控件（受控、即时写回）；文案一律经 `./text` 从 i18n 词典取词 */
 export function SettingControl({ item, value, onChange, candidatesOverride, value2, onChangeMulti, disabled }: ControlProps) {
   const { t } = useI18n();
@@ -137,27 +178,12 @@ export function SettingControl({ item, value, onChange, candidatesOverride, valu
     case "btnList": {
       const options = text.optionsFor(item);
       return (
-        <div className="flex flex-wrap gap-1.5">
-          {options.map((c) => {
-            const active = String(value) === c.v;
-            return (
-              <button
-                key={c.v}
-                type="button"
-                disabled={disabled}
-                onClick={() => onChange(c.v)}
-                className={cn(
-                  "rounded-md border px-2.5 py-1 text-xs transition-colors",
-                  active
-                    ? "border-blue-500/60 bg-blue-500/20 text-blue-200"
-                    : "border-slate-700 text-muted hover:bg-slate-800/60"
-                )}
-              >
-                {c.text}
-              </button>
-            );
-          })}
-        </div>
+        <SegmentedButtons
+          options={options}
+          value={String(value)}
+          disabled={disabled}
+          onSelect={(v) => onChange(v)}
+        />
       );
     }
 
@@ -223,31 +249,14 @@ export function SettingControl({ item, value, onChange, candidatesOverride, valu
     case "toggleGroup": {
       // 若原始值为数字，写回时转换候选字符串为数字（如 heroMoveTime: 150）
       const numeric = typeof item.val === "number";
-      const toOut = (raw: string) => (numeric ? Number(raw) : raw);
       const options = text.optionsFor(item, candidatesOverride);
       return (
-        <div className="inline-flex overflow-hidden rounded-md border border-slate-700">
-          {options.map((c, i) => {
-            const active = String(value) === c.v;
-            return (
-              <button
-                key={c.v}
-                type="button"
-                disabled={disabled}
-                onClick={() => onChange(toOut(c.v))}
-                className={cn(
-                  "px-3 py-1.5 text-xs transition-colors",
-                  i > 0 && "border-l border-slate-700",
-                  active
-                    ? "bg-blue-500/20 text-blue-200"
-                    : "text-muted hover:bg-slate-800/60"
-                )}
-              >
-                {c.text}
-              </button>
-            );
-          })}
-        </div>
+        <SegmentedButtons
+          options={options}
+          value={String(value)}
+          disabled={disabled}
+          onSelect={(v) => onChange(numeric ? Number(v) : v)}
+        />
       );
     }
 
@@ -326,25 +335,7 @@ export function SettingControl({ item, value, onChange, candidatesOverride, valu
         onChangeMulti?.({ [item.k]: nf, [item.altKey ?? ""]: nr });
       };
       return (
-        <div className="inline-flex overflow-hidden rounded-md border border-slate-700">
-          {modes.map((m, i) => (
-            <button
-              key={m.v}
-              type="button"
-              disabled={disabled}
-              onClick={() => apply(m.v)}
-              className={cn(
-                "px-3 py-1.5 text-xs transition-colors",
-                i > 0 && "border-l border-slate-700",
-                mode === m.v
-                  ? "bg-blue-500/20 text-blue-200"
-                  : "text-muted hover:bg-slate-800/60"
-              )}
-            >
-              {m.text}
-            </button>
-          ))}
-        </div>
+        <SegmentedButtons options={modes} value={mode} disabled={disabled} onSelect={apply} />
       );
     }
 
@@ -360,25 +351,7 @@ export function SettingControl({ item, value, onChange, candidatesOverride, valu
         onChangeMulti?.({ [item.k]: a, [item.altKey ?? ""]: g });
       };
       return (
-        <div className="inline-flex overflow-hidden rounded-md border border-slate-700">
-          {modes.map((m, i) => (
-            <button
-              key={m.v}
-              type="button"
-              disabled={disabled}
-              onClick={() => apply(m.v)}
-              className={cn(
-                "px-3 py-1.5 text-xs transition-colors",
-                i > 0 && "border-l border-slate-700",
-                mode === m.v
-                  ? "bg-blue-500/20 text-blue-200"
-                  : "text-muted hover:bg-slate-800/60"
-              )}
-            >
-              {m.text}
-            </button>
-          ))}
-        </div>
+        <SegmentedButtons options={modes} value={mode} disabled={disabled} onSelect={apply} />
       );
     }
 
