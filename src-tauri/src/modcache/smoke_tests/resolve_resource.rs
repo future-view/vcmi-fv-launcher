@@ -127,6 +127,60 @@ fn crossmod_fallback_resolves_resource_in_foreign_mod() {
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
+/// 同基名不同扩展名：请求带扩展名时必须命中**该扩展名**的文件（2026-10-13 回归）。
+///
+/// 背景：VCMI 1.6+ sprites-json 的定义是 `X.json`、其位图帧是 `X.png`，二者经
+/// `norm_zip_key`「去扩展名 + 小写」归一后**撞成同一个 key**；旧实现只按该 key 取
+/// 「索引里第一个」的文件（实测总是 `.json`）→ 请求 `X.png` 拿到 JSON 字节 →
+/// `image::load_from_memory` 失败 → 城镇结构帧整批解析失败 → 幕布图只剩裸底图
+/// （实测 shuHan / feydom / adeptorium / karmicCourt 四个城镇建筑全部消失）。
+///
+/// 现规则：**请求显式带扩展名时先精确命中**；无同扩展名文件时仍回落宽松匹配
+/// （保留配置写的扩展名与实际文件不符时的兼容能力）。纯单测，不依赖真实游戏目录。
+#[test]
+fn same_basename_diff_ext_prefers_requested_ext() {
+    let tmp = std::env::temp_dir().join(format!("vcmi-fv-extkey-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let dir = tmp.join("Content").join("Sprites").join("town").join("buildings");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    // 真实 PNG（`load_structure_frame` 会真的解码它，故不能用假字节）
+    let mut png = Vec::new();
+    image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(2, 2, image::Rgba([1, 2, 3, 255])))
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .unwrap();
+
+    // ① 同基名定义 + 位图帧（VCMI 1.6+ sprites-json 的标准形态）
+    std::fs::write(
+        dir.join("mageGuild1.json"),
+        br#"{"basepath":"town/buildings/","sequences":[{"group":0,"frames":["mageGuild1.png"]}]}"#,
+    )
+    .unwrap();
+    std::fs::write(dir.join("mageGuild1.png"), &png).unwrap();
+    // ② 只有 json、没有同名 .def（配置写错扩展名 → 应回落宽松匹配）
+    std::fs::write(dir.join("onlyJson.json"), b"{}").unwrap();
+
+    // ① 位图请求拿到位图，而非同基名定义 json
+    let (buf, ext) = resolve_resource(&tmp, "town/buildings/mageGuild1.png").expect("应命中 png");
+    assert_eq!(ext, "png", "带扩展名的请求应精确命中同扩展名文件");
+    assert_eq!(buf, png);
+    // 定义 json 请求仍拿 json
+    let (_, ext) = resolve_resource(&tmp, "town/buildings/mageGuild1.json").expect("应命中 json");
+    assert_eq!(ext, "json");
+    // 定义文件按其自身引用可解出位图帧（端到端复现原有失败路径）
+    let frame = load_structure_frame(&tmp, &tmp, &tmp, "town/buildings/mageGuild1.json");
+    assert!(frame.is_some(), "sprites-json 定义 + 同基名位图必须能取出帧");
+    // ② 扩展名与实际不符 → 仍回落宽松匹配（不因新增精确命中而回归）
+    let (_, ext) = resolve_resource(&tmp, "town/buildings/onlyJson.def").expect("应回落宽松匹配");
+    assert_eq!(ext, "json");
+    // ③ 无扩展名引用不受影响
+    assert!(resolve_resource(&tmp, "town/buildings/mageGuild1").is_some());
+    // ④ 大小写不敏感（mod 配置大小写与磁盘不一致是常态）
+    assert!(resolve_resource(&tmp, "town/buildings/MAGEGUILD1.PNG").is_some());
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
 /// 跨模组回退在未设置模组路径列表时退化为「仅本模组 + 游戏根」，不产生误命中或崩溃。
 #[test]
 fn crossmod_fallback_no_paths_is_safe() {

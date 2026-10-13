@@ -6,6 +6,11 @@
 //! 3. 游戏根 `Data/*.lod`（`resolve_resource_fallback` 的回退路径）。
 //!
 //! 依赖方向：只依赖 `infra`（见 `docs/architecture/backend.zh-CN.md` §4.1）。
+//!
+//! **命中规则（2026-10-13 起）**：请求**显式带扩展名**时优先命中间目录/zip 内**同扩展名**的
+//! 文件，未命中才回落到"去扩展名"的宽松匹配（保留 VCMI 配置写错扩展名时的兼容能力）。
+//! 原因见 [`ZipIndex::by_ext`]：sprites-json 的 `X.json` 定义与 `X.png` 位图帧同基名，
+//! 去扩展名口径下会撞 key，只按宽松 key 取会拿到定义 JSON 的字节、使位图解码失败。
 
 use crate::infra::berror::be_err;
 use std::cell::RefCell;
@@ -20,8 +25,14 @@ use crate::vcmi::scan::cached_mod_paths;
 /// 单个 content.zip 的条目索引。
 #[derive(Default)]
 pub(crate) struct ZipIndex {
-    /// 归一 key（去前缀 + 去扩展名 + 小写）→ 条目序号
+    /// 归一 key（去前缀 + 去扩展名 + 小写）→ 条目序号（同 key 多文件时保留首个）
     by_key: HashMap<String, usize>,
+    /// 归一 key **含扩展名**（去前缀 + 小写）→ 条目序号。
+    ///
+    /// 存在的理由：同基名不同扩展名的文件（VCMI 1.6+ sprites-json 的标准写法是
+    /// 定义 `X.json` + 位图帧 `X.png`）经 `norm_zip_key` 去扩展名后会**撞成同一 key**，
+    /// 只按 `by_key` 命中会取到先遍历到的那个（实测总是 `.json`）→ 位图解码失败。
+    by_ext: HashMap<String, usize>,
     /// 条目序号 → 扩展名（小写，与原实现的取值口径一致）
     ext_of: HashMap<usize, String>,
     /// 是否含加密条目（只读中央目录元数据即可判定，无需密码）
@@ -34,12 +45,20 @@ pub(crate) static ZIP_INDEX_CACHE: std::sync::OnceLock<Mutex<Vec<(String, std::s
 /// 索引条目多（单 mod 可达数千），容量按 mod 数量级给，避免超线性增长
 pub(crate) const ZIP_INDEX_CACHE_CAP: usize = 64;
 
+/// `Content/` 目录索引：`by_key` 用于宽松匹配（配置写的扩展名与实际不符时仍能命中），
+/// `by_ext` 用于请求显式带扩展名时精确命中——见 [`ZipIndex::by_ext`] 的说明（同一撞 key 问题）。
+#[derive(Default)]
+pub(crate) struct DirIndex {
+    by_key: HashMap<String, PathBuf>,
+    by_ext: HashMap<String, PathBuf>,
+}
+
 /// `Content/` 目录索引缓存（归一 key → 绝对路径）。
 ///
 /// 原实现每解析一个资源就**全量递归一次 `Content/`**（实测 10,419 次 × 45ms ≈ 360s CPU）；
 /// 改为"每个目录只建一次索引"。索引同样按 mod 数量级给容量。
 pub(crate) static DIR_INDEX_CACHE: std::sync::OnceLock<
-    Mutex<Vec<(String, std::sync::Arc<HashMap<String, PathBuf>>)>>,
+    Mutex<Vec<(String, std::sync::Arc<DirIndex>)>>,
 > = std::sync::OnceLock::new();
 pub(crate) const DIR_INDEX_CACHE_CAP: usize = 64;
 
@@ -56,29 +75,33 @@ fn dir_fingerprint(dir: &Path) -> String {
 }
 
 /// 递归收集：`归一 key -> 绝对路径`。遍历顺序与原 `walk` 一致（read_dir 顺序 + 深度优先），
-/// 且用 `entry().or_insert()` 保留首个匹配，保证命中结果与原实现相同。
-fn walk_index(d: &Path, base: &Path, out: &mut HashMap<String, PathBuf>) {
+/// 且用 `entry().or_insert_with()` 保留首个匹配，保证宽松匹配的命中结果与原实现相同。
+fn walk_index(d: &Path, base: &Path, out: &mut DirIndex) {
     if let Ok(entries) = fs::read_dir(d) {
         for e in entries.flatten() {
             let p = e.path();
             if p.is_dir() {
                 walk_index(&p, base, out);
-            } else if let Some(k) = norm_zip_key(&p.strip_prefix(base).unwrap_or(&p).to_string_lossy()) {
-                out.entry(k).or_insert(p);
+            } else {
+                let rel = p.strip_prefix(base).unwrap_or(&p).to_string_lossy().to_string();
+                if let Some(k) = norm_zip_key(&rel) {
+                    out.by_key.entry(k).or_insert_with(|| p.clone());
+                }
+                out.by_ext.entry(norm_key_with_ext(&rel)).or_insert(p);
             }
         }
     }
 }
 
 /// 取（并缓存）目录索引。
-fn dir_index_of(dir: &Path) -> std::sync::Arc<HashMap<String, PathBuf>> {
+fn dir_index_of(dir: &Path) -> std::sync::Arc<DirIndex> {
     let key = dir_fingerprint(dir);
     let list = DIR_INDEX_CACHE.get_or_init(|| Mutex::new(Vec::new()));
     let mut guard = list.lock().unwrap_or_else(|e| e.into_inner());
     if let Some((_, v)) = guard.iter().find(|(k, _)| *k == key) {
         return v.clone();
     }
-    let mut map: HashMap<String, PathBuf> = HashMap::new();
+    let mut map = DirIndex::default();
     walk_index(dir, dir, &mut map);
     let v = std::sync::Arc::new(map);
     guard.push((key, v.clone()));
@@ -91,6 +114,14 @@ fn dir_index_of(dir: &Path) -> std::sync::Arc<HashMap<String, PathBuf>> {
 /// 条目名归一：去资源根前缀 + 去扩展名 + 小写（zip 索引与目录索引**共用同一口径**）。
 pub(crate) fn norm_zip_key(entry_name: &str) -> Option<String> {
     strip_ext(&strip_resource_prefix(&entry_name.replace('\\', "/").to_lowercase()))
+}
+
+/// 条目名归一但**保留扩展名**：去资源根前缀 + 小写。
+///
+/// 与 [`norm_zip_key`] 只差最后一步 `strip_ext`，用于「请求显式带扩展名」时的精确命中
+/// （同基名的 `X.json` / `X.png` 在去扩展名口径下不可区分，见 [`ZipIndex::by_ext`]）。
+fn norm_key_with_ext(entry_name: &str) -> String {
+    strip_resource_prefix(&entry_name.replace('\\', "/").to_lowercase())
 }
 
 // 每线程 LRU：已打开的 `content.zip`。
@@ -229,10 +260,16 @@ pub(crate) fn content_zip_is_encrypted(mod_path: &Path) -> bool {
 
 /// 按资源名定位 mod `content.zip` 内条目序号（资源名形如 `music/CstleTown`，
 /// 内部补 `Content/` 前缀后归一为 zip 索引 key，与 `norm_zip_key` 同一口径）。
+///
+/// 命中顺序与 [`resolve_resource`] 一致：先"含扩展名精确命中"（`X.json`/`X.png` 同基名撞 key
+/// 时唯一可靠），未命中再回落去扩展名的宽松匹配。
 pub(crate) fn zip_resource_index(mod_path: &Path, resource: &str) -> Option<usize> {
-    let key = norm_zip_key(&format!("Content/{}", resource))?;
+    let full = format!("Content/{}", resource);
     let idx = zip_index_of(mod_path)?;
-    idx.by_key.get(&key).copied()
+    if let Some(i) = idx.by_ext.get(&norm_key_with_ext(&full)) {
+        return Some(*i);
+    }
+    idx.by_key.get(&norm_zip_key(&full)?).copied()
 }
 
 /// 按条目序号读取 `content.zip` 内字节（复用线程局部已打开的 zip，避免重建中央目录）。
@@ -287,6 +324,7 @@ pub(crate) fn zip_index_of(mod_path: &Path) -> Option<std::sync::Arc<ZipIndex>> 
         if let Some(k) = norm_zip_key(&name) {
             idx.by_key.entry(k).or_insert(i);
         }
+        idx.by_ext.entry(norm_key_with_ext(&name)).or_insert(i);
         let ext = name.rsplit('.').next().unwrap_or("").to_lowercase();
         idx.ext_of.insert(i, ext);
     }
@@ -314,11 +352,20 @@ fn resolve_resource_inner(mod_path: &Path, resource: &str) -> Option<(Vec<u8>, S
     // 资源名 key：去常见根前缀 + 去扩展名 + 小写（保证非 None）
     let key = strip_resource_prefix(&norm);
     let key = strip_ext(&key).unwrap_or_else(|| key.clone()).to_lowercase();
+    // 含扩展名的归一 key：请求**本身带扩展名**时优先按它精确命中。
+    //
+    // 必要性（2026-10-13 定位）：VCMI 1.6+ sprites-json 的定义与位图帧同基名不同扩展名
+    // （`X.json` + `X.png`），二者经 `norm_zip_key` 去扩展名后**撞成同一个 key**
+    // （`by_key.entry(k).or_insert(...)` 保留遍历到的第一个，实测总是 `.json`）→
+    // 请求 `X.png` 却拿到定义 JSON 的字节 → `image::load_from_memory` 失败 →
+    // `load_structure_frame` 对每个结构都返回 None → 城镇幕布图**只剩裸底图**、建筑全部消失。
+    // 请求不带扩展名时该 key 与 `key` 同形（`by_ext` 中不存在该 key → 零副作用）。
+    let key_with_ext = norm_key_with_ext(&norm);
 
     // Content 目录（磁盘）
     let content_dir = mod_path.join("Content");
     if content_dir.is_dir() {
-        if let Ok(found) = find_in_dir(&content_dir, &key) {
+        if let Ok(found) = find_in_dir(&content_dir, &key, &key_with_ext) {
             let ext = found
                 .extension()
                 .and_then(|e| e.to_str())
@@ -332,8 +379,13 @@ fn resolve_resource_inner(mod_path: &Path, resource: &str) -> Option<(Vec<u8>, S
     }
 
     // content.zip：走条目索引（每个 mod 只建一次索引，替代原来的全量遍历）
+    // 命中顺序同磁盘分支：含扩展名精确命中 → 去扩展名宽松匹配。
     let idx = zip_index_of(mod_path)?;
-    let &i = idx.by_key.get(&key)?;
+    let i = idx
+        .by_ext
+        .get(&key_with_ext)
+        .or_else(|| idx.by_key.get(&key))
+        .copied()?;
     crate::infra::metrics::count("res.hit.zip", 1);
     let zip_path = mod_path.join("content.zip");
     crate::infra::metrics::scope("res.zip_read", || {
@@ -510,19 +562,26 @@ pub(crate) fn strip_resource_prefix(p: &str) -> String {
 /// 在目录树中查找与资源 key 匹配的条目（返回绝对路径）。
 ///
 /// 匹配口径：相对 `dir` 的路径（`Data/...` 位于开头）经 `strip_resource_prefix`
-/// 去除 Data/Sprites/ 等根前缀，再去扩展名、转小写后与 key 比较（见 `norm_zip_key`）。
+/// 去除 Data/Sprites/ 等根前缀后，**先按"含扩展名"的 `key_with_ext` 精确命中**
+/// （同基名的 `X.json` 定义与 `X.png` 位图帧在去扩展名口径下不可区分，见
+/// [`ZipIndex::by_ext`]），未命中再按去扩展名、转小写的 `key` 宽松匹配（见 `norm_zip_key`）。
 ///
-/// ⚠️ 已知热点：本函数**每次资源解析都全量递归一次 `Content/`**（无缓存），
-/// 而 `Content/` 常有数千个文件，代价随「资源数 × 文件数」增长。
-/// `res.dir_scan` 埋点用于量化其在整批构建中的占比（见 `infra::metrics`）。
-pub(crate) fn find_in_dir(dir: &Path, key: &str) -> Result<PathBuf, ()> {
-    crate::infra::metrics::scope("res.dir_scan", || find_in_dir_inner(dir, key))
+/// 走**目录索引**（`dir_index_of`，每个目录只递归一次）：原实现每次调用都全量遍历一遍
+/// `Content/`，代价随「资源数 × 文件数」增长（实测 ≈360s CPU）。
+pub(crate) fn find_in_dir(dir: &Path, key: &str, key_with_ext: &str) -> Result<PathBuf, ()> {
+    crate::infra::metrics::scope("res.dir_scan", || find_in_dir_inner(dir, key, key_with_ext))
 }
 
-fn find_in_dir_inner(dir: &Path, key: &str) -> Result<PathBuf, ()> {
+fn find_in_dir_inner(dir: &Path, key: &str, key_with_ext: &str) -> Result<PathBuf, ()> {
     // 走**目录索引**（每个目录只递归一次）：原实现每次调用都全量遍历一遍 `Content/`，
     // 而 `Content/` 常有数千文件，代价随「资源数 × 文件数」增长（实测 ≈360s CPU）。
-    dir_index_of(dir).get(key).cloned().ok_or(())
+    let idx = dir_index_of(dir);
+    // ① 请求带扩展名 → 先精确命中（`X.json` / `X.png` 同基名撞 key 时唯一可靠）
+    if let Some(p) = idx.by_ext.get(key_with_ext) {
+        return Ok(p.clone());
+    }
+    // ② 回退：去扩展名的宽松匹配（VCMI 允许配置写的扩展名与实际文件不一致）
+    idx.by_key.get(key).cloned().ok_or(())
 }
 
 pub(crate) fn strip_ext(p: &str) -> Option<String> {
