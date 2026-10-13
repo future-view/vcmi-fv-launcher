@@ -14,6 +14,7 @@ import {
 } from "@/lib/tauri";
 import { formatBytes, pickNotes, progressPercent } from "@/lib/updater";
 import { renderInline } from "@/shared/Markdown";
+import { DialogFooter } from "@/shared/DialogFooter";
 import { useUpdateFlow } from "./updateFlow";
 
 interface Props {
@@ -186,13 +187,13 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
         </div>
 
         {/* 操作区 */}
-        <div className="flex items-center justify-between gap-2 border-t border-slate-800 px-5 py-3.5">
-          <div>
+        <DialogFooter>
+          <div className="me-auto flex flex-wrap items-center gap-2">
             {!info.hasUpdate ? null : flow.ui === "error" ? (
               <button
                 type="button"
                 onClick={() => void flow.start()}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
                 {t.update.retry}
@@ -203,7 +204,7 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
                 onClick={() => void skip()}
                 disabled={busy}
                 className={cn(
-                  "text-sm text-slate-500 transition-colors hover:text-slate-300",
+                  "whitespace-nowrap text-sm text-slate-500 transition-colors hover:text-slate-300",
                   busy && "cursor-not-allowed opacity-50",
                 )}
               >
@@ -211,13 +212,14 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
               disabled={flow.ui === "restarting"}
+              title={t.update.laterHint}
               className={cn(
-                "rounded-lg border border-slate-700/60 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800",
+                "whitespace-nowrap rounded-lg border border-slate-700/60 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800",
                 flow.ui === "restarting" && "cursor-not-allowed opacity-50",
               )}
             >
@@ -228,7 +230,7 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
                 href={info.downloadUrl}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90"
+                className="whitespace-nowrap rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90"
               >
                 {t.update.openDownload}
               </a>
@@ -236,7 +238,7 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
               <button
                 type="button"
                 onClick={() => void flow.cancel()}
-                className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800"
+                className="whitespace-nowrap rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800"
               >
                 {t.update.cancelDownload}
               </button>
@@ -244,7 +246,7 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
               <button
                 type="button"
                 onClick={() => void flow.apply()}
-                className="rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90"
+                className="whitespace-nowrap rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90"
               >
                 {t.update.restartApply}
               </button>
@@ -252,7 +254,7 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-emerald-600/30 transition-opacity hover:opacity-90"
+                className="whitespace-nowrap rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-emerald-600/30 transition-opacity hover:opacity-90"
               >
                 {t.app.close}
               </button>
@@ -260,7 +262,7 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
               <button
                 type="button"
                 onClick={() => void flow.start()}
-                className="rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90"
+                className="whitespace-nowrap rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90"
               >
                 {t.update.downloadNow}
               </button>
@@ -270,7 +272,7 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
                 onClick={() => void flow.start()}
                 disabled={busy}
                 className={cn(
-                  "rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90",
+                  "whitespace-nowrap rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90",
                   busy && "cursor-not-allowed opacity-50",
                 )}
               >
@@ -278,7 +280,10 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
               </button>
             )}
           </div>
-        </div>
+          {info.hasUpdate && flow.ui !== "error" && (
+            <p className="basis-full text-right text-xs text-slate-500">{t.update.laterHint}</p>
+          )}
+        </DialogFooter>
       </div>
     </div>
   );

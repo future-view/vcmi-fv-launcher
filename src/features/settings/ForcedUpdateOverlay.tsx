@@ -104,7 +104,7 @@ export function ForcedUpdateOverlay({ info, onExit }: Props) {
               href={info.downloadUrl}
               target="_blank"
               rel="noreferrer noopener"
-              className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90"
+              className="flex whitespace-nowrap items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90"
             >
               <DownloadCloud className="h-4 w-4" />
               {t.update.openDownload}
@@ -113,7 +113,7 @@ export function ForcedUpdateOverlay({ info, onExit }: Props) {
             <button
               type="button"
               onClick={() => void flow.cancel()}
-              className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800"
+              className="whitespace-nowrap rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800"
             >
               {t.update.cancelDownload}
             </button>
@@ -121,7 +121,7 @@ export function ForcedUpdateOverlay({ info, onExit }: Props) {
             <button
               type="button"
               onClick={() => void flow.start()}
-              className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90"
+              className="flex whitespace-nowrap items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90"
             >
               <RefreshCw className="h-4 w-4" />
               {t.update.retry}
@@ -130,7 +130,7 @@ export function ForcedUpdateOverlay({ info, onExit }: Props) {
             <button
               type="button"
               disabled
-              className="flex cursor-wait items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2.5 text-sm font-medium text-white opacity-80"
+              className="flex cursor-wait whitespace-nowrap items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2.5 text-sm font-medium text-white opacity-80"
             >
               <DownloadCloud className="h-4 w-4 animate-pulse" />
               {t.update.applying}
@@ -139,7 +139,7 @@ export function ForcedUpdateOverlay({ info, onExit }: Props) {
             <button
               type="button"
               onClick={onExit}
-              className="rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-emerald-600/30 transition-opacity hover:opacity-90"
+              className="whitespace-nowrap rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-emerald-600/30 transition-opacity hover:opacity-90"
             >
               {t.app.close}
             </button>
@@ -149,7 +149,7 @@ export function ForcedUpdateOverlay({ info, onExit }: Props) {
               onClick={() => void flow.start()}
               disabled={busy}
               className={cn(
-                "rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90",
+                "whitespace-nowrap rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-600/30 transition-opacity hover:opacity-90",
                 busy && "cursor-not-allowed opacity-50",
               )}
             >
@@ -161,7 +161,7 @@ export function ForcedUpdateOverlay({ info, onExit }: Props) {
             onClick={onExit}
             disabled={flow.ui === "restarting" || flow.ui === "applying"}
             className={cn(
-              "rounded-xl px-4 py-2 text-sm text-slate-500 transition-colors hover:text-slate-300",
+              "whitespace-nowrap rounded-xl px-4 py-2 text-sm text-slate-500 transition-colors hover:text-slate-300",
               (flow.ui === "restarting" || flow.ui === "applying") &&
                 "cursor-not-allowed opacity-50",
             )}

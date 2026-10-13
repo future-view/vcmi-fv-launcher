@@ -994,7 +994,10 @@ export interface LangDict {
     appliedNoRestart: string;
     /** 强制更新 downloaded 后自动应用时的文案 */
     applying: string;
+    /** 操作区「稍后」按钮的短标签（如 Later / 稍后），不可含说明性长句 */
     later: string;
+    /** 「稍后」按钮下方的静默说明（如「7 天内不再提醒」），从按钮文案中拆出，避免长 locale 撑爆按钮 */
+    laterHint: string;
     skipVersion: string;
     skipDefer: string;
     downloadedNote: string;
