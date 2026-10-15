@@ -496,9 +496,14 @@ function modFilter(): WikiFilterSpec {
  * 类目 → 筛选维度。**空数组 = 该类目暂无可筛选维度**（`skills` / `terrains` 只有名称搜索）：
  * 此时浮层按钮保持**禁用态但仍占位**，以保证中栏头部布局在任何类目下完全一致。
  */
+/**
+ * 每个数组的顺序 = 浮层 Tab 顺序，`[0]` 是打开浮层时默认展开的维度。
+ * 故把**区分度最高、条目最多的粗粒度维度放第一位**（阵营 → 职业 → 技能）：
+ * 维度联动会让后置维度被前置维度的选择收窄，先粗后细才不会一开始就面对被裁过的选项列表。
+ */
 export const WIKI_FILTERS: Record<WikiCategory, WikiFilterSpec[]> = {
   factions: [alignment],
-  heroes: [heroClass, heroSkill, factionFilter("factionId")],
+  heroes: [factionFilter("factionId"), heroClass, heroSkill],
   creatures: [factionFilter("faction"), creatureLevel, creatureTier, creatureAbility],
   artifacts: [artifactClass, artifactSlot, artifactCombined, modFilter()],
   spells: [spellSchool, spellLevel, modFilter()],

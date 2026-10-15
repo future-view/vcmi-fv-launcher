@@ -204,6 +204,7 @@ export interface LangDict {
       shots: string;
       mana: string;
       ai: string;
+      fightValue: string;
       growth: string;
       horde: string;
       doubleWide: string;
@@ -214,6 +215,7 @@ export interface LangDict {
     };
     creature: {
       abilities: string;
+      statNote: string;
       attack: string;
       defense: string;
       damage: string;
@@ -280,6 +282,9 @@ export interface LangDict {
       buildings: string;
       creatures: string;
       heroes: string;
+      stats: string;
+      recruitCost: string;
+      dwellings: string;
       startingArmy: string;
       gender: string;
       back: string;

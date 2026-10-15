@@ -14,7 +14,12 @@ const CHIP_MAX = 6;
 export interface WikiFilterPanelProps {
   /** 当前类目的筛选维度（空数组 = 该类目无维度，按钮禁用但仍占位） */
   specs: WikiFilterSpec[];
-  /** 该类目**未经筛选**的全量条目（选项与计数都基于它） */
+  /**
+   * 该类目**经过搜索、但未经维度筛选**的条目（选项与计数都基于它）。
+   *
+   * 传搜索结果而非全量：否则「全部 (12)」指的是全量 12 条，而列表实际只剩搜索命中的 3 条，
+   * 数字与列表对不上。搜索被视为「先定范围」，维度在其之上联动。
+   */
   entries: WikiEntry[];
   /** 当前生效筛选：维度 key → 选中值（缺省或空串 = 全部） */
   filters: Record<string, string>;
@@ -86,10 +91,34 @@ export function WikiFilterPanel({
   };
 
   const ctx: WikiFilterContext = { contentLang, t, factionNames, modNames };
+
+  /**
+   * 维度联动（faceted search）：每个维度的选项与计数，基于**其它维度已选值的交集**。
+   *
+   * 关键点是**排除自身**：若把自身选值也算进基准，选中「城堡」后再看「城堡」维度，
+   * 其余阵营的计数会全部变成 0 —— 用户就没法改选了（这是分面筛选的标准做法）。
+   *
+   * 由此得到一条硬性质：**选不出 0 条结果**。计数 0 的选项会被置灰不可点，
+   * 而每个维度给出的可选项都是"在当前其它条件下还有货"的，故任意组合的结果集非空。
+   * 代价是当前展开维度的计数不再反映全量分布（要看全量分布把其它维度清掉即可）。
+   *
+   * 复杂度 O(N×D)（生物：1400 条 × 4 维 ≈ 数千次判定 + 能力数组展开），无感，无需 memo 之外的优化。
+   */
+  const subsetByKey = useMemo(() => {
+    const out: Record<string, WikiEntry[]> = {};
+    for (const s of specs) {
+      const others = specs.filter((x) => x.key !== s.key && filters[x.key]);
+      out[s.key] = others.length
+        ? entries.filter((e) => others.every((x) => x.match(e, filters[x.key])))
+        : entries;
+    }
+    return out;
+  }, [specs, entries, filters]);
+
   const optionsByKey = useMemo(
-    () => Object.fromEntries(specs.map((s) => [s.key, s.options(entries, ctx)])),
+    () => Object.fromEntries(specs.map((s) => [s.key, s.options(subsetByKey[s.key], ctx)])),
     // ctx 由下列各项构成；t 随语言变化，一并列入以避免取词落后一拍
-    [specs, entries, contentLang, factionNames, modNames, t],
+    [specs, subsetByKey, contentLang, factionNames, modNames, t],
   );
 
   // 维度 Tab：**一次只展开一个维度** —— 否则多个大列表（阵营 12 / 级别 10 / 能力 67）各带一个
@@ -99,6 +128,8 @@ export function WikiFilterPanel({
   const activeSpec = specs.find((s) => s.key === activeKey) ?? specs[0];
   const activeOpts = activeSpec ? (optionsByKey[activeSpec.key] ?? []) : [];
   const activeValue = activeSpec ? (filters[activeSpec.key] ?? "") : "";
+  // 「全部」的计数 = 当前维度基准集大小（其它维度已生效、自身未生效）
+  const activeSubset = activeSpec ? (subsetByKey[activeSpec.key] ?? entries) : entries;
 
   return (
     <>
@@ -175,14 +206,19 @@ export function WikiFilterPanel({
                     <div className="flex flex-wrap gap-1">
                       <FilterChip
                         active={!activeValue}
+                        // 「全部」永远可点：它正是把本维度从联动条件里摘掉的那一步
+                        disabled={false}
                         label={t.wiki.filter.all}
-                        count={entries.length}
+                        count={activeSubset.length}
                         onClick={() => onChange(activeSpec.key, "")}
                       />
                       {activeOpts.map((o) => (
                         <FilterChip
                           key={o.value}
                           active={activeValue === o.value}
+                          // 0 条 = 与当前其它维度的选择无交集 → 置灰不可点（不隐藏：
+                          // 隐藏会让选项列表随选择跳动，"刚才还在的选项不见了"更难理解）
+                          disabled={o.count === 0 && activeValue !== o.value}
                           label={o.label}
                           count={o.count}
                           onClick={() => onChange(activeSpec.key, o.value)}
@@ -196,7 +232,7 @@ export function WikiFilterPanel({
                       options={activeOpts}
                       active={activeValue}
                       allLabel={t.wiki.filter.all}
-                      allCount={entries.length}
+                      allCount={activeSubset.length}
                       searchPlaceholder={t.wiki.searchPlaceholder}
                       emptyLabel={t.wiki.filter.noOption}
                       onPick={(v) => onChange(activeSpec.key, v)}
@@ -246,11 +282,13 @@ function SpecTab({
 /** 单选 chip：样式对齐模组页的分类筛选 chip */
 function FilterChip({
   active,
+  disabled,
   label,
   count,
   onClick,
 }: {
   active: boolean;
+  disabled: boolean;
   label: string;
   count: number;
   onClick: () => void;
@@ -259,15 +297,18 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
         active
           ? "border-blue-500/60 bg-blue-500/15 text-white"
-          : "border-slate-700/60 text-slate-400 hover:text-white",
+          : disabled
+            ? "cursor-not-allowed border-slate-800/60 text-slate-600"
+            : "border-slate-700/60 text-slate-400 hover:text-white",
       )}
     >
       {label}
-      <span className="ml-1 text-slate-500">{count}</span>
+      <span className={cn("ml-1", disabled ? "text-slate-700" : "text-slate-500")}>{count}</span>
     </button>
   );
 }
@@ -315,11 +356,13 @@ function OptionList({
         />
       </div>
       <div className="mt-1 max-h-[45vh] overflow-y-auto rounded border border-slate-800">
-        <OptionRow active={!active} label={allLabel} count={allCount} onClick={() => onPick("")} />
+        <OptionRow active={!active} disabled={false} label={allLabel} count={allCount} onClick={() => onPick("")} />
         {list.map((o) => (
           <OptionRow
             key={o.value}
             active={active === o.value}
+            // 0 条 = 与当前其它维度的选择无交集 → 置灰不可点（不隐藏，理由同 FilterChip）
+            disabled={o.count === 0 && active !== o.value}
             label={o.label}
             count={o.count}
             onClick={() => onPick(o.value)}
@@ -334,11 +377,13 @@ function OptionList({
 /** 列表中的一行（单选） */
 function OptionRow({
   active,
+  disabled,
   label,
   count,
   onClick,
 }: {
   active: boolean;
+  disabled: boolean;
   label: string;
   count: number;
   onClick: () => void;
@@ -347,13 +392,18 @@ function OptionRow({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "flex w-full items-center justify-between gap-2 px-2 py-1.5 text-left text-[11px] transition-colors",
-        active ? "bg-blue-500/15 text-white" : "text-slate-300 hover:bg-slate-800",
+        active
+          ? "bg-blue-500/15 text-white"
+          : disabled
+            ? "cursor-not-allowed text-slate-600"
+            : "text-slate-300 hover:bg-slate-800",
       )}
     >
       <span className="truncate">{label}</span>
-      <span className="flex-none text-slate-500">{count}</span>
+      <span className={cn("flex-none", disabled ? "text-slate-700" : "text-slate-500")}>{count}</span>
     </button>
   );
 }

@@ -399,10 +399,17 @@ export function WikiView() {
   // 联动跳转：根据 (modId, category, id) 定位条目并切换详情
   const navigateTo = useCallback(
     async (target: WikiLinkTarget) => {
-      // 1. 当前已加载列表里查找
-      const hit = entries.find(
-        (e) => e.category === target.category && e.modId === target.modId && e.id === target.id,
-      );
+      // 标记"跳转后要把中栏滚到新条目"：链接跳转（升级链 / 模组条目等）与"返回"不同，
+      // 不设这个标记时右栏换了条目、中栏还停在原地，用户看不到自己跳到了哪一行。
+      pendingListScrollRef.current = true;
+      // 1. 当前已加载列表里查找。modId 精确命中失败时，退化为"同分类按 id 找"：
+      // 生物详情页的升级链只有目标 id，modId 借用当前条目的（同 mod 是常态，跨 mod
+      // 升级会指错）。creatures / artifacts / spells / skills / terrains 均已跨 mod
+      // 按 id 去重，同 id 只有一条，按 id 兜底不会指错对象。
+      const hit =
+        entries.find(
+          (e) => e.category === target.category && e.modId === target.modId && e.id === target.id,
+        ) ?? entries.find((e) => e.category === target.category && e.id === target.id);
       if (hit) {
         setCategory(target.category);
         setQuery("");
@@ -486,7 +493,7 @@ export function WikiView() {
     };
   }, [selected]);
 
-  // 搜索 + 筛选过滤
+  // 搜索过滤（**只做搜索**）。
   //
   // 搜索匹配**条目的全部语言名**（`name` 是 VCMI 多语言对象，键为 chinese / tchinese / english / …），
   // 而不是枚举某几种语言：界面语言已达 5 种且会继续增加，任何"写死中/英"的口径在新增语言时
@@ -494,22 +501,26 @@ export function WikiView() {
   // 这套「跨语言可搜」是**有意超出 VCMI 官方**的：官方只对当前语言显示名做模糊匹配
   // （`WikiWindow.cpp` 的 `isFuzzyMatch(filter, entry.name)`），而用户常常只记得另一种语言名。
   //
-  // 筛选维度按类目取用（`WIKI_FILTERS`，见 filters.ts）：同一维度单选、不同维度取交集（AND）；
-  // 与搜索叠加时先筛后搜（两者都是纯过滤，先后不影响结果）。
-  const filtered = useMemo(() => {
-    const activeSpecs = WIKI_FILTERS[category].filter((s) => filters[s.key]);
-    let list = entries;
-    if (activeSpecs.length) {
-      list = list.filter((e) => activeSpecs.every((s) => s.match(e, filters[s.key])));
-    }
+  // ⚠️ 搜索必须与筛选**分开**：筛选浮层要用「搜索后的条目」当基准去算每个维度的选项与计数
+  // （见 `WikiFilterPanel`）。合并成一个 memo 的话，浮层只能拿到全量条目，
+  // 计数会和「当前列表实际有多少条」对不上。
+  const searched = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter(
+    if (!q) return entries;
+    return entries.filter(
       (e) =>
         e.id.toLowerCase().includes(q) ||
         Object.values(e.name).some((v) => typeof v === "string" && v.toLowerCase().includes(q)),
     );
-  }, [entries, query, category, filters]);
+  }, [entries, query]);
+
+  // 筛选过滤：在搜索结果之上按维度求交集。
+  // 维度按类目取用（`WIKI_FILTERS`，见 filters.ts）：同一维度单选、不同维度取交集（AND）。
+  const filtered = useMemo(() => {
+    const activeSpecs = WIKI_FILTERS[category].filter((s) => filters[s.key]);
+    if (!activeSpecs.length) return searched;
+    return searched.filter((e) => activeSpecs.every((s) => s.match(e, filters[s.key])));
+  }, [searched, category, filters]);
 
   // 切换类目/搜索时重置分页窗口
   useEffect(() => {
@@ -621,7 +632,8 @@ export function WikiView() {
             <WikiFilterPanel
               key={category}
               specs={WIKI_FILTERS[category]}
-              entries={entries}
+              // 基准是**搜索后、筛选前**的条目：维度选项与计数都基于它（见 WikiFilterPanel 的联动说明）
+              entries={searched}
               filters={filters}
               onChange={(k, v) => setFilters((f) => ({ ...f, [k]: v }))}
               onReset={() => setFilters({})}
@@ -687,6 +699,37 @@ export function WikiView() {
                 sub = e.modId;
               }
               const alignment = e.category === "factions" ? String(ed.alignment ?? "") : "";
+              // 右键气泡文本（VCMI `WikiListItem::showPopupWindow` 显示的就是副标题，
+              // 我们换成"描述类"字段）：副标题（T6 / 狂化人 / 中级宝物 / 北境）是**分类
+              // 信息**，作为气泡没有信息量 —— 用户右键一行想知道的是"这东西是什么"。
+              // 取值口径与各类目的详情页保持一致（含两种历史数据形态的兼容）：
+              //   factions / creatures / artifacts / buildings → description
+              //   heroes → biography
+              //   spells  → levelDescriptions.basic（原版是纯字符串，需剥 {标题} 前缀）
+              //   skills  → levels.basic
+              // 全部取不到时回退条目名，保证永不空挂（有内容才挂触发器）。
+              const levelText = (v: unknown) => {
+                const raw =
+                  typeof v === "string"
+                    ? v
+                    : pickName((v as Record<string, string>) ?? {}, contentLang);
+                // 剥掉 H3 富文本的 {标题} 标记（与 SpellDetail 同口径）
+                return raw.replace(/^\{[^}]*\}\s*/, "").trim();
+              };
+              const descField =
+                e.category === "heroes"
+                  ? ed.biography
+                  : e.category === "spells"
+                    ? (ed.levelDescriptions as Record<string, unknown> | undefined)?.basic
+                    : e.category === "skills"
+                      ? (ed.levels as Record<string, unknown> | undefined)?.basic
+                      : e.category === "factions" ||
+                          e.category === "creatures" ||
+                          e.category === "artifacts" ||
+                          e.category === "buildings"
+                        ? ed.description
+                        : undefined;
+              const tip = levelText(descField) || name;
               return (
                 <EntryRow
                   key={`${e.modId}:${e.id}`}
@@ -694,6 +737,7 @@ export function WikiView() {
                   cacheDir={cacheDir}
                   name={name}
                   sub={sub}
+                  tip={tip}
                   alignment={alignment}
                   active={selected?.id === e.id && selected?.modId === e.modId}
                   onClick={() => pushAndSelect(e)}
@@ -746,12 +790,13 @@ export function WikiView() {
   );
 }
 
-/** 中栏条目行：VCMI WikiListItem::showPopupWindow —— 右键弹 subtitle 文本气泡 */
+/** 中栏条目行：VCMI WikiListItem::showPopupWindow —— 右键弹文本气泡 */
 function EntryRow({
   entry,
   cacheDir,
   name,
   sub,
+  tip,
   alignment,
   active,
   onClick,
@@ -760,6 +805,8 @@ function EntryRow({
   cacheDir: string | null;
   name: string;
   sub: string;
+  /** 右键气泡文本：描述/传记类字段，回退条目名（见 WikiView 里的取值口径） */
+  tip: string;
   alignment: string;
   active: boolean;
   onClick: () => void;
@@ -773,8 +820,10 @@ function EntryRow({
       onClick={onClick}
       // 返回后中栏要滚到恢复的行：列表容器据此查询高亮行（见 scrollListToSelection）
       data-wiki-active={active ? "true" : undefined}
-      // VCMI WikiListItem::showPopupWindow：条目行右键 = subtitle 文本气泡（居中于光标）
-      {...(sub ? triggers((p) => popup.showText(sub, p)) : {})}
+      // VCMI WikiListItem::showPopupWindow：条目行右键 = 文本气泡（居中于光标）。
+      // 显示 `tip`（描述/传记）而不是副标题 —— 副标题是分类信息（T6 / 狂化人），
+      // 作为气泡没有信息量；`tip` 一定非空（回退了条目名），故恒挂触发器。
+      {...triggers((p) => popup.showText(tip, p))}
       className={cn(
         "flex w-full items-center gap-2 border-l-2 px-3 py-2 text-left transition-colors",
         active ? "border-blue-500 bg-blue-500/15" : "border-transparent hover:bg-slate-800/50",

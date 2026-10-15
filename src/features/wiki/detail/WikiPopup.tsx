@@ -11,9 +11,13 @@ import { WikiPopupCtx, type Point, type WikiPopupApi } from "./WikiPopupContext"
  * - 两者均为"按住显示、松开关闭"，无遮罩、无关闭按钮
  */
 
-// 完整窗宽度（对齐 VCMI 原窗口尺寸）
+// 完整窗宽度。creatures 刻意比 VCMI 的 CStackWindow（430px）宽：弹窗内容是**三列**
+// （图+经济 | 统计+招募建筑 | 能力），能力数是最大的高度变数（原版 0–15 项），
+// 立为第三列并限高 5 行后总高被压成常量（≤477px）—— 这个窗口是"按住右键才存在"的，
+// 用户没法在按住右键的同时拖滚动条，所以用宽度换高度，滚动只发生在能力列内部
+// （与 VCMI BonusesSection 的"固定高 + CListBox 内滚"同语义）。
 const ENTRY_WIDTH: Partial<Record<WikiCategory, number>> = {
-  creatures: 460, // CStackWindow
+  creatures: 880,
   heroes: 620, // CHeroOverview（600×485）
 };
 

@@ -132,6 +132,12 @@ git push -f origin v0.1.0         # 强制推送 tag
 ⚠️ **先把工作区提交干净**：publish 会告警"工作区有未提交改动"，且台账记的是 `HEAD` 的 commit——
 tag 指向提交、上传的二进制却由脏工作区构建，tag 的 source zipball 无法复现这批资产。
 
+⚠️ **创建发行报 422 `target_commitish`**：tag 不存在时 GitHub 会**在该提交上新建 tag**，因此
+`target_commitish`（缺省 = `HEAD`）指向的提交**必须已推到远端**——本地未推送的提交 GitHub 不认识 ⇒ 422，
+而 API 文案只说 `"tag_name is not a valid tag"`（误导，真正字段是 `target_commitish`）。解法：先 `git push`，
+或 `--target <已推送到远端的 sha|分支名>`，或先手工建好 tag 再发（tag 已存在时 GitHub 忽略 `target_commitish`）。
+脚本已内置该诊断提示。
+
 ⚠️ **对已装用户无效**：更新器只在 `current < version` 时提示，重发同一版本号不会让已装用户收到更新。
 "让新下载者拿到正确包" → `--replace-release`；"让已装用户升级" → 必须 bump 版本。
 

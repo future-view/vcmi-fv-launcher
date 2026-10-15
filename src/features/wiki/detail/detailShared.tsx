@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import type { LangDict } from "@/i18n/types";
 import { imgCandidates } from "@/lib/hd";
 import type { WikiEntry, WikiLinkTarget } from "@/lib/modcache";
@@ -128,6 +129,81 @@ export function StatRow({ k, v }: { k: string; v?: unknown }) {
   );
 }
 
+/**
+ * 统计表的一行：**固定 144px 标签列 + 值列左对齐**。
+ *
+ * 两个刻意的偏离（相对 VCMI 与相对本文件里的 `StatRow`）：
+ * 1. 值列**不贴右边界**：VCMI `WikiCreatureContent.cpp:177` 的值列起点是
+ *    `colLbl = tableW / 2`（表格中线），但那是因为它的 viewport 只有约 470px；
+ *    我们的右栏是自适应宽度（可到 900+），照抄"两端对齐"会把标签与值拉到数百 px 外。
+ * 2. 标签列**用固定宽度而非 50%**：144px 的依据是 5 语言字段名实测 —— 最长
+ *    pl `Podwójna szerokość`（19 字符 ≈ 110px），加 padding 与余量；值列全是数字/短词，
+ *    最宽是地图部队 `12 – 20`（≈60px）与 5 位 AI 价值，不会挤。
+ */
+export function StatTableRow({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="grid grid-cols-[144px_minmax(0,1fr)] items-baseline gap-x-2 border-b border-slate-800/40 px-1 py-1 last:border-b-0">
+      <span className="truncate text-[11px] text-slate-400" title={k}>
+        {k}
+      </span>
+      <span className="text-[11px] font-medium text-amber-200/90">{v}</span>
+    </div>
+  );
+}
+
+/**
+ * 关联条目的**整行框**：图标 + 名称，整行可点（跳转）/ 可右键（名称气泡）。
+ *
+ * 对齐 VCMI `WikiCreatureContent.cpp:215-275` 的升级链与 `:411-450` 的招募建筑：
+ * 那里用 `GraphicalPrimitiveCanvas` 画一个占满行宽的框，图标 36px / 42px，
+ * 名称紧随其后，整行是 `WikiClickable`。做成整行框而不是行内 chip，是因为
+ * 这类条目是"这条目的兄弟实体"，需要一个明确的落点，而不是一段文字里的高亮。
+ */
+export function RelatedRow({
+  icon,
+  label,
+  iconSize = 36,
+  onClick,
+  onContextMenu,
+}: {
+  icon?: string | null;
+  label: string;
+  iconSize?: number;
+  onClick?: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+}) {
+  const body = (
+    <>
+      <span
+        className="flex flex-none items-center justify-center"
+        style={{ height: iconSize, width: iconSize }}
+      >
+        {icon ? <HdIcon src={icon} alt="" className="h-full w-full object-contain" /> : null}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-[11px] text-slate-200">{label}</span>
+    </>
+  );
+  const cls = "flex w-full items-center gap-2 px-2 py-1 text-left";
+  return (
+    <div
+      className="rounded-lg border border-slate-700/50 bg-slate-800/30"
+      onContextMenu={onContextMenu}
+    >
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          className={cn(cls, "transition-colors hover:border-blue-500/40 hover:bg-slate-700/40")}
+        >
+          {body}
+        </button>
+      ) : (
+        <div className={cls}>{body}</div>
+      )}
+    </div>
+  );
+}
+
 // 资源 key -> VCMI SMALRES 帧索引（与 extract_resource_icons 一致）
 const RESOURCE_INDEX: Record<string, number> = {
   wood: 0,
@@ -205,6 +281,29 @@ export function formatCost(
       })}
     </span>
   );
+}
+
+/**
+ * cost 对象的**纯文本**形式（`金 8000 + 宝石 4`），供 tooltip 用。
+ *
+ * `formatCost` 出的是带图标的节点，无法进 `title`；而"全价 vs 本阶价"的差额说明
+ * 必须放在 tooltip 里（否则用户不知道 `8000` 为什么比生物自己的 `5000` 大）。
+ */
+export function costText(
+  cost: unknown,
+  cacheDir?: string | null,
+  resources?: ResourceInfo[],
+  lang = getVcmiLanguageSnapshot() ?? "english",
+): string {
+  if (!cost || typeof cost !== "object") return "";
+  const entries = Object.entries(cost as Record<string, unknown>).filter(([, v]) => Number(v) > 0);
+  if (entries.length === 0) return "";
+  return entries
+    .map(([k, v]) => {
+      const { name } = resourceVisual(k, cacheDir ?? null, resources, lang);
+      return `${name || k} ${v}`;
+    })
+    .join(" + ");
 }
 
 /** 单值资源显示（如宝物价格 = 金币数）：图标 + 数量（名称作 title；无图标时补显示名） */

@@ -124,19 +124,22 @@ export const zhCN: LangDict = {
       neutral: "中立",
     },
     stats: {
+      // 字段名一律取 VCMI 官方中文译名（`vcmi.wiki.creature.stat.*` / `core.genrltxt.*`）：
+      // 生物详情页统计表与阵营页属性表头共用这套键，不再各写一套短标签
       level: "等级",
-      attack: "攻击",
-      defense: "防御",
-      damage: "伤害",
-      health: "生命",
+      attack: "攻击力",
+      defense: "防御力",
+      damage: "杀伤力",
+      health: "生命值",
       speed: "速度",
-      shots: "弹药",
+      shots: "弹药量",
       mana: "法力",
       ai: "AI价值",
-      growth: "周增长",
-      horde: "囤兵增援",
+      fightValue: "战斗价值",
+      growth: "生长率",
+      horde: "囤兵增长",
       doubleWide: "双格单位",
-      mapAmount: "地图数量",
+      mapAmount: "地图部队",
       upgradeOf: "升级自",
       upgradeTo: "可升级为",
       yes: "是",
@@ -145,6 +148,10 @@ export const zhCN: LangDict = {
       buildings: "建筑",
       creatures: "生物",
       heroes: "英雄",
+      // 生物详情页小节标题（对齐 VCMI `vcmi.wiki.creature.section.*`）
+      stats: "统计",
+      recruitCost: "招募花费",
+      dwellings: "招募建筑",
       startingArmy: "初始部队",
       gender: "性别",
       back: "返回",
@@ -153,7 +160,11 @@ export const zhCN: LangDict = {
       specialty: "特长",
     },
     creature: {
-      abilities: "技能",
+      // 与 VCMI 官方译名一致（`vcmi.wiki.creature.section.abilities`），
+      // 并避免与「技能」分类撞名
+      abilities: "能力",
+      // 统计表脚注：说明 AI价值 / 战斗价值的出处（原版数据里就有，游戏内界面从不展示）
+      statNote: "源自游戏数据，游戏内界面不展示",
       attack: "攻击力",
       defense: "防御力",
       damage: "杀伤力",
