@@ -1,8 +1,8 @@
 //! 领域 mod 冲突检测与就绪检查：目录指纹对比、内置 mod 包冲突、必需 mod 缺失提示。
 
-use crate::infra::berror::be_err;
 use super::meta::get_realm;
 use super::transfer::collect_dir;
+use crate::infra::berror::be_err;
 
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -10,8 +10,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::State;
 
-use crate::state::AppPaths;
 use crate::infra::links::is_link;
+use crate::infra::moddir::resolve_mod_dir;
+use crate::state::AppPaths;
 use crate::vcmi::paths::VcmiPaths;
 
 /// 目录指纹：按相对路径排序，依次混入 (相对路径, 字节数, 文件内容) 后取 SHA-256。
@@ -23,9 +24,11 @@ pub(crate) fn dir_fingerprint(dir: &Path) -> Result<String, String> {
     let mut hasher = Sha256::new();
     for (rel, abs) in &files {
         hasher.update(rel.as_bytes());
-        let meta = fs::metadata(abs).map_err(|e| be_err("realm_file_meta_read_failed", &format!("{}", e)))?;
+        let meta = fs::metadata(abs)
+            .map_err(|e| be_err("realm_file_meta_read_failed", &format!("{}", e)))?;
         hasher.update(meta.len().to_string().as_bytes());
-        let content = fs::read(abs).map_err(|e| be_err("infra_file_read_failed", &format!("{}", e)))?;
+        let content =
+            fs::read(abs).map_err(|e| be_err("infra_file_read_failed", &format!("{}", e)))?;
         hasher.update(&content);
     }
     Ok(crate::infra::hash::to_hex(&hasher.finalize()))
@@ -46,10 +49,12 @@ pub(crate) fn detect_bundle_conflicts(
 ) -> Vec<Value> {
     let mut out: Vec<Value> = Vec::new();
     for id in bundled {
-        let (src_dir, source) = if user_mods.join(id).is_dir() {
-            (user_mods.join(id), "user")
-        } else if game_mods.join(id).is_dir() {
-            (game_mods.join(id), "game")
+        // ⚠️ 走大小写不敏感 + 嵌套感知的解析（`id` 是 VCMI modId 小写形态，
+        // 磁盘目录保留原名且子模组位于 `<根>/<父>/Mods/<子>`），不能用 `join(id)`。
+        let (src_dir, source) = if let Some(u) = resolve_mod_dir(user_mods, id) {
+            (u, "user")
+        } else if let Some(g) = resolve_mod_dir(game_mods, id) {
+            (g, "game")
         } else {
             continue; // 来源缺失：交给「引用模组缺失」校验处理
         };
@@ -97,10 +102,11 @@ pub fn check_realm_mod_conflicts(
 
     let mut out: Vec<Value> = Vec::new();
     for id in bundled {
-        let (src_dir, source) = if user_mods.join(&id).is_dir() {
-            (user_mods.join(&id), "user")
-        } else if game_mods.join(&id).is_dir() {
-            (game_mods.join(&id), "game")
+        // 同上一处：必须走大小写不敏感 + 嵌套感知的解析（不能用 `join(&id)`）
+        let (src_dir, source) = if let Some(u) = resolve_mod_dir(&user_mods, &id) {
+            (u, "user")
+        } else if let Some(g) = resolve_mod_dir(&game_mods, &id) {
+            (g, "game")
         } else {
             continue; // 来源不存在：交给 §9.2.2 的「引用模组缺失」校验处理
         };
@@ -168,7 +174,11 @@ pub fn check_realm_mods_ready(state: State<AppPaths>, realm_id: String) -> Value
     let mut bundled_ids: Vec<String> = Vec::new();
     for m in borrowed.iter() {
         if let Some(id) = m.as_str() {
-            if !user_mods.join(id).is_dir() && !game_mods.join(id).is_dir() {
+            // 大小写不敏感 + 嵌套感知：`id` 为小写 modId，磁盘目录保留原名
+            // （直接用 `join` 会在 Linux 上把所有已装模组误报为"缺失"）
+            if resolve_mod_dir(&user_mods, id).is_none()
+                && resolve_mod_dir(&game_mods, id).is_none()
+            {
                 missing_borrowed.push(id.to_string());
             }
         }
@@ -176,13 +186,16 @@ pub fn check_realm_mods_ready(state: State<AppPaths>, realm_id: String) -> Value
     for m in bundled.iter() {
         if let Some(id) = m.as_str() {
             bundled_ids.push(id.to_string());
-            // 已整合到领域内的副本优先，不再要求来源存在
+            // 已整合到领域内的副本优先，不再要求来源存在。
+            // 领域内副本由本启动器创建，目录名即 id，`join` 即可（无需大小写容错）。
             if let Some(rm) = &realm_mods {
                 if rm.join(id).is_dir() {
                     continue;
                 }
             }
-            if !user_mods.join(id).is_dir() && !game_mods.join(id).is_dir() {
+            if resolve_mod_dir(&user_mods, id).is_none()
+                && resolve_mod_dir(&game_mods, id).is_none()
+            {
                 missing_bundled.push(id.to_string());
             }
         }

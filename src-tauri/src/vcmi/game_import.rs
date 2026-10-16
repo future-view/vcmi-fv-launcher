@@ -406,7 +406,10 @@ fn dir_primary_target(env: &ImportEnv, scan: &DirScan) -> PathBuf {
         return env.maps_dir.clone();
     };
     let base = dest_dir_for(env, first.1);
-    let mixed = scan.entries.iter().any(|(_, c)| dest_dir_for(env, *c) != base);
+    let mixed = scan
+        .entries
+        .iter()
+        .any(|(_, c)| dest_dir_for(env, *c) != base);
     if mixed {
         env.maps_dir
             .parent()
@@ -779,7 +782,12 @@ fn detect_hd_language(dir: &Path) -> Option<(String, String)> {
 }
 
 /// 定位单个 pak 源文件（com 在 `data/`，loc 在 `data/LOC/<CODE>/`）。
-fn hd_pak_source(dir: &Path, name: &str, is_loc: bool, lang_code: &Option<String>) -> Option<PathBuf> {
+fn hd_pak_source(
+    dir: &Path,
+    name: &str,
+    is_loc: bool,
+    lang_code: &Option<String>,
+) -> Option<PathBuf> {
     let base = if is_loc {
         resolve_ci(dir, &["data", "LOC", lang_code.as_deref()?])?
     } else {
@@ -817,8 +825,10 @@ fn scan_hd(dir: &Path) -> HdScan {
 }
 
 fn write_mod_json(dir: &Path, v: serde_json::Value) -> Result<(), String> {
-    let text = serde_json::to_string(&v).map_err(|e| be_err("vcmi_mod_json_serialize_failed", &format!("{}", e)))?;
-    fs::write(dir.join("mod.json"), text).map_err(|e| be_err("vcmi_mod_json_write_failed", &format!("{}", e)))
+    let text = serde_json::to_string(&v)
+        .map_err(|e| be_err("vcmi_mod_json_serialize_failed", &format!("{}", e)))?;
+    fs::write(dir.join("mod.json"), text)
+        .map_err(|e| be_err("vcmi_mod_json_write_failed", &format!("{}", e)))
 }
 
 fn copy_pak_or_count(
@@ -832,7 +842,8 @@ fn copy_pak_or_count(
 ) -> Result<(), String> {
     match hd_pak_source(src_dir, name, is_loc, lang_code) {
         Some(src) => {
-            fs::copy(&src, dst_dir.join(name)).map_err(|e| be_err("vcmi_copy_failed", &format!("{} {}", name, e)))?;
+            fs::copy(&src, dst_dir.join(name))
+                .map_err(|e| be_err("vcmi_copy_failed", &format!("{} {}", name, e)))?;
             *files += 1;
         }
         None => missing.push(name.to_string()),
@@ -874,12 +885,15 @@ pub fn install_hd_edition(
     }
     if had {
         if is_link(&target) {
-            fs::remove_dir(&target).map_err(|e| be_err("vcmi_hd_cleanup_failed", &format!("{}", e)))?;
+            fs::remove_dir(&target)
+                .map_err(|e| be_err("vcmi_hd_cleanup_failed", &format!("{}", e)))?;
         } else {
-            fs::remove_dir_all(&target).map_err(|e| be_err("vcmi_hd_cleanup_failed", &format!("{}", e)))?;
+            fs::remove_dir_all(&target)
+                .map_err(|e| be_err("vcmi_hd_cleanup_failed", &format!("{}", e)))?;
         }
     }
-    fs::create_dir_all(&target).map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&target)
+        .map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
 
     let mut files = 0usize;
     let language = detect_hd_language(src_dir);
@@ -902,10 +916,12 @@ pub fn install_hd_edition(
 
     // content/data：spriteFlagsInfo.txt + flags/*（官方 :61-72）
     let data_dst = target.join("content").join("data");
-    fs::create_dir_all(&data_dst).map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&data_dst)
+        .map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
     let src_data = resolve_ci(src_dir, &["data"]);
-    if let Some(cfg) =
-        src_data.as_deref().and_then(|d| find_child_file_ci(d, "spriteFlagsInfo.txt"))
+    if let Some(cfg) = src_data
+        .as_deref()
+        .and_then(|d| find_child_file_ci(d, "spriteFlagsInfo.txt"))
     {
         fs::copy(&cfg, data_dst.join("spriteFlagsInfo.txt"))
             .map_err(|e| be_err("vcmi_sprite_flags_copy_failed", &format!("{}", e)))?;
@@ -913,7 +929,8 @@ pub fn install_hd_edition(
     }
     if let Some(flags_src) = src_data.as_deref().and_then(|d| find_child_ci(d, "flags")) {
         let flags_dst = data_dst.join("flags");
-        fs::create_dir_all(&flags_dst).map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
+        fs::create_dir_all(&flags_dst)
+            .map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
         if let Ok(rd) = fs::read_dir(&flags_src) {
             for e in rd.flatten() {
                 let p = e.path();
@@ -970,7 +987,8 @@ pub fn install_hd_edition(
                 }
                 let subdir = target.join("mods").join(format!("x{scale}_loc_{code}"));
                 let dst = subdir.join("content").join("data");
-                fs::create_dir_all(&dst).map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
+                fs::create_dir_all(&dst)
+                    .map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
                 write_mod_json(
                     &subdir,
                     serde_json::json!({
@@ -1076,7 +1094,11 @@ fn copy_rel_with_conflict(
     };
     if let Some(parent) = dest.parent() {
         if let Err(e) = fs::create_dir_all(parent) {
-            return ("failed".to_string(), dest, Some(format!("创建目标目录失败: {e}")));
+            return (
+                "failed".to_string(),
+                dest,
+                Some(format!("创建目标目录失败: {e}")),
+            );
         }
     }
     let existed = dest.exists();
@@ -1122,8 +1144,10 @@ fn extract_zip_subset(
             let mut zf = archive
                 .by_name(entry_name)
                 .map_err(|e| be_err("vcmi_entry_read_failed", &format!("{}", e)))?;
-            let mut out = fs::File::create(&dest).map_err(|e| be_err("rt_file_create_failed", &format!("{}", e)))?;
-            std::io::copy(&mut zf, &mut out).map_err(|e| be_err("vcmi_extract_failed", &format!("{}", e)))?;
+            let mut out = fs::File::create(&dest)
+                .map_err(|e| be_err("rt_file_create_failed", &format!("{}", e)))?;
+            std::io::copy(&mut zf, &mut out)
+                .map_err(|e| be_err("vcmi_extract_failed", &format!("{}", e)))?;
             Ok(())
         })();
         match copied {
@@ -1218,7 +1242,9 @@ pub fn preflight(
                     item.ok = false;
                     item.reason = Some("目录内没有可导入的文件".to_string());
                 } else {
-                    item.target = dir_primary_target(env, &scan).to_string_lossy().into_owned();
+                    item.target = dir_primary_target(env, &scan)
+                        .to_string_lossy()
+                        .into_owned();
                     item.conflict = conflict_count > 0;
                 }
                 item.dir = Some(DirPreview {
@@ -1252,7 +1278,11 @@ pub fn preflight(
             }
             InputClass::Chronicles => {
                 item.inno = Some(inno_signature(p));
-                item.target = env.mods_dir.join("chronicles").to_string_lossy().into_owned();
+                item.target = env
+                    .mods_dir
+                    .join("chronicles")
+                    .to_string_lossy()
+                    .into_owned();
             }
             InputClass::Hd => match hd_root(p) {
                 None => {
@@ -1385,14 +1415,7 @@ pub fn execute(
                 exec_hd(env, p, conflict, &mut exec, &mut mods_installed);
             }
             InputClass::Zip => {
-                exec_zip(
-                    env,
-                    p,
-                    conflict,
-                    overrides,
-                    &mut exec,
-                    &mut mods_installed,
-                );
+                exec_zip(env, p, conflict, overrides, &mut exec, &mut mods_installed);
             }
         }
 
@@ -1506,7 +1529,11 @@ fn exec_dir(
             _ => failed += 1,
         }
     }
-    exec.dest = Some(dir_primary_target(env, &scan).to_string_lossy().into_owned());
+    exec.dest = Some(
+        dir_primary_target(env, &scan)
+            .to_string_lossy()
+            .into_owned(),
+    );
     let mut detail = format!("新增 {added} · 跳过 {skipped} · 失败 {failed}");
     if replaced > 0 {
         detail.push_str(&format!(" · 覆盖 {replaced}"));
@@ -1517,7 +1544,11 @@ fn exec_dir(
     exec.status = if failed > 0 {
         "failed"
     } else if added + replaced > 0 {
-        if replaced > 0 { "replaced" } else { "added" }
+        if replaced > 0 {
+            "replaced"
+        } else {
+            "added"
+        }
     } else {
         "skipped"
     }
@@ -1533,7 +1564,9 @@ fn exec_zip(
     exec: &mut ExecItem,
     mods_installed: &mut Vec<ModInstalled>,
 ) {
-    let override_kind = overrides.get(exec.path.as_str()).and_then(|s| ZipKind::parse(s));
+    let override_kind = overrides
+        .get(exec.path.as_str())
+        .and_then(|s| ZipKind::parse(s));
     let scan = match scan_zip(zip_path, override_kind) {
         Ok(s) => s,
         Err(e) => {
@@ -1638,7 +1671,11 @@ mod tests {
     #[test]
     fn classify_zip_prefers_mod_json_then_maps_then_saves() {
         let both = vec!["x/mod.json".to_string(), "x/map.h3m".to_string()];
-        assert_eq!(classify_zip_names(&both), ZipKind::Mod, "mod.json 优先于地图");
+        assert_eq!(
+            classify_zip_names(&both),
+            ZipKind::Mod,
+            "mod.json 优先于地图"
+        );
         let maps = vec!["a.h3m".to_string(), "b/c.vmap".to_string()];
         assert_eq!(classify_zip_names(&maps), ZipKind::Maps);
         let saves = vec!["s.vsgm1".to_string()];
@@ -1658,7 +1695,10 @@ mod tests {
         assert_eq!(safe_rel_path("../evil.h3m"), None);
         assert_eq!(safe_rel_path("a/../../b.h3m"), None);
         assert_eq!(safe_rel_path("C:/win.h3m"), None);
-        assert_eq!(safe_rel_path("a\\b\\c.h3m"), Some(PathBuf::from("a/b/c.h3m")));
+        assert_eq!(
+            safe_rel_path("a\\b\\c.h3m"),
+            Some(PathBuf::from("a/b/c.h3m"))
+        );
         assert_eq!(safe_rel_path("./a.h3m"), Some(PathBuf::from("a.h3m")));
         assert_eq!(safe_rel_path(""), None);
     }
@@ -1730,7 +1770,10 @@ mod tests {
         let rep = execute(&env, &[s(&zip_path)], Conflict::Skip, &BTreeMap::new());
         assert_eq!(rep.added, 1);
         assert_eq!(fs::read(env.maps_dir.join("sub/a.h3m")).unwrap(), b"a");
-        assert!(!env.maps_dir.join("note.txt").exists(), "非地图条目不得解出");
+        assert!(
+            !env.maps_dir.join("note.txt").exists(),
+            "非地图条目不得解出"
+        );
         let _ = fs::remove_dir_all(&d);
     }
 
@@ -1739,10 +1782,7 @@ mod tests {
         let d = tmp_dir("zipslip");
         let env = env_at(&d);
         let zip_path = d.join("evil.zip");
-        write_zip(
-            &zip_path,
-            &[("../escape.h3m", "boom"), ("ok.h3m", "ok")],
-        );
+        write_zip(&zip_path, &[("../escape.h3m", "boom"), ("ok.h3m", "ok")]);
         let rep = preflight(&env, &[s(&zip_path)], &BTreeMap::new());
         assert!(!rep.items[0].ok);
         assert!(rep.items[0].reason.as_deref().unwrap().contains("zip-slip"));
@@ -1750,7 +1790,10 @@ mod tests {
         let rep = execute(&env, &[s(&zip_path)], Conflict::Overwrite, &BTreeMap::new());
         assert_eq!(rep.failed, 1);
         assert!(!d.join("escape.h3m").exists(), "越界条目不得落地");
-        assert!(!env.maps_dir.join("ok.h3m").exists(), "同批非法条目存在时整体拒绝");
+        assert!(
+            !env.maps_dir.join("ok.h3m").exists(),
+            "同批非法条目存在时整体拒绝"
+        );
         let _ = fs::remove_dir_all(&d);
     }
 
@@ -1824,7 +1867,10 @@ mod tests {
         assert_eq!(rep.items[1].inno, Some(true));
         assert_eq!(rep.items[2].kind, "unsupported");
         assert!(!rep.items[2].ok);
-        assert_eq!(rep.items[3].kind, "dir", "普通目录 → 递归收集（不再一律判不支持）");
+        assert_eq!(
+            rep.items[3].kind, "dir",
+            "普通目录 → 递归收集（不再一律判不支持）"
+        );
         assert!(!rep.items[3].ok, "空目录无可导入项");
         assert_eq!(rep.items[3].dir.as_ref().unwrap().map_count, 0);
         assert_eq!(rep.summary.unsupported, 1);
@@ -1876,7 +1922,10 @@ mod tests {
         let ex = execute(&env, &[s(&src)], Conflict::Skip, &BTreeMap::new());
         assert_eq!(ex.added, 1);
         assert!(env.maps_dir.join("a.h3m").is_file());
-        assert!(env.maps_dir.join("sub/b.vcmp").is_file(), "子目录结构应保留");
+        assert!(
+            env.maps_dir.join("sub/b.vcmp").is_file(),
+            "子目录结构应保留"
+        );
         assert!(env.saves_dir.join("c.vsgm1").is_file());
 
         // 二次预检：3 个平铺项全部已存在 → conflict_count=3
@@ -1968,8 +2017,12 @@ mod tests {
         assert!(hd_root.join("mod.json").is_file());
         assert!(hd_root.join("content/data/spriteFlagsInfo.txt").is_file());
         assert!(hd_root.join("content/data/flags/f1.bmp").is_file());
-        assert!(hd_root.join("mods/x2/content/data/bitmap_DXT_com_x2.pak").is_file());
-        assert!(hd_root.join("mods/x3/content/data/sprite_DXT_com_x3.pak").is_file());
+        assert!(hd_root
+            .join("mods/x2/content/data/bitmap_DXT_com_x2.pak")
+            .is_file());
+        assert!(hd_root
+            .join("mods/x3/content/data/sprite_DXT_com_x3.pak")
+            .is_file());
         assert!(hd_root
             .join("mods/x2_loc_EN/content/data/bitmap_DXT_loc_x2.pak")
             .is_file());
@@ -1979,10 +2032,8 @@ mod tests {
         .unwrap();
         assert_eq!(loc_json["modType"], "Translation");
         assert_eq!(loc_json["language"], "english");
-        let parent_json: serde_json::Value = serde_json::from_str(
-            &fs::read_to_string(hd_root.join("mod.json")).unwrap(),
-        )
-        .unwrap();
+        let parent_json: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(hd_root.join("mod.json")).unwrap()).unwrap();
         assert_eq!(parent_json["name"], "Heroes III HD Edition");
 
         // 已存在 + skip → skipped
@@ -2011,8 +2062,13 @@ mod tests {
         assert_eq!(rep.added, 1);
         assert_eq!(rep.mods_installed.len(), 1);
         let hd_root = env.mods_dir.join("hd-edition");
-        assert!(hd_root.join("mods/x2/content/data/sprite_DXT_com_x2.pak").is_file());
-        assert!(!hd_root.join("mods/x2_loc_EN").exists(), "无语言不建本地化子模组");
+        assert!(hd_root
+            .join("mods/x2/content/data/sprite_DXT_com_x2.pak")
+            .is_file());
+        assert!(
+            !hd_root.join("mods/x2_loc_EN").exists(),
+            "无语言不建本地化子模组"
+        );
         let _ = fs::remove_dir_all(&d);
     }
 }

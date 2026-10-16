@@ -5,19 +5,19 @@
 //! `read_realm_meta` / `write_realm_meta` / `realm_versions` / `now_date` 同时被
 //! `repository` 复用，故保持 `pub`。
 
-use crate::infra::berror::be_err;
 use super::activate::deactivate_realm_inner;
 use super::base::{
-    REALM_PRESET_ID, ensure_realm_dirs, now_date, persist, read_config, realm_lock_path,
-    realm_meta_path, realm_root, realm_root_of, realms_root, write_realm_lock,
+    ensure_realm_dirs, now_date, persist, read_config, realm_lock_path, realm_meta_path,
+    realm_root, realm_root_of, realms_root, write_realm_lock, REALM_PRESET_ID,
 };
+use crate::infra::berror::be_err;
 
 use serde_json::{json, Value};
 use std::fs;
 use tauri::State;
 
-use crate::state::AppPaths;
 use crate::infra::links::{self, is_link};
+use crate::state::AppPaths;
 use crate::vcmi::paths::VcmiPaths;
 
 pub fn read_realm_meta(id: &str) -> Option<Value> {
@@ -39,9 +39,10 @@ pub fn write_realm_meta(id: &str, realm: &Value) -> Result<(), String> {
         o.insert("id".to_string(), json!(VcmiPaths::sanitize_realm_id(id)));
         o.remove("checksum"); // 校验和只对导出包有意义
     }
-    let text =
-        serde_json::to_string_pretty(&meta).map_err(|e| be_err("realm_json_serialize_failed", &format!("{}", e)))?;
-    fs::write(root.join("realm.json"), text).map_err(|e| be_err("realm_json_write_failed", &format!("{}", e)))
+    let text = serde_json::to_string_pretty(&meta)
+        .map_err(|e| be_err("realm_json_serialize_failed", &format!("{}", e)))?;
+    fs::write(root.join("realm.json"), text)
+        .map_err(|e| be_err("realm_json_write_failed", &format!("{}", e)))
 }
 
 /// 列出全部领域 id（扫描 `realms/` 子目录，按 id 升序）。
@@ -139,7 +140,8 @@ pub(crate) fn remove_realm_dir_safely(id: &str) -> Result<(), String> {
             }
         }
     }
-    fs::remove_dir_all(&root).map_err(|e| be_err("realm_realm_dir_delete_failed", &format!("{}", e)))
+    fs::remove_dir_all(&root)
+        .map_err(|e| be_err("realm_realm_dir_delete_failed", &format!("{}", e)))
 }
 
 /// 列出全部领域 + 当前激活 id。
@@ -198,8 +200,8 @@ pub fn realm_config_dir(realm_id: String) -> Result<String, String> {
             .unwrap_or_default();
         return Ok(global.to_string_lossy().to_string());
     }
-    let base = VcmiPaths::realm_vcmi_dir(&id)
-        .ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
+    let base =
+        VcmiPaths::realm_vcmi_dir(&id).ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
     Ok(base.join("config").to_string_lossy().to_string())
 }
 
@@ -360,7 +362,8 @@ pub fn rename_realm(old_id: String, new_id: String) -> Result<(), String> {
     if !old_root.is_dir() {
         return Err(be_err("realm_dir_not_found", &format!("{}", old)));
     }
-    fs::rename(&old_root, &new_root).map_err(|e| be_err("realm_rename_failed", &format!("{}", e)))?;
+    fs::rename(&old_root, &new_root)
+        .map_err(|e| be_err("realm_rename_failed", &format!("{}", e)))?;
     // 目录已改名：同步改写 realm.json 内的 id（它随目录一起搬走）
     if let Some(mut meta) = read_realm_meta(&new) {
         if let Some(o) = meta.as_object_mut() {

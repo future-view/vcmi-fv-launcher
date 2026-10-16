@@ -77,7 +77,10 @@ pub fn drain_local() -> Vec<(&'static str, u128, u64, u64)> {
         if v.is_empty() {
             return Vec::new();
         }
-        let out: Vec<_> = v.iter().map(|(k, e)| (*k, e.us, e.count, e.bytes)).collect();
+        let out: Vec<_> = v
+            .iter()
+            .map(|(k, e)| (*k, e.us, e.count, e.bytes))
+            .collect();
         v.clear();
         out
     })
@@ -113,7 +116,10 @@ pub fn merge_global(items: &[(&'static str, u128, u64, u64)]) {
 pub fn global_top(n: usize) -> Vec<(&'static str, u128, u64, u64)> {
     let list = GLOBAL.get_or_init(|| std::sync::Mutex::new(Vec::new()));
     let g = list.lock().unwrap_or_else(|e| e.into_inner());
-    let mut v: Vec<_> = g.iter().map(|(k, e)| (*k, e.us, e.count, e.bytes)).collect();
+    let mut v: Vec<_> = g
+        .iter()
+        .map(|(k, e)| (*k, e.us, e.count, e.bytes))
+        .collect();
     v.sort_by(|a, b| b.1.cmp(&a.1));
     v.truncate(n);
     v

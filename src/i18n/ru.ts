@@ -86,8 +86,9 @@ export const ru: LangDict = {
       cost: "Стоимость",
     },
     allMods: "Все моды",
-    search: "Поиск",
     searchPlaceholder: "Поиск по названию…",
+    searchClear: "Очистить поиск",
+    contentPlaceholder: "Выберите запись, чтобы посмотреть описание.",
     filter: {
       title: "Фильтр",
       reset: "Сбросить",
@@ -126,6 +127,7 @@ export const ru: LangDict = {
     stageData: "Чтение игровых данных",
     stageAssets: "Извлечение игровых ресурсов",
     stageHd: "Генерация HD-ресурсов",
+    stagePrep: "Сканирование папок модов",
     readyHintTemplate: "Для этой страницы требуется: {stages}",
     stageSeparator: ", ",
     readyHintRest: "(остальное продолжается в фоне — эта страница не затрагивается)",

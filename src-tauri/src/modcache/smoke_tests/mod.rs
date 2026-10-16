@@ -22,44 +22,53 @@
 //! - `resolve_resource`：资源定位（MOD → 游戏 LOD 回退）
 //! - `hd_edition`　　 ：HD 素材端到端（阶段二登记 → HD 源生成 `@Nx` 变体）
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use serde_json::{json, Value};
-use crate::vcmi::paths::VcmiPaths;
-use crate::vcmi::resource::resolve_resource;
-use crate::vcmi::scan::{collect_mod_paths, scan_user_mods_dir};
-use crate::modcache::batch::{
-    build_mods_cache_batch_inner, wiki_threads, BatchWikiMod,
-};
-use crate::modcache::build::build_mod_wiki_phase;
-use crate::modcache::index::{build_all_wiki_inner, read_mod_wiki_inner};
-use crate::modcache::preview::generate_town_preview_inner;
 use crate::infra::hash::compute_source_hash;
 use crate::infra::image::encode_webp;
-use crate::vcmi::h3core::{h3_core_data_dir, load_h3_core_i18n};
-use crate::vcmi::town::read_town_configs;
+use crate::modcache::batch::{build_mods_cache_batch_inner, wiki_threads, BatchWikiMod};
 use crate::modcache::build::build_mod_wiki_inner;
+use crate::modcache::build::build_mod_wiki_phase;
 use crate::modcache::collect::collect_all_raw_configs;
 use crate::modcache::global::{
     extract_resource_icons_for_mod, extract_shared_ui_icons, extract_stat_icons_for_mod,
 };
-use crate::modcache::preview::{composite_structures_to_canvas, compose_town_preview_for, load_structure_frame};
+use crate::modcache::index::{build_all_wiki_inner, read_mod_wiki_inner};
+use crate::modcache::preview::generate_town_preview_inner;
+use crate::modcache::preview::{
+    compose_town_preview_for, composite_structures_to_canvas, load_structure_frame,
+};
 use crate::modcache::version::WIKI_CACHE_VERSION;
+use crate::vcmi::h3core::{h3_core_data_dir, load_h3_core_i18n};
+use crate::vcmi::paths::VcmiPaths;
+use crate::vcmi::resource::resolve_resource;
+use crate::vcmi::scan::{collect_mod_paths, scan_user_mods_dir};
+use crate::vcmi::town::read_town_configs;
+use serde_json::{json, Value};
+use std::fs;
+use std::path::{Path, PathBuf};
 
-mod assets_icons;
 mod ai_audit;
+mod assets_icons;
 mod build_phase;
-mod rebuild;
 mod core_regression;
-mod resolve_resource;
-mod town_refs;
-mod protocol;
 mod hd_bench;
 mod hd_compare;
+mod ability_icons;
 mod hd_edition;
+mod hero_class_decl;
+mod protocol;
+mod rebuild;
+mod resolve_resource;
+mod town_refs;
 
+/// 测试用 mod 目录 = [`test_mods_dir`] + mod 相对路径。
+///
+/// ⚠️ 不要改回写死的 `references_game_dir().join("Mods")`：`abyss-town` 这类 mod 并不在
+/// 随仓库携带的 fixture 里，写死会让 `resolve_resource` 的几个用例**永远失败**（找的是不存在的
+/// 目录，报"应找到含 townBackground 的 town 配置"）。经 [`test_mods_dir`] 取用后，
+/// 只要 `VCMI_TEST_MODS_DIR` 指向真实安装（如 572 mod 发行版）即可跑通；
+/// 未设置环境变量时默认值仍是 `references/Heroes3-VCMI/Mods`，行为不变。
 fn fixture(mod_name: &str) -> PathBuf {
-    references_game_dir().join("Mods").join(mod_name)
+    test_mods_dir().join(mod_name)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -127,7 +136,10 @@ pub(super) fn sample_root() -> PathBuf {
         if p.is_dir() {
             return p;
         }
-        println!("⚠️ HD_BENCH_MODS 指向的目录不存在：{}（回退默认）", p.display());
+        println!(
+            "⚠️ HD_BENCH_MODS 指向的目录不存在：{}（回退默认）",
+            p.display()
+        );
     }
     references_game_dir().join(".vcmi-fv-launcher").join("mods")
 }

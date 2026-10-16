@@ -84,7 +84,13 @@ fn rebuild_all_with_core() {
             return;
         }
         const PROTECTED: &[&str] = &[
-            "realms", "runtime", "launcher.json", "state.json", "cache", "downloads", "logs",
+            "realms",
+            "runtime",
+            "launcher.json",
+            "state.json",
+            "cache",
+            "downloads",
+            "logs",
         ];
         for e in fs::read_dir(&cache_root).into_iter().flatten().flatten() {
             let p = e.path();
@@ -110,7 +116,10 @@ fn rebuild_all_with_core() {
     // 1) 收集全部模组——**精确镜像** `scan_mods` 命令 + 前端 `flattenTree`：
     //    用户数据目录优先，游戏目录补齐同名之外的（同名以用户目录为准）。
     fn id_of(m: &Value) -> String {
-        m.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string()
+        m.get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string()
     }
     let user_dir = user_data_dir(&game_dir);
     let game_tree = scan_user_mods_dir(&game_dir.join("Mods"));
@@ -120,8 +129,7 @@ fn rebuild_all_with_core() {
     } else if user_tree.is_empty() {
         game_tree
     } else {
-        let user_ids: std::collections::HashSet<String> =
-            user_tree.iter().map(id_of).collect();
+        let user_ids: std::collections::HashSet<String> = user_tree.iter().map(id_of).collect();
         let mut merged = user_tree;
         for m in game_tree {
             let id = id_of(&m);
@@ -133,7 +141,10 @@ fn rebuild_all_with_core() {
     };
     let mut flat: Vec<Value> = Vec::new();
     flatten(&merged_tree, &mut flat);
-    let sub_count = flat.iter().filter(|m| m.get("isSubmod").and_then(|x| x.as_bool()).unwrap_or(false)).count();
+    let sub_count = flat
+        .iter()
+        .filter(|m| m.get("isSubmod").and_then(|x| x.as_bool()).unwrap_or(false))
+        .count();
     println!(
         "扫描：顶层 mod = {}　展平（含子模组）= {}　其中子模组 = {}",
         merged_tree.len(),
@@ -148,8 +159,16 @@ fn rebuild_all_with_core() {
     let mut batch: Vec<BatchWikiMod> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     for m in &flat {
-        let id = m.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let mod_path = m.get("modPath").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let id = m
+            .get("id")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        let mod_path = m
+            .get("modPath")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
         if id.is_empty() || mod_path.is_empty() || !seen.insert(id.clone()) {
             continue;
         }
@@ -166,7 +185,11 @@ fn rebuild_all_with_core() {
     }
     // 2) 注入原版伪模组（父 core + 9 子）——与 `src/lib/modcache/buildTargets.ts` 的 buildCoreEntries 对齐。
     //    `name` 留空：显示名由后端从 h3-core 文案表派生（多语言），与启动器构建路径同款。
-    let core_path = game_dir.join("Mods").join("vcmi").to_string_lossy().to_string();
+    let core_path = game_dir
+        .join("Mods")
+        .join("vcmi")
+        .to_string_lossy()
+        .to_string();
     batch.push(BatchWikiMod {
         mod_id: "core".into(),
         mod_path: core_path.clone(),
@@ -222,9 +245,14 @@ fn rebuild_all_with_core() {
     );
     // ① 阶段一：全部 mod，仅数据
     let t0 = std::time::Instant::now();
-    let r1 = build_mods_cache_batch_inner(None, &game_dir_s, &batch, &cache_root, throttle, Some(0))
-        .expect("阶段一失败");
-    println!("①阶段一（全部 c0）：{}（{}ms）", r1, t0.elapsed().as_millis());
+    let r1 =
+        build_mods_cache_batch_inner(None, &game_dir_s, &batch, &cache_root, throttle, Some(0))
+            .expect("阶段一失败");
+    println!(
+        "①阶段一（全部 c0）：{}（{}ms）",
+        r1,
+        t0.elapsed().as_millis()
+    );
     // ② 阶段二：城镇批优先
     let t1 = std::time::Instant::now();
     let r2 = build_mods_cache_batch_inner(
@@ -236,7 +264,11 @@ fn rebuild_all_with_core() {
         Some(1),
     )
     .expect("阶段二（城镇批）失败");
-    println!("②阶段二（城镇批 c1）：{}（{}ms）", r2, t1.elapsed().as_millis());
+    println!(
+        "②阶段二（城镇批 c1）：{}（{}ms）",
+        r2,
+        t1.elapsed().as_millis()
+    );
     // ③ 阶段二：其余批
     let t2 = std::time::Instant::now();
     let r3 = build_mods_cache_batch_inner(
@@ -248,20 +280,27 @@ fn rebuild_all_with_core() {
         Some(1),
     )
     .expect("阶段二（其余批）失败");
-    println!("③阶段二（其余批 c1）：{}（{}ms）", r3, t2.elapsed().as_millis());
+    println!(
+        "③阶段二（其余批 c1）：{}（{}ms）",
+        r3,
+        t2.elapsed().as_millis()
+    );
     assert_eq!(r3.get("ok").and_then(|x| x.as_bool()), Some(true));
 
     // 4) 产物一致性：索引必须覆盖本次提交的**全部** mod（含子模组），
     //    否则说明有模组未被构建/未入索引 —— 与「启动器构建效果一致」不符
     let idx: Value =
-        serde_json::from_str(&fs::read_to_string(cache_root.join("index.json")).unwrap())
-            .unwrap();
+        serde_json::from_str(&fs::read_to_string(cache_root.join("index.json")).unwrap()).unwrap();
     let idx_ids: std::collections::HashSet<String> = idx
         .get("mods")
         .and_then(|x| x.as_array())
         .map(|a| {
             a.iter()
-                .filter_map(|m| m.get("modId").and_then(|x| x.as_str()).map(|s| s.to_string()))
+                .filter_map(|m| {
+                    m.get("modId")
+                        .and_then(|x| x.as_str())
+                        .map(|s| s.to_string())
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -356,10 +395,22 @@ fn full_batch_rebuild_smoke() {
         None,
     )
     .expect("batch ok");
-    let failed = res.get("failed").and_then(|x| x.as_array()).map(|a| a.len()).unwrap_or(0);
-    let fps = res.get("failedPreviews").and_then(|x| x.as_array()).map(|a| a.len()).unwrap_or(0);
+    let failed = res
+        .get("failed")
+        .and_then(|x| x.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
+    let fps = res
+        .get("failedPreviews")
+        .and_then(|x| x.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
     println!("failed mods: {} ; failedPreviews: {}", failed, fps);
-    for f in res.get("failedPreviews").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
+    for f in res
+        .get("failedPreviews")
+        .and_then(|x| x.as_array())
+        .unwrap_or(&vec![])
+    {
         println!("  FP: {}", f.as_str().unwrap_or(""));
     }
     // 抽样断言：abyss-town 的 preview + 英文名 + cacheVersion

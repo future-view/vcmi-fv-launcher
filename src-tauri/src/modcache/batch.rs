@@ -8,35 +8,63 @@
 //! 依赖方向：可依赖 `infra` 与 `vcmi`（见 `docs/architecture/backend.zh-CN.md` §4.1）；
 //! 进度事件通过 `on_progress` 回调外抛，本层不依赖 `tauri`。
 
+use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::Ordering::Relaxed;
+use std::sync::{Mutex, OnceLock};
 
 use serde_json::{json, Value};
 
+use crate::modcache::build::build_mod_wiki_phase;
+use crate::modcache::sanitize_id;
 use crate::vcmi::paths::VcmiPaths;
 use crate::vcmi::resource::{set_wiki_mod_paths, set_wiki_user_data_dir};
 use crate::vcmi::scan::cached_mod_paths;
-use crate::modcache::build::build_mod_wiki_phase;
-use crate::modcache::sanitize_id;
 
 /// 批量构建全局进度（供前端轮询兜底——事件在部分环境可能丢失）
 pub static WIKI_BUILD_DONE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-pub static WIKI_BUILD_TOTAL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+pub static WIKI_BUILD_TOTAL: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+/// **准备阶段**（排序前的 mod 成本估算）的独立进度。
+///
+/// 为什么必须与构建进度分开记账：冷缓存下 572 个 mod 的目录枚举是**分钟级**
+/// （机械盘寻道主导，实测 14,144 目录冷遍历 ≈ 652 s / 热 9.6 s），而它发生在
+/// **第一个 mod 开工之前**。这段"看不见的序章"正是用户读作"卡在 0%"的来源
+/// （2026-10-16 实测 63 s 零反馈）。两者计数域同为 `0..mods.len()`，混在一组
+/// 计数器里会让进度条"冲满后归零"。
+pub static WIKI_BUILD_PREP_DONE: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+pub static WIKI_BUILD_PREP_TOTAL: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
 
 /// 取消标志：由 `cancel_cache_build` 置位，job 内每个 mod 开始前检查，置位即跳过剩余
-pub static WIKI_BUILD_CANCEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static WIKI_BUILD_CANCEL: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 /// **领域加急队列**的独立进度。
 ///
 /// ⚠️ 必须与全局进度分离：App 启动时的全局构建（`ensureWikiCacheBuilt`）与领域进度页
 /// 可能并存，共用一组计数器会让两个进度条互相覆盖（用户看到"进度倒退/乱跳"）。
-pub static REALM_BUILD_DONE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+pub static REALM_BUILD_DONE: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
 
-pub static REALM_BUILD_TOTAL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+pub static REALM_BUILD_TOTAL: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+/// 领域加急队列的准备阶段进度（语义同 [`WIKI_BUILD_PREP_DONE`]）。
+pub static REALM_BUILD_PREP_DONE: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+pub static REALM_BUILD_PREP_TOTAL: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
 
 /// 领域加急队列的取消标志（进度页「返回」→ 停止构建剩余 mod）
-pub static REALM_BUILD_CANCEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub static REALM_BUILD_CANCEL: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 /// 一次批次把**进度与取消**写到哪一组计数器。
 ///
@@ -47,6 +75,9 @@ pub struct BuildSlot {
     pub done: &'static std::sync::atomic::AtomicUsize,
     pub total: &'static std::sync::atomic::AtomicUsize,
     pub cancel: &'static std::sync::atomic::AtomicBool,
+    /// 准备阶段（成本估算）进度，与 `done`/`total` 分开记账（见 [`WIKI_BUILD_PREP_DONE`]）
+    pub prep_done: &'static std::sync::atomic::AtomicUsize,
+    pub prep_total: &'static std::sync::atomic::AtomicUsize,
 }
 
 impl BuildSlot {
@@ -56,6 +87,8 @@ impl BuildSlot {
             done: &WIKI_BUILD_DONE,
             total: &WIKI_BUILD_TOTAL,
             cancel: &WIKI_BUILD_CANCEL,
+            prep_done: &WIKI_BUILD_PREP_DONE,
+            prep_total: &WIKI_BUILD_PREP_TOTAL,
         }
     }
 
@@ -65,7 +98,56 @@ impl BuildSlot {
             done: &REALM_BUILD_DONE,
             total: &REALM_BUILD_TOTAL,
             cancel: &REALM_BUILD_CANCEL,
+            prep_done: &REALM_BUILD_PREP_DONE,
+            prep_total: &REALM_BUILD_PREP_TOTAL,
         }
+    }
+}
+
+/// 批量构建进度的两个阶段（事件 payload 的 `prep` 字段由它派生）。
+///
+/// - [`BuildProgress::Prep`]：排序前的**目录成本估算**（UI 的"扫描模组目录"行）。
+///   冷缓存下是分钟级，且发生在第一个 mod 开工之前 —— 不单独可见，用户看到的就是
+///   "0% 静止一分钟"（2026-10-16 实测 63 s）。
+/// - [`BuildProgress::Build`]：逐 mod 构建（数据 / 素材 / 高清）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BuildProgress {
+    Prep,
+    Build,
+}
+
+/// 进度事件的时间节流间隔（毫秒）：**每个 mod 完成都上报**，但至少间隔这么久。
+///
+/// 原先是"每 8 个 / 最后一个"：首块恰是 LPT 选出的最大 8 个 mod（实测各 11~12 s），
+/// UI 在这十几秒里停在 0%（572 个 mod 时到分钟级），用户读作"卡死"。
+/// 事件体只有 `{done,total,prep}`，前端另有 120ms 节流，放开到每 mod 无成本。
+const PROGRESS_EMIT_MS: u128 = 100;
+
+/// 进度上报的**时间节流**（跨线程安全）。
+///
+/// 每 [`PROGRESS_EMIT_MS`] 毫秒至多放行一条；`force`（本批最后一个 / 关键节点）无视间隔。
+struct EmitThrottle {
+    interval_ms: u128,
+    last: Mutex<Option<std::time::Instant>>,
+}
+
+impl EmitThrottle {
+    fn new(interval_ms: u128) -> Self {
+        Self {
+            interval_ms,
+            last: Mutex::new(None),
+        }
+    }
+
+    /// 是否放行本次上报（放行即刷新时间戳）
+    fn pass(&self, force: bool) -> bool {
+        let now = std::time::Instant::now();
+        let mut g = self.last.lock().unwrap_or_else(|e| e.into_inner());
+        let ok = force || g.map_or(true, |t| now.duration_since(t).as_millis() >= self.interval_ms);
+        if ok {
+            *g = Some(now);
+        }
+        ok
     }
 }
 
@@ -75,10 +157,15 @@ pub(crate) const IDLE_NORMAL_SECS: u64 = 30;
 pub(crate) const IDLE_TURBO_SECS: u64 = 300;
 
 /// 构建档位：**并发度即限速**（后台缓存构建不应影响用户正常使用电脑）。
-/// - `0` / 缺省 = eco    ：`max(1, cpus/8)` 线程 —— 默认档，启动后后台静默构建
+/// - `0` / 缺省 = eco    ：`max(2, cpus/4)` 线程 —— 默认档，启动后后台静默构建
 /// - `1`        = normal ：`max(1, cpus/4)`
 /// - `2`        = turbo  ：`max(2, cpus/2)` —— 用户主动触发（手动重建 / 长时间空闲）
 /// - `3`        = max    ：用满全部逻辑核 —— **仅验收/CI 场景**，会明显拖慢同时使用电脑
+///
+/// ⚠️ 2026-10-15 修订：eco 由 `cpus/8` 提到 `cpus/4`。实测 16 核机器上 `cpus/8 = 2`，
+/// 而用户在用电脑（多数时候）时档位就一直是 2 —— 572 个 mod 的首次全量跑了 103 分钟，
+/// 其中批 2（438 mod）墙钟 66.6 min ≈ CPU 8,300s ÷ 2 线程，机器只用了 12.5%。
+/// `cpus/4` 仍能给前台留出 3/4 的核，符合"不打扰用户"的前提。
 ///
 /// 环境变量 `VCMI_WIKI_THREADS` 可强制覆盖并发度（`0` = 用满全部逻辑核），
 /// 供 CI / 验收在不改代码的前提下跑满机器；应用默认路径不受影响。
@@ -98,7 +185,11 @@ pub(crate) fn wiki_threads(throttle: Option<u8>) -> usize {
         .unwrap_or(4);
     if let Ok(v) = std::env::var("VCMI_WIKI_THREADS") {
         if let Ok(parsed) = v.trim().parse::<usize>() {
-            return if parsed == 0 { n } else { parsed.clamp(1, n.max(1)) };
+            return if parsed == 0 {
+                n
+            } else {
+                parsed.clamp(1, n.max(1))
+            };
         }
     }
     match throttle.unwrap_or(0) {
@@ -112,10 +203,142 @@ pub(crate) fn wiki_threads(throttle: Option<u8>) -> usize {
             } else if idle >= IDLE_NORMAL_SECS {
                 (n / 4).max(1)
             } else {
-                (n / 8).max(1)
+                // 2026-10-15：由 cpus/8 提到 cpus/4（理由见函数文档），下限 2。
+                (n / 4).max(2).min(n)
             }
         }
     }
+}
+
+/// 模组构建成本估计（文件数）缓存：每个路径只数一次。
+static COST_CACHE: OnceLock<Mutex<HashMap<PathBuf, usize>>> = OnceLock::new();
+
+/// 释放成本估计缓存（构建全部结束后调用；见 [`crate::infra::cache_gc`]）。
+pub(crate) fn release_caches() {
+    if let Some(c) = COST_CACHE.get() {
+        if let Ok(mut g) = c.lock() {
+            g.clear();
+            g.shrink_to_fit();
+        }
+    }
+}
+
+/// 估计模组构建成本：**递归文件数**（越大的 mod 解析/提取的工作量越大）。
+///
+/// 只需一次目录枚举（`read_dir` 递归），结果按路径缓存——整轮构建只付一次。
+fn estimate_mod_cost(path: &Path) -> usize {
+    let list = COST_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(g) = list.lock() {
+        if let Some(v) = g.get(path) {
+            return *v;
+        }
+    }
+    // 上限：异常目录不至于拖死调度（正常 mod 远低于此）
+    const MAX: usize = 20_000;
+    let mut n = 0usize;
+    let mut stack = vec![path.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        if let Ok(rd) = fs::read_dir(&d) {
+            for e in rd.flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    stack.push(p);
+                } else {
+                    n += 1;
+                }
+                if n >= MAX {
+                    break;
+                }
+            }
+        }
+        if n >= MAX {
+            break;
+        }
+    }
+    if let Ok(mut g) = list.lock() {
+        g.insert(path.to_path_buf(), n);
+    }
+    n
+}
+
+/// 成本估算是否已缓存（`order_by_cost` 据此只上报**真正需要枚举**的 mod）。
+fn mod_cost_cached(path: &Path) -> bool {
+    COST_CACHE
+        .get()
+        .and_then(|c| c.lock().ok())
+        .is_some_and(|g| g.contains_key(path))
+}
+
+/// 按估计成本**降序**排列（LPT：最长处理时间优先）。
+///
+/// 经典结论：单机多机调度里 LPT 的 makespan 明显优于任意顺序，尤其是"少数任务远大于其余"
+/// 的场景——正是本项目的形态（实测 572 个 mod 平均 220 文件，最大 7,723，约 35 倍）。
+///
+/// ## 为什么这段必须「并行 + 上报进度」
+///
+/// 成本估算 = 对每个 mod 目录递归 `read_dir` 数文件，且发生在**第一个 mod 开工之前**。
+/// 冷缓存下这笔账在机械盘上是分钟级（实测 14,144 目录冷遍历 ≈ 652 s / 热 9.6 s）。
+/// 原实现既不并行也不上报 → 用户在"0% 静止 63 s"后才会看到第一个百分点
+/// （2026-10-16 真机实测，是"卡在 0%"投诉的直接来源）。现在：
+/// 1. 用本批线程数**并行**估算（串行兜底，绝不静默丢进度）；
+/// 2. 每估算完一个 mod 上报一条 [`BuildProgress::Prep`]（时间节流见 [`EmitThrottle`]），
+///    UI 上表现为"扫描模组目录"这一段可见的进度。
+///
+/// 只对**未命中成本缓存**的 mod 上报：后续批次（阶段二/三）全部命中 → 不发准备进度，
+/// UI 的准备条停在 100%，不会出现"572/572 → 20/20"的倒退观感。
+fn order_by_cost<'a>(
+    mods: &'a [BatchWikiMod],
+    threads: usize,
+    slot: BuildSlot,
+    on_progress: Option<&(dyn Fn(BuildProgress, usize, usize) + Sync)>,
+) -> Vec<&'a BatchWikiMod> {
+    use rayon::prelude::*;
+    let mut v: Vec<&BatchWikiMod> = mods.iter().collect();
+    let need: Vec<&BatchWikiMod> = v
+        .iter()
+        .copied()
+        .filter(|m| !mod_cost_cached(Path::new(&m.mod_path)))
+        .collect();
+    let total = need.len();
+    slot.prep_total.store(total, Relaxed);
+    slot.prep_done.store(0, Relaxed);
+    if total > 0 {
+        tracing::info!(
+            target: "wiki",
+            "准备：估算 {} 个 mod 的构建成本（{} 个命中缓存，{} 线程）",
+            total,
+            v.len() - total,
+            threads.max(1)
+        );
+        let t_prep = std::time::Instant::now();
+        let done = std::sync::atomic::AtomicUsize::new(0);
+        let throttle = EmitThrottle::new(PROGRESS_EMIT_MS);
+        let one = |m: &BatchWikiMod| {
+            estimate_mod_cost(Path::new(&m.mod_path));
+            let n = done.fetch_add(1, Relaxed) + 1;
+            slot.prep_done.store(n, Relaxed);
+            if throttle.pass(n >= total) {
+                if let Some(cb) = on_progress {
+                    cb(BuildProgress::Prep, n, total);
+                }
+            }
+        };
+        match rayon::ThreadPoolBuilder::new().num_threads(threads.max(1)).build() {
+            Ok(pool) => pool.install(|| need.par_iter().for_each(|m| one(m))),
+            // 建池失败（极少见）→ 串行兜底：慢，但不丢进度
+            Err(_) => need.iter().for_each(|m| one(m)),
+        }
+        tracing::info!(
+            target: "wiki",
+            "准备完成：成本估算 {} 个 mod（{}ms）",
+            total,
+            t_prep.elapsed().as_millis()
+        );
+    }
+    v.sort_by(|a, b| {
+        estimate_mod_cost(Path::new(&b.mod_path)).cmp(&estimate_mod_cost(Path::new(&a.mod_path)))
+    });
+    v
 }
 
 /// 每批诊断日志（并发档位 / 耗时构成 Top15）是否输出。
@@ -124,7 +347,10 @@ pub(crate) fn wiki_threads(throttle: Option<u8>) -> usize {
 /// 用户若觉得日志啰嗦可设环境变量 `VCMI_WIKI_QUIET=1` 关闭。
 /// 批次汇总行（`批量 wiki 构建完成：mods/失败/耗时`）**不受**此开关影响。
 fn batch_log_verbose() -> bool {
-    !matches!(std::env::var("VCMI_WIKI_QUIET").as_deref(), Ok("1") | Ok("true"))
+    !matches!(
+        std::env::var("VCMI_WIKI_QUIET").as_deref(),
+        Ok("1") | Ok("true")
+    )
 }
 
 /// 当前系统空闲秒数。
@@ -157,7 +383,7 @@ pub struct BatchWikiMod {
 /// 兼容入口（不做高清生成）：供 smoke_tests / 未来"仅重建素材"的调用点复用。
 #[allow(dead_code)]
 pub(crate) fn build_mods_cache_batch_inner(
-    on_progress: Option<&(dyn Fn(usize, usize) + Sync)>,
+    on_progress: Option<&(dyn Fn(BuildProgress, usize, usize) + Sync)>,
     game_dir: &str,
     mods: &[BatchWikiMod],
     cache_root: &Path,
@@ -181,7 +407,7 @@ pub(crate) fn build_mods_cache_batch_inner(
 /// 高清与素材**同批并行**（同一 rayon job 内），因此"缓存构建完成"即意味着高清也已就绪
 /// —— 领域信息页 / 阵营巡礼无需再等第二次构建。
 pub(crate) fn build_mods_cache_batch_inner_hd(
-    on_progress: Option<&(dyn Fn(usize, usize) + Sync)>,
+    on_progress: Option<&(dyn Fn(BuildProgress, usize, usize) + Sync)>,
     game_dir: &str,
     mods: &[BatchWikiMod],
     cache_root: &Path,
@@ -227,7 +453,8 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
     // 块不可太小：每块重建一次 rayon 池（毫秒级），太小会放大建池开销、也削弱负载均衡。
     const THROTTLE_BLOCK_MODS: usize = 8;
     let done = std::sync::atomic::AtomicUsize::new(0);
-    slot.total.store(total, std::sync::atomic::Ordering::Relaxed);
+    slot.total
+        .store(total, std::sync::atomic::Ordering::Relaxed);
     slot.done.store(0, std::sync::atomic::Ordering::Relaxed);
     let failed_previews: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
     // 建筑图标失败计数（声明了 buildingsIcons 但多通道全失败）：批次结束 WARN 汇总，
@@ -238,6 +465,8 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
     let hd_skipped = std::sync::atomic::AtomicUsize::new(0);
     let hd_failed = std::sync::atomic::AtomicUsize::new(0);
     let hd_pruned = std::sync::atomic::AtomicUsize::new(0);
+    // 构建进度的时间节流（与准备阶段 `order_by_cost` 内的同一个策略）
+    let build_throttle = EmitThrottle::new(PROGRESS_EMIT_MS);
     use rayon::prelude::*;
     // 单 mod 的完整处理（**并行与串行兜底共用**；逻辑与原逐 mod 闭包一致，不因分块改变语义）
     let run_mod = |m: &BatchWikiMod| -> Option<String> {
@@ -285,16 +514,22 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
         );
         let n = done.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
         slot.done.store(n, std::sync::atomic::Ordering::Relaxed);
-        if n % 8 == 0 || n == total {
+        // **每个 mod 完成都上报**（100ms 时间节流，见 `EmitThrottle`）。
+        // 原先是"每 8 个 / 最后一个"：首块恰是 LPT 选出的最大 8 个 mod（实测各 11~12 s），
+        // UI 在这段里停在 0%，用户读作"卡死"（2026-10-16 实测 75 s 零反馈）。
+        if build_throttle.pass(n >= total) {
             if let Some(cb) = on_progress {
-                cb(n, total);
+                cb(BuildProgress::Build, n, total);
             }
         }
         // 预览合成失败的 faction 汇总（modId:fid），便于诊断
         if let Some(fps) = r.get("failedPreviews").and_then(|x| x.as_array()) {
             for fid in fps {
                 if let Some(s) = fid.as_str() {
-                    failed_previews.lock().unwrap().push(format!("{}:{}", m.mod_id, s));
+                    failed_previews
+                        .lock()
+                        .unwrap()
+                        .push(format!("{}:{}", m.mod_id, s));
                 }
             }
         }
@@ -316,8 +551,19 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
     let t_batch = std::time::Instant::now();
     let mut failed: Vec<String> = Vec::new();
     let mut last_threads = 0usize;
-    let block_total = mods.len().div_ceil(THROTTLE_BLOCK_MODS).max(1);
-    for (bi, chunk) in mods.chunks(THROTTLE_BLOCK_MODS).enumerate() {
+    // 成本感知调度：大模组先跑（LPT，见 `order_by_cost`）。
+    //
+    // 固定 8 个 mod 一块时，负载极不均衡（实测 572 个 mod 平均 220 文件，最大 7,723），
+    // 末尾那几块常常只剩 1~2 个大 mod 在跑 → 其余线程空转（典型长尾）。
+    // 降序排后大块先开，小块在后填补，makespan 明显更短。
+    //
+    // ⚠️ 排序前的成本估算本身是**重活**（冷缓存下分钟级），必须并行 + 上报进度，
+    //    否则第一个 mod 开工前 UI 会静止一分钟（见 `order_by_cost` 文档）。
+    //    并行度取本批档位：与构建共用同一限速前提，不额外抢占用户 CPU。
+    let prep_threads = wiki_threads(throttle);
+    let ordered = order_by_cost(mods, prep_threads, slot, on_progress);
+    let block_total = ordered.len().div_ceil(THROTTLE_BLOCK_MODS).max(1);
+    for (bi, chunk) in ordered.chunks(THROTTLE_BLOCK_MODS).enumerate() {
         // 取消请求：整块跳过（`run_mod` 内每个 mod 开始前的检查仍在，双保险）
         if slot.cancel.load(std::sync::atomic::Ordering::Relaxed) {
             break;
@@ -338,13 +584,11 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
         // 局部线程池：并发度即限速（见 wiki_threads）。
         // ⚠️ 建池失败（极少见）→ **串行兜底**，绝不回退 rayon 全局池：全局池会用满全部逻辑核，
         //    与"后台构建不影响用户正常使用电脑"的前提直接冲突（宁可慢，不可吃满）。
-        let partial: Vec<String> = match rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build()
-        {
-            Ok(pool) => pool.install(|| chunk.par_iter().filter_map(|m| run_mod(m)).collect()),
-            Err(_) => chunk.iter().filter_map(|m| run_mod(m)).collect(),
-        };
+        let partial: Vec<String> =
+            match rayon::ThreadPoolBuilder::new().num_threads(threads).build() {
+                Ok(pool) => pool.install(|| chunk.par_iter().filter_map(|m| run_mod(m)).collect()),
+                Err(_) => chunk.iter().filter_map(|m| run_mod(m)).collect(),
+            };
         failed.extend(partial);
     }
     // 批次级耗时埋点（info）：直接给出整批缓存构建的总时长与失败数
@@ -390,6 +634,15 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
     //      "哪些还有效"由**读侧**判定：前端把索引与实时扫描（`scan_mods`）求交后再渲染
     //      （见 `src/lib/modcache/buildTargets.ts::visibleModKeySet` 与 WikiView）。
     //      需要回收磁盘时，只应走用户显式确认的手动入口，不要放进这条构建路径。
+    //
+    // ⚠️ 合并 key = **小写归一的 modId**，不是 `modId` 原文（2026-10-16 修）：
+    //    modId 口径曾从"磁盘原名"（`1-Knight-town`）改为"VCMI 口径小写"（`1-knight-town`，
+    //    见 `vcmi::scan::norm_mod_id`），而索引按 **modId 字符串** 做 key —— 口径一变，同一个
+    //    mod 就以两个 key 各留一条，且旧 key 因"只增不删"永久留在索引里（本机实测 652 条
+    //    = 573 个真实 mod + 79 条旧口径幽灵条目）。前端求交时 `modIdKey` 一律小写，
+    //    两种大小写**都能命中**，于是城镇/英雄/建筑（不做去重的类目）把同一个 mod 列两遍。
+    //    用小写 key 后：本批的新条目顶掉同名旧条目，无新条目时旧条目就地归一到一个 key。
+    //    这**不是**上面禁止的差集清理 —— 丢掉的只是「同一个 mod 的重复记录」。
     let idx_path = cache_root.join("index.json");
     let mut merged: std::collections::HashMap<String, Value> = std::collections::HashMap::new();
     if let Ok(text) = fs::read_to_string(&idx_path) {
@@ -397,7 +650,22 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
             if let Some(arr) = v.get("mods").and_then(|x| x.as_array()) {
                 for m in arr {
                     if let Some(id) = m.get("modId").and_then(|x| x.as_str()) {
-                        merged.insert(id.to_string(), m.clone());
+                        let key = id.to_lowercase();
+                        let canonical = id == key;
+                        match merged.get(&key) {
+                            // 同 key 已有条目：仅当"旧的不是规范小写、新的是"时替换
+                            //（新口径数据赢，顺序不受 `HashMap` 随机种子影响）
+                            Some(prev) => {
+                                let prev_id =
+                                    prev.get("modId").and_then(|x| x.as_str()).unwrap_or("");
+                                if prev_id != prev_id.to_lowercase() && canonical {
+                                    merged.insert(key, m.clone());
+                                }
+                            }
+                            None => {
+                                merged.insert(key, m.clone());
+                            }
+                        }
                     }
                 }
             }
@@ -405,7 +673,12 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
     }
     for m in mods.iter() {
         let data_path = cache_root.join(format!("{}/cache.json", sanitize_id(&m.mod_id)));
-        let extra_name = m.extra.get("name").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let extra_name = m
+            .extra
+            .get("name")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
         // 原版伪模组（core / core.<faction>）没有 mod.json，名称从数据派生（见 `index::core_mod_display_name`）
         // —— 扫描期 extra.name 对它们不再是名称来源。城镇名要读缓存里的 `factions[0].name`
         // （游戏配置 + 翻译 mod 的全语言名），故**仅对 core.<faction>** 先读一次缓存；
@@ -414,11 +687,16 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
             fs::read_to_string(&data_path)
                 .ok()
                 .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-                .and_then(|v| v.pointer("/factions/0/name").and_then(|x| x.as_object()).cloned())
+                .and_then(|v| {
+                    v.pointer("/factions/0/name")
+                        .and_then(|x| x.as_object())
+                        .cloned()
+                })
         } else {
             None
         };
-        let core_name = crate::modcache::index::core_mod_display_name(&m.mod_id, town_names.as_ref());
+        let core_name =
+            crate::modcache::index::core_mod_display_name(&m.mod_id, town_names.as_ref());
         // 多语言模组名：常规模组优先取 cache.json 的 modMeta.name（与 mods/realms 页同源）；
         // 缺失时回退 extra.name 单串（中英文同值），使 wiki 模组列表随界面语言切换。
         let mut mod_name = match &core_name {
@@ -430,7 +708,10 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
         if let Ok(text) = fs::read_to_string(&data_path) {
             if let Ok(v) = serde_json::from_str::<Value>(&text) {
                 // 原版 H3 数据文件缺失标记：前端据此提示用户补放 Data/*.lod
-                h3_missing = v.get("h3DataMissing").and_then(|x| x.as_bool()).unwrap_or(false);
+                h3_missing = v
+                    .get("h3DataMissing")
+                    .and_then(|x| x.as_bool())
+                    .unwrap_or(false);
                 // 多语言模组名：从已构建缓存的 modMeta 提取（见 build/mod.rs::build_mod_meta）。
                 // 原版伪模组的名称来自数据派生，不被 modMeta（其自身无 mod.json）覆盖。
                 if core_name.is_none() {
@@ -449,12 +730,22 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
                         .and_then(|x| x.as_array())
                         .map(|a| {
                             a.iter()
-                                .filter(|s| s.get("builtin").and_then(|b| b.as_bool()).unwrap_or(false))
+                                .filter(|s| {
+                                    s.get("builtin").and_then(|b| b.as_bool()).unwrap_or(false)
+                                })
                                 .count()
                         })
                         .unwrap_or(0)
                 };
-                for key in ["factions", "creatures", "heroes", "spells", "artifacts", "skills", "buildings"] {
+                for key in [
+                    "factions",
+                    "creatures",
+                    "heroes",
+                    "spells",
+                    "artifacts",
+                    "skills",
+                    "buildings",
+                ] {
                     // 跨 mod 引用条目（构建期标记 `ref:true`，见 build/mod.rs::mark_ref_entries）
                     // 与 builtin 一样不参与计数，保证侧栏计数与列表口径一致。
                     let n = v
@@ -462,7 +753,9 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
                         .and_then(|x| x.as_array())
                         .map(|a| {
                             a.iter()
-                                .filter(|s| !s.get("ref").and_then(|b| b.as_bool()).unwrap_or(false))
+                                .filter(|s| {
+                                    !s.get("ref").and_then(|b| b.as_bool()).unwrap_or(false)
+                                })
                                 .count()
                         })
                         .unwrap_or(0);
@@ -480,7 +773,13 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
                 // 跨 mod 引用条目数（`<modId>:<entityId>` 补丁语法，构建期已标记 `ref:true`）：
                 // 诊断口径，前端 collectCounts 已跳过该键，不参与任何类目展示。
                 let ref_n: usize = [
-                    "factions", "creatures", "heroes", "spells", "artifacts", "skills", "buildings",
+                    "factions",
+                    "creatures",
+                    "heroes",
+                    "spells",
+                    "artifacts",
+                    "skills",
+                    "buildings",
                 ]
                 .iter()
                 .map(|k| {
@@ -508,9 +807,9 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
             "cacheDir": format!("mods/{}", sanitize_id(&m.mod_id)),
             "contentCount": Value::Object(counts),
         });
-        // 本批条目覆盖已有同名条目（modId 唯一），其余批次条目保留
+        // 本批条目覆盖已有同名条目（modId 小写归一后唯一），其余批次条目保留
         if let Some(id) = entry.get("modId").and_then(|x| x.as_str()) {
-            merged.insert(id.to_string(), entry);
+            merged.insert(id.to_lowercase(), entry);
         }
     }
     // 索引条目顺序必须**确定**：此前直接取 `HashMap::into_values()`，顺序随进程随机种子变化，

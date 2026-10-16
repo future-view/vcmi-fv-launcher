@@ -135,12 +135,18 @@ mod tests {
         record("core", "resources", "0", "SMALRES0");
         flush(&dir);
         let got = load(&dir, "core.castle");
-        assert_eq!(got.get("creature/pikeman").map(String::as_str), Some("CPRS097S"));
+        assert_eq!(
+            got.get("creature/pikeman").map(String::as_str),
+            Some("CPRS097S")
+        );
         assert_eq!(
             got.get("building/castle-mageGuild1").map(String::as_str),
             Some("THCSMAG1")
         );
-        assert_eq!(load(&dir, "core").get("resources/0").map(String::as_str), Some("SMALRES0"));
+        assert_eq!(
+            load(&dir, "core").get("resources/0").map(String::as_str),
+            Some("SMALRES0")
+        );
         // 空表不删文件（缓存命中的 mod 不应清掉上一轮登记）
         reset();
         flush(&dir);

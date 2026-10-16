@@ -1,9 +1,16 @@
 import type { LangDict } from "@/i18n/types";
-import type { WikiLinkTarget } from "@/lib/modcache";
+import type { WikiCategory, WikiEntry, WikiLinkTarget } from "@/lib/modcache";
 import { fullImgUrl, pickName } from "@/lib/modcache";
 import { useWikiPopup, usePopupTriggers } from "./WikiPopupContext";
 import { HdIcon } from "@/shared/HdIcon";
-import { DetailHeader, StatRow, WikiLink, formatResourceAmount, type ResourceInfo } from "./detailShared";
+import {
+  DetailHeader,
+  StatRow,
+  WikiLink,
+  formatResourceAmount,
+  makeRefResolver,
+  type ResourceInfo,
+} from "./detailShared";
 
 export function ArtifactDetail({
   d,
@@ -14,6 +21,7 @@ export function ArtifactDetail({
   modCache,
   onNavigate,
   compact,
+  getEntry,
 }: {
   d: Record<string, unknown>;
   lang: string;
@@ -23,23 +31,21 @@ export function ArtifactDetail({
   modCache?: Record<string, unknown>;
   onNavigate?: (target: WikiLinkTarget) => void;
   compact?: boolean;
+  getEntry?: (category: WikiCategory, id: string) => WikiEntry | undefined;
 }) {
-  // 组合组件/所属组合的条目名（多语言，查 modCache.artifacts，缺则回退 id）
-  const artifactName = (aid: string) =>
-    pickName(
-      ((((modCache?.artifacts as unknown[]) ?? []).find(
-        (x) => String((x as Record<string, unknown>).id) === aid,
-      ) ?? {}) as Record<string, unknown>).name as Record<string, string>,
-      lang,
-    ) || aid;
+  // 组合组件/所属组合的名字、图标与归属 mod：本 mod 神器表优先，缺失回退全局索引。
+  // 实测该发行版 47% 的组件引用只存在于 core（mod 的组合宝物引用原版组件）——
+  // 没有这条兜底时三格只剩裸 id 且无图标。
+  const artifactRef = makeRefResolver({
+    category: "artifacts",
+    modId,
+    lang,
+    modCache,
+    getEntry,
+  });
   const components = (d.components as string[]) ?? [];
   const slots = (d.slots as string[]) ?? [];
   const partOf = (d.partOf as string[]) ?? [];
-  // 组件/所属组合的图标（从当前 mod 缓存的神器表反查 image，VCMI 效果框左侧小图标）
-  const artifactImage = (aid: string) =>
-    ((((modCache?.artifacts as unknown[]) ?? []).find(
-      (x) => String((x as Record<string, unknown>).id) === aid,
-    ) ?? {}) as Record<string, unknown>).image as string | undefined;
   // 宝物等级/槽位本地化（对齐 VCMI WikiArtifactContent class/slot 表）
   const clsRaw = String(d.class ?? "");
   const clsNum = Number(clsRaw);
@@ -69,15 +75,15 @@ export function ArtifactDetail({
   const artifactRows = (ids: string[]) => (
     <div className="space-y-1">
       {ids.map((id) => {
-        const icon = artifactImage(id);
+        const ref = artifactRef(id);
         return (
           <div
             key={id}
             className="flex items-center gap-2 rounded-lg border border-slate-800/60 bg-slate-900/40 px-2 py-1.5"
           >
-            {icon ? (
+            {ref.image ? (
               <HdIcon
-                src={fullImgUrl(cacheDir, icon)}
+                src={fullImgUrl(cacheDir, ref.image)}
                 alt=""
                 className="h-8 w-8 flex-none rounded border border-slate-700/50 object-contain"
               />
@@ -85,10 +91,10 @@ export function ArtifactDetail({
               <span className="h-8 w-8 flex-none rounded border border-slate-700/40 bg-slate-800/40" />
             )}
             <WikiLink
-              modId={modId}
+              modId={ref.modId}
               category="artifacts"
               id={id}
-              label={artifactName(id)}
+              label={ref.name}
               onNavigate={onNavigate}
             />
           </div>

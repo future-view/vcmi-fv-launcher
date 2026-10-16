@@ -1,0 +1,1082 @@
+{
+  "0": {
+    "index": 0,
+    "text": "Note: Do not change the headings in this file, they are used to detect problems"
+  },
+  "1": {
+    "index": 1,
+    "text": "gStatDesc"
+  },
+  "2": {
+    "index": 2,
+    "text": "{Attack}\n\nAttack skill is a bonus added to the attack skill of any troops your hero commands, allowing them to inflict more damage in combat."
+  },
+  "3": {
+    "index": 3,
+    "text": "{Defense}\n\nDefense skill is a bonus added to the defense skill of any troops your hero commands, allowing them to resist more damage in combat."
+  },
+  "4": {
+    "index": 4,
+    "text": "{Spell Power}\n\nSpell power determines the duration or strength of a spell."
+  },
+  "5": {
+    "index": 5,
+    "text": "{Knowledge}\n\nKnowledge determines how many spell points your hero may have.  Under normal circumstances, a hero is limited to 10 spell points per level of Knowledge."
+  },
+  "6": {
+    "index": 6,
+    "text": "gLuckText"
+  },
+  "7": {
+    "index": 7,
+    "text": "Cursed"
+  },
+  "8": {
+    "index": 8,
+    "text": "Awful"
+  },
+  "9": {
+    "index": 9,
+    "text": "Bad"
+  },
+  "10": {
+    "index": 10,
+    "text": "Normal"
+  },
+  "11": {
+    "index": 11,
+    "text": "Good"
+  },
+  "12": {
+    "index": 12,
+    "text": "Great"
+  },
+  "13": {
+    "index": 13,
+    "text": "Irish"
+  },
+  "14": {
+    "index": 14,
+    "text": "gMoraleText"
+  },
+  "15": {
+    "index": 15,
+    "text": "Treason"
+  },
+  "16": {
+    "index": 16,
+    "text": "Awful"
+  },
+  "17": {
+    "index": 17,
+    "text": "Poor"
+  },
+  "18": {
+    "index": 18,
+    "text": "Normal"
+  },
+  "19": {
+    "index": 19,
+    "text": "Good"
+  },
+  "20": {
+    "index": 20,
+    "text": "Great"
+  },
+  "21": {
+    "index": 21,
+    "text": "Blood!"
+  },
+  "22": {
+    "index": 22,
+    "text": "gOwnedByColor"
+  },
+  "23": {
+    "index": 23,
+    "text": "Owned by red player"
+  },
+  "24": {
+    "index": 24,
+    "text": "Owned by blue player"
+  },
+  "25": {
+    "index": 25,
+    "text": "Owned by tan player"
+  },
+  "26": {
+    "index": 26,
+    "text": "Owned by green player"
+  },
+  "27": {
+    "index": 27,
+    "text": "Owned by orange player"
+  },
+  "28": {
+    "index": 28,
+    "text": "Owned by purple player"
+  },
+  "29": {
+    "index": 29,
+    "text": "Owned by teal player"
+  },
+  "30": {
+    "index": 30,
+    "text": "Owned by pink player"
+  },
+  "31": {
+    "index": 31,
+    "text": "gMonthNames"
+  },
+  "32": {
+    "index": 32,
+    "text": "Grasshopper"
+  },
+  "33": {
+    "index": 33,
+    "text": "Ant"
+  },
+  "34": {
+    "index": 34,
+    "text": "Ladybug"
+  },
+  "35": {
+    "index": 35,
+    "text": "Spider"
+  },
+  "36": {
+    "index": 36,
+    "text": "Butterfly"
+  },
+  "37": {
+    "index": 37,
+    "text": "Bumblebee"
+  },
+  "38": {
+    "index": 38,
+    "text": "Locust"
+  },
+  "39": {
+    "index": 39,
+    "text": "Earthworm"
+  },
+  "40": {
+    "index": 40,
+    "text": "Hornet"
+  },
+  "41": {
+    "index": 41,
+    "text": "Beetle"
+  },
+  "42": {
+    "index": 42,
+    "text": "gWeekNames"
+  },
+  "43": {
+    "index": 43,
+    "text": "Squirrel"
+  },
+  "44": {
+    "index": 44,
+    "text": "Rabbit"
+  },
+  "45": {
+    "index": 45,
+    "text": "Gopher"
+  },
+  "46": {
+    "index": 46,
+    "text": "Badger"
+  },
+  "47": {
+    "index": 47,
+    "text": "Rat"
+  },
+  "48": {
+    "index": 48,
+    "text": "Eagle"
+  },
+  "49": {
+    "index": 49,
+    "text": "Weasel"
+  },
+  "50": {
+    "index": 50,
+    "text": "Raven"
+  },
+  "51": {
+    "index": 51,
+    "text": "Mongoose"
+  },
+  "52": {
+    "index": 52,
+    "text": "Dog"
+  },
+  "53": {
+    "index": 53,
+    "text": "Aardvark"
+  },
+  "54": {
+    "index": 54,
+    "text": "Lizard"
+  },
+  "55": {
+    "index": 55,
+    "text": "Tortoise"
+  },
+  "56": {
+    "index": 56,
+    "text": "Hedgehog"
+  },
+  "57": {
+    "index": 57,
+    "text": "Condor"
+  },
+  "58": {
+    "index": 58,
+    "text": "cLuckInfo"
+  },
+  "59": {
+    "index": 59,
+    "text": "{Good Luck}\n\nGood luck sometimes lets your armies get lucky attacks (double damage) in combat."
+  },
+  "60": {
+    "index": 60,
+    "text": "{Neutral Luck}\n\nWith neutral luck your armies will never have lucky or unlucky attacks on the enemy."
+  },
+  "61": {
+    "index": 61,
+    "text": "{Bad Luck}\n\nBad luck sometimes falls on your armies in combat, causing their attacks to only do half damage."
+  },
+  "62": {
+    "index": 62,
+    "text": "%s\n\n\n{Current Luck Modifiers:}"
+  },
+  "63": {
+    "index": 63,
+    "text": "\nStill Eye of the Dragon +1"
+  },
+  "64": {
+    "index": 64,
+    "text": "\nClover of Fortune +1"
+  },
+  "65": {
+    "index": 65,
+    "text": "\nCards of Prophecy +1"
+  },
+  "66": {
+    "index": 66,
+    "text": "\nLadybird of Luck +1"
+  },
+  "67": {
+    "index": 67,
+    "text": "\nSwan Pond Visited +2"
+  },
+  "68": {
+    "index": 68,
+    "text": "\nIdol of Fortune Visited +1"
+  },
+  "69": {
+    "index": 69,
+    "text": "\nFountain of Fortune Visited %s"
+  },
+  "70": {
+    "index": 70,
+    "text": "\nPyramid Visited -2"
+  },
+  "71": {
+    "index": 71,
+    "text": "\nFaerie Ring Visited +1"
+  },
+  "72": {
+    "index": 72,
+    "text": "\nMermaid Visited +1"
+  },
+  "73": {
+    "index": 73,
+    "text": "\nRally Flag Visited +1"
+  },
+  "74": {
+    "index": 74,
+    "text": "\nBasic Luck +1"
+  },
+  "75": {
+    "index": 75,
+    "text": "\nAdvanced Luck +2"
+  },
+  "76": {
+    "index": 76,
+    "text": "\nExpert Luck +3"
+  },
+  "77": {
+    "index": 77,
+    "text": "\nNone"
+  },
+  "78": {
+    "index": 78,
+    "text": "\n-%d Temporary until next battle"
+  },
+  "79": {
+    "index": 79,
+    "text": "\n+%d Temporary until next battle"
+  },
+  "80": {
+    "index": 80,
+    "text": "\nPendant of Courage +3"
+  },
+  "81": {
+    "index": 81,
+    "text": "\nNo luck effects on cursed ground"
+  },
+  "82": {
+    "index": 82,
+    "text": "\n%s suppresses all luck"
+  },
+  "83": {
+    "index": 83,
+    "text": "\nCreature of neutral town alignment on Clover Field +2"
+  },
+  "84": {
+    "index": 84,
+    "text": "cMoraleInfo"
+  },
+  "85": {
+    "index": 85,
+    "text": "{Good Morale}\n\nGood morale may give your armies extra attacks in combat."
+  },
+  "86": {
+    "index": 86,
+    "text": "{Neutral Morale}\n\nNeutral morale means your armies will neither be blessed with extra attacks or freeze in combat."
+  },
+  "87": {
+    "index": 87,
+    "text": "{Bad Morale}\n\nBad morale may cause your armies to freeze in combat."
+  },
+  "88": {
+    "index": 88,
+    "text": "%s\n\n\n{Current Morale Modifiers:}"
+  },
+  "89": {
+    "index": 89,
+    "text": "\nStill Eye of the Dragon +1"
+  },
+  "90": {
+    "index": 90,
+    "text": "\nBadge of Courage +1"
+  },
+  "91": {
+    "index": 91,
+    "text": "\nCrest of Valor +1"
+  },
+  "92": {
+    "index": 92,
+    "text": "\nGlyph of Gallantry +1"
+  },
+  "93": {
+    "index": 93,
+    "text": "\nIdol of Fortune Visited +1"
+  },
+  "94": {
+    "index": 94,
+    "text": "\nBuoy Visited +1"
+  },
+  "95": {
+    "index": 95,
+    "text": "\nOasis Visited +1"
+  },
+  "96": {
+    "index": 96,
+    "text": "\nTemple Visited +1"
+  },
+  "97": {
+    "index": 97,
+    "text": "\nTemple Visited on Sunday +2"
+  },
+  "98": {
+    "index": 98,
+    "text": "\nSepulcher Visited -1"
+  },
+  "99": {
+    "index": 99,
+    "text": "\nShipwreck Visited -1"
+  },
+  "100": {
+    "index": 100,
+    "text": "\nWatering Hole Visited +1"
+  },
+  "101": {
+    "index": 101,
+    "text": "\nDerelict Ship Visited -1"
+  },
+  "102": {
+    "index": 102,
+    "text": "\nRally Flag Visited +1"
+  },
+  "103": {
+    "index": 103,
+    "text": "\nFountain of Youth Visited +1"
+  },
+  "104": {
+    "index": 104,
+    "text": "\nWarrior Tomb Visited -3"
+  },
+  "105": {
+    "index": 105,
+    "text": "\nBasic Leadership +1"
+  },
+  "106": {
+    "index": 106,
+    "text": "\nAdvanced Leadership +2"
+  },
+  "107": {
+    "index": 107,
+    "text": "\nExpert Leadership +3"
+  },
+  "108": {
+    "index": 108,
+    "text": "\nNone"
+  },
+  "109": {
+    "index": 109,
+    "text": "\n-%d Temporary until next battle"
+  },
+  "110": {
+    "index": 110,
+    "text": "\n+%d Temporary until next battle"
+  },
+  "111": {
+    "index": 111,
+    "text": "\nPendant of Courage +3"
+  },
+  "112": {
+    "index": 112,
+    "text": "\nNo morale effects on cursed ground"
+  },
+  "113": {
+    "index": 113,
+    "text": "\nUnaffected by morale"
+  },
+  "114": {
+    "index": 114,
+    "text": "\nTroops of %d alignments %d"
+  },
+  "115": {
+    "index": 115,
+    "text": "\nAll troops of one alignment +1"
+  },
+  "116": {
+    "index": 116,
+    "text": "\nUndead in group -1"
+  },
+  "117": {
+    "index": 117,
+    "text": "\n%s in group +1"
+  },
+  "118": {
+    "index": 118,
+    "text": "\nFacing %s -1"
+  },
+  "119": {
+    "index": 119,
+    "text": "\n%s suppresses good morale"
+  },
+  "120": {
+    "index": 120,
+    "text": "\n%s always have positive morale"
+  },
+  "121": {
+    "index": 121,
+    "text": "\nSpells %+d"
+  },
+  "122": {
+    "index": 122,
+    "text": "\nOn native terrain +1"
+  },
+  "123": {
+    "index": 123,
+    "text": "\nCreature of good town alignment on Holy Ground +1"
+  },
+  "124": {
+    "index": 124,
+    "text": "\nCreature of evil town alignment on Holy Ground -1"
+  },
+  "125": {
+    "index": 125,
+    "text": "\nCreature of evil town alignment on Evil Fog +1"
+  },
+  "126": {
+    "index": 126,
+    "text": "\nCreature of good town alignment on Evil Fog -1"
+  },
+  "127": {
+    "index": 127,
+    "text": "cNewTurn"
+  },
+  "128": {
+    "index": 128,
+    "text": "%s, you only have %d days left to capture a town or you will be banished from this land."
+  },
+  "129": {
+    "index": 129,
+    "text": "%s, this is your last day to capture a town or you will be banished from this land."
+  },
+  "130": {
+    "index": 130,
+    "text": "Astrologers proclaim month of the %s.\n\nAll dwellings increase population."
+  },
+  "131": {
+    "index": 131,
+    "text": "Astrologers proclaim month of the %s.\n\n%s population doubles!\n\nAll dwellings increase population."
+  },
+  "132": {
+    "index": 132,
+    "text": "Astrologers proclaim month of the PLAGUE!\n\nAll populations are halved."
+  },
+  "133": {
+    "index": 133,
+    "text": "Astrologers proclaim week of the %s.\n\nAll dwellings increase population."
+  },
+  "134": {
+    "index": 134,
+    "text": "Astrologers proclaim week of the %s.\n\n%s growth +5.\n\nAll dwellings increase population."
+  },
+  "135": {
+    "index": 135,
+    "text": "Astrologers proclaim week of the %s.\n\n%s growth %+d.\n%s growth %+d.\n\nAll dwellings increase in population."
+  },
+  "136": {
+    "index": 136,
+    "text": "cMapSize"
+  },
+  "137": {
+    "index": 137,
+    "text": "Small"
+  },
+  "138": {
+    "index": 138,
+    "text": "Medium"
+  },
+  "139": {
+    "index": 139,
+    "text": "Large"
+  },
+  "140": {
+    "index": 140,
+    "text": "Extra Large"
+  },
+  "141": {
+    "index": 141,
+    "text": "cDifficulty"
+  },
+  "142": {
+    "index": 142,
+    "text": "Easy"
+  },
+  "143": {
+    "index": 143,
+    "text": "Normal"
+  },
+  "144": {
+    "index": 144,
+    "text": "Hard"
+  },
+  "145": {
+    "index": 145,
+    "text": "Expert"
+  },
+  "146": {
+    "index": 146,
+    "text": "Impossible"
+  },
+  "147": {
+    "index": 147,
+    "text": "cDirections"
+  },
+  "148": {
+    "index": 148,
+    "text": "northern"
+  },
+  "149": {
+    "index": 149,
+    "text": "northeastern"
+  },
+  "150": {
+    "index": 150,
+    "text": "eastern"
+  },
+  "151": {
+    "index": 151,
+    "text": "southeastern"
+  },
+  "152": {
+    "index": 152,
+    "text": "southern"
+  },
+  "153": {
+    "index": 153,
+    "text": "southwestern"
+  },
+  "154": {
+    "index": 154,
+    "text": "western"
+  },
+  "155": {
+    "index": 155,
+    "text": "northwestern"
+  },
+  "156": {
+    "index": 156,
+    "text": "central"
+  },
+  "157": {
+    "index": 157,
+    "text": "cRumourTerrainDescriptions"
+  },
+  "158": {
+    "index": 158,
+    "text": "in the dirt."
+  },
+  "159": {
+    "index": 159,
+    "text": "under a desert drift."
+  },
+  "160": {
+    "index": 160,
+    "text": "on a grassy plain."
+  },
+  "161": {
+    "index": 161,
+    "text": "in the driven snow."
+  },
+  "162": {
+    "index": 162,
+    "text": "in a murky swamp."
+  },
+  "163": {
+    "index": 163,
+    "text": "in a parched wasteland."
+  },
+  "164": {
+    "index": 164,
+    "text": "in an underground cavern"
+  },
+  "165": {
+    "index": 165,
+    "text": "buried in barren lava."
+  },
+  "166": {
+    "index": 166,
+    "text": "in the murky depths of the ocean."
+  },
+  "167": {
+    "index": 167,
+    "text": "under a rock."
+  },
+  "168": {
+    "index": 168,
+    "text": "cPersonality"
+  },
+  "169": {
+    "index": 169,
+    "text": "Warrior"
+  },
+  "170": {
+    "index": 170,
+    "text": "Builder"
+  },
+  "171": {
+    "index": 171,
+    "text": "Explorer"
+  },
+  "172": {
+    "index": 172,
+    "text": "Human"
+  },
+  "173": {
+    "index": 173,
+    "text": "gArmySizeNames"
+  },
+  "174": {
+    "index": 174,
+    "text": "Few"
+  },
+  "175": {
+    "index": 175,
+    "text": "A few"
+  },
+  "176": {
+    "index": 176,
+    "text": "a few"
+  },
+  "177": {
+    "index": 177,
+    "text": "Several"
+  },
+  "178": {
+    "index": 178,
+    "text": "Several"
+  },
+  "179": {
+    "index": 179,
+    "text": "several"
+  },
+  "180": {
+    "index": 180,
+    "text": "Pack"
+  },
+  "181": {
+    "index": 181,
+    "text": "A pack of"
+  },
+  "182": {
+    "index": 182,
+    "text": "a pack of"
+  },
+  "183": {
+    "index": 183,
+    "text": "Lots"
+  },
+  "184": {
+    "index": 184,
+    "text": "Lots of"
+  },
+  "185": {
+    "index": 185,
+    "text": "lots of"
+  },
+  "186": {
+    "index": 186,
+    "text": "Horde"
+  },
+  "187": {
+    "index": 187,
+    "text": "A Horde of"
+  },
+  "188": {
+    "index": 188,
+    "text": "a horde of"
+  },
+  "189": {
+    "index": 189,
+    "text": "Throng"
+  },
+  "190": {
+    "index": 190,
+    "text": "A Throng of"
+  },
+  "191": {
+    "index": 191,
+    "text": "a throng of"
+  },
+  "192": {
+    "index": 192,
+    "text": "Swarm"
+  },
+  "193": {
+    "index": 193,
+    "text": "A Swarm of"
+  },
+  "194": {
+    "index": 194,
+    "text": "a swarm of"
+  },
+  "195": {
+    "index": 195,
+    "text": "Zounds"
+  },
+  "196": {
+    "index": 196,
+    "text": "Zounds..."
+  },
+  "197": {
+    "index": 197,
+    "text": "zounds of"
+  },
+  "198": {
+    "index": 198,
+    "text": "Legion"
+  },
+  "199": {
+    "index": 199,
+    "text": "A Legion of"
+  },
+  "200": {
+    "index": 200,
+    "text": "a legion of"
+  },
+  "201": {
+    "index": 201,
+    "text": "const_wise_tree_price_text"
+  },
+  "202": {
+    "index": 202,
+    "text": " (+1 level)"
+  },
+  "203": {
+    "index": 203,
+    "text": " (+1 level for 2000 gold)"
+  },
+  "204": {
+    "index": 204,
+    "text": " (+1 level for 10 gems)"
+  },
+  "205": {
+    "index": 205,
+    "text": "HumanCPU"
+  },
+  "206": {
+    "index": 206,
+    "text": "Human\nor CPU"
+  },
+  "207": {
+    "index": 207,
+    "text": "Human"
+  },
+  "208": {
+    "index": 208,
+    "text": "CPU"
+  },
+  "209": {
+    "index": 209,
+    "text": "HandiText"
+  },
+  "210": {
+    "index": 210,
+    "text": "No Handicap"
+  },
+  "211": {
+    "index": 211,
+    "text": "Mild Handicap"
+  },
+  "212": {
+    "index": 212,
+    "text": "Severe Handicap"
+  },
+  "213": {
+    "index": 213,
+    "text": "AGRText"
+  },
+  "214": {
+    "index": 214,
+    "text": "Artifact"
+  },
+  "215": {
+    "index": 215,
+    "text": "Gold"
+  },
+  "216": {
+    "index": 216,
+    "text": "Resource"
+  },
+  "217": {
+    "index": 217,
+    "text": "gTownTypeNames"
+  },
+  "218": {
+    "index": 218,
+    "text": "Neutral"
+  },
+  "219": {
+    "index": 219,
+    "text": "Castle"
+  },
+  "220": {
+    "index": 220,
+    "text": "Rampart"
+  },
+  "221": {
+    "index": 221,
+    "text": "Tower"
+  },
+  "222": {
+    "index": 222,
+    "text": "Inferno"
+  },
+  "223": {
+    "index": 223,
+    "text": "Necropolis"
+  },
+  "224": {
+    "index": 224,
+    "text": "Dungeon"
+  },
+  "225": {
+    "index": 225,
+    "text": "Stronghold"
+  },
+  "226": {
+    "index": 226,
+    "text": "Fortress"
+  },
+  "227": {
+    "index": 227,
+    "text": "Conflux"
+  },
+  "228": {
+    "index": 228,
+    "text": "NewLoadSave"
+  },
+  "229": {
+    "index": 229,
+    "text": "Select a Scenario to Play"
+  },
+  "230": {
+    "index": 230,
+    "text": "Load a Saved Game"
+  },
+  "231": {
+    "index": 231,
+    "text": "Save the Current Game"
+  },
+  "232": {
+    "index": 232,
+    "text": "Army Speed Names"
+  },
+  "233": {
+    "index": 233,
+    "text": "Immobile"
+  },
+  "234": {
+    "index": 234,
+    "text": "Super Slow"
+  },
+  "235": {
+    "index": 235,
+    "text": "Ultra Slow"
+  },
+  "236": {
+    "index": 236,
+    "text": "Very Slow"
+  },
+  "237": {
+    "index": 237,
+    "text": "Extra Slow"
+  },
+  "238": {
+    "index": 238,
+    "text": "Slow"
+  },
+  "239": {
+    "index": 239,
+    "text": "Swift"
+  },
+  "240": {
+    "index": 240,
+    "text": "Extra Swift"
+  },
+  "241": {
+    "index": 241,
+    "text": "Very Swift"
+  },
+  "242": {
+    "index": 242,
+    "text": "Ultra Swift"
+  },
+  "243": {
+    "index": 243,
+    "text": "Super Swift"
+  },
+  "244": {
+    "index": 244,
+    "text": "Quick"
+  },
+  "245": {
+    "index": 245,
+    "text": "Extra Quick"
+  },
+  "246": {
+    "index": 246,
+    "text": "Very Quick"
+  },
+  "247": {
+    "index": 247,
+    "text": "Ultra Quick"
+  },
+  "248": {
+    "index": 248,
+    "text": "Super Quick"
+  },
+  "249": {
+    "index": 249,
+    "text": "Fast"
+  },
+  "250": {
+    "index": 250,
+    "text": "Extra Fast"
+  },
+  "251": {
+    "index": 251,
+    "text": "Very Fast"
+  },
+  "252": {
+    "index": 252,
+    "text": "Ultra Fast"
+  },
+  "253": {
+    "index": 253,
+    "text": "Super Fast"
+  },
+  "254": {
+    "index": 254,
+    "text": "Town Size Names"
+  },
+  "255": {
+    "index": 255,
+    "text": "Village"
+  },
+  "256": {
+    "index": 256,
+    "text": "Town"
+  },
+  "257": {
+    "index": 257,
+    "text": "City"
+  },
+  "258": {
+    "index": 258,
+    "text": "Capitol"
+  },
+  "259": {
+    "index": 259,
+    "text": "Moat Names"
+  },
+  "260": {
+    "index": 260,
+    "text": "Moat"
+  },
+  "261": {
+    "index": 261,
+    "text": "Bramble Hedge"
+  },
+  "262": {
+    "index": 262,
+    "text": "Land Mines"
+  },
+  "263": {
+    "index": 263,
+    "text": "Lava"
+  },
+  "264": {
+    "index": 264,
+    "text": "Boneyard"
+  },
+  "265": {
+    "index": 265,
+    "text": "Boiling Oil"
+  },
+  "266": {
+    "index": 266,
+    "text": "Spike Barrier"
+  },
+  "267": {
+    "index": 267,
+    "text": "Boiling Tar"
+  },
+  "268": {
+    "index": 268,
+    "text": "Moat"
+  },
+  "269": {
+    "index": 269,
+    "text": "Insert all data before this line. Do not alter or delete this line."
+  }
+}

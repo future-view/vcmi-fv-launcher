@@ -14,7 +14,7 @@
 
 use crate::infra::berror::be_err;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -39,81 +39,253 @@ pub(crate) struct ZipIndex {
     has_encrypted: bool,
 }
 
-pub(crate) static ZIP_INDEX_CACHE: std::sync::OnceLock<Mutex<Vec<(String, std::sync::Arc<ZipIndex>)>>> =
-    std::sync::OnceLock::new();
+pub(crate) static ZIP_INDEX_CACHE: std::sync::OnceLock<
+    Mutex<Vec<(String, std::sync::Arc<ZipIndex>)>>,
+> = std::sync::OnceLock::new();
 
 /// 索引条目多（单 mod 可达数千），容量按 mod 数量级给，避免超线性增长
 pub(crate) const ZIP_INDEX_CACHE_CAP: usize = 64;
 
 /// `Content/` 目录索引：`by_key` 用于宽松匹配（配置写的扩展名与实际不符时仍能命中），
 /// `by_ext` 用于请求显式带扩展名时精确命中——见 [`ZipIndex::by_ext`] 的说明（同一撞 key 问题）。
+///
+/// ⚠️ 2026-10-16 内存瘦身：
+/// - 两张表改为共享 `Arc<Path>`：原实现各存一份 `PathBuf` 副本，12.6 万条目 × 2 = 两份路径分配；
+/// - `by_ext` **只登记"同基名存在多个扩展名"的条目**：只有一个文件时 `by_ext` 命中与
+///   `by_key` 命中本就指向同一路径，登记它纯属白占一份内存（实测可省约 25~30 MB）。
 #[derive(Default)]
 pub(crate) struct DirIndex {
-    by_key: HashMap<String, PathBuf>,
-    by_ext: HashMap<String, PathBuf>,
+    by_key: HashMap<String, Arc<Path>>,
+    by_ext: HashMap<String, Arc<Path>>,
+    /// `by_key` 当前存的是 `config/` 下**定义文件**的 stem（见 [`build_dir_index`]）。
+    /// 这些 stem 一旦后来出现真正的素材文件，就要被它顶掉。
+    cfg_key: HashSet<String>,
 }
 
-/// `Content/` 目录索引缓存（归一 key → 绝对路径）。
+/// `Content/` 目录索引缓存（目录路径 → (指纹, 索引)）。
 ///
 /// 原实现每解析一个资源就**全量递归一次 `Content/`**（实测 10,419 次 × 45ms ≈ 360s CPU）；
-/// 改为"每个目录只建一次索引"。索引同样按 mod 数量级给容量。
-pub(crate) static DIR_INDEX_CACHE: std::sync::OnceLock<
-    Mutex<Vec<(String, std::sync::Arc<DirIndex>)>>,
-> = std::sync::OnceLock::new();
-pub(crate) const DIR_INDEX_CACHE_CAP: usize = 64;
+/// 改为"每个目录只建一次索引"。
+///
+/// ⚠️ 2026-10-15 修订（首次全量构建实测 103 分钟的根因之一）：
+/// 旧结构是 `Vec<(指纹串, Arc<DirIndex>)>` —— **线性查找 + 容量 64**，而单个发行版常有
+/// 500+ 个模组（`resolve_resource_fallback` 的跨模组回退会遍历全部），容量远小于工作集
+/// → 索引被反复淘汰重建（实测 291,358 次 `res.dir_scan` × 21.6ms ≈ 6,286s CPU，占整批
+/// CPU 的 76%）。改为 `HashMap`（O(1) 命中）+ 容量按模组数量级给。
+/// 指纹**只取 mtime**：顶层条目数需 `read_dir` 枚举，热路径每次命中都做会明显拖慢
+/// （目录 mtime 在条目增删改名时即变化，对本用途已足够）。
+/// 目录索引缓存的内部结构（`clippy::type_complexity` 要求拆出别名）。
+type DirIndexCache = Mutex<HashMap<PathBuf, (u128, std::sync::Arc<DirIndex>)>>;
+pub(crate) static DIR_INDEX_CACHE: std::sync::OnceLock<DirIndexCache> = std::sync::OnceLock::new();
+/// 容量按「模组数量级」给（实测发行版 572 个模组 + 子模组），远超旧值 64。
+pub(crate) const DIR_INDEX_CACHE_CAP: usize = 4096;
 
-/// 目录指纹：路径 + mtime + **顶层条目数**（文件增减时顶层计数会变，足以让缓存失效）。
-fn dir_fingerprint(dir: &Path) -> String {
-    let mt = fs::metadata(dir)
+/// 目录指纹：mtime（纳秒）。取不到时返回 0（等价于"总是当作已变化"）。
+fn dir_mtime(dir: &Path) -> u128 {
+    fs::metadata(dir)
         .and_then(|m| m.modified())
         .ok()
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
         .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let n = fs::read_dir(dir).map(|rd| rd.count()).unwrap_or(0);
-    format!("{}|{}|{}", dir.to_string_lossy(), mt, n)
+        .unwrap_or(0)
 }
 
-/// 递归收集：`归一 key -> 绝对路径`。遍历顺序与原 `walk` 一致（read_dir 顺序 + 深度优先），
-/// 且用 `entry().or_insert_with()` 保留首个匹配，保证宽松匹配的命中结果与原实现相同。
-fn walk_index(d: &Path, base: &Path, out: &mut DirIndex) {
-    if let Ok(entries) = fs::read_dir(d) {
-        for e in entries.flatten() {
-            let p = e.path();
-            if p.is_dir() {
-                walk_index(&p, base, out);
-            } else {
-                let rel = p.strip_prefix(base).unwrap_or(&p).to_string_lossy().to_string();
-                if let Some(k) = norm_zip_key(&rel) {
-                    out.by_key.entry(k).or_insert_with(|| p.clone());
+/// 模组「内容载体」缓存：`Content/` 目录 / `content.zip` 是否存在。
+///
+/// 跨模组回退**每解析一个资源都要遍历全部模组**，若每次都 `is_dir()` / `exists()`
+/// 就是「资源数 × 模组数」次 stat（实测 29 万次）。缓存后每个模组只探测一次。
+static MOD_KIND_CACHE: OnceLock<Mutex<HashMap<PathBuf, (bool, bool)>>> = OnceLock::new();
+
+/// 返回 `(有 Content 目录, 有 content.zip)`。
+fn mod_content_kind(mod_path: &Path) -> (bool, bool) {
+    let list = MOD_KIND_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(g) = list.lock() {
+        if let Some(v) = g.get(mod_path) {
+            return *v;
+        }
+    }
+    let v = (
+        mod_path.join("Content").is_dir(),
+        mod_path.join("content.zip").is_file(),
+    );
+    if let Ok(mut g) = list.lock() {
+        if g.len() >= DIR_INDEX_CACHE_CAP {
+            g.clear();
+        }
+        g.insert(mod_path.to_path_buf(), v);
+    }
+    v
+}
+
+/// 资源文件字节缓存（按字节上界淘汰，上界由 [`crate::infra::mem::cache_budget`] 按机器内存分档）。
+///
+/// ⚠️ 必要性（2026-10-16）：一座城镇约 30 个建筑共引用同一个 `town-hall.def`，而**每个**
+/// 建筑图标提取都会 `resolve_resource` → `fs::read` 整份文件（DEF 常几百 KB~数 MB）
+/// → 同一份字节被反复读 30 次。全库放大后是几十 GB 级的重复读，以及同样次数的 DEF 头解析。
+///
+/// key 含 `mtime + 长度`：文件内容变了自然失效（不读内容即可判定，无需哈希）。
+/// 超过 [`FILE_BYTES_MAX_ITEM`] 的单文件**不进缓存**，免得一条吃掉整个预算。
+type FileBytesKey = (PathBuf, u128, u64);
+static FILE_BYTES_CACHE: OnceLock<
+    Mutex<crate::infra::lru::SizedCache<FileBytesKey, Arc<Vec<u8>>>>,
+> = OnceLock::new();
+/// 单条超过此体积不缓存（LOD 内的大动画、整包位图等）
+const FILE_BYTES_MAX_ITEM: u64 = 8 * 1024 * 1024;
+
+/// 读文件内容（带缓存）；缓存未命中 / 不缓存时直接读盘。
+fn read_file_cached(p: &Path) -> std::io::Result<Vec<u8>> {
+    let (len, mt) = match fs::metadata(p) {
+        Ok(m) => (
+            m.len(),
+            m.modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_nanos())
+                .unwrap_or(0),
+        ),
+        Err(_) => (0, 0),
+    };
+    let cap = crate::infra::mem::cache_budget().file_bytes;
+    let cache =
+        FILE_BYTES_CACHE.get_or_init(|| Mutex::new(crate::infra::lru::SizedCache::new(cap)));
+    if len == 0 || len > FILE_BYTES_MAX_ITEM {
+        return fs::read(p);
+    }
+    let key = (p.to_path_buf(), mt, len);
+    if let Ok(g) = cache.lock() {
+        if let Some(v) = g.get(&key) {
+            crate::infra::metrics::count("res.bytes.cached", 1);
+            return Ok(v.as_ref().clone());
+        }
+    }
+    let data = Arc::new(fs::read(p)?);
+    if let Ok(mut g) = cache.lock() {
+        g.insert(key, data.len(), data.clone());
+    }
+    Ok(data.as_ref().clone())
+}
+
+/// 释放资源解析侧的进程级缓存（构建全部结束后调用；见 [`crate::infra::cache_gc`]）。
+///
+/// 只清**可重建**的派生缓存：目录索引 / zip 索引 / 文件字节 / 负结果 / 载体探测。
+/// 它们都按「路径 + 指纹」自失效，清掉只会让下次构建多付一次扫描代价，不影响正确性。
+pub(crate) fn release_caches() {
+    // 通用：清空「Mutex<集合>」并收缩底层容器
+    macro_rules! clear_and_shrink {
+        ($c:expr) => {
+            if let Some(c) = $c.get() {
+                if let Ok(mut g) = c.lock() {
+                    g.clear();
+                    g.shrink_to_fit();
                 }
-                out.by_ext.entry(norm_key_with_ext(&rel)).or_insert(p);
             }
+        };
+    }
+    clear_and_shrink!(ZIP_INDEX_CACHE);
+    clear_and_shrink!(DIR_INDEX_CACHE);
+    clear_and_shrink!(MOD_KIND_CACHE);
+    clear_and_shrink!(CROSSMOD_MISS);
+    clear_and_shrink!(H3_DATA_PRESENT_CACHE);
+    // 字节缓存是 `SizedCache`（自建结构，`clear()` 内部已收缩）
+    if let Some(c) = FILE_BYTES_CACHE.get() {
+        if let Ok(mut g) = c.lock() {
+            g.clear();
         }
     }
 }
 
-/// 取（并缓存）目录索引。
-fn dir_index_of(dir: &Path) -> std::sync::Arc<DirIndex> {
-    let key = dir_fingerprint(dir);
-    let list = DIR_INDEX_CACHE.get_or_init(|| Mutex::new(Vec::new()));
-    let mut guard = list.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some((_, v)) = guard.iter().find(|(k, _)| *k == key) {
-        return v.clone();
+/// 跨模组回退的**负结果缓存**：已确认「全部其它模组都没有」的资源 key。
+///
+/// 典型场景：建筑图标声明了 `buildingsIcons`，但帧号在文件里根本不存在（实测 299 个），
+/// 每个都要把几百个模组扫一遍，而且**永远扫不出结果**。记下后同类请求直接跳过。
+///
+/// 失效：随 [`set_wiki_mod_paths`]（模组集合变化——新装模组 / 切换领域）整体清空，
+/// 否则新装的模组里的资源会被永久误判为"不存在"。
+static CROSSMOD_MISS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
+/// 构建目录索引：走 [`crate::infra::dirscan::dir_listing`]（每个目录只递归一次，
+/// 与配置收集共用同一份清单），不再自己 `read_dir`。
+///
+/// 遍历顺序与命中语义与原实现一致：深度优先 + `or_insert` 保留首个匹配
+/// （两个文件归一后撞 key 时由遍历顺序决定胜出者，换序会静默改变解析结果）。
+fn build_dir_index(dir: &Path) -> DirIndex {
+    let listing = crate::infra::dirscan::dir_listing(dir);
+    let mut out = DirIndex::default();
+    // ① 先建 `by_key` 并统计每个基名下的条目数
+    let mut stem_count: HashMap<String, usize> = HashMap::new();
+    // (含扩展名 key, 去扩展名 key, 路径)
+    let mut pending: Vec<(String, String, Arc<Path>)> = Vec::with_capacity(listing.len());
+    for i in 0..listing.len() {
+        let rel = listing.rel(i);
+        let kx = norm_key_with_ext(rel);
+        let k = norm_zip_key(rel).unwrap_or_else(|| kx.clone());
+        // ⚠️ 2026-10-16 修正：**`config/` 下的定义文件不得抢占素材的 stem**。
+        // 索引根是 `<mod>/Content`，而 `config/<...>/<id>.json` 与 `sprites/<...>/<id>.png`
+        // 经 `strip_resource_prefix` 去掉各自根前缀后**撞成同一个 key**
+        // （实测 `lianjin/artifacts/ringOfTheCobrasEye` 同时命中 config 的 .json、
+        // sprites 的 .bmp 与 .def）。遍历顺序是 `config` 在 `sprites` 之前 → 定义 JSON 胜出
+        // → 调用方拿到的是**配置文件的字节**，`encode_webp` 必然失败 → `image` 恒为 null
+        // （实测：法术 8 条、宝物 8 条"资源明明在盘却无图"）。
+        // 处理：config 条目照旧登记（sprites-json 定义也可能放在 config 下），但**后来者**
+        // 只要不是 config 条目就把前者的位置顶掉。
+        let is_cfg = rel.to_lowercase().starts_with("config/");
+        match out.by_key.entry(k.clone()) {
+            std::collections::hash_map::Entry::Vacant(e) => {
+                e.insert(listing.path(i).clone());
+                if is_cfg {
+                    out.cfg_key.insert(k.clone());
+                }
+            }
+            std::collections::hash_map::Entry::Occupied(mut e) => {
+                if !is_cfg && out.cfg_key.contains(&k) {
+                    e.insert(listing.path(i).clone());
+                    out.cfg_key.remove(&k);
+                }
+            }
+        }
+        *stem_count.entry(k.clone()).or_insert(0) += 1;
+        pending.push((kx, k, listing.path(i).clone()));
     }
-    let mut map = DirIndex::default();
-    walk_index(dir, dir, &mut map);
-    let v = std::sync::Arc::new(map);
-    guard.push((key, v.clone()));
-    if guard.len() > DIR_INDEX_CACHE_CAP {
-        guard.remove(0);
+    // ② 只为"同基名多个扩展名"的条目登记 `by_ext`（单扩展名时 by_key 命中已等价）
+    for (kx, k, p) in pending {
+        if stem_count.get(&k).copied().unwrap_or(0) > 1 {
+            out.by_ext.entry(kx).or_insert(p);
+        }
+    }
+    out
+}
+
+/// 取（并缓存）目录索引。
+///
+/// ⚠️ **不得持锁构建索引**：`walk_index` 是对整个 `Content/` 的全量递归（大模组数千文件），
+/// 持着全局 Mutex 做会把所有工作线程串行化（旧实现的隐性瓶颈，与容量失配叠加后
+/// 表现为「并发度越高越没收益」）。故：先查（持锁，极短）→ 未命中则**释放锁**再建 → 再插回。
+fn dir_index_of(dir: &Path) -> std::sync::Arc<DirIndex> {
+    let mt = dir_mtime(dir);
+    let list = DIR_INDEX_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    {
+        let guard = list.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((m, v)) = guard.get(dir) {
+            if *m == mt {
+                return v.clone();
+            }
+        }
+    }
+    let v = std::sync::Arc::new(build_dir_index(dir));
+    if let Ok(mut guard) = list.lock() {
+        if guard.len() >= DIR_INDEX_CACHE_CAP {
+            guard.clear();
+        }
+        guard.insert(dir.to_path_buf(), (mt, v.clone()));
     }
     v
 }
 
 /// 条目名归一：去资源根前缀 + 去扩展名 + 小写（zip 索引与目录索引**共用同一口径**）。
 pub(crate) fn norm_zip_key(entry_name: &str) -> Option<String> {
-    strip_ext(&strip_resource_prefix(&entry_name.replace('\\', "/").to_lowercase()))
+    strip_ext(&strip_resource_prefix(
+        &entry_name.replace('\\', "/").to_lowercase(),
+    ))
 }
 
 /// 条目名归一但**保留扩展名**：去资源根前缀 + 小写。
@@ -246,8 +418,12 @@ fn zip_password_for(mod_path: &Path) -> Option<String> {
 /// 取代此前"静默丢资源"的不可见行为。
 pub(crate) fn content_zip_is_encrypted(mod_path: &Path) -> bool {
     let zip_path = mod_path.join("content.zip");
-    let Ok(file) = fs::File::open(&zip_path) else { return false; };
-    let Ok(mut archive) = zip::ZipArchive::new(file) else { return false; };
+    let Ok(file) = fs::File::open(&zip_path) else {
+        return false;
+    };
+    let Ok(mut archive) = zip::ZipArchive::new(file) else {
+        return false;
+    };
     for i in 0..archive.len() {
         if let Ok(entry) = archive.by_index_raw(i) {
             if entry.encrypted() {
@@ -343,15 +519,17 @@ pub(crate) fn resolve_resource(mod_path: &Path, resource: &str) -> Option<(Vec<u
     crate::infra::metrics::scope("res.resolve", || resolve_resource_inner(mod_path, resource))
 }
 
-fn resolve_resource_inner(mod_path: &Path, resource: &str) -> Option<(Vec<u8>, String)> {
-    let resource = resource.trim();
-    if resource.is_empty() {
-        return None;
-    }
-    let norm = resource.trim_start_matches('/').replace('\\', "/");
+/// 资源引用 → `(去扩展名 key, 含扩展名 key)`，与磁盘/zip 索引**同一归一口径**。
+///
+/// 抽出来是为了让 `resolve_resource_fallback` 的负结果缓存能用**完全相同**的 key 记账，
+/// 避免两处各写一份归一逻辑而漂移（漂移会让负缓存误伤命中）。
+fn resource_keys(resource: &str) -> (String, String) {
+    let norm = resource.trim().trim_start_matches('/').replace('\\', "/");
     // 资源名 key：去常见根前缀 + 去扩展名 + 小写（保证非 None）
     let key = strip_resource_prefix(&norm);
-    let key = strip_ext(&key).unwrap_or_else(|| key.clone()).to_lowercase();
+    let key = strip_ext(&key)
+        .unwrap_or_else(|| key.clone())
+        .to_lowercase();
     // 含扩展名的归一 key：请求**本身带扩展名**时优先按它精确命中。
     //
     // 必要性（2026-10-13 定位）：VCMI 1.6+ sprites-json 的定义与位图帧同基名不同扩展名
@@ -361,6 +539,15 @@ fn resolve_resource_inner(mod_path: &Path, resource: &str) -> Option<(Vec<u8>, S
     // `load_structure_frame` 对每个结构都返回 None → 城镇幕布图**只剩裸底图**、建筑全部消失。
     // 请求不带扩展名时该 key 与 `key` 同形（`by_ext` 中不存在该 key → 零副作用）。
     let key_with_ext = norm_key_with_ext(&norm);
+    (key, key_with_ext)
+}
+
+fn resolve_resource_inner(mod_path: &Path, resource: &str) -> Option<(Vec<u8>, String)> {
+    let resource = resource.trim();
+    if resource.is_empty() {
+        return None;
+    }
+    let (key, key_with_ext) = resource_keys(resource);
 
     // Content 目录（磁盘）
     let content_dir = mod_path.join("Content");
@@ -371,7 +558,8 @@ fn resolve_resource_inner(mod_path: &Path, resource: &str) -> Option<(Vec<u8>, S
                 .and_then(|e| e.to_str())
                 .unwrap_or("")
                 .to_string();
-            if let Ok(data) = fs::read(&found) {
+            // 走字节缓存：同一份 DEF/位图被同一 mod 的多个条目引用时只读盘一次
+            if let Ok(data) = read_file_cached(&found) {
                 crate::infra::metrics::count("res.hit.dir", 1);
                 return Some((data, ext));
             }
@@ -403,7 +591,11 @@ fn resolve_resource_inner(mod_path: &Path, resource: &str) -> Option<(Vec<u8>, S
 /// `HALLCSTL.DEF`、`TPCASCAS`），`resolve_resource` 只搜 mod 自身故必须回退。
 /// 返回**实际命中的扩展名**（经 `read_game_resource_ext` 的基名+多扩展名回退，
 /// 配置写 `.bmp`/无扩展名也能命中 lod 内的 `.pcx`），供下游 `encode_webp` 正确解码。
-pub(crate) fn resolve_resource_fallback(mod_path: &Path, game_dir: &Path, res: &str) -> Option<(Vec<u8>, String)> {
+pub(crate) fn resolve_resource_fallback(
+    mod_path: &Path,
+    game_dir: &Path,
+    res: &str,
+) -> Option<(Vec<u8>, String)> {
     if let Some(r) = resolve_resource(mod_path, res) {
         return Some(r);
     }
@@ -426,15 +618,40 @@ pub(crate) fn resolve_resource_fallback(mod_path: &Path, game_dir: &Path, res: &
     // 跨模组检索：对齐 VCMI `findResourceOrigin` —— 全局遍历所有已装模组，首个命中即返回。
     // 仅当本模组与游戏根均未命中才进入（常见图标都在前面短路），对正常构建零额外开销；
     // 真正跨模组引用的素材（如子模组 Fen 的 `Sprites/fen/creatures/...` 被父模组配置引用）由此补到。
+    //
+    // ⚠️ 这是首次全量构建最贵的一段（实测 291,358 次 `res.dir_scan` ≈ 6,286s CPU，占整批 76%）：
+    // 未命中的资源（典型：建筑图标声明的帧号在文件里根本不存在，实测 299 个）会把几百个模组
+    // 全扫一遍，且**扫多少次都扫不出结果**。两道闸门：
+    //   ① 负结果缓存 —— 扫空过一次的 key 直接跳过（同类请求在同一批里大量重复）；
+    //   ② 模组载体缓存 —— 没有 `Content/` 也没有 `content.zip` 的模组连 stat 都不做。
     if let Some(all) = wiki_mod_paths() {
+        let (key, key_with_ext) = resource_keys(res);
+        let miss_key = format!("{key_with_ext}\u{1}{key}");
+        {
+            let set = CROSSMOD_MISS.get_or_init(|| Mutex::new(HashSet::new()));
+            if let Ok(g) = set.lock() {
+                if g.contains(&miss_key) {
+                    crate::infra::metrics::count("res.miss.cached", 1);
+                    return None;
+                }
+            }
+        }
         for mp in all.iter() {
             if mp.as_path() == mod_path {
                 continue; // 本模组已查过
+            }
+            let (has_dir, has_zip) = mod_content_kind(mp);
+            if !has_dir && !has_zip {
+                continue;
             }
             if let Some(r) = resolve_resource(mp, res) {
                 crate::infra::metrics::count("res.hit.crossmod", 1);
                 return Some(r);
             }
+        }
+        let set = CROSSMOD_MISS.get_or_init(|| Mutex::new(HashSet::new()));
+        if let Ok(mut g) = set.lock() {
+            g.insert(miss_key);
         }
     }
     None
@@ -486,10 +703,23 @@ pub(crate) fn wiki_user_data_dir() -> Option<PathBuf> {
 static WIKI_MOD_PATHS: Mutex<Option<Arc<Vec<PathBuf>>>> = Mutex::new(None);
 
 /// 设置当前构建的全部模组路径（见 `WIKI_MOD_PATHS`）。
+///
+/// 同时清空 [`CROSSMOD_MISS`]：模组集合变了（新装模组 / 切换领域 / 重扫目录），
+/// 之前"全部模组都没有"的结论就不再成立，必须重新探测，否则新模组的资源会被永久漏掉。
 pub(crate) fn set_wiki_mod_paths(paths: &[PathBuf]) {
     if let Ok(mut g) = WIKI_MOD_PATHS.lock() {
         *g = Some(Arc::new(paths.to_vec()));
     }
+    if let Ok(mut g) = CROSSMOD_MISS
+        .get_or_init(|| Mutex::new(HashSet::new()))
+        .lock()
+    {
+        g.clear();
+    }
+    // `bonus_graphics_map` / `spell_immune_icons` 的缓存键只含「游戏目录 + 参与扫描的目录数」，
+    // 模组集合变化（数量恰好相同时）无法自失效 → 在此显式清空，与 [`CROSSMOD_MISS`] 同理。
+    crate::vcmi::bonus::release_caches();
+    crate::vcmi::spell_icons::release_caches();
 }
 
 /// 读取当前构建的全部模组路径（未设置则返回 None，跨模组搜索退化为仅本模组 + 游戏根）。
@@ -534,7 +764,11 @@ pub(crate) fn h3_data_key(game_dir: &Path, user_data_dir: &Path) -> String {
     let list = H3_DATA_PRESENT_CACHE.get_or_init(|| Mutex::new(Vec::new()));
     if let Ok(guard) = list.lock() {
         if let Some((_, v)) = guard.iter().find(|(k, _)| k == &key) {
-            return if *v { "present".to_string() } else { "missing".to_string() };
+            return if *v {
+                "present".to_string()
+            } else {
+                "missing".to_string()
+            };
         }
     }
     let present = h3_data_present(game_dir, user_data_dir);
@@ -544,12 +778,18 @@ pub(crate) fn h3_data_key(game_dir: &Path, user_data_dir: &Path) -> String {
             guard.remove(0);
         }
     }
-    if present { "present".to_string() } else { "missing".to_string() }
+    if present {
+        "present".to_string()
+    } else {
+        "missing".to_string()
+    }
 }
 
 /// 去除 VCMI 资源根前缀（Data/Sprites/Maps/...），保留相对路径。
 pub(crate) fn strip_resource_prefix(p: &str) -> String {
-    let prefixes = ["data/", "sprites/", "maps/", "config/", "fonts/", "video/", "sound/"];
+    let prefixes = [
+        "data/", "sprites/", "maps/", "config/", "fonts/", "video/", "sound/",
+    ];
     let lower = p.to_lowercase();
     for pre in prefixes {
         if let Some(stripped) = lower.strip_prefix(pre) {
@@ -568,11 +808,11 @@ pub(crate) fn strip_resource_prefix(p: &str) -> String {
 ///
 /// 走**目录索引**（`dir_index_of`，每个目录只递归一次）：原实现每次调用都全量遍历一遍
 /// `Content/`，代价随「资源数 × 文件数」增长（实测 ≈360s CPU）。
-pub(crate) fn find_in_dir(dir: &Path, key: &str, key_with_ext: &str) -> Result<PathBuf, ()> {
+pub(crate) fn find_in_dir(dir: &Path, key: &str, key_with_ext: &str) -> Result<Arc<Path>, ()> {
     crate::infra::metrics::scope("res.dir_scan", || find_in_dir_inner(dir, key, key_with_ext))
 }
 
-fn find_in_dir_inner(dir: &Path, key: &str, key_with_ext: &str) -> Result<PathBuf, ()> {
+fn find_in_dir_inner(dir: &Path, key: &str, key_with_ext: &str) -> Result<Arc<Path>, ()> {
     // 走**目录索引**（每个目录只递归一次）：原实现每次调用都全量遍历一遍 `Content/`，
     // 而 `Content/` 常有数千文件，代价随「资源数 × 文件数」增长（实测 ≈360s CPU）。
     let idx = dir_index_of(dir);
@@ -584,12 +824,24 @@ fn find_in_dir_inner(dir: &Path, key: &str, key_with_ext: &str) -> Result<PathBu
     idx.by_key.get(key).cloned().ok_or(())
 }
 
+/// 去掉**末段**的扩展名（`a/b.png` → `a/b`；`a/b.res/c.png` → `a/b.res/c`；
+/// `a/b.res/c` → `None`）。返回 `None` 表示末段本就没有扩展名。
+///
+/// ⚠️ 2026-10-16 修正：旧实现用 `rfind('.')` 找"最后一个点"，会把**中间段**的点当扩展名 ——
+/// `zvs/Lib1.res/E_DEATH`（VCMI `ImagePath` 的 `<file>/<sub>` 写法，资源实体是
+/// `Content/data/zvs/Lib1.res/E_DEATH.png`）被截成 `zvs/lib1`，于是**所有 bonus 图标**
+/// （真实发行版由 `vcmi-extras` 的 Bonus Icons 子模组提供，`bonuses.json` 的 `graphics.icon`）
+/// 恒解析失败：实测 19,376 条能力里只有 1,042 条（5.4%）有图标，且全是有内联
+/// `ability["icon"]` 的那批（用户报"所有技能图片均为空图"）。
+///
+/// 索引侧（[`norm_zip_key`] / `build_dir_index`）与请求侧（[`resource_keys`]）**共用**本函数，
+/// 故两侧同时修正、归一口径不漂移。实测该发行版配置里 `<file>.def/<帧号>` 这类
+/// "靠旧截断碰巧命中"的引用 **0 条**，改语义不会造成命中回退。
 pub(crate) fn strip_ext(p: &str) -> Option<String> {
-    // 返回去掉最后一个扩展名后的路径（含点）
-    if let Some(pos) = p.rfind('.') {
-        Some(p[..pos].to_string())
-    } else {
-        None
+    let start = p.rfind(['/', '\\']).map(|i| i + 1).unwrap_or(0);
+    match p[start..].rfind('.') {
+        Some(pos) => Some(p[..start + pos].to_string()),
+        None => None,
     }
 }
 
@@ -634,4 +886,71 @@ pub(crate) fn read_def_bytes_inner(
         }
     }
     Err(be_err("vcmi_resource_not_found", &format!("{}", resource)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `strip_ext` 只剥**末段**的扩展名（中间段的点不是扩展名）。
+    #[test]
+    fn strip_ext_only_strips_last_segment_extension() {
+        assert_eq!(strip_ext("a/b.png").as_deref(), Some("a/b"));
+        assert_eq!(strip_ext("a/b.res/e.png").as_deref(), Some("a/b.res/e"));
+        assert_eq!(strip_ext("dir.d/e/f.bmp").as_deref(), Some("dir.d/e/f"));
+        assert_eq!(strip_ext("a/b.res/e"), None, "中间段的点不得当扩展名");
+        assert_eq!(strip_ext("e_death"), None);
+    }
+
+    /// VCMI `<file>/<sub>` 引用（如 bonus 图标的 `zvs/Lib1.res/E_DEATH`）必须与磁盘清单
+    /// 条目（`data/zvs/Lib1.res/E_DEATH.png`）归一到**同一个 key**。
+    ///
+    /// 回归背景：旧 `strip_ext` 用 `rfind('.')`，把它截成 `zvs/lib1` → 全部 bonus 图标解析失败
+    /// （实测 19,376 条能力只有 5.4% 有图标）。两侧共用 `strip_ext`，本用例锁住口径一致。
+    #[test]
+    fn subpath_resource_normalizes_like_listing_entry() {
+        let req = resource_keys("zvs/Lib1.res/E_DEATH");
+        let entry = resource_keys("data/zvs/Lib1.res/E_DEATH.png");
+        assert_eq!(req.0, "zvs/lib1.res/e_death");
+        assert_eq!(req.0, entry.0, "请求与清单条目的去扩展名 key 必须一致");
+        assert_eq!(entry.1, "zvs/lib1.res/e_death.png", "含扩展名 key 保留末段扩展");
+    }
+
+    /// **素材不得被 `config/` 下的同名定义文件顶掉**（2026-10-16 修复）。
+    ///
+    /// 实测形态：`config/lianjin/artifacts/ringOfTheCobrasEye.json` 与
+    /// `sprites/lianjin/artifacts/ringOfTheCobrasEye.bmp` 经前缀剥离后撞成同一个 key，
+    /// 而 `config` 在 `sprites` 之前被遍历到 → 解析返回的是**配置 JSON 的字节** →
+    /// `encode_webp` 失败 → 法术/宝物 `image` 恒为 null（资源明明在盘）。
+    #[test]
+    fn asset_wins_over_same_stem_config_json() {
+        let root = std::env::temp_dir().join("vcmi_fv_res_cfg_collision");
+        let _ = fs::remove_dir_all(&root);
+        let cfg = root.join("Content").join("config").join("lianjin").join("artifacts");
+        let sp = root.join("Content").join("sprites").join("lianjin").join("artifacts");
+        fs::create_dir_all(&cfg).unwrap();
+        fs::create_dir_all(&sp).unwrap();
+        fs::write(cfg.join("ringOfTheCobrasEye.json"), b"{ \"x\": 1 }").unwrap();
+        fs::write(sp.join("ringOfTheCobrasEye.bmp"), b"BMP-BYTES").unwrap();
+
+        let got = resolve_resource(&root, "lianjin/artifacts/ringOfTheCobrasEye").unwrap();
+        assert_eq!(got.1, "bmp", "命中的应是 sprites 下的素材，而不是 config 的 JSON");
+        assert_eq!(got.0, b"BMP-BYTES".to_vec());
+
+        // 请求带（不存在于盘的）扩展名时同样命中素材，而非定义文件
+        let got2 = resolve_resource(&root, "lianjin/artifacts/ringOfTheCobrasEye.bmp").unwrap();
+        assert_eq!(got2.1, "bmp");
+
+        // 只有定义文件时不回归（仍按原样返回，调用方自行判空）
+        let only = std::env::temp_dir().join("vcmi_fv_res_cfg_only");
+        let _ = fs::remove_dir_all(&only);
+        let d = only.join("Content").join("config").join("m");
+        fs::create_dir_all(&d).unwrap();
+        fs::write(d.join("solo.json"), b"{}").unwrap();
+        let got3 = resolve_resource(&only, "m/solo").unwrap();
+        assert_eq!(got3.1, "json", "只有定义文件时行为不变");
+
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&only);
+    }
 }

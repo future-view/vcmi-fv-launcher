@@ -33,10 +33,12 @@ use serde_json::Value;
 ///   （与 `set_vcmi_language` 同语义：语言不一致会让 VCMI 把翻译模组判为 BROKEN）。
 pub fn seed_setup_completed(config_dir: &Path) -> Result<(), String> {
     let p = config_dir.join("settings.json");
-    fs::create_dir_all(config_dir).map_err(|e| be_err("realm_config_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(config_dir)
+        .map_err(|e| be_err("realm_config_dir_create_failed", &format!("{}", e)))?;
 
     let mut root: Value = if p.is_file() {
-        let text = fs::read_to_string(&p).map_err(|e| be_err("cmd_settings_read_failed", &format!("{}", e)))?;
+        let text = fs::read_to_string(&p)
+            .map_err(|e| be_err("cmd_settings_read_failed", &format!("{}", e)))?;
         crate::infra::json::parse_json_lenient(&text)
             .map_err(|e| be_err("cmd_settings_parse_abort", &format!("{}", e)))?
     } else {

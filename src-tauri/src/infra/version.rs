@@ -32,7 +32,11 @@ pub fn compare(a: &str, b: &str) -> Ordering {
         let l = *x.get(i).unwrap_or(&0);
         let r = *y.get(i).unwrap_or(&0);
         if l != r {
-            return if l < r { Ordering::Less } else { Ordering::Greater };
+            return if l < r {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            };
         }
     }
     Ordering::Equal

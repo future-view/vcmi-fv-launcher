@@ -2,7 +2,8 @@
  * Wiki 缓存后台构建状态（轻量事件总线）。
  * App 初始化后后台触发构建；WikiView 订阅状态显示进度条。
  */
-import { buildModsWikiBatch, cancelWikiBuild, fetchWikiBuildProgress, isTauri, probeWikiCacheState, readLauncherConfig, scanRealMods } from "@/lib/tauri";
+import { buildModsWikiBatch, cancelWikiBuild, fetchWikiBuildProgress, isTauri, probeWikiCacheState, readLauncherConfig, releaseWikiCaches, scanRealMods } from "@/lib/tauri";
+import { logInfo } from "@/lib/log";
 import { clearHdMissing, getHdPhys, getHdRate } from "@/lib/hd";
 import { buildCoreEntries, flattenTree, toBatchPayload } from "./buildTargets";
 
@@ -25,8 +26,14 @@ interface WikiBuildStatus {
    * 与 `progress`（总进度）并存：总进度给"还要多久"的整体感知，三段给"哪一段在跑/还剩几段"。
    * 未开始的段保持 `done=0`，UI 据此显示 `0%`（让用户一开始就知道总共几段）。
    * `hd` 段在开关关闭时始终为 0，UI 按 `hdEnabled` 决定是否渲染该条。
+   *
+   * `prep`（扫描模组目录）是**所有页面共用的前置阶段**：排序前要对每个 mod 目录
+   * 递归枚举估成本，冷缓存下是分钟级（HDD 实测 63 s）且发生在第一个 mod 之前。
+   * 它不属任何页面的 `deps`（不参与撤除判定），但必须始终可见，否则那段
+   * 分钟级工作在 UI 上就是"0% 静止一分钟"（用户读作卡死）。
    */
   stages?: {
+    prep: { done: number; total: number };
     data: { done: number; total: number };
     assets: { done: number; total: number };
     hd: { done: number; total: number };
@@ -149,6 +156,9 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
     // 有活要干：**此刻才置 `busy`**（蒙层才出现），随后进入既有两阶段构建。
     status = { busy: true, progress: { done: 0, total: 0 } };
     emit();
+    // 前端侧唯一的构建起点日志（后端只有批次汇总行）：与 `[boot]` 一起构成
+    // "启动 → 预检 → 准备 → 构建" 的完整时间线，排查"卡在 0%"时不用猜。
+    logInfo("wiki", `缓存构建开始：${all.length} 个 mod`);
 
     // 分两批：城镇类型优先 —— 模组页的城镇卡片依赖 preview 合成图，
     // 先构建城镇可让模组页尽快可用；其余类型后置，由后台逐步补充
@@ -181,14 +191,8 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
       }
     };
 
-    // 进度轮询兜底（事件可能不达；400ms 拉取一次，UI 刷新平滑且必然推进）
-    const poll = window.setInterval(async () => {
-      const p = await fetchWikiBuildProgress();
-      if (p && p.total > 0) {
-        status = { ...status, progress: { done: doneBase + p.done, total: grandTotal } };
-        emit();
-      }
-    }, 400);
+    // 进度轮询兜底的定时器句柄（在 try 内创建、finally 内清理，见下方 `poll`）
+    let poll: number | undefined;
 
     try {
       // 高清选项：倍率上限 + 基准物理倍率按**显示器物理宽**推导（取全部显示器最大值，
@@ -205,12 +209,13 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
       // ── 三条独立进度的账本（分段进度条用）──
       const assetsTotal = townBatch.length + restBatch.length;
       const st = {
+        prep: { done: 0, total: totalData },
         data: { done: 0, total: totalData },
         assets: { done: 0, total: assetsTotal },
         hd: { done: 0, total: assetsTotal },
       };
       let stageEmit = 0;
-      const setStage = (k: "data" | "assets" | "hd", done: number) => {
+      const setStage = (k: "prep" | "data" | "assets" | "hd", done: number) => {
         const now = Date.now();
         if (now - stageEmit > 120 || done >= st[k].total) {
           stageEmit = now;
@@ -219,9 +224,38 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
           emit();
         }
       };
+      /**
+       * 准备阶段（成本估算）进度。
+       *
+       * ⚠️ 取**历史最大** total/done：阶段二/三会各自再走一次成本估算预热，
+       * 而它的 total 是本批数量（town/rest 批远小于 572）——直接覆盖会让
+       * "扫描模组目录"从 572/572 倒退成 20/20。
+       */
+      let prepLogged = false;
+      const applyPrep = (done: number, total: number) => {
+        const t = Math.max(st.prep.total, total);
+        const d = Math.min(t, Math.max(st.prep.done, done));
+        if (d === st.prep.done && t === st.prep.total) return;
+        st.prep = { done: d, total: t };
+        status = { ...status, stages: { ...st } };
+        emit();
+        // 准备阶段收尾打一行（每轮至多一条）：它是"第一个 mod 开工前"那段
+        // 分钟级目录估算的唯一日志痕迹，排查"首屏前卡住"必备。
+        if (!prepLogged && d >= t && t > 0) {
+          prepLogged = true;
+          logInfo("wiki", `准备阶段完成：扫描 ${t} 个 mod 目录（成本估算）`);
+        }
+      };
       /** 某一段的进度回调：`base` 用于把多批（town/rest）拼成一条连续进度 */
       const mkStage = (k: "data" | "assets" | "hd", base: number) => (done: number) =>
         setStage(k, base + done);
+      /** 带准备阶段分流的进度回调：`prep=true` 走"扫描模组目录"行，否则走本阶段行 */
+      const mkBatch =
+        (k: "data" | "assets" | "hd", base: number) =>
+        (done: number, total: number, prep?: boolean) => {
+          if (prep) applyPrep(done, total);
+          else mkStage(k, base)(done);
+        };
 
       // ── 阶段一：全部 mod，仅数据（phase=0）──
       // 整批一次提交：后端在独立线程完成全部（不依赖前端 JS 存活，窗口最小化/失焦也不会停）
@@ -230,7 +264,24 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
       // 后台静默构建（ECO）会把这几分钟拖成十几分钟。
       status = { ...status, stage: "data", hdEnabled: !!hdOpt, hdProgress: null, stages: { ...st } };
       emit();
-      await buildModsWikiBatch(gameDir, all, mkStage("data", 0), DATA_BUILD_THROTTLE, 0);
+
+      // 进度轮询兜底（事件可能不达；400ms 拉取一次）。
+      // ⚠️ 必须推进**可见的**阶段条：此前只写 `status.progress`，而蒙层渲染的是
+      // `status.stages` → 事件真丢失时进度条仍停在 0%，文档承诺的"不会卡死"落空
+      // （见 docs/features/modcache.zh-CN.md）。
+      // ⚠️ 只在 `stage === "data"` 时写 data 行：阶段二/三的批计数是 town/rest
+      // **子集**（0..本批数），直接写会把已完成的 data 行打回 0 → 蒙层重新弹出。
+      poll = window.setInterval(async () => {
+        const p = await fetchWikiBuildProgress();
+        if (p && p.total > 0) {
+          if (p.prepTotal > 0) applyPrep(p.prepDone, p.prepTotal);
+          if (status.stage === "data") setStage("data", p.done);
+          status = { ...status, progress: { done: doneBase + p.done, total: grandTotal } };
+          emit();
+        }
+      }, 400);
+
+      await buildModsWikiBatch(gameDir, all, mkBatch("data", 0), DATA_BUILD_THROTTLE, 0);
       doneBase = totalData;
 
       // ── 阶段二：标清素材（**刻意不带 hd**）──
@@ -238,12 +289,18 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
       // （此前两者同批，用户的'可用时刻'被推迟到高清完成）。
       status = { ...status, stage: "assets" };
       emit();
-      await buildModsWikiBatch(gameDir, townBatch, mkStage("assets", 0), WIKI_BUILD_THROTTLE, 1);
+      await buildModsWikiBatch(
+        gameDir,
+        townBatch,
+        mkBatch("assets", 0),
+        WIKI_BUILD_THROTTLE,
+        1,
+      );
       doneBase += townBatch.length;
       await buildModsWikiBatch(
         gameDir,
         restBatch,
-        mkStage("assets", townBatch.length),
+        mkBatch("assets", townBatch.length),
         WIKI_BUILD_THROTTLE,
         1,
       );
@@ -256,16 +313,22 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
         status = { ...status, stage: "hd", hdProgress: { done: 0, total: hdTotal } };
         emit();
         let hdLastEmit = 0;
-        const mkHdProgress = (base: number) => (done: number, total: number) => {
-          const now = Date.now();
-          if (now - hdLastEmit > 120 || done >= total) {
-            hdLastEmit = now;
-            const d = base + done;
-            st.hd = { ...st.hd, done: d };
-            status = { ...status, hdProgress: { done: d, total: hdTotal }, stages: { ...st } };
-            emit();
-          }
-        };
+        const mkHdProgress =
+          (base: number) => (done: number, total: number, prep?: boolean) => {
+            // 准备阶段（成本估算预热）只推进"扫描模组目录"行，不碰高清进度
+            if (prep) {
+              applyPrep(done, total);
+              return;
+            }
+            const now = Date.now();
+            if (now - hdLastEmit > 120 || done >= total) {
+              hdLastEmit = now;
+              const d = base + done;
+              st.hd = { ...st.hd, done: d };
+              status = { ...status, hdProgress: { done: d, total: hdTotal }, stages: { ...st } };
+              emit();
+            }
+          };
         await buildModsWikiBatch(
           gameDir,
           townBatch,
@@ -286,7 +349,10 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
         clearHdMissing();
       }
     } finally {
-      window.clearInterval(poll);
+      if (poll !== undefined) window.clearInterval(poll);
+      // 整轮构建（阶段一/二/三，含被暂停提前结束）走完 → 释放后端构建期缓存，让内存回落。
+      // 只能在这里收尾：后端单看一批不知道后面还有没有下一批，批间清空会白付一次全量扫描。
+      void releaseWikiCaches();
     }
     // 用户暂停时不谎报完成，保留实际进度（下次调用增量续跑）
     if (!cancelRequested) {

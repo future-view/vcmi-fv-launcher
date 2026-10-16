@@ -27,7 +27,7 @@ fn palette_color_key(palette: &[u8]) -> (u8, u8, u8) {
 struct DefHeader {
     def_type: u32,
     total_blocks: u32,
-    palette: Vec<u8>, // 768 字节
+    palette: Vec<u8>,      // 768 字节
     groups: Vec<DefGroup>, // 每个分组：帧偏移 + 帧名（同序、同过滤口径）
 }
 
@@ -260,7 +260,8 @@ impl<'a> DefReader<'a> {
         let data_len = data.len();
         for row_idx in 0..h {
             let off = row_idx * 4;
-            let pos0 = u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]) as usize;
+            let pos0 = u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]])
+                as usize;
             let mut row = Vec::with_capacity(w);
             let mut pos = pos0;
             while row.len() < w && pos < data_len {
@@ -330,8 +331,7 @@ impl<'a> DefReader<'a> {
             if table_pos + 2 > data_len {
                 break;
             }
-            let row_offset =
-                u16::from_le_bytes([data[table_pos], data[table_pos + 1]]) as usize;
+            let row_offset = u16::from_le_bytes([data[table_pos], data[table_pos + 1]]) as usize;
             let mut row = Vec::with_capacity(w);
             if row_offset < data_len {
                 let mut pos = row_offset;
@@ -395,6 +395,14 @@ impl<'a> DefReader<'a> {
     ) -> Option<(u32, u32, Vec<u8>, i32, i32)> {
         let header = self.parse_header()?;
         let g = &header.groups.get(group)?.offsets;
+        // ⚠️ 帧号越界剪枝（2026-10-16）：原实现在 index 越界时会**把整组帧逐个解码一遍**
+        // 才发现找不到目标帧（循环里 `decode_pixels` 先于 `k == index` 判定执行）。
+        // 建筑图标常引用 DEF 里根本不存在的帧号（实测 299 个，如 `dwellingLvl8` 要
+        // bid=150，而 `town-hall.def` 只有几十帧）→ 每次失败都白解一整个动画。
+        // `offsets.len()` 是帧数**上界**（个别帧可能解不出），故越界必为 None，剪枝安全。
+        if index >= g.len() {
+            return None;
+        }
         let mut k = 0usize;
         for &off in g {
             if let Some((fmt, w, h, _fs, _pad, pixel, lm, tm)) = self.read_frame(off) {
@@ -484,7 +492,10 @@ impl<'a> DefReader<'a> {
             }
             if k == index {
                 let off = off as usize;
-                return Some((self.read_u32(off + 24) as i32, self.read_u32(off + 28) as i32));
+                return Some((
+                    self.read_u32(off + 24) as i32,
+                    self.read_u32(off + 28) as i32,
+                ));
             }
             k += 1;
         }
@@ -492,8 +503,11 @@ impl<'a> DefReader<'a> {
     }
 
     pub fn decode_animation(&self) -> Option<Vec<(usize, u32, u32, Vec<u8>)>> {
-        self.decode_animation_full()
-            .map(|v| v.into_iter().map(|(g, w, h, b, _lm, _tm)| (g, w, h, b)).collect())
+        self.decode_animation_full().map(|v| {
+            v.into_iter()
+                .map(|(g, w, h, b, _lm, _tm)| (g, w, h, b))
+                .collect()
+        })
     }
 
     /// 同上，但额外返回帧头的 left/top margin（VCMI 绘制位置 = pos + margins）。
@@ -541,7 +555,7 @@ fn render_bmp(rows: &[Vec<u8>], palette: &[u8]) -> Vec<u8> {
     out.extend_from_slice(&(file_size as u32).to_le_bytes());
     out.extend_from_slice(&[0, 0, 0, 0]); // reserved
     out.extend_from_slice(&(54u32).to_le_bytes()); // pixel data offset
-    // BITMAPINFOHEADER (40)
+                                                   // BITMAPINFOHEADER (40)
     out.extend_from_slice(&(40u32).to_le_bytes());
     out.extend_from_slice(&(w as i32).to_le_bytes());
     out.extend_from_slice(&(h as i32).to_le_bytes());
@@ -632,14 +646,19 @@ mod tests {
         let game = std::env::var("VCMI_GAME_DIR")
             .ok()
             .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../references/Heroes3-VCMI"));
+            .unwrap_or_else(|| {
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../references/Heroes3-VCMI")
+            });
         let lod = LodArchive::open(&PathBuf::from(game).join("Data").join("H3sprite.lod"))
             .expect("H3sprite.lod 应可打开");
         let cstl = lod.read("HALLCSTL.DEF").expect("应能读出 HALLCSTL.DEF");
         let def = DefReader::new(&cstl);
         assert_eq!(def.frame_name(0, 0).as_deref(), Some("THCSMAG1"));
         let names: Vec<String> = (0..12).filter_map(|i| def.frame_name(0, i)).collect();
-        assert!(names.iter().any(|n| n == "THCSCAS1"), "应读到 THCSCAS1: {names:?}");
+        assert!(
+            names.iter().any(|n| n == "THCSCAS1"),
+            "应读到 THCSCAS1: {names:?}"
+        );
         // 序号口径与取帧一致：第 0 帧可解码且尺寸合法
         let (w, h, ..) = def.decode_frame_at(0, 0).expect("第 0 帧应可解码");
         assert!(w > 0 && h > 0);
@@ -697,7 +716,7 @@ mod tests {
         b[fh + 12..fh + 16].copy_from_slice(&4u32.to_le_bytes()); // fh
         b[fh + 16..fh + 20].copy_from_slice(&4u32.to_le_bytes()); // w
         b[fh + 20..fh + 24].copy_from_slice(&4u32.to_le_bytes()); // h
-        // 像素数据 @849..865（fmt=0：fw*fh = 16 字节）
+                                                                  // 像素数据 @849..865（fmt=0：fw*fh = 16 字节）
         for i in 849..865 {
             b[i] = (i % 256) as u8;
         }

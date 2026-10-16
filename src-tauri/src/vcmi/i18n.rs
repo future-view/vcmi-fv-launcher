@@ -29,6 +29,18 @@ pub(crate) type I18nMap = HashMap<String, HashMap<String, String>>;
 static MOD_I18N_CACHE: OnceLock<Mutex<Vec<(String, Arc<I18nMap>)>>> = OnceLock::new();
 const MOD_I18N_CACHE_CAP: usize = 128;
 
+/// 释放单 mod 翻译表缓存（构建全部结束后调用；见 [`crate::infra::cache_gc`]）。
+///
+/// 容量 128 条 × 每个 mod 的整张翻译表：大发行版里这是构建期最大的常驻块之一。
+pub fn release_caches() {
+    if let Some(c) = MOD_I18N_CACHE.get() {
+        if let Ok(mut g) = c.lock() {
+            g.clear();
+            g.shrink_to_fit();
+        }
+    }
+}
+
 /// 读取 mod 的翻译字典（含**祖先链**，见模块文档注释）。
 ///
 /// 合并顺序：最远祖先 → … → 父 → 自身；后读优先，
@@ -148,7 +160,9 @@ fn merge_mod_i18n(mod_dir: &Path, map: &mut I18nMap) {
                 let lang = classify_lang(&path.file_stem().unwrap_or_default().to_string_lossy());
                 for (k, val) in m {
                     if let Some(s) = val.as_str() {
-                        map.entry(k).or_default().insert(lang.clone(), s.to_string());
+                        map.entry(k)
+                            .or_default()
+                            .insert(lang.clone(), s.to_string());
                     }
                 }
             }
@@ -167,11 +181,42 @@ fn merge_mod_i18n(mod_dir: &Path, map: &mut I18nMap) {
     // 2) `Content/config/<lang>.json`：VCMI 核心模组（Mods/vcmi）的翻译平铺在这里，
     //    含 `core.bonus.<TYPE>.description` 等能力文本与原版实体名称。
     const LANGS: &[&str] = &[
-        "chinese", "tchinese", "english", "russian", "polish", "german", "french", "spanish",
-        "czech", "hungarian", "dutch", "italian", "portuguese", "swedish", "turkish",
-        "japanese", "korean", "ukrainian", "belarusian", "bulgarian", "greek", "finnish",
-        "filipino", "norwegian", "danish", "romanian", "serbian", "croatian", "slovak",
-        "slovenian", "estonian", "latvian", "lithuanian", "vietnamese", "indonesian", "thai",
+        "chinese",
+        "tchinese",
+        "english",
+        "russian",
+        "polish",
+        "german",
+        "french",
+        "spanish",
+        "czech",
+        "hungarian",
+        "dutch",
+        "italian",
+        "portuguese",
+        "swedish",
+        "turkish",
+        "japanese",
+        "korean",
+        "ukrainian",
+        "belarusian",
+        "bulgarian",
+        "greek",
+        "finnish",
+        "filipino",
+        "norwegian",
+        "danish",
+        "romanian",
+        "serbian",
+        "croatian",
+        "slovak",
+        "slovenian",
+        "estonian",
+        "latvian",
+        "lithuanian",
+        "vietnamese",
+        "indonesian",
+        "thai",
     ];
     let config_dir = mod_dir.join("Content").join("config");
     if config_dir.is_dir() {
@@ -181,7 +226,11 @@ fn merge_mod_i18n(mod_dir: &Path, map: &mut I18nMap) {
                 if !p.is_file() || p.extension().map(|x| x != "json").unwrap_or(true) {
                     continue;
                 }
-                let stem = p.file_stem().unwrap_or_default().to_string_lossy().to_lowercase();
+                let stem = p
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_lowercase();
                 if LANGS.contains(&stem.as_str()) {
                     merge_file(&p, map);
                 }
@@ -206,7 +255,11 @@ fn merge_mod_i18n(mod_dir: &Path, map: &mut I18nMap) {
                     if !is_tr {
                         continue;
                     }
-                    let base = name.rsplit('/').next().unwrap_or("").trim_end_matches(".json");
+                    let base = name
+                        .rsplit('/')
+                        .next()
+                        .unwrap_or("")
+                        .trim_end_matches(".json");
                     let lang = classify_lang(base);
                     let mut buf = Vec::new();
                     if std::io::Read::read_to_end(&mut entry, &mut buf).is_ok() {
@@ -215,7 +268,9 @@ fn merge_mod_i18n(mod_dir: &Path, map: &mut I18nMap) {
                         if let Value::Object(m) = v {
                             for (k, val) in m {
                                 if let Some(s) = val.as_str() {
-                                    map.entry(k).or_default().insert(lang.clone(), s.to_string());
+                                    map.entry(k)
+                                        .or_default()
+                                        .insert(lang.clone(), s.to_string());
                                 }
                             }
                         }
@@ -233,7 +288,9 @@ fn collect_translation_dirs(dir: &Path, out: &mut Vec<PathBuf>, depth: usize) {
     if depth > 4 {
         return;
     }
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     for e in entries.flatten() {
         let p = e.path();
         if !p.is_dir() {

@@ -36,7 +36,9 @@ fn parse_variant(name: &str) -> Option<(u32, String)> {
 
 /// 递归收集 `@Nx.webp` 变体
 fn collect_variants(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(ents) = std::fs::read_dir(dir) else { return };
+    let Ok(ents) = std::fs::read_dir(dir) else {
+        return;
+    };
     for e in ents.flatten() {
         let p = e.path();
         if p.is_dir() {
@@ -56,7 +58,10 @@ fn collect_variants(dir: &Path, out: &mut Vec<PathBuf>) {
 fn ai_audit_upscaler_split() {
     let root = sample_root();
     if !root.is_dir() {
-        println!("⚠️ 缓存目录不存在：{}（用 HD_BENCH_MODS 指定实际缓存）", root.display());
+        println!(
+            "⚠️ 缓存目录不存在：{}（用 HD_BENCH_MODS 指定实际缓存）",
+            root.display()
+        );
         return;
     }
     // 与生产同口径：ai=true、像素画算法 xbrz（复算只看 opt.upscaler 与 opt.ai，rate 由文件名给出）
@@ -68,7 +73,11 @@ fn ai_audit_upscaler_split() {
     let mut files = Vec::new();
     collect_variants(&root, &mut files);
     files.sort();
-    println!("扫描到 @Nx 变体 {} 个（根：{}）\n", files.len(), root.display());
+    println!(
+        "扫描到 @Nx 变体 {} 个（根：{}）\n",
+        files.len(),
+        root.display()
+    );
 
     let mut by_rate_algo: BTreeMap<(u32, &'static str), usize> = BTreeMap::new();
     // `@2x` 档按素材类细分（城镇幕布 / 兵种 / 地形…各自用了什么算法）
@@ -78,8 +87,12 @@ fn ai_audit_upscaler_split() {
     let mut decode_fail = 0usize;
 
     for f in &files {
-        let Some(name) = f.file_name().and_then(|s| s.to_str()) else { continue };
-        let Some((rate, base)) = parse_variant(name) else { continue };
+        let Some(name) = f.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let Some((rate, base)) = parse_variant(name) else {
+            continue;
+        };
         let src = f.with_file_name(format!("{base}.webp"));
         if !src.is_file() {
             missing_src += 1;

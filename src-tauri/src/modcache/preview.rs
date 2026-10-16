@@ -11,11 +11,11 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Value};
 
 use crate::infra::image::encode_webp;
+use crate::modcache::assets::{read_sprite_json, sprite_json_frame, sprite_ref_candidates};
+use crate::modcache::sanitize_id;
 use crate::vcmi::paths::VcmiPaths;
 use crate::vcmi::resource::resolve_resource;
 use crate::vcmi::town::value_to_resource;
-use crate::modcache::assets::{read_sprite_json, sprite_json_frame, sprite_ref_candidates};
-use crate::modcache::sanitize_id;
 
 /// 解析结构动画引用为 RGBA 图（返回图 + left/top margin）：
 /// - VCMI 1.6+ sprites-json（`basepath + file` → 整画布帧，x/y=0 为正常值）：
@@ -51,7 +51,10 @@ pub(crate) fn load_structure_frame(
     // 2) 传统 DEF
     let bytes = resolve_resource(p, anim)
         .or_else(|| resolve_resource(core, anim))
-        .or_else(|| crate::vcmi::resource::read_game_resource_fallback(game_dir, anim).map(|b| (b, "def".to_string())))?
+        .or_else(|| {
+            crate::vcmi::resource::read_game_resource_fallback(game_dir, anim)
+                .map(|b| (b, "def".to_string()))
+        })?
         .0;
     let def = crate::infra::def::DefReader::new(&bytes);
     let frames = def.decode_animation_full()?;
@@ -143,7 +146,9 @@ pub(crate) fn composite_structures_to_canvas_hd(
 ) -> Option<Vec<u8>> {
     // HD 底图（`TBCSBACK.bmp` → pak 的 `TBCSBACK`，名字归一在 `hd_edition` 内做）
     let fallback = |_: ()| {
-        composite_structures_to_canvas(mod_path, game_dir, base_buf, base_ext, structures, buildings)
+        composite_structures_to_canvas(
+            mod_path, game_dir, base_buf, base_ext, structures, buildings,
+        )
     };
     let Some((mut canvas, hd_scale)) = crate::vcmi::hd_edition::lookup(base_res) else {
         return fallback(());
@@ -156,7 +161,9 @@ pub(crate) fn composite_structures_to_canvas_hd(
     let core = game_dir.join("Mods").join("vcmi");
     let s = hd_scale as i64;
     for st in &to_render {
-        if let Some((img, lm, tm)) = load_structure_frame_hd(mod_path, &core, game_dir, &st.anim, hd_scale) {
+        if let Some((img, lm, tm)) =
+            load_structure_frame_hd(mod_path, &core, game_dir, &st.anim, hd_scale)
+        {
             // 坐标统一乘档位：`structures.x/y` 与 DEF 的 `lm/tm` 均为 1x 逻辑值
             image::imageops::overlay(&mut canvas, &img, (st.x + lm) * s, (st.y + tm) * s);
         }
@@ -290,11 +297,7 @@ pub(crate) fn load_structure_frame_hd(
                         // 帧名命中 HD **不等于**能沿用结构自身的 x/y —— DEF 帧自带 lm/tm
                         // （城镇船坞 `TBCSDKNN` 的 tm=53：忽略就把船坞上移 53px 盖住战神像）。
                         let (lm, tm) = def.frame_margins(0, 0).unwrap_or((0, 0));
-                        return Some((
-                            img,
-                            lm as i64 - off.0 as i64,
-                            tm as i64 - off.1 as i64,
-                        ));
+                        return Some((img, lm as i64 - off.0 as i64, tm as i64 - off.1 as i64));
                     }
                 }
             }
@@ -315,7 +318,9 @@ fn scale_up_frame(img: &image::RgbaImage, scale: u32) -> Option<image::RgbaImage
     if w == 0 || h == 0 {
         return None;
     }
-    if let Some((px, uw, uh)) = crate::infra::upscale::upscale_rgba("xbrz", img.as_raw(), w, h, scale) {
+    if let Some((px, uw, uh)) =
+        crate::infra::upscale::upscale_rgba("xbrz", img.as_raw(), w, h, scale)
+    {
         if let Some(out) = image::RgbaImage::from_raw(uw, uh, px) {
             return Some(out);
         }
@@ -393,23 +398,28 @@ fn compose_town_preview_for_inner(
     let town_obj: Value = towns
         .and_then(|m| m.get(faction_id))
         .cloned()
-        .or_else(|| {
-            towns.and_then(|m| {
-                m.values()
-                    .find_map(|v| v.get(faction_id).cloned())
-            })
-        })
+        .or_else(|| towns.and_then(|m| m.values().find_map(|v| v.get(faction_id).cloned())))
         .or_else(|| {
             // 兜底：files 里内容嗅探
-            towns_data.get("files").and_then(|f| f.as_object()).and_then(|m| {
-                m.values().find(|v| {
-                    let direct = !v.get(faction_id).cloned().unwrap_or(Value::Null).is_null();
-                    let marks = |x: &Value| {
-                        x.get("clientInfo").is_some() || x.get("townScreen").is_some() || x.get("buildings").is_some()
-                    };
-                    direct || marks(v) || v.as_object().map(|o| o.values().any(marks)).unwrap_or(false)
+            towns_data
+                .get("files")
+                .and_then(|f| f.as_object())
+                .and_then(|m| {
+                    m.values().find(|v| {
+                        let direct = !v.get(faction_id).cloned().unwrap_or(Value::Null).is_null();
+                        let marks = |x: &Value| {
+                            x.get("clientInfo").is_some()
+                                || x.get("townScreen").is_some()
+                                || x.get("buildings").is_some()
+                        };
+                        direct
+                            || marks(v)
+                            || v.as_object()
+                                .map(|o| o.values().any(marks))
+                                .unwrap_or(false)
+                    })
                 })
-            }).and_then(|v| v.get(faction_id).cloned().or_else(|| Some(v.clone())))
+                .and_then(|v| v.get(faction_id).cloned().or_else(|| Some(v.clone())))
         })
         .unwrap_or(Value::Null);
     if town_obj.is_null() {
@@ -427,8 +437,15 @@ fn compose_town_preview_for_inner(
     let structures = ci
         .and_then(|c| c.get("structures"))
         .and_then(|s| s.as_object())
-        .or_else(|| town_sub.and_then(|t| t.get("structures")).and_then(|s| s.as_object()));
-    let buildings_raw = town_obj.get("town").and_then(|t| t.get("buildings")).and_then(|b| b.as_object());
+        .or_else(|| {
+            town_sub
+                .and_then(|t| t.get("structures"))
+                .and_then(|s| s.as_object())
+        });
+    let buildings_raw = town_obj
+        .get("town")
+        .and_then(|t| t.get("buildings"))
+        .and_then(|b| b.as_object());
 
     let game_dir = VcmiPaths::detect().game_dir;
     let core = game_dir.join("Mods").join("vcmi");
@@ -436,14 +453,21 @@ fn compose_town_preview_for_inner(
         .or_else(|| resolve_resource(&core, &bg_res))
         // 原版背景多在 H3bitmap.lod / H3sprite.lod 包内（read_game_resource 返回裸 Vec<u8>）
         .map(|(b, e)| (b, Some(e)))
-        .or_else(|| crate::vcmi::resource::read_game_resource_fallback(&game_dir, &bg_res).map(|b| (b, None)))
+        .or_else(|| {
+            crate::vcmi::resource::read_game_resource_fallback(&game_dir, &bg_res)
+                .map(|b| (b, None))
+        })
         .ok_or_else(|| String::from("bgresolve"))?;
     let mut canvas: image::RgbaImage = match &bg_bytes.1 {
-        Some(_) => image::load_from_memory(&bg_bytes.0).map_err(|_| String::from("bgdecode"))?.to_rgba8(),
+        Some(_) => image::load_from_memory(&bg_bytes.0)
+            .map_err(|_| String::from("bgdecode"))?
+            .to_rgba8(),
         None => {
             // lod 读出的裸图（bmp）走 encode_webp 解码管线
             let webp = encode_webp(&bg_bytes.0, "bmp").ok_or_else(|| String::from("bgdecode"))?;
-            image::load_from_memory(&webp).map_err(|_| String::from("bgdecode"))?.to_rgba8()
+            image::load_from_memory(&webp)
+                .map_err(|_| String::from("bgdecode"))?
+                .to_rgba8()
         }
     };
 
@@ -454,7 +478,11 @@ fn compose_town_preview_for_inner(
             let mut cur = bid.clone();
             let mut d = 0usize;
             loop {
-                let nxt = bs.get(&cur).and_then(|b| b.get("upgrades")).and_then(|u| u.as_str()).map(|s| s.to_string());
+                let nxt = bs
+                    .get(&cur)
+                    .and_then(|b| b.get("upgrades"))
+                    .and_then(|u| u.as_str())
+                    .map(|s| s.to_string());
                 match nxt {
                     Some(n) if bs.contains_key(&n) && &n != bid && d < 16 => {
                         cur = n;
@@ -468,10 +496,16 @@ fn compose_town_preview_for_inner(
         }
     }
 
-    struct St { x: i64, y: i64, z: i64, anim: String }
+    struct St {
+        x: i64,
+        y: i64,
+        z: i64,
+        anim: String,
+    }
     let mut to_render: Vec<St> = Vec::new();
     if let Some(ss) = structures {
-        let mut groups: std::collections::HashMap<String, (usize, St)> = std::collections::HashMap::new();
+        let mut groups: std::collections::HashMap<String, (usize, St)> =
+            std::collections::HashMap::new();
         for (skey, sv) in ss {
             let anim = match sv.get("animation").and_then(value_to_resource) {
                 Some(a) => a,
@@ -531,8 +565,13 @@ fn compose_town_preview_for_inner(
 
     let mut webp = Vec::new();
     let enc = image::codecs::webp::WebPEncoder::new_lossless(&mut webp);
-    enc.encode(canvas.as_raw(), canvas.width(), canvas.height(), image::ExtendedColorType::Rgba8)
-        .map_err(|_| String::from("encode"))?;
+    enc.encode(
+        canvas.as_raw(),
+        canvas.width(),
+        canvas.height(),
+        image::ExtendedColorType::Rgba8,
+    )
+    .map_err(|_| String::from("encode"))?;
     let dir = cache_root.join(&sid).join("images").join("townscreen");
     fs::create_dir_all(&dir).map_err(|_| String::from("io"))?;
     fs::write(cache_root.join(&rel), &webp).map_err(|_| String::from("io"))?;
@@ -605,12 +644,16 @@ mod tests {
         // 领域整合模组
         assert_eq!(
             resolve_cache_mod_path("realm:rl:bundled", &ldd, &game_dir, &user_mods),
-            Some(PathBuf::from("C:/exe/.vcmi-fv-launcher/realms/rl/vcmi/Mods/bundled"))
+            Some(PathBuf::from(
+                "C:/exe/.vcmi-fv-launcher/realms/rl/vcmi/Mods/bundled"
+            ))
         );
         // 嵌套 realm mod
         assert_eq!(
             resolve_cache_mod_path("realm:rl:sub/mod", &ldd, &game_dir, &user_mods),
-            Some(PathBuf::from("C:/exe/.vcmi-fv-launcher/realms/rl/vcmi/Mods/sub/mod"))
+            Some(PathBuf::from(
+                "C:/exe/.vcmi-fv-launcher/realms/rl/vcmi/Mods/sub/mod"
+            ))
         );
         // 兜底：绝对路径需真实存在（此处不存在 → None）；编码侧的绝对兜底见 encode 测试
         assert_eq!(
@@ -620,10 +663,17 @@ mod tests {
     }
 }
 
-pub(crate) fn generate_town_preview_inner(cache_root: &Path, mod_id: &str, faction_id: &str) -> Value {
+pub(crate) fn generate_town_preview_inner(
+    cache_root: &Path,
+    mod_id: &str,
+    faction_id: &str,
+) -> Value {
     let sid = sanitize_id(mod_id);
     let mod_json_path = cache_root.join(format!("{}/cache.json", sid));
-    let mut mod_json: Value = match fs::read_to_string(&mod_json_path).ok().and_then(|t| serde_json::from_str(&t).ok()) {
+    let mut mod_json: Value = match fs::read_to_string(&mod_json_path)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+    {
         Some(v) => v,
         None => return json!({ "ok": false, "error": "notcached" }),
     };
@@ -631,7 +681,10 @@ pub(crate) fn generate_town_preview_inner(cache_root: &Path, mod_id: &str, facti
     if let Some(fa) = mod_json
         .get("factions")
         .and_then(|f| f.as_array())
-        .and_then(|arr| arr.iter().find(|f| f.get("factionId").and_then(|x| x.as_str()) == Some(faction_id)))
+        .and_then(|arr| {
+            arr.iter()
+                .find(|f| f.get("factionId").and_then(|x| x.as_str()) == Some(faction_id))
+        })
     {
         if let Some(prev) = fa.get("preview").and_then(|x| x.as_str()) {
             if !prev.is_empty() && cache_root.join(prev).is_file() {
@@ -640,8 +693,8 @@ pub(crate) fn generate_town_preview_inner(cache_root: &Path, mod_id: &str, facti
         }
     }
     // 还原 modPath 的 base：优先 launcher.json 权威配置，缺失则退回 detect()
-    let launcher_data_dir = VcmiPaths::launcher_data_dir()
-        .unwrap_or_else(|| cache_root.to_path_buf());
+    let launcher_data_dir =
+        VcmiPaths::launcher_data_dir().unwrap_or_else(|| cache_root.to_path_buf());
     let cfg = VcmiPaths::read_launcher_config();
     let game_dir = cfg
         .as_ref()
@@ -653,30 +706,40 @@ pub(crate) fn generate_town_preview_inner(cache_root: &Path, mod_id: &str, facti
         .map(|c| c.paths.user_mods_dir.clone())
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or_else(|| VcmiPaths::detect().user_mods_dir());
-    let mod_path_str = mod_json.get("modPath").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    let mod_path_str = mod_json
+        .get("modPath")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
     // 运行时还原：cache.json 里的 modPath 是相对 launcher.json 配置 / .vcmi-fv-launcher 根的编码串，
     // 由权威配置合成 base，使缓存随包迁移后仍可定位 mod 源以重建预览。
-    let p = match resolve_cache_mod_path(&mod_path_str, &launcher_data_dir, &game_dir, &user_mods_dir) {
+    let p = match resolve_cache_mod_path(
+        &mod_path_str,
+        &launcher_data_dir,
+        &game_dir,
+        &user_mods_dir,
+    ) {
         Some(p) => p,
         None => return json!({ "ok": false, "error": "nomodpath" }),
     };
 
     // 1) raw.json → towns.<faction>
     let raw_path = cache_root.join(format!("{}/raw.json", sid));
-    let raw: Value = match fs::read_to_string(&raw_path).ok().and_then(|t| serde_json::from_str(&t).ok()) {
+    let raw: Value = match fs::read_to_string(&raw_path)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+    {
         Some(v) => v,
         None => return json!({ "ok": false, "error": "noraw" }),
     };
-    let towns = raw.get("rawConfigs").and_then(|r| r.get("towns")).and_then(|t| t.as_object());
+    let towns = raw
+        .get("rawConfigs")
+        .and_then(|r| r.get("towns"))
+        .and_then(|t| t.as_object());
     let town_obj: Value = towns
         .and_then(|m| m.get(faction_id))
         .cloned()
-        .or_else(|| {
-            towns.and_then(|m| {
-                m.values()
-                    .find_map(|v| v.get(faction_id).cloned())
-            })
-        })
+        .or_else(|| towns.and_then(|m| m.values().find_map(|v| v.get(faction_id).cloned())))
         .unwrap_or(Value::Null);
     // 兜底：旧缓存 rawConfigs 无 towns 时，从 files 里按内容嗅探（含 clientInfo/buildings/townScreen）
     let town_obj = if town_obj.is_null() {
@@ -686,11 +749,18 @@ pub(crate) fn generate_town_preview_inner(cache_root: &Path, mod_id: &str, facti
             .and_then(|m| {
                 m.values().find(|v| {
                     let direct = !v.get(faction_id).cloned().unwrap_or(Value::Null).is_null();
-                    let looks = v.get("clientInfo").is_some() || v.get("townScreen").is_some() || v.get("buildings").is_some();
+                    let looks = v.get("clientInfo").is_some()
+                        || v.get("townScreen").is_some()
+                        || v.get("buildings").is_some();
                     direct || looks
                 })
             })
-            .and_then(|v| v.get(faction_id).cloned().map(|x| x).or_else(|| Some(v.clone())))
+            .and_then(|v| {
+                v.get(faction_id)
+                    .cloned()
+                    .map(|x| x)
+                    .or_else(|| Some(v.clone()))
+            })
             .unwrap_or(Value::Null)
     } else {
         town_obj
@@ -713,7 +783,11 @@ pub(crate) fn generate_town_preview_inner(cache_root: &Path, mod_id: &str, facti
     let structures = ci
         .and_then(|c| c.get("structures"))
         .and_then(|s| s.as_object())
-        .or_else(|| town_sub.and_then(|t| t.get("structures")).and_then(|s| s.as_object()));
+        .or_else(|| {
+            town_sub
+                .and_then(|t| t.get("structures"))
+                .and_then(|s| s.as_object())
+        });
     let buildings_raw = town_obj.get("buildings").and_then(|b| b.as_object());
 
     // 2) 背景解码为 RGBA 画布
@@ -753,10 +827,16 @@ pub(crate) fn generate_town_preview_inner(cache_root: &Path, mod_id: &str, facti
     }
 
     // 4) 结构挑选：绑定组取最深升级；装饰直接渲染
-    struct St { x: i64, y: i64, z: i64, anim: String }
+    struct St {
+        x: i64,
+        y: i64,
+        z: i64,
+        anim: String,
+    }
     let mut to_render: Vec<St> = Vec::new();
     if let Some(ss) = structures {
-        let mut groups: std::collections::HashMap<String, (usize, St)> = std::collections::HashMap::new();
+        let mut groups: std::collections::HashMap<String, (usize, St)> =
+            std::collections::HashMap::new();
         for (skey, sv) in ss {
             let anim = match sv.get("animation").and_then(value_to_resource) {
                 Some(a) => a,
@@ -837,7 +917,15 @@ pub(crate) fn generate_town_preview_inner(cache_root: &Path, mod_id: &str, facti
     let mut webp = Vec::new();
     {
         let enc = image::codecs::webp::WebPEncoder::new_lossless(&mut webp);
-        if enc.encode(canvas.as_raw(), canvas.width(), canvas.height(), image::ExtendedColorType::Rgba8).is_err() {
+        if enc
+            .encode(
+                canvas.as_raw(),
+                canvas.width(),
+                canvas.height(),
+                image::ExtendedColorType::Rgba8,
+            )
+            .is_err()
+        {
             return json!({ "ok": false, "error": "encode" });
         }
     }
@@ -859,6 +947,9 @@ pub(crate) fn generate_town_preview_inner(cache_root: &Path, mod_id: &str, facti
             }
         }
     }
-    let _ = fs::write(&mod_json_path, serde_json::to_string_pretty(&mod_json).unwrap());
+    let _ = fs::write(
+        &mod_json_path,
+        serde_json::to_string_pretty(&mod_json).unwrap(),
+    );
     json!({ "ok": true, "preview": rel })
 }

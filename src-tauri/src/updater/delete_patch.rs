@@ -69,8 +69,10 @@ pub(crate) fn apply_at(exe_dir: &Path, list_path: &Path) -> Result<Vec<String>, 
     if !list_path.is_file() {
         return Ok(Vec::new());
     }
-    let text = fs::read_to_string(list_path).map_err(|e| be_err("upd_delete_manifest_read_failed", &format!("{}", e)))?;
-    let v = parse_json_lenient(&text).map_err(|e| be_err("upd_delete_manifest_invalid_json", &format!("{}", e)))?;
+    let text = fs::read_to_string(list_path)
+        .map_err(|e| be_err("upd_delete_manifest_read_failed", &format!("{}", e)))?;
+    let v = parse_json_lenient(&text)
+        .map_err(|e| be_err("upd_delete_manifest_invalid_json", &format!("{}", e)))?;
     let paths = v
         .get("paths")
         .and_then(|x| x.as_array())

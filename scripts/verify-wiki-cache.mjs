@@ -121,7 +121,14 @@ const perMod = {}; // 基线计数（键 = modId，非目录名）
 const dirOf = {}; // modId → 缓存目录名（= sanitize_id(modId)）
 let totalCreatures = 0;
 let totalHeroes = 0;
+let totalHeroNoClass = 0;
+let totalHeroClassFallback = 0;
+let totalAbilities = 0;
+let totalAbilityIcons = 0;
 let missingFiles = 0;
+/** 全发行版 id 池：跨模组引用（升级链 / 宝物组件）只要落在这个池里，前端就能解析出来 */
+const globalCreatureIds = new Set();
+const globalArtifactIds = new Set();
 const cacheVersions = new Map();
 
 for (const ent of entries) {
@@ -180,6 +187,19 @@ for (const ent of entries) {
     checkImg(f.preview, `faction ${f.factionId} preview`);
     for (const b of f.buildings || []) checkImg(b.image, `building ${b.id}`);
   }
+  /* E8 能力图标：图标来自 VCMI 的两级来源（`ability["icon"]` → bonuses.json 的
+   * `graphics.icon`，真实发行版由 vcmi-extras 的 Bonus Icons 子模组提供，资源形如
+   * `zvs/Lib1.res/E_DEATH` —— 属 `<file>/<sub>` 形态）。覆盖率过低说明资源归一回归
+   * （2026-10-16 前因 `strip_ext` 把中间段当扩展名而全空，实测覆盖率仅 5.4%）。*/
+  for (const c of j.creatures || []) {
+    for (const a of c.abilities || []) {
+      totalAbilities++;
+      if (a.icon) {
+        totalAbilityIcons++;
+        checkImg(a.icon, `ability ${c.id}.${a.type ?? a.name ?? ""}`);
+      }
+    }
+  }
   for (const h of j.heroes || []) checkImg(h.image, `hero ${h.id}`);
   for (const t of j.terrains || []) checkImg(t.image, `terrain ${t.id}`);
   for (const v of Object.values(j.statIcons || {})) checkImg(v, "statIcons");
@@ -231,8 +251,30 @@ for (const ent of entries) {
     }
   }
 
+  /* E6 英雄职业：`className` 回落成 class **id** 说明 heroClass 表没解析出来
+   *（城镇页分组标题会显示 `MOONPRIEST // GROVEKEEPER` 这类原样 id，力量/魔法分组也会塌成一张）。
+   * 2026-10-16 修复：`heroes/` 目录里的职业定义（mod.json 在 heroClasses 键下声明）此前被当英雄读。*/
+  for (const h of j.heroes || []) {
+    const cid = String(h.class ?? "");
+    const cname = nameOf(h.className);
+    if (!cid) {
+      count.heroNoClass = (count.heroNoClass || 0) + 1;
+      addWarn(id, `英雄 ${h.id} 没有职业（heroClass 未解析）`);
+    } else if (!cname || cname === cid) {
+      count.heroClassFallback = (count.heroClassFallback || 0) + 1;
+      addWarn(id, `英雄职业名回落 id（${h.id}: ${cid}）`);
+    }
+    if (!String(h.affinity ?? "")) count.heroNoAffinity = (count.heroNoAffinity || 0) + 1;
+  }
+
+  /* 全发行版 id 池：给 E7 的跨模组引用可解析性用 */
+  for (const c of j.creatures || []) globalCreatureIds.add(String(c.id));
+  for (const a of j.artifacts || []) globalArtifactIds.add(String(a.id));
+
   totalCreatures += count.creatures;
   totalHeroes += count.heroes;
+  totalHeroNoClass += count.heroNoClass || 0;
+  totalHeroClassFallback += count.heroClassFallback || 0;
 }
 
 /* E2 索引一致性 */
@@ -274,6 +316,24 @@ for (const id of Object.keys(perMod)) {
   for (const f of j.factions || []) {
     for (const cid of f.creatureList || []) {
       if (!cids.has(String(cid))) addWarn(id, `faction ${f.factionId} 的 creatureList 引用了不存在的生物 ${cid}`);
+    }
+  }
+
+  /* E7 跨模组引用可解析性：升级链 / 宝物组件在**本 mod** 里找不到是常态
+   *（实测 47% 的宝物组件引用只存在于 core），前端靠全类目索引兜底 ——
+   * 只要目标落在全发行版 id 池里就一定能出图。落在池外的才是真丢数据（mod 未安装等）。*/
+  for (const c of j.creatures || []) {
+    for (const u of c.upgrades || []) {
+      if (!globalCreatureIds.has(String(u))) {
+        addWarn(id, `生物 ${c.id} 的升级目标 ${u} 在全发行版内不存在（跨模组兜底也取不到）`);
+      }
+    }
+  }
+  for (const a of j.artifacts || []) {
+    for (const part of a.components || []) {
+      if (!globalArtifactIds.has(String(part))) {
+        addWarn(id, `宝物 ${a.id} 的组成组件 ${part} 在全发行版内不存在`);
+      }
     }
   }
 }
@@ -335,6 +395,16 @@ if (cacheVersions.size > 1) {
   addErr("cacheVersion", `存在多个缓存版本（${[...cacheVersions.entries()].map(([k, v]) => `${k}×${v}`).join(", ")}），疑似半迁移/未全量重建`);
 }
 
+/* E8 汇总：能力图标覆盖率（回归护栏 —— 旧实现在 5% 上下，修复后约 80%+） */
+const abilityIconRate = totalAbilities ? totalAbilityIcons / totalAbilities : 1;
+if (totalAbilities >= 500 && abilityIconRate < 0.5) {
+  addErr(
+    "abilities",
+    `能力图标覆盖率仅 ${(abilityIconRate * 100).toFixed(1)}%（${totalAbilityIcons}/${totalAbilities}）：` +
+      "`bonusToGraphics`（bonuses.json 的 graphics.icon，资源形如 zvs/Lib1.res/E_DEATH）链路疑似回归",
+  );
+}
+
 /* ------------------------------ 输出 ------------------------------ */
 const summary = {
   cacheDir: CACHE_DIR,
@@ -343,6 +413,11 @@ const summary = {
   indexStale: indexWithoutDir.length,
   totalCreatures,
   totalHeroes,
+  heroNoClass: totalHeroNoClass,
+  heroClassFallback: totalHeroClassFallback,
+  abilities: totalAbilities,
+  abilityIcons: totalAbilityIcons,
+  abilityIconRate: +(abilityIconRate * 100).toFixed(1),
   missingFiles,
   cacheVersions: Object.fromEntries(cacheVersions),
   errors: 0,
@@ -365,6 +440,14 @@ if (AS_JSON) {
 } else {
   console.log(`缓存目录：${CACHE_DIR}`);
   console.log(`模组数：${summary.mods}　生物：${totalCreatures}　英雄：${totalHeroes}　缺失图片：${missingFiles}`);
+  console.log(
+    `英雄职业：无职业 ${totalHeroNoClass}　职业名回落 id ${totalHeroClassFallback}` +
+      `（后者的城镇页分组标题会显示原样 id、力量/魔法分组塌成一张）`,
+  );
+  console.log(
+    `能力图标：${totalAbilityIcons}/${totalAbilities} = ${(abilityIconRate * 100).toFixed(1)}%` +
+      `（来源＝ability["icon"] ＋ bonuses.json 的 graphics.icon；<50% 视为回归）`,
+  );
   if (cacheVersions.size) console.log(`缓存版本：${[...cacheVersions.entries()].map(([k, v]) => `${k}(×${v})`).join(" ")}`);
   if (errors.length) {
     console.log(`\n[ERROR] ${errors.length} 项`);

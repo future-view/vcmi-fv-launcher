@@ -6,13 +6,30 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
-use crate::vcmi::gamedata::SPELL_ID_TABLE;
-use crate::vcmi::h3core::I18nMap;
 use crate::modcache::assets::extract_icon_and_save;
 use crate::modcache::collect::collect_config_jsons_merged;
 use crate::modcache::i18n::{
     i18n_get_multi, i18n_mod_scope, name_obj_multi_key, name_obj_with_inline,
 };
+use crate::vcmi::gamedata::SPELL_ID_TABLE;
+use crate::vcmi::h3core::I18nMap;
+
+/// 原版法术的 SPELLBON 图标帧路径（`core/images/spellbon/<idx>.webp`）。
+///
+/// 产物由 [`crate::modcache::global::extract_shared_ui_icons`] 的 SPELLBON 段统一生成
+/// （`group 0` 全部帧按序号落盘），与 `build_spells` 的 core 分支同源。
+///
+/// 只认 `SPELL_ID_TABLE`（1..78，必然在帧范围内）：**不用配置里的 `iconIndex`** ——
+/// 实测大量 mod 法术写 `iconIndex: -1`（无图标），而越界帧号只会让前端拿到 404。
+fn core_spellbon_image(id: &str) -> Option<String> {
+    // 形如 `core:hypnotize` / `<scope>.hypnotize` 的跨 mod 覆盖键，取末段
+    let bare = id.rsplit([':', '.']).next().unwrap_or(id);
+    let idx = SPELL_ID_TABLE
+        .iter()
+        .find(|(name, _)| *name == bare)
+        .map(|(_, i)| *i)?;
+    Some(format!("core/images/spellbon/{}.webp", idx))
+}
 
 pub(crate) fn build_spells(
     p: &Path,
@@ -23,17 +40,69 @@ pub(crate) fn build_spells(
 ) -> Vec<Value> {
     let mut spells = Vec::new();
     for (id, obj) in collect_config_jsons_merged(&p, "spells") {
+        // **VCMI 可见性对齐**（2026-10-16 修正）：VCMI 的法术书与内建百科都不展示两类法术 ——
+        // ① `"type": "ability"` → `CSpellHandler.cpp:213-217` 置 `creatureAbility=true`，
+        //    过滤点 `client/windows/CSpellWindow.cpp:338`（连"显示全部"也不放行）、
+        //    `client/windows/wiki/WikiModContent.cpp:88,337`（`!isSpecial() && !isCreatureAbility()`）；
+        // ② `flags.special: true`（schema `config/schemas/spell.json:437-440`，"只能由 Bonus 授予"），
+        //    过滤点同上（护城河 `moat` / `moatTrigger`、内部触发法术几乎都带它）。
+        // 二者恰恰是"列表里有名无图"的主力：实测 592 条法术里 92 条无图，其中
+        // 70 条是 ability、17 条是 special —— 它们**本来就没有图标资源**（配置里
+        // `graphics` 为空或干脆不写），补齐图标无从谈起，正确做法是跟随 VCMI 不展示。
+        // 综合判定见 `CSpell::isCommonHeroSpell()`（`lib/spells/CSpell.cpp:238-241`）。
+        let is_creature_ability = obj.get("type").and_then(|v| v.as_str()) == Some("ability");
+        let is_special = obj
+            .get("flags")
+            .and_then(|f| f.get("special"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if is_creature_ability || is_special {
+            continue;
+        }
         let scope = i18n_mod_scope(mod_id);
-        // 图标字段多写法兼容：iconBook（VCMI 规范）→ image → icon（部分 mod 写法）
+        // 图标字段：**VCMI `spell.json` schema 的 graphics 全集**，按优先级取
+        // （iconBook → iconScroll → iconEffect → iconImmune → iconScenarioBonus）。
+        //
+        // ⚠️ 此前只认 `iconBook → image → icon`：而 schema 里根本没有 `image`/`icon`，
+        // 却有 `iconEffect` —— 实测 tidesOfWar（巨浪冲击 `con03eff` 等 63 处）、
+        // the-great-expansion（absoluteDefense / onslaught / swiftStriker）都把图标写在
+        // `iconEffect` 里 → 这批法术的 `image` 恒为 null（用户报"有些法术图片没有提取出来"）。
+        // 末尾保留 `image`/`icon` 宽容兜底：个别 mod 不按 schema 写，别把它们改回归零。
         let g = obj.get("graphics");
         let icon_res = g
-            .and_then(|x| x.get("iconBook").or_else(|| x.get("image")).or_else(|| x.get("icon")))
+            .and_then(|x| {
+                x.get("iconBook")
+                    .or_else(|| x.get("iconScroll"))
+                    .or_else(|| x.get("iconEffect"))
+                    .or_else(|| x.get("iconImmune"))
+                    .or_else(|| x.get("iconScenarioBonus"))
+                    .or_else(|| x.get("image"))
+                    .or_else(|| x.get("icon"))
+            })
             .and_then(|v| v.as_str());
-        let img = extract_icon_and_save(&p, game_dir, cache_root, mod_id, "spell", &id, icon_res);
+        let img = extract_icon_and_save(&p, game_dir, cache_root, mod_id, "spell", &id, icon_res)
+            .or_else(|| {
+                // mod **只覆盖原版法术的属性**（`core:<id>` 形式，不带 graphics）时，
+                // 启动器的配置收集只看本 mod，看不到原版那份定义 → 此前恒为无图。
+                // VCMI 客户端对这种法术仍用 SPELLBON 的 iconIndex 帧（原版法术本就
+                // 没有 graphics，靠 index 取默认图标，见 `CSpellHandler` + 客户端
+                // `AnimationPath::builtin("SPELLBON")`），故此处按同一口径回退。
+                core_spellbon_image(&id)
+            });
         // 名称/描述：i18n 键 → 配置内嵌文本（部分中文 mod 的 `spells/*.json` 直接写
         // `name: "护城河"`，此前不读 → 回落成法术 id）→ 兜底
-        let spell_name_obj = name_obj_with_inline(&i18n, &format!("spell.{}.{}.name", scope, id), obj.get("name"), &id);
-        let spell_desc_obj = name_obj_with_inline(&i18n, &format!("spell.{}.{}.description", scope, id), obj.get("description"), "");
+        let spell_name_obj = name_obj_with_inline(
+            &i18n,
+            &format!("spell.{}.{}.name", scope, id),
+            obj.get("name"),
+            &id,
+        );
+        let spell_desc_obj = name_obj_with_inline(
+            &i18n,
+            &format!("spell.{}.{}.description", scope, id),
+            obj.get("description"),
+            "",
+        );
         // 派系（schools 数组，兼容单 school 字段）
         let mut schools = Vec::new();
         if let Some(arr) = obj.get("schools").and_then(|s| s.as_array()) {
@@ -144,9 +213,10 @@ pub(crate) fn build_spells(
             }
             // mod 对原版法术的覆盖（core:<id> / <scope>.<id> 等形式）已存在则跳过
             if seen.contains(*identifier)
-                || seen
-                    .iter()
-                    .any(|id| id.ends_with(&format!(":{identifier}")) || id.ends_with(&format!(".{identifier}")))
+                || seen.iter().any(|id| {
+                    id.ends_with(&format!(":{identifier}"))
+                        || id.ends_with(&format!(".{identifier}"))
+                })
             {
                 continue;
             }
@@ -182,17 +252,16 @@ pub(crate) fn build_spells(
                 .iter()
                 .map(|sub| pair(sub))
                 .collect();
-            let auto = if name_zh.is_empty() { name_en.clone() } else { name_zh.clone() };
+            let auto = if name_zh.is_empty() {
+                name_en.clone()
+            } else {
+                name_zh.clone()
+            };
             // 原版派系多语言名（h3-core 的 `spellSchool.core.<id>.name`：气系/火系/土系/水系）
             let core_school_names: Vec<Value> = schools
                 .iter()
                 .map(|s| {
-                    name_obj_multi_key(
-                        &i18n,
-                        &[format!("spellSchool.core.{}.name", s)],
-                        None,
-                        s,
-                    )
+                    name_obj_multi_key(&i18n, &[format!("spellSchool.core.{}.name", s)], None, s)
                 })
                 .collect();
             spells.push(json!({
@@ -215,4 +284,50 @@ pub(crate) fn build_spells(
     }
 
     spells
+}
+
+/// 法术**可见性**回归（2026-10-16）：VCMI 不展示的两类法术，缓存也不得收录。
+///
+/// 实测（572 mod 发行版）：592 条法术里 92 条"列表里有名无图"，其中 70 条
+/// `type=ability`、17 条 `flags.special` —— 它们的配置里根本没有图标字段
+/// （`graphics` 为空或缺失），不是"图标没提取出来"。
+#[cfg(test)]
+mod visibility_tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::fs;
+
+    fn build(cfg: &str) -> Vec<String> {
+        let root = std::env::temp_dir().join("vcmi_fv_spell_visibility");
+        let _ = fs::remove_dir_all(&root);
+        let dir = root.join("Content").join("config").join("spells");
+        fs::create_dir_all(&dir).expect("建目录");
+        fs::write(dir.join("spells.json"), cfg).expect("写配置");
+        let cache = root.join("cache");
+        fs::create_dir_all(&cache).unwrap();
+        let i18n: I18nMap = HashMap::new();
+        let out = build_spells(&root, "t", &cache, Path::new(""), &i18n);
+        let _ = fs::remove_dir_all(&root);
+        out.iter()
+            .filter_map(|s| s.get("id").and_then(|v| v.as_str()).map(|x| x.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn creature_ability_and_special_spells_are_hidden() {
+        let ids = build(
+            r#"{
+                "moat":      { "type": "ability", "flags": { "special": true }, "name": "Ditch" },
+                "moatTrig":  { "type": "ability", "name": "Ditch" },
+                "onlySpec":  { "type": "combat", "flags": { "special": true }, "name": "X" },
+                "iceShot":   { "type": "combat", "name": "Ice" },
+                "adventure": { "type": "adventure", "name": "Adv" }
+            }"#,
+        );
+        assert!(!ids.iter().any(|i| i == "moat"), "生物能力法术不得收录：{ids:?}");
+        assert!(!ids.iter().any(|i| i == "moatTrig"), "生物能力法术不得收录：{ids:?}");
+        assert!(!ids.iter().any(|i| i == "onlySpec"), "special 法术不得收录：{ids:?}");
+        assert!(ids.iter().any(|i| i == "iceShot"), "普通战斗法术应保留：{ids:?}");
+        assert!(ids.iter().any(|i| i == "adventure"), "冒险法术应保留：{ids:?}");
+    }
 }

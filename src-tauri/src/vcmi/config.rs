@@ -544,10 +544,7 @@ mod tests {
         assert_eq!(cfg.ui.settings_level, "all");
         assert!(cfg.ui.town_preview);
         assert!(cfg.hd.enhance && cfg.hd.ai.enhance);
-        assert_eq!(
-            cfg.hd.ai.model.as_deref(),
-            Some("realesrgan_anime6b.onnx")
-        );
+        assert_eq!(cfg.hd.ai.model.as_deref(), Some("realesrgan_anime6b.onnx"));
         assert_eq!(cfg.hd.ai.mix, Some(0.6));
         assert_eq!(cfg.hd.usm, Some(0.5));
         assert_eq!(cfg.mods.required, vec!["h3e-main-menu".to_string()]);

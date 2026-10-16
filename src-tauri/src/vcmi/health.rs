@@ -74,9 +74,7 @@ pub(crate) fn health_check_with_roots(roots: &[PathBuf]) -> Value {
 
     // ── 3) 位图数据 H3bitmap.lod（内含 HELP.TXT / PLAYERS.PAL）
     let bitmap = find_ci(&roots, "Data/H3bitmap.lod");
-    let bitmap_entries = bitmap
-        .as_ref()
-        .and_then(|p| lod_entries(&mut lod_cache, p));
+    let bitmap_entries = bitmap.as_ref().and_then(|p| lod_entries(&mut lod_cache, p));
     let bitmap_ok = bitmap_entries
         .as_ref()
         .map(|e| e.iter().any(|x| x == "HELP.TXT") && e.iter().any(|x| x == "PLAYERS.PAL"))
@@ -94,9 +92,7 @@ pub(crate) fn health_check_with_roots(roots: &[PathBuf]) -> Value {
 
     // ── 4) 精灵数据 H3sprite.lod（内含 SPRITES/DEFAULT.DEF）
     let sprite = find_ci(&roots, "Data/H3sprite.lod");
-    let sprite_entries = sprite
-        .as_ref()
-        .and_then(|p| lod_entries(&mut lod_cache, p));
+    let sprite_entries = sprite.as_ref().and_then(|p| lod_entries(&mut lod_cache, p));
     let sprite_ok = sprite_entries
         .as_ref()
         .map(|e| e.iter().any(|x| x == "DEFAULT.DEF"))
@@ -204,10 +200,7 @@ pub(crate) fn health_check_with_roots(roots: &[PathBuf]) -> Value {
             .unwrap_or_else(|| "Data/Heroes3.vid | VIDEO.VID".into()),
     });
 
-    let fatal_ok = items
-        .iter()
-        .filter(|i| i.level == "fatal")
-        .all(|i| i.ok);
+    let fatal_ok = items.iter().filter(|i| i.level == "fatal").all(|i| i.ok);
 
     json!({
         "ok": fatal_ok,
@@ -296,7 +289,10 @@ mod tests {
         fs::create_dir_all(user.join("data")).expect("mkdir");
         fs::write(user.join("data").join("h3sprite.LOD"), b"x").expect("write");
         let hit2 = find_ci(&roots, "Data/H3Sprite.lod").expect("应命中 user 根");
-        assert!(hit2.starts_with(&user), "应按 roots 顺序取第一个命中：{hit2:?}");
+        assert!(
+            hit2.starts_with(&user),
+            "应按 roots 顺序取第一个命中：{hit2:?}"
+        );
         // 完全不存在 → None（不误报）
         assert!(find_ci(&roots, "Data/NoSuchFile.lod").is_none());
         let _ = fs::remove_dir_all(&base);
@@ -323,7 +319,13 @@ mod tests {
         let failed: Vec<String> = items
             .iter()
             .filter(|i| i["ok"] != true)
-            .map(|i| format!("{} ({})", i["id"].as_str().unwrap_or("?"), i["detail"].as_str().unwrap_or("")))
+            .map(|i| {
+                format!(
+                    "{} ({})",
+                    i["id"].as_str().unwrap_or("?"),
+                    i["detail"].as_str().unwrap_or("")
+                )
+            })
             .collect();
         assert!(failed.is_empty(), "{label}: 误报缺失 → {failed:?}");
         assert_eq!(v["ok"], true, "{label}: 顶层结论应为通过");

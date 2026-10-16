@@ -120,7 +120,8 @@ impl PakArchive {
             let name = read_name(&mut f)?;
             let mut nums = [0u8; 20];
             f.read_exact(&mut nums).ok()?;
-            let rd = |i: usize| u32::from_le_bytes([nums[i], nums[i + 1], nums[i + 2], nums[i + 3]]);
+            let rd =
+                |i: usize| u32::from_le_bytes([nums[i], nums[i + 1], nums[i + 2], nums[i + 3]]);
             let metadata_offset = rd(0);
             let metadata_size = rd(4);
             let count_sheets = rd(8) as usize;
@@ -269,7 +270,8 @@ impl PakArchive {
             if let Some(frames) = self.frames_of(name) {
                 for (i, fr) in frames.iter().enumerate() {
                     // 同名多帧时取首次出现（与 VCMI `try_emplace` 一致）
-                    ix.entry(fr.name.clone()).or_insert_with(|| (name.clone(), i));
+                    ix.entry(fr.name.clone())
+                        .or_insert_with(|| (name.clone(), i));
                 }
             }
         }
@@ -369,12 +371,15 @@ mod tests {
             .ok()
             .map(PathBuf::from)
             .unwrap_or_else(|| {
-                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("../references/Heroes3-VCMI/userdata/Mods/hd-edition/mods/x2/content/data")
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+                    "../references/Heroes3-VCMI/userdata/Mods/hd-edition/mods/x2/content/data",
+                )
             });
         let dir = PathBuf::from(dir);
-        let sprite = PakArchive::open(&dir.join("sprite_DXT_com_x2.pak")).expect("sprite pak 应可打开");
-        let bitmap = PakArchive::open(&dir.join("bitmap_DXT_com_x2.pak")).expect("bitmap pak 应可打开");
+        let sprite =
+            PakArchive::open(&dir.join("sprite_DXT_com_x2.pak")).expect("sprite pak 应可打开");
+        let bitmap =
+            PakArchive::open(&dir.join("bitmap_DXT_com_x2.pak")).expect("bitmap pak 应可打开");
         assert_eq!(sprite.entry_count(), 2161, "sprite x2 条目数");
         assert_eq!(bitmap.entry_count(), 571, "bitmap x2 条目数");
 
@@ -405,10 +410,15 @@ mod tests {
             "船坞帧 spriteOffsetY 应 > 0（列序回归：旧口径恒 (0,0)），实得 {:?}",
             d.sprite_offset
         );
-        println!("TBCSDKNN: rect {:?} rot {} offset {:?}", d.rect, d.rotation, d.sprite_offset);
+        println!(
+            "TBCSDKNN: rect {:?} rot {} offset {:?}",
+            d.rect, d.rotation, d.sprite_offset
+        );
 
         // sheet 解压后是完整 DDS
-        let dds = sprite.read_sheet("TBCSBACK", 0).or_else(|| bitmap.read_sheet("TBCSBACK", 0));
+        let dds = sprite
+            .read_sheet("TBCSBACK", 0)
+            .or_else(|| bitmap.read_sheet("TBCSBACK", 0));
         let dds = dds.expect("应能读出 TBCSBACK 的 sheet");
         assert_eq!(&dds[..4], b"DDS ", "sheet 应为 DDS 图集");
     }

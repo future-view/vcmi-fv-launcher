@@ -21,7 +21,15 @@ pub(crate) type I18nMap = HashMap<String, HashMap<String, String>>;
 // 原版 9 城镇 id 顺序（参考 references/vcmi/lib/constants/StringConstants.h:74 的 NFaction::names 前 9 个）。
 // 通用建筑（common.*）需展开到每个城镇，因 VCMI 中该建筑对所有 town 都存在且 key 带 town id。
 pub(crate) const CORE_FACTIONS: &[&str] = &[
-    "castle", "rampart", "tower", "inferno", "necropolis", "dungeon", "stronghold", "fortress", "conflux",
+    "castle",
+    "rampart",
+    "tower",
+    "inferno",
+    "necropolis",
+    "dungeon",
+    "stronghold",
+    "fortress",
+    "conflux",
 ];
 
 /// 之所以用 id 而非新增函数参数：批量/单次/测试等多处调用签名无需改动，
@@ -54,9 +62,13 @@ pub(crate) fn h3_core_data_dir() -> Option<PathBuf> {
     if let Ok(exe) = std::env::current_exe() {
         if let Some(parent) = exe.parent() {
             let p = parent.join("data").join("h3-core");
-            if p.is_dir() { return Some(p); }
+            if p.is_dir() {
+                return Some(p);
+            }
             let p2 = parent.join("resources").join("h3-core");
-            if p2.is_dir() { return Some(p2); }
+            if p2.is_dir() {
+                return Some(p2);
+            }
         }
     }
     None
@@ -91,9 +103,7 @@ pub(crate) fn h3_core_data_hash() -> String {
             f.file_name().hash(&mut hasher);
             meta.len().hash(&mut hasher);
             if let Ok(t) = meta.modified() {
-                let dur = t
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default();
+                let dur = t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
                 dur.as_nanos().hash(&mut hasher);
             }
         }
@@ -102,7 +112,10 @@ pub(crate) fn h3_core_data_hash() -> String {
 }
 
 pub(crate) fn str_field(v: &Value, key: &str) -> String {
-    v.get(key).and_then(|x| x.as_str()).unwrap_or("").to_string()
+    v.get(key)
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string()
 }
 
 /// 读取 h3-core 文案表（english.*.json + chinese.*.json），转换为 VCMI i18n key 格式，
@@ -118,10 +131,21 @@ pub(crate) fn load_h3_core_i18n(dir: &Path) -> Option<I18nMap> {
     };
     let langs = ["english", "chinese"];
     let cats = [
-        "creatures", "factions", "heroes", "heroClasses", "artifacts", "spells", "skills", "terrains", "buildings",
+        "creatures",
+        "factions",
+        "heroes",
+        "heroClasses",
+        "artifacts",
+        "spells",
+        "skills",
+        "terrains",
+        "buildings",
         // 资源名 / 法术派系名：VCMI 翻译池里没有对应键（实测 0 条），且 `config/resources.json`
         // 不含 name 字段，故由 H3 官方译名烘入 h3-core（见 scripts/gen-h3-core-texts.mjs）
-        "resources", "spellSchools",
+        "resources",
+        "spellSchools",
+        // 数组文案（ARRAYTXT.TXT）：四维主属性的右键说明等，VCMI 翻译池里同样没有
+        "arraytxt",
     ];
     let empty = Value::Object(serde_json::Map::new());
     let mut out: I18nMap = std::collections::HashMap::new();
@@ -135,33 +159,71 @@ pub(crate) fn load_h3_core_i18n(dir: &Path) -> Option<I18nMap> {
             for (id, val) in map {
                 let entries: Vec<(String, String)> = match cat {
                     "creatures" => vec![
-                        (format!("creatures.core.{}.name.singular", id), str_field(val, "name")),
-                        (format!("creature.core.{}.description", id), str_field(val, "abilityText")),
+                        (
+                            format!("creatures.core.{}.name.singular", id),
+                            str_field(val, "name"),
+                        ),
+                        (
+                            format!("creature.core.{}.description", id),
+                            str_field(val, "abilityText"),
+                        ),
                     ],
                     "factions" => vec![
                         (format!("faction.core.{}.name", id), str_field(val, "name")),
                         // 原版城镇描述：VCMI 自身 faction 定义无此字段，由 `gen-h3-core-texts.mjs`
                         // 从 `data/h3-core-src/factionDescriptions.json`（百科，中英双语）烘入。
-                        (format!("faction.core.{}.description", id), str_field(val, "description")),
+                        (
+                            format!("faction.core.{}.description", id),
+                            str_field(val, "description"),
+                        ),
                     ],
                     "heroes" => {
                         let spec = val.get("specialty").unwrap_or(&empty);
                         vec![
                             (format!("hero.core.{}.name", id), str_field(val, "name")),
-                            (format!("hero.core.{}.biography", id), str_field(val, "biography")),
-                            (format!("hero.core.{}.specialty.name", id), str_field(spec, "name")),
-                            (format!("hero.core.{}.specialty.description", id), str_field(spec, "description")),
-                            (format!("hero.core.{}.specialty.tooltip", id), str_field(spec, "tooltip")),
+                            (
+                                format!("hero.core.{}.biography", id),
+                                str_field(val, "biography"),
+                            ),
+                            (
+                                format!("hero.core.{}.specialty.name", id),
+                                str_field(spec, "name"),
+                            ),
+                            (
+                                format!("hero.core.{}.specialty.description", id),
+                                str_field(spec, "description"),
+                            ),
+                            (
+                                format!("hero.core.{}.specialty.tooltip", id),
+                                str_field(spec, "tooltip"),
+                            ),
                         ]
                     }
-                    "heroClasses" => vec![(format!("heroClass.core.{}.name", id), str_field(val, "name"))],
+                    "heroClasses" => vec![(
+                        format!("heroClass.core.{}.name", id),
+                        str_field(val, "name"),
+                    )],
+                    // 数组文案（`core.arraytxt.<行号>`）：VCMI `CGeneralTextHandler::arraytxt`。
+                    // 英雄窗口四维主属性的右键说明就是 `arraytxt[2 + v]`（`CHeroWindow.cpp:131-132`），
+                    // 文本形如 `{名称}\n\n描述`（与 bonus 文案同款）。
+                    "arraytxt" => {
+                        vec![(format!("core.arraytxt.{}", id), str_field(val, "text"))]
+                    }
                     // 资源名（木材/水银/…）：`resource.core.<id>.name`
-                    "resources" => vec![(format!("resource.core.{}.name", id), str_field(val, "name"))],
+                    "resources" => {
+                        vec![(format!("resource.core.{}.name", id), str_field(val, "name"))]
+                    }
                     // 法术派系名（气系/火系/…）：`spellSchool.core.<id>.name`
-                    "spellSchools" => vec![(format!("spellSchool.core.{}.name", id), str_field(val, "name"))],
+                    "spellSchools" => vec![(
+                        format!("spellSchool.core.{}.name", id),
+                        str_field(val, "name"),
+                    )],
                     "artifacts" => vec![
                         (format!("artifact.core.{}.name", id), str_field(val, "name")),
-                        (format!("artifact.core.{}.description", id), str_field(val, "description")),
+                        (
+                            format!("artifact.core.{}.description", id),
+                            str_field(val, "description"),
+                        ),
                     ],
                     "spells" => {
                         let lv = val.get("levelDescriptions").unwrap_or(&empty);
@@ -185,9 +247,15 @@ pub(crate) fn load_h3_core_i18n(dir: &Path) -> Option<I18nMap> {
                             .unwrap_or_default();
                         vec![
                             (format!("spell.core.{}.name", id), str_field(val, "name")),
-                            (format!("spell.core.{}.description", id), str_field(lv, "basic")),
+                            (
+                                format!("spell.core.{}.description", id),
+                                str_field(lv, "basic"),
+                            ),
                             (format!("spell.core.{}.basic", id), str_field(lv, "basic")),
-                            (format!("spell.core.{}.advanced", id), str_field(lv, "advanced")),
+                            (
+                                format!("spell.core.{}.advanced", id),
+                                str_field(lv, "advanced"),
+                            ),
                             (format!("spell.core.{}.expert", id), str_field(lv, "expert")),
                             (format!("spell.core.{}.level", id), level),
                             (format!("spell.core.{}.schools", id), schools),
@@ -196,10 +264,18 @@ pub(crate) fn load_h3_core_i18n(dir: &Path) -> Option<I18nMap> {
                     "skills" => vec![
                         (format!("skill.core.{}.name", id), str_field(val, "name")),
                         (format!("skill.core.{}.basic", id), str_field(val, "basic")),
-                        (format!("skill.core.{}.advanced", id), str_field(val, "advanced")),
-                        (format!("skill.core.{}.expert", id), str_field(val, "expert")),
+                        (
+                            format!("skill.core.{}.advanced", id),
+                            str_field(val, "advanced"),
+                        ),
+                        (
+                            format!("skill.core.{}.expert", id),
+                            str_field(val, "expert"),
+                        ),
                     ],
-                    "terrains" => vec![(format!("terrain.core.{}.name", id), str_field(val, "name"))],
+                    "terrains" => {
+                        vec![(format!("terrain.core.{}.name", id), str_field(val, "name"))]
+                    }
                     "buildings" => {
                         let name = str_field(val, "name");
                         let desc = str_field(val, "description");
@@ -211,15 +287,24 @@ pub(crate) fn load_h3_core_i18n(dir: &Path) -> Option<I18nMap> {
                                     .iter()
                                     .flat_map(|f| {
                                         vec![
-                                            (format!("building.core.{}.{}.name", f, bid), name.clone()),
-                                            (format!("building.core.{}.{}.description", f, bid), desc.clone()),
+                                            (
+                                                format!("building.core.{}.{}.name", f, bid),
+                                                name.clone(),
+                                            ),
+                                            (
+                                                format!("building.core.{}.{}.description", f, bid),
+                                                desc.clone(),
+                                            ),
                                         ]
                                     })
                                     .collect()
                             } else {
                                 vec![
                                     (format!("building.core.{}.{}.name", faction, bid), name),
-                                    (format!("building.core.{}.{}.description", faction, bid), desc),
+                                    (
+                                        format!("building.core.{}.{}.description", faction, bid),
+                                        desc,
+                                    ),
                                 ]
                             }
                         } else {
@@ -291,7 +376,11 @@ pub(crate) fn h3_hero_stats() -> Option<std::sync::Arc<HashMap<String, Value>>> 
         }
         m
     });
-    if map.is_empty() { None } else { Some(map) }
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
+    }
 }
 
 /// 原版英雄职业**初始四维主属性**表（`<lang>.heroClasses.json` 的 `stats` 字段）。
@@ -301,10 +390,16 @@ pub(crate) fn h3_hero_stats() -> Option<std::sync::Arc<HashMap<String, Value>>> 
 /// 下游用 `class_id -> index -> stats` 链命中。
 /// 数值与语言无关，读中文文件即可（回退英文）。
 pub(crate) static H3_HERO_CLASS_STATS_CACHE: std::sync::OnceLock<
-    Mutex<Vec<(String, std::sync::Arc<HashMap<String, (i64, i64, i64, i64)>>)>>,
+    Mutex<
+        Vec<(
+            String,
+            std::sync::Arc<HashMap<String, (i64, i64, i64, i64)>>,
+        )>,
+    >,
 > = std::sync::OnceLock::new();
 
-pub(crate) fn h3_hero_class_stats() -> Option<std::sync::Arc<HashMap<String, (i64, i64, i64, i64)>>> {
+pub(crate) fn h3_hero_class_stats() -> Option<std::sync::Arc<HashMap<String, (i64, i64, i64, i64)>>>
+{
     let dir = h3_core_data_dir()?;
     let key = dir.to_string_lossy().to_string();
     let map = cfg_cache_get(&H3_HERO_CLASS_STATS_CACHE, key, || {
@@ -338,7 +433,11 @@ pub(crate) fn h3_hero_class_stats() -> Option<std::sync::Arc<HashMap<String, (i6
         }
         m
     });
-    if map.is_empty() { None } else { Some(map) }
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
+    }
 }
 
 /// 原版城镇建筑**花费**表（`<lang>.buildingCosts.json`）。
@@ -375,7 +474,11 @@ pub(crate) fn h3_building_costs() -> Option<std::sync::Arc<HashMap<String, Value
         }
         m
     });
-    if map.is_empty() { None } else { Some(map) }
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
+    }
 }
 
 /// 查询指定城镇某建筑的花费。优先 `<faction>.<bid>`，未命中则回退 `common.<bid>`。
@@ -423,7 +526,11 @@ pub(crate) fn h3_creature_stats() -> Option<std::sync::Arc<HashMap<String, Value
         }
         m
     });
-    if map.is_empty() { None } else { Some(map) }
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
+    }
 }
 
 /// 原版宝物**元数据**表（`<lang>.artifacts.json` 的 value/slots/class）。
@@ -463,15 +570,20 @@ pub(crate) fn h3_artifact_meta() -> Option<std::sync::Arc<HashMap<String, Value>
         }
         m
     });
-    if map.is_empty() { None } else { Some(map) }
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
+    }
 }
 
 /// 原版建筑 id 列表（`<lang>.buildings.json` 的键；形如 `castle.mageGuild1` / `neutral.grail`）。
 ///
 /// 用于把 `neutral.*`（中立建筑：宝物商店/生物巢穴/船坞/神器…）补进百科"建筑"分类——
 /// 这些条目不隶属于任何城镇，VCMI 战斗/城镇界面也不展示，只能从 legacy `BUILDING.TXT` 取。
-pub(crate) static H3_BUILDING_IDS_CACHE: std::sync::OnceLock<Mutex<Vec<(String, std::sync::Arc<Vec<String>>)>>> =
-    std::sync::OnceLock::new();
+pub(crate) static H3_BUILDING_IDS_CACHE: std::sync::OnceLock<
+    Mutex<Vec<(String, std::sync::Arc<Vec<String>>)>>,
+> = std::sync::OnceLock::new();
 
 pub(crate) fn h3_building_ids(prefix: &str) -> Vec<String> {
     let Some(dir) = h3_core_data_dir() else {
@@ -496,26 +608,34 @@ pub(crate) fn h3_building_ids(prefix: &str) -> Vec<String> {
         ids.sort();
         ids
     });
-    all.iter().filter(|k| k.starts_with(prefix)).cloned().collect()
+    all.iter()
+        .filter(|k| k.starts_with(prefix))
+        .cloned()
+        .collect()
 }
 
 /// 将 h3-core 文案表合并进核心翻译表（h3-core 的同名 key 覆盖 VCMI 内置翻译的缺失项）。
 pub(crate) fn merge_i18n_into(base: &mut I18nMap, extra: &I18nMap) {
     for (k, v) in extra {
-        let e = base.entry(k.clone()).or_insert_with(std::collections::HashMap::new);
+        let e = base
+            .entry(k.clone())
+            .or_insert_with(std::collections::HashMap::new);
         for (lk, lv) in v {
             e.insert(lk.clone(), lv.clone());
         }
     }
 }
 
-pub(crate) static CORE_I18N_CACHE: std::sync::OnceLock<Mutex<Vec<(String, std::sync::Arc<I18nMap>)>>> =
-    std::sync::OnceLock::new();
+pub(crate) static CORE_I18N_CACHE: std::sync::OnceLock<
+    Mutex<Vec<(String, std::sync::Arc<I18nMap>)>>,
+> = std::sync::OnceLock::new();
 
 /// 核心模组翻译表（按 mod 自身的 sourceHash 作缓存键，与构建增量判定同源）。
 pub(crate) fn cached_core_i18n(core_mod: &Path) -> std::sync::Arc<I18nMap> {
     let key = format!("i18n:{}", crate::infra::hash::compute_source_hash(core_mod));
-    cfg_cache_get(&CORE_I18N_CACHE, key, || crate::vcmi::i18n::read_i18n_map(core_mod))
+    cfg_cache_get(&CORE_I18N_CACHE, key, || {
+        crate::vcmi::i18n::read_i18n_map(core_mod)
+    })
 }
 
 #[cfg(test)]
@@ -528,21 +648,32 @@ mod tests {
         let knight = stats
             .get("class0")
             .expect("class0 (Knight) stats should exist");
-        assert_eq!(*knight, (2, 2, 1, 1), "Knight base primary skills should be 2/2/1/1");
+        assert_eq!(
+            *knight,
+            (2, 2, 1, 1),
+            "Knight base primary skills should be 2/2/1/1"
+        );
         let wizard = stats
             .get("class5")
             .expect("class5 (Wizard) stats should exist");
-        assert_eq!(*wizard, (0, 0, 2, 3), "Wizard base primary skills should be 0/0/2/3");
+        assert_eq!(
+            *wizard,
+            (0, 0, 2, 3),
+            "Wizard base primary skills should be 0/0/2/3"
+        );
     }
 
     #[test]
     fn building_cost_fallback_works() {
         // 通用建筑：城堡的 mageGuild1 与 common.mageGuild1 应一致
-        let castle = h3_building_cost("castle", "mageGuild1")
-            .expect("castle.mageGuild1 cost should exist");
-        let common = h3_building_cost("castle", "mageGuild1")
-            .expect("common.mageGuild1 cost should exist");
-        assert_eq!(castle, common, "castle.mageGuild1 should equal common.mageGuild1");
+        let castle =
+            h3_building_cost("castle", "mageGuild1").expect("castle.mageGuild1 cost should exist");
+        let common =
+            h3_building_cost("castle", "mageGuild1").expect("common.mageGuild1 cost should exist");
+        assert_eq!(
+            castle, common,
+            "castle.mageGuild1 should equal common.mageGuild1"
+        );
         let obj = castle.as_object().expect("cost should be an object");
         assert_eq!(obj.get("wood").and_then(|v| v.as_i64()), Some(5));
         assert_eq!(obj.get("ore").and_then(|v| v.as_i64()), Some(5));
@@ -551,7 +682,9 @@ mod tests {
         // 巢穴：城堡 1 级兵舍（pikeman）花费 10 ore + 500 gold
         let dwell = h3_building_cost("castle", "dwellingLvl1")
             .expect("castle.dwellingLvl1 cost should exist");
-        let dwell_obj = dwell.as_object().expect("dwelling cost should be an object");
+        let dwell_obj = dwell
+            .as_object()
+            .expect("dwelling cost should be an object");
         assert_eq!(dwell_obj.get("ore").and_then(|v| v.as_i64()), Some(10));
         assert_eq!(dwell_obj.get("gold").and_then(|v| v.as_i64()), Some(500));
 

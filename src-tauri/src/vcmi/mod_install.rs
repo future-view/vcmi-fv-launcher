@@ -105,11 +105,13 @@ pub(crate) fn install_with_ledger(
         ));
     }
 
-    fs::create_dir_all(mods_dir).map_err(|e| be_err("vcmi_mods_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(mods_dir)
+        .map_err(|e| be_err("vcmi_mods_dir_create_failed", &format!("{}", e)))?;
     let temp = mods_dir.join(format!(".fv-install-{}", info.mod_id));
     let _ = fs::remove_dir_all(&temp);
 
-    let file = fs::File::open(zip_path).map_err(|e| be_err("vcmi_zip_open_failed", &format!("{}", e)))?;
+    let file =
+        fs::File::open(zip_path).map_err(|e| be_err("vcmi_zip_open_failed", &format!("{}", e)))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|_| be_err("vcmi_zip_invalid", ""))?;
 
     let mut installed = 0usize;
@@ -119,10 +121,14 @@ pub(crate) fn install_with_ledger(
         return Err(e);
     }
     if let Some(led) = ledger {
-        let text = serde_json::to_string_pretty(led).map_err(|e| be_err("realm_ledger_serialize_failed", &format!("{}", e)))?;
+        let text = serde_json::to_string_pretty(led)
+            .map_err(|e| be_err("realm_ledger_serialize_failed", &format!("{}", e)))?;
         if let Err(e) = fs::write(temp.join(LEDGER_FILE), text) {
             let _ = fs::remove_dir_all(&temp);
-            return Err(be_err("vcmi_install_ledger_write_failed", &format!("{}", e)));
+            return Err(be_err(
+                "vcmi_install_ledger_write_failed",
+                &format!("{}", e),
+            ));
         }
     }
 
@@ -166,7 +172,8 @@ pub(crate) fn install_with_ledger(
 
 /// 打开 zip、识别 mod 根、读取 `mod.json`。返回探查信息与 mod 根前缀（`""` = 根目录即 mod）。
 fn archive_info(zip_path: &Path, mods_dir: &Path) -> Result<(ZipInspection, String), String> {
-    let file = fs::File::open(zip_path).map_err(|e| be_err("vcmi_zip_open_failed", &format!("{}", e)))?;
+    let file =
+        fs::File::open(zip_path).map_err(|e| be_err("vcmi_zip_open_failed", &format!("{}", e)))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|_| be_err("vcmi_zip_invalid", ""))?;
 
     let mut names: Vec<String> = Vec::with_capacity(archive.len());
@@ -331,18 +338,22 @@ fn extract_into(
         }
         let out_path = dest.join(rel.trim_end_matches('/'));
         if entry.is_dir() {
-            fs::create_dir_all(&out_path).map_err(|e| be_err("cmd_mkdir_failed", &format!("{}", e)))?;
+            fs::create_dir_all(&out_path)
+                .map_err(|e| be_err("cmd_mkdir_failed", &format!("{}", e)))?;
             continue;
         }
         if let Some(parent) = out_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| be_err("cmd_mkdir_failed", &format!("{}", e)))?;
+            fs::create_dir_all(parent)
+                .map_err(|e| be_err("cmd_mkdir_failed", &format!("{}", e)))?;
         }
         let mut buf = Vec::new();
         entry
             .read_to_end(&mut buf)
             .map_err(|e| be_err("vcmi_zip_entry_read_failed", &format!("{}", e)))?;
-        let mut f = fs::File::create(&out_path).map_err(|e| be_err("cmd_write_failed", &format!("{}", e)))?;
-        f.write_all(&buf).map_err(|e| be_err("cmd_write_failed", &format!("{}", e)))?;
+        let mut f = fs::File::create(&out_path)
+            .map_err(|e| be_err("cmd_write_failed", &format!("{}", e)))?;
+        f.write_all(&buf)
+            .map_err(|e| be_err("cmd_write_failed", &format!("{}", e)))?;
         *counter += 1;
     }
     Ok(())
@@ -354,7 +365,9 @@ fn rel_ok(rel: &str) -> bool {
     if trimmed.is_empty() || trimmed.starts_with('/') || trimmed.contains(':') {
         return false;
     }
-    !trimmed.split('/').any(|s| s.is_empty() || s == "." || s == "..")
+    !trimmed
+        .split('/')
+        .any(|s| s.is_empty() || s == "." || s == "..")
 }
 
 /// 统计 `root` 内的文件条目数（不含目录）。
@@ -384,7 +397,11 @@ fn read_entry_json(
             Ok(e) => e,
             Err(_) => continue,
         };
-        if entry.name().replace('\\', "/").eq_ignore_ascii_case(entry_name) {
+        if entry
+            .name()
+            .replace('\\', "/")
+            .eq_ignore_ascii_case(entry_name)
+        {
             let mut buf = String::new();
             entry
                 .read_to_string(&mut buf)
@@ -430,7 +447,8 @@ mod tests {
         w.finish().unwrap();
     }
 
-    const MOD_JSON: &str = r#"{"name":"Horn of the Abyss","version":"1.7.3","modType":"Expansion"}"#;
+    const MOD_JSON: &str =
+        r#"{"name":"Horn of the Abyss","version":"1.7.3","modType":"Expansion"}"#;
 
     #[test]
     fn strip_version_suffix_keeps_normal_ids() {
@@ -501,7 +519,10 @@ mod tests {
         assert!(!out.replaced);
         assert!(mods.join("ark/mod.json").is_file());
         assert!(mods.join("ark/config/a.json").is_file());
-        assert!(!mods.join("readme.txt").exists(), "mod 根之外的条目不得落地");
+        assert!(
+            !mods.join("readme.txt").exists(),
+            "mod 根之外的条目不得落地"
+        );
         assert!(!mods.join(".fv-install-ark").exists(), "临时目录应清理");
         let _ = fs::remove_dir_all(&d);
     }
@@ -513,7 +534,10 @@ mod tests {
         let zip_path = d.join("m-1.0.0.zip");
         write_zip(
             &zip_path,
-            &[("m-1.0.0/mod.json", MOD_JSON), ("m-1.0.0/config/a.json", "{}")],
+            &[
+                ("m-1.0.0/mod.json", MOD_JSON),
+                ("m-1.0.0/config/a.json", "{}"),
+            ],
         );
         install(&zip_path, &mods, false).unwrap();
         let marker = mods.join("m/marker.txt");
@@ -524,7 +548,10 @@ mod tests {
         let err = install(&zip_path, &mods, false).unwrap_err();
         let v: serde_json::Value = serde_json::from_str(&err).expect("应为结构化错误 JSON");
         assert_eq!(v["code"], "vcmi_mod_already_exists", "{err}");
-        assert!(v["arg"].as_str().unwrap_or("").contains("m（"), "应带模组 id 与目标路径：{err}");
+        assert!(
+            v["arg"].as_str().unwrap_or("").contains("m（"),
+            "应带模组 id 与目标路径：{err}"
+        );
         assert!(marker.is_file(), "旧安装不得被破坏");
 
         // 授权覆盖 → 成功，旧文件（marker）随之被替换掉
@@ -543,7 +570,10 @@ mod tests {
         let zip_path = d.join("evil.zip");
         write_zip(
             &zip_path,
-            &[("evil/mod.json", MOD_JSON), ("evil/../../escape.txt", "boom")],
+            &[
+                ("evil/mod.json", MOD_JSON),
+                ("evil/../../escape.txt", "boom"),
+            ],
         );
         let err = install(&zip_path, &mods, false).unwrap_err();
         let v: serde_json::Value = serde_json::from_str(&err).expect("应为结构化错误 JSON");
@@ -604,7 +634,11 @@ mod tests {
             let opt: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
                 .compression_method(zip::CompressionMethod::Deflated);
             for p in &files {
-                let rel = p.strip_prefix(&src_mod).unwrap().to_string_lossy().replace('\\', "/");
+                let rel = p
+                    .strip_prefix(&src_mod)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/");
                 w.start_file(format!("hota-1.7.3/{rel}"), opt).unwrap();
                 w.write_all(&fs::read(p).unwrap()).unwrap();
             }
@@ -615,13 +649,20 @@ mod tests {
         let mods_dir = d.join("Mods");
         let info = inspect(&zip_path, &mods_dir).unwrap();
         assert_eq!(info.mod_id, "hota");
-        assert!(info.entry_count > 100, "真实 mod 条目数：{}", info.entry_count);
+        assert!(
+            info.entry_count > 100,
+            "真实 mod 条目数：{}",
+            info.entry_count
+        );
 
         let out = install(&zip_path, &mods_dir, false).unwrap();
         assert_eq!(out.mod_id, "hota");
         assert_eq!(out.installed_files, info.entry_count);
         assert!(mods_dir.join("hota/mod.json").is_file());
-        assert!(mods_dir.join("hota").join("content.zip").is_file() || mods_dir.join("hota/Content").is_dir());
+        assert!(
+            mods_dir.join("hota").join("content.zip").is_file()
+                || mods_dir.join("hota/Content").is_dir()
+        );
         assert!(!mods_dir.join(".fv-install-hota").exists());
         let _ = fs::remove_dir_all(&d);
     }

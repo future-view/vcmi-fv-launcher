@@ -9,11 +9,11 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 use super::base::{
-    DIRS_BACKUP_SUFFIX, MAPS_NATIVE_SUFFIX, VCMI_GAME_PROCESS_NAMES, ensure_realm_dirs, game_dir_of,
-    global_user_config_dir, guard_vcmi_not_running, persist, read_config,
+    ensure_realm_dirs, game_dir_of, global_user_config_dir, guard_vcmi_not_running, persist,
+    read_config, DIRS_BACKUP_SUFFIX, MAPS_NATIVE_SUFFIX, VCMI_GAME_PROCESS_NAMES,
 };
-use super::meta::{get_realm, list_realm_ids};
 use super::maps::apply_maps_valve;
+use super::meta::{get_realm, list_realm_ids};
 use super::presets::{restore_prev_active_preset, write_realm_preset};
 
 use serde_json::{json, Value};
@@ -40,8 +40,8 @@ pub fn activate_realm(realm_id: String, state: State<AppPaths>) -> Result<(), St
     if !game_dir.join("VCMI_client.exe").is_file() {
         return Err(be_err("realm_activate_invalid_gamedir", ""));
     }
-    let base = VcmiPaths::realm_vcmi_dir(&id)
-        .ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
+    let base =
+        VcmiPaths::realm_vcmi_dir(&id).ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
     ensure_realm_dirs(&id)?;
 
     // 1) 按领域 `dirs` 配置改写 dirs.json（保留原文备份，仅首次创建）
@@ -65,7 +65,10 @@ pub fn activate_realm(realm_id: String, state: State<AppPaths>) -> Result<(), St
         != "global";
     if config_path_is_realm {
         let realm_config = base.join("config");
-        let config_share = dirs_config.get("configShare").cloned().unwrap_or(Value::Null);
+        let config_share = dirs_config
+            .get("configShare")
+            .cloned()
+            .unwrap_or(Value::Null);
         ensure_config_links(&global_user_config_dir(), &realm_config, &config_share)?;
         // 领域配置目录是新建的：补播种 `launcher.setupCompleted`，否则官方启动器
         // 把每个新领域都当全新安装而弹首次运行向导（vcmiqt mainwindow_moc.cpp:83,129-134）。
@@ -109,7 +112,11 @@ pub fn activate_realm(realm_id: String, state: State<AppPaths>) -> Result<(), St
                 .iter()
                 .map(|x| match x {
                     Value::String(s) => s.clone(),
-                    obj => obj.get("id").and_then(|i| i.as_str()).unwrap_or_default().to_string(),
+                    obj => obj
+                        .get("id")
+                        .and_then(|i| i.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
                 })
                 .filter(|s| !s.is_empty())
                 .collect(),
@@ -124,7 +131,14 @@ pub fn activate_realm(realm_id: String, state: State<AppPaths>) -> Result<(), St
             .game_mods_dir
             .clone()
             .unwrap_or_else(|| game_dir.join("Mods"));
-        links::apply_realm_mods(&base, &borrowed, &bundled, &pinned, &cfg_paths.paths.user_mods_dir, &game_mods)?;
+        links::apply_realm_mods(
+            &base,
+            &borrowed,
+            &bundled,
+            &pinned,
+            &cfg_paths.paths.user_mods_dir,
+            &game_mods,
+        )?;
     }
 
     // 6) 记录激活态
@@ -193,12 +207,14 @@ pub(crate) fn backup_and_write_dirs(game_dir: &Path, dirs: &Value) -> Result<(),
         .join(format!("dirs.json.{DIRS_BACKUP_SUFFIX}"));
     // 仅首次从全局激活时保留原文备份；切换领域不覆盖备份
     if dirs_path.is_file() && !backup.is_file() {
-        fs::copy(&dirs_path, &backup).map_err(|e| be_err("realm_dirs_backup_failed", &format!("{}", e)))?;
+        fs::copy(&dirs_path, &backup)
+            .map_err(|e| be_err("realm_dirs_backup_failed", &format!("{}", e)))?;
     }
     let text = serde_json::to_string_pretty(dirs)
         .map_err(|e| be_err("realm_dirs_serialize_failed", &format!("{}", e)))?;
     if let Some(parent) = dirs_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| be_err("realm_config_dir_create_failed", &format!("{}", e)))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| be_err("realm_config_dir_create_failed", &format!("{}", e)))?;
     }
     fs::write(&dirs_path, text).map_err(|e| be_err("realm_dirs_write_failed", &format!("{}", e)))
 }
@@ -207,7 +223,11 @@ pub(crate) fn backup_and_write_dirs(game_dir: &Path, dirs: &Value) -> Result<(),
 /// - `"realm"`：指向领域隔离目录（默认，隔离的核心）；
 /// - `"global"`：显式写回全局 VCMI 用户目录（省略字段会被 userDataPath 派生，反而落在领域内，故必须显式写）。
 /// `gameMaps` 字段不在此处处理，由调用方交给地图阀门。
-pub(crate) fn build_realm_dirs(cfg: &LauncherConfig, realm_vcmi: &Path, dirs_config: &Value) -> Value {
+pub(crate) fn build_realm_dirs(
+    cfg: &LauncherConfig,
+    realm_vcmi: &Path,
+    dirs_config: &Value,
+) -> Value {
     let realm = |p: PathBuf| json!(p.to_string_lossy().to_string());
     let global = |p: PathBuf| json!(p.to_string_lossy().to_string());
     let data = if dirs_config.get("dataPath").and_then(|v| v.as_str()) == Some("global") {
@@ -251,7 +271,8 @@ pub(crate) fn restore_dirs(game_dir: &Path) -> Result<(), String> {
         .join("config")
         .join(format!("dirs.json.{DIRS_BACKUP_SUFFIX}"));
     if backup.is_file() {
-        fs::copy(&backup, &dirs).map_err(|e| be_err("realm_dirs_restore_failed", &format!("{}", e)))?;
+        fs::copy(&backup, &dirs)
+            .map_err(|e| be_err("realm_dirs_restore_failed", &format!("{}", e)))?;
     } else if dirs.is_file() {
         // 无备份（理论上不会发生）：保守删除当前领域化的 dirs.json，回退 VCMI 默认探测
         let _ = fs::remove_file(&dirs);
@@ -277,7 +298,8 @@ pub(crate) fn ensure_config_links(
     realm_config: &Path,
     config_share: &Value,
 ) -> Result<(), String> {
-    fs::create_dir_all(realm_config).map_err(|e| be_err("realm_realm_config_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(realm_config)
+        .map_err(|e| be_err("realm_realm_config_dir_create_failed", &format!("{}", e)))?;
     let marker_path = realm_config.join(".vcmi-fv-shared.json");
     // 当前磁盘上已被共享（硬链接）的文件集合，由标记文件记录，避免重激活时误删领域私有副本。
     let shared: std::collections::HashSet<String> = fs::read_to_string(&marker_path)
@@ -305,20 +327,24 @@ pub(crate) fn ensure_config_links(
             }
             if !global_file.exists() {
                 let seed = if name.ends_with(".ini") { "" } else { "{}" };
-                fs::write(&global_file, seed).map_err(|e| be_err("realm_global_init_failed", &format!("{} {}", name, e)))?;
+                fs::write(&global_file, seed)
+                    .map_err(|e| be_err("realm_global_init_failed", &format!("{} {}", name, e)))?;
             }
             create_file_link(&realm_file, &global_file)
                 .map_err(|e| be_err("realm_share_link_failed", &format!("{} {}", name, e)))?;
             next_shared.insert(name.to_string());
         } else if shared.contains(name) {
             // 当前为共享链接 → 转为领域私有副本（起点=全局当前内容），保留玩家共享期改动
-            fs::remove_file(&realm_file).map_err(|e| be_err("realm_share_link_remove_failed", &format!("{} {}", name, e)))?;
+            fs::remove_file(&realm_file).map_err(|e| {
+                be_err("realm_share_link_remove_failed", &format!("{} {}", name, e))
+            })?;
             if global_file.exists() {
                 fs::copy(&global_file, &realm_file)
                     .map_err(|e| be_err("realm_isolate_failed", &format!("{} {}", name, e)))?;
             } else {
                 let seed = if name.ends_with(".ini") { "" } else { "{}" };
-                fs::write(&realm_file, seed).map_err(|e| be_err("realm_init_failed", &format!("{} {}", name, e)))?;
+                fs::write(&realm_file, seed)
+                    .map_err(|e| be_err("realm_init_failed", &format!("{} {}", name, e)))?;
             }
         } else {
             // 已是领域私有副本：保留，不覆盖玩家改动
@@ -329,8 +355,11 @@ pub(crate) fn ensure_config_links(
     for k in &next_shared {
         marker_val[k] = serde_json::Value::Bool(true);
     }
-    fs::write(&marker_path, serde_json::to_string(&marker_val).unwrap_or_default())
-        .map_err(|e| be_err("realm_shared_flag_write_failed", &format!("{}", e)))?;
+    fs::write(
+        &marker_path,
+        serde_json::to_string(&marker_val).unwrap_or_default(),
+    )
+    .map_err(|e| be_err("realm_shared_flag_write_failed", &format!("{}", e)))?;
     Ok(())
 }
 
@@ -377,10 +406,7 @@ pub(crate) fn realm_dirs_match(game_dir: &Path, realm_id: &str) -> bool {
     // 与 `activate_realm` 完全同口径：同样解析为绝对路径后再比对，
     // 否则期望值（相对）与 dirs.json 实际值（绝对）永远对不上。
     let cfg = cfg.resolve_relative_to(&VcmiPaths::exe_dir());
-    let (Ok(realm), Some(base)) = (
-        get_realm(realm_id),
-        VcmiPaths::realm_vcmi_dir(realm_id),
-    ) else {
+    let (Ok(realm), Some(base)) = (get_realm(realm_id), VcmiPaths::realm_vcmi_dir(realm_id)) else {
         return false;
     };
     let dirs_config = realm.get("dirs").cloned().unwrap_or(Value::Null);

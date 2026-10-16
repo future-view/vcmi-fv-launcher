@@ -76,7 +76,9 @@ impl ManifestEntry {
     pub fn mode(&self) -> super::platform::UpdateMode {
         match self.update_mode.as_deref() {
             Some(s) => super::platform::UpdateMode::from_manifest(Some(s)),
-            None => super::platform::default_update_mode(super::platform::target_triple().unwrap_or("")),
+            None => {
+                super::platform::default_update_mode(super::platform::target_triple().unwrap_or(""))
+            }
         }
     }
 }
@@ -204,7 +206,10 @@ fn load_cache(url: &str) -> Option<ManifestCache> {
         return None;
     }
     Some(ManifestCache {
-        etag: v.get("etag").and_then(|x| x.as_str()).map(|s| s.to_string()),
+        etag: v
+            .get("etag")
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string()),
         fetched_at: v.get("fetchedAt").and_then(|x| x.as_u64()).unwrap_or(0),
         manifest: v.get("manifest").cloned().unwrap_or(Value::Null),
     })
@@ -302,7 +307,10 @@ fn download_scheme_ok(url: &str, allow_http: bool) -> bool {
     if !url.starts_with("http://") {
         return false;
     }
-    allow_http || std::env::var("VCMI_FV_UPDATER_ALLOW_HTTP").map(|v| v == "1").unwrap_or(false)
+    allow_http
+        || std::env::var("VCMI_FV_UPDATER_ALLOW_HTTP")
+            .map(|v| v == "1")
+            .unwrap_or(false)
 }
 
 /// 定位目标版本条目：`latest` 优先，否则取 semver 最大者；校验下载协议 + sha256 必填。
@@ -339,7 +347,10 @@ pub fn check_update(force: bool) -> UpdateInfo {
     // 与 apply.rs 的 `cfg!(debug_assertions)` 守卫一致（debug 包既不检查、也不应用）。
     // 设 `VCMI_FV_UPDATER_TEST=1` 可临时绕过，用于在 debug 中联调 updater UI。
     #[cfg(debug_assertions)]
-    if std::env::var("VCMI_FV_UPDATER_TEST").map(|v| v != "1").unwrap_or(true) {
+    if std::env::var("VCMI_FV_UPDATER_TEST")
+        .map(|v| v != "1")
+        .unwrap_or(true)
+    {
         return UpdateInfo {
             current_version: CURRENT_VERSION.to_string(),
             latest_version: String::new(),
@@ -418,7 +429,8 @@ pub fn check_update(force: bool) -> UpdateInfo {
                 tracing::info!(target: "updater", "更新清单无任何版本（平台尚未发布）→ 无更新");
                 return info;
             }
-            match resolve_target(&manifest) {                Ok(entry) => {
+            match resolve_target(&manifest) {
+                Ok(entry) => {
                     info.latest_version = entry.version.clone();
                     info.critical = entry.critical;
                     info.size = entry.size;
@@ -463,7 +475,11 @@ pub fn check_update(force: bool) -> UpdateInfo {
                         super::set_pending_apply(None);
                     }
                     let pending = super::pending_apply().as_deref() == Some(entry.version.as_str());
-                    if pending && !skipped && !super::is_applied(&entry.sha256) && super::download::staged_ready(&entry) {
+                    if pending
+                        && !skipped
+                        && !super::is_applied(&entry.sha256)
+                        && super::download::staged_ready(&entry)
+                    {
                         info.has_update = true;
                         info.state = "downloaded";
                         info.ready_to_apply = true;
@@ -507,7 +523,8 @@ pub fn check_update(force: bool) -> UpdateInfo {
                                         && pev == Some(CURRENT_VERSION)
                                         && !reverted =>
                                 {
-                                    now_secs().saturating_sub(pa.unwrap_or(0)) >= PROMPT_INTERVAL_SECS
+                                    now_secs().saturating_sub(pa.unwrap_or(0))
+                                        >= PROMPT_INTERVAL_SECS
                                 }
                                 _ => true,
                             }

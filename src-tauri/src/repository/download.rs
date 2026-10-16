@@ -3,9 +3,9 @@
 //! 安装流程 = 下载到临时目录（**强制 sha256 校验**，见 `PACKAGE_MAX_BYTES` 上限）→
 //! 复用 `realms::import_realm` 落库 → 回填 `installedAt`。支持按 realmId 取消。
 
-use crate::infra::berror::be_err;
-use super::*;
 use super::index::load_cache;
+use super::*;
+use crate::infra::berror::be_err;
 
 use serde_json::{json, Value};
 use std::fs;
@@ -72,8 +72,7 @@ fn install_remote_realm_blocking(
         }
         None
     })();
-    let (url, entry) = located
-        .ok_or_else(|| be_err("repo_realm_index_not_loaded", ""))?;
+    let (url, entry) = located.ok_or_else(|| be_err("repo_realm_index_not_loaded", ""))?;
 
     // 远程来源必须可校验：没有 sha256 直接拒绝（本地导入允许为空，这里不允许）。
     // ⚠️ 条目级 sha256 恒为**整包**哈希——分片条目也不例外（拼回后才比对，语义不变）。
@@ -91,7 +90,8 @@ fn install_remote_realm_blocking(
         .to_string();
 
     let dir = downloads_dir().ok_or_else(|| be_err("common_download_dir_unknown", ""))?;
-    fs::create_dir_all(&dir).map_err(|e| be_err("repo_download_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&dir)
+        .map_err(|e| be_err("repo_download_dir_create_failed", &format!("{}", e)))?;
     let tmp = dir.join(format!("{}-{}.vcmirealm", realm_id, version));
 
     if parts.is_empty() {
@@ -220,7 +220,8 @@ fn download_parts(
     if dir.is_dir() {
         let _ = fs::remove_dir_all(dir);
     }
-    fs::create_dir_all(dir).map_err(|e| be_err("repo_download_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(dir)
+        .map_err(|e| be_err("repo_download_dir_create_failed", &format!("{}", e)))?;
     let mut received_before = 0u64;
     for (i, p) in parts.iter().enumerate() {
         if is_cancelled(realm_id) {
@@ -253,11 +254,12 @@ fn download_parts(
 /// 按 `parts` 数组序拼回整包（`download_parts` 的逆操作）。
 /// 拼回结果必须与分片前的整包逐字节一致——随后由整包 sha256 校验兜底。
 fn assemble_parts(parts: &[PartSpec], dir: &Path, dest: &Path) -> Result<(), String> {
-    let mut out =
-        fs::File::create(dest).map_err(|e| be_err("repo_temp_file_create_failed", &format!("{}", e)))?;
+    let mut out = fs::File::create(dest)
+        .map_err(|e| be_err("repo_temp_file_create_failed", &format!("{}", e)))?;
     for i in 0..parts.len() {
         let src = dir.join(part_file_name(i));
-        let mut f = fs::File::open(&src).map_err(|e| be_err("infra_file_read_failed", &format!("{}", e)))?;
+        let mut f = fs::File::open(&src)
+            .map_err(|e| be_err("infra_file_read_failed", &format!("{}", e)))?;
         std::io::copy(&mut f, &mut out)
             .map_err(|e| be_err("repo_temp_file_write_failed", &format!("{}", e)))?;
     }
@@ -349,21 +351,28 @@ pub(crate) fn download_to_file(
     dest: &Path,
     shard: Option<&ShardProgress>,
 ) -> Result<(), String> {
-    let (resp, _egress) = get_send(url).map_err(|e| be_err("repo_download_failed", &format!("{}", e)))?;
+    let (resp, _egress) =
+        get_send(url).map_err(|e| be_err("repo_download_failed", &format!("{}", e)))?;
     let status = resp.status().as_u16();
     if !(200..300).contains(&status) {
-        return Err(be_err("repo_download_server_returned", &format!("{}", status)));
+        return Err(be_err(
+            "repo_download_server_returned",
+            &format!("{}", status),
+        ));
     }
     let total = resp.content_length().unwrap_or(0);
 
     let mut reader = resp;
-    let mut file = fs::File::create(dest).map_err(|e| be_err("repo_temp_file_create_failed", &format!("{}", e)))?;
+    let mut file = fs::File::create(dest)
+        .map_err(|e| be_err("repo_temp_file_create_failed", &format!("{}", e)))?;
     let mut buf = vec![0u8; 64 * 1024];
     let mut received: u64 = 0;
     let mut last_emit = Instant::now();
 
     loop {
-        let n = reader.read(&mut buf).map_err(|e| be_err("repo_download_interrupted", &format!("{}", e)))?;
+        let n = reader
+            .read(&mut buf)
+            .map_err(|e| be_err("repo_download_interrupted", &format!("{}", e)))?;
         if n == 0 {
             break;
         }
@@ -371,7 +380,10 @@ pub(crate) fn download_to_file(
         if received > PACKAGE_MAX_BYTES {
             drop(file);
             let _ = fs::remove_file(dest);
-            return Err(be_err("repo_realm_pack_too_large", &format!("{}", PACKAGE_MAX_BYTES / 1024 / 1024)));
+            return Err(be_err(
+                "repo_realm_pack_too_large",
+                &format!("{}", PACKAGE_MAX_BYTES / 1024 / 1024),
+            ));
         }
         file.write_all(&buf[..n])
             .map_err(|e| be_err("repo_temp_file_write_failed", &format!("{}", e)))?;
@@ -445,7 +457,9 @@ mod tests {
         // 缺省 / 空数组 = 单包分发（旧索引与绝大多数领域走这条）
         assert!(parse_parts(None).unwrap().is_empty());
         assert!(parse_parts(Some(&json!([]))).unwrap().is_empty());
-        assert!(parse_parts(Some(&json!("not-an-array"))).unwrap().is_empty());
+        assert!(parse_parts(Some(&json!("not-an-array")))
+            .unwrap()
+            .is_empty());
         // 分片条目：数组序即拼接序
         let parsed = parse_parts(Some(&json!([
             part("https://x/a.part001", 10, "aa"),
@@ -484,10 +498,16 @@ mod tests {
         assert_eq!(p["done"], json!(false), "非末片不得报完成");
         // 末片收尾帧才报完成
         let last = ShardProgress { index: 2, ..shard };
-        assert_eq!(progress_payload("demo", Some(&last), 100, 100, true)["done"], json!(true));
+        assert_eq!(
+            progress_payload("demo", Some(&last), 100, 100, true)["done"],
+            json!(true)
+        );
         // 单包：字段与旧契约一致（无 partIndex / partCount）
         let single = progress_payload("demo", None, 7, 9, true);
-        assert_eq!(single, json!({ "realmId": "demo", "received": 7, "total": 9, "done": true }));
+        assert_eq!(
+            single,
+            json!({ "realmId": "demo", "received": 7, "total": 9, "done": true })
+        );
     }
 
     /// 拼回必须与分片前逐字节一致：整包 sha256 校验依赖这一点。
@@ -498,8 +518,16 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let specs = vec![
-            PartSpec { url: String::new(), size: 3, sha256: String::new() },
-            PartSpec { url: String::new(), size: 2, sha256: String::new() },
+            PartSpec {
+                url: String::new(),
+                size: 3,
+                sha256: String::new(),
+            },
+            PartSpec {
+                url: String::new(),
+                size: 2,
+                sha256: String::new(),
+            },
         ];
         fs::write(dir.join(part_file_name(0)), b"abc").unwrap();
         fs::write(dir.join(part_file_name(1)), b"de").unwrap();

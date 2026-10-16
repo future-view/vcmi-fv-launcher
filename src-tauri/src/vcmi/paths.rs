@@ -64,7 +64,6 @@ pub fn normalize_abs(base: &Path, p: &Path) -> PathBuf {
     out
 }
 
-
 #[derive(Debug, Clone)]
 pub struct VcmiPaths {
     /// 启动器 exe 所在目录
@@ -105,9 +104,7 @@ impl VcmiPaths {
     /// 是否真正就绪：必须来自已保存的 launcher.json（from_config），且游戏目录含 VCMI_client.exe。
     /// 自动探测（尚未保存）只用于回填初始化表单，不算就绪，避免未保存就执行扫描/写入等副作用。
     pub fn is_ready(&self) -> bool {
-        self.detected
-            && self.from_config
-            && self.game_dir.join("VCMI_client.exe").is_file()
+        self.detected && self.from_config && self.game_dir.join("VCMI_client.exe").is_file()
     }
 
     /// 启动器 exe 所在目录：**便携版 launcher.json 里相对路径的解析基准**。
@@ -180,7 +177,11 @@ impl VcmiPaths {
     /// 领域隔离目录（设计 §3.1）：exe 目录 / .vcmi-fv-launcher/realms/<id>/vcmi
     /// 5 个真实 dirs.json key 全部指向这里的子目录，从而把用户目录与游戏目录分离。
     pub fn realm_vcmi_dir(id: &str) -> Option<PathBuf> {
-        Self::launcher_data_dir().map(|d| d.join("realms").join(Self::sanitize_realm_id(id)).join("vcmi"))
+        Self::launcher_data_dir().map(|d| {
+            d.join("realms")
+                .join(Self::sanitize_realm_id(id))
+                .join("vcmi")
+        })
     }
 
     /// 领域隔离目录下的 5 个真实 key 对应子目录（§3.2）。
@@ -244,7 +245,8 @@ impl VcmiPaths {
     /// 路径为空的配置（尚未初始化）直接判为无效，与 `is_valid` 同门槛。
     fn apply_config_defaults(cfg: LauncherConfig) -> Option<LauncherConfig> {
         let mut cfg = cfg;
-        if cfg.paths.game_dir.as_os_str().is_empty() || cfg.paths.user_data_dir.as_os_str().is_empty()
+        if cfg.paths.game_dir.as_os_str().is_empty()
+            || cfg.paths.user_data_dir.as_os_str().is_empty()
         {
             return None;
         }
@@ -340,12 +342,14 @@ impl VcmiPaths {
     }
 
     pub fn write_launcher_config(cfg: &LauncherConfig) -> Result<(), String> {
-        let p = Self::launcher_config_path().ok_or_else(|| be_err("common_app_config_dir_unknown", ""))?;
+        let p = Self::launcher_config_path()
+            .ok_or_else(|| be_err("common_app_config_dir_unknown", ""))?;
         if let Some(parent) = p.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| be_err("realm_config_dir_create_failed", &format!("{}", e)))?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| be_err("realm_config_dir_create_failed", &format!("{}", e)))?;
         }
-        let text =
-            serde_json::to_string_pretty(cfg).map_err(|e| be_err("vcmi_config_serialize_failed", &format!("{}", e)))?;
+        let text = serde_json::to_string_pretty(cfg)
+            .map_err(|e| be_err("vcmi_config_serialize_failed", &format!("{}", e)))?;
         std::fs::write(&p, text).map_err(|e| be_err("vcmi_config_write_failed", &format!("{}", e)))
     }
 
@@ -519,7 +523,10 @@ impl VcmiPaths {
     /// - 当 `redirect_user_data` 为真且当前无激活领域时，把 `game_dir/config/dirs.json` 的
     ///   `userDataPath` 等 5 个 key 指向 `user_dir`，使 VCMI 使用独立用户目录，
     ///   避免与官方 `Documents/My Games/vcmi` 冲突。
-    pub fn ensure_user_data_dir(paths: &VcmiPaths, active_realm: Option<&str>) -> Result<(), String> {
+    pub fn ensure_user_data_dir(
+        paths: &VcmiPaths,
+        active_realm: Option<&str>,
+    ) -> Result<(), String> {
         for d in [
             paths.user_dir.clone(),
             paths.user_dir.join("cache"),
@@ -528,7 +535,8 @@ impl VcmiPaths {
             paths.user_dir.join("Saves"),
             paths.user_mods_dir(),
         ] {
-            std::fs::create_dir_all(&d).map_err(|e| be_err("vcmi_userdata_dir_create_failed", &format!("{}", e)))?;
+            std::fs::create_dir_all(&d)
+                .map_err(|e| be_err("vcmi_userdata_dir_create_failed", &format!("{}", e)))?;
         }
         tracing::debug!(
             target: "paths",
@@ -575,7 +583,8 @@ impl VcmiPaths {
             }
             // 仅首次备份原文（独立后缀，不与领域备份冲突）
             if !backup.is_file() {
-                std::fs::copy(&dirs_path, &backup).map_err(|e| be_err("realm_dirs_backup_failed", &format!("{}", e)))?;
+                std::fs::copy(&dirs_path, &backup)
+                    .map_err(|e| be_err("realm_dirs_backup_failed", &format!("{}", e)))?;
             }
         }
 
@@ -608,10 +617,12 @@ impl VcmiPaths {
         );
         let current = serde_json::Value::Object(map);
 
-        std::fs::create_dir_all(&config_dir).map_err(|e| be_err("realm_config_dir_create_failed", &format!("{}", e)))?;
+        std::fs::create_dir_all(&config_dir)
+            .map_err(|e| be_err("realm_config_dir_create_failed", &format!("{}", e)))?;
         let text = serde_json::to_string_pretty(&current)
             .map_err(|e| be_err("realm_dirs_serialize_failed", &format!("{}", e)))?;
-        std::fs::write(&dirs_path, text).map_err(|e| be_err("realm_dirs_write_failed", &format!("{}", e)))?;
+        std::fs::write(&dirs_path, text)
+            .map_err(|e| be_err("realm_dirs_write_failed", &format!("{}", e)))?;
         tracing::info!(target: "paths", "已接管 dirs.json：用户数据重定向到 user_data_dir");
         Ok(())
     }
@@ -620,7 +631,11 @@ impl VcmiPaths {
 fn default_user_dir() -> PathBuf {
     dirs::document_dir()
         .map(|d| d.join("My Games").join(DEFAULT_USER_DIR_NAME))
-        .unwrap_or_else(|| PathBuf::from(".").join("My Games").join(DEFAULT_USER_DIR_NAME))
+        .unwrap_or_else(|| {
+            PathBuf::from(".")
+                .join("My Games")
+                .join(DEFAULT_USER_DIR_NAME)
+        })
 }
 
 /// 解析 %VAR% / $VAR 变量：优先系统环境变量；对 VCMI 自定义变量做映射。

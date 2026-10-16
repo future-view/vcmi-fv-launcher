@@ -21,12 +21,27 @@ const MAX_AUDIO_BYTES: usize = 25 * 1024 * 1024;
 /// `entries: [{ modId, factionId, modPath? }]`。`modPath` 由前端从已扫描 mod 列表带入，
 /// 用于解析阵营音乐磁盘路径 / zip 条目；缺失时仅返回磁盘已落地音乐，zip 内音乐返回
 /// `musicZip` 供前端调 `ensure_showcase_audio` 异步抽取。
-pub(crate) fn read_showcase_slides_inner(cache_root: &Path, game_dir: &Path, entries: &[Value]) -> Value {
+pub(crate) fn read_showcase_slides_inner(
+    cache_root: &Path,
+    game_dir: &Path,
+    entries: &[Value],
+) -> Value {
     let mut slides = Vec::with_capacity(entries.len());
     for e in entries {
-        let mod_id = e.get("modId").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let faction_id = e.get("factionId").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let mod_path = e.get("modPath").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let mod_id = e
+            .get("modId")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let faction_id = e
+            .get("factionId")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let mod_path = e
+            .get("modPath")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
         let cache = read_mod_wiki_inner(cache_root, &mod_id);
         let data_opt: Option<Value> = cache.get("data").cloned();
@@ -39,8 +54,9 @@ pub(crate) fn read_showcase_slides_inner(cache_root: &Path, game_dir: &Path, ent
             .get("factions")
             .and_then(|v| v.as_array())
             .and_then(|arr| {
-                arr.iter()
-                    .find(|f| f.get("factionId").and_then(|x| x.as_str()) == Some(faction_id.as_str()))
+                arr.iter().find(|f| {
+                    f.get("factionId").and_then(|x| x.as_str()) == Some(faction_id.as_str())
+                })
             });
         let Some(faction) = faction else {
             slides.push(missing_slide(&mod_id, &faction_id, "nofaction"));
@@ -122,13 +138,15 @@ pub(crate) fn read_showcase_slides_inner(cache_root: &Path, game_dir: &Path, ent
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
-                    .map(|b| json!({
-                        "id": b.get("id").cloned().unwrap_or(Value::Null),
-                        "name": b.get("name").cloned().unwrap_or(Value::Null),
-                        // 描述（多语言）：cache 的建筑已带 `description`
-                        "description": b.get("description").cloned().unwrap_or(Value::Null),
-                        "image": b.get("image").cloned().unwrap_or(Value::Null),
-                    }))
+                    .map(|b| {
+                        json!({
+                            "id": b.get("id").cloned().unwrap_or(Value::Null),
+                            "name": b.get("name").cloned().unwrap_or(Value::Null),
+                            // 描述（多语言）：cache 的建筑已带 `description`
+                            "description": b.get("description").cloned().unwrap_or(Value::Null),
+                            "image": b.get("image").cloned().unwrap_or(Value::Null),
+                        })
+                    })
                     .collect()
             })
             .unwrap_or_default();
@@ -233,7 +251,10 @@ fn resolve_music_from_theme(
     // 1) 磁盘：mod 的 Content/music/<rest>
     if let Some(mp) = mod_path {
         for ext in AUDIO_EXTS {
-            let p = Path::new(mp).join("Content").join("music").join(format!("{rest}.{ext}"));
+            let p = Path::new(mp)
+                .join("Content")
+                .join("music")
+                .join(format!("{rest}.{ext}"));
             if p.is_file() {
                 return (json!(p.to_string_lossy().to_string()), Value::Null);
             }
@@ -259,7 +280,12 @@ fn resolve_music_from_theme(
 /// 取阵营 `musicTheme`（AudioPath，无扩展名）：
 /// - 第三方 Town 模组：`raw.json` → `rawConfigs.towns[<factionId>].town.musicTheme`；
 /// - 原版 / `core.<faction>`：游戏根 `config/factions/<factionId>.json`（见下）。
-fn music_theme_for(cache_root: &Path, game_dir: &Path, mod_id: &str, faction_id: &str) -> Option<String> {
+fn music_theme_for(
+    cache_root: &Path,
+    game_dir: &Path,
+    mod_id: &str,
+    faction_id: &str,
+) -> Option<String> {
     let raw_path = cache_root.join(format!("{}/raw.json", sanitize_id(mod_id)));
     if let Some(t) = read_music_theme_from_raw(&raw_path, faction_id) {
         return Some(t);

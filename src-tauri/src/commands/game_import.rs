@@ -31,7 +31,8 @@ pub fn import_game_files(
     let overrides = overrides.unwrap_or_default();
     if dry_run {
         let report = game_import::preflight(&env, &paths, &overrides);
-        serde_json::to_value(report).map_err(|e| be_err("cmd_preflight_serialize_failed", &format!("{}", e)))
+        serde_json::to_value(report)
+            .map_err(|e| be_err("cmd_preflight_serialize_failed", &format!("{}", e)))
     } else {
         let report = game_import::execute(&env, &paths, conflict, &overrides);
         tracing::info!(
@@ -44,6 +45,7 @@ pub fn import_game_files(
             report.failed,
             report.unsupported
         );
-        serde_json::to_value(report).map_err(|e| be_err("cmd_import_serialize_failed", &format!("{}", e)))
+        serde_json::to_value(report)
+            .map_err(|e| be_err("cmd_import_serialize_failed", &format!("{}", e)))
     }
 }

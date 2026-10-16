@@ -130,8 +130,7 @@ pub fn set_update_pref(
         cfg.update.prompt_at = Some(crate::infra::time::now_secs());
         // 同时记下"当时的 exe 版本"：节流只在 exe 版本未变时生效
         // （升级 / 降级 / 手工换包后旧记录自动失效，见 `UpdateCfg::prompt_exe_version`）。
-        cfg.update.prompt_exe_version =
-            Some(crate::updater::manifest::CURRENT_VERSION.to_string());
+        cfg.update.prompt_exe_version = Some(crate::updater::manifest::CURRENT_VERSION.to_string());
     }
     crate::vcmi::paths::VcmiPaths::write_launcher_config(&cfg)
 }
@@ -139,14 +138,13 @@ pub fn set_update_pref(
 /// 写入更新清单地址（发行版可随包预置，设置页可改）。空 / null = 清除（完全不检查）。
 #[tauri::command]
 pub fn set_update_manifest_url(url: Option<String>) -> Result<(), String> {
-    let trimmed = url
-        .map(|u| u.trim().to_string())
-        .filter(|s| !s.is_empty());
+    let trimmed = url.map(|u| u.trim().to_string()).filter(|s| !s.is_empty());
     if let Some(u) = &trimmed {
         // 默认只认 https；明文 http 需环境变量 VCMI_FV_UPDATER_ALLOW_HTTP=1 显式放行
         // （本地预演 / 只有 http 的自建 CDN）。与 manifest.rs::download_scheme_ok 同口径。
-        let allow_http =
-            std::env::var("VCMI_FV_UPDATER_ALLOW_HTTP").map(|v| v == "1").unwrap_or(false);
+        let allow_http = std::env::var("VCMI_FV_UPDATER_ALLOW_HTTP")
+            .map(|v| v == "1")
+            .unwrap_or(false);
         if !u.starts_with("https://") && !(u.starts_with("http://") && allow_http) {
             return Err(be_err("cmd_update_manifest_not_https", ""));
         }

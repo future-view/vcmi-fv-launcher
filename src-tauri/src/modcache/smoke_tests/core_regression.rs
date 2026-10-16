@@ -21,12 +21,7 @@ fn core_faction_split_regression() {
     let _ = fs::create_dir_all(&cache);
 
     // 父 core：全局数据，不应含城镇
-    let parent = build_mod_wiki_inner(
-        &core_mod.to_string_lossy(),
-        "core",
-        &cache,
-        &game_dir,
-    );
+    let parent = build_mod_wiki_inner(&core_mod.to_string_lossy(), "core", &cache, &game_dir);
     assert_eq!(
         parent.get("ok").and_then(|x| x.as_bool()),
         Some(true),
@@ -34,20 +29,29 @@ fn core_faction_split_regression() {
     );
     let parent_txt = fs::read_to_string(cache.join("core/cache.json")).unwrap();
     let parent_json: Value = serde_json::from_str(&parent_txt).unwrap();
-    let parent_factions = parent_json.get("factions").and_then(|x| x.as_array()).unwrap();
+    let parent_factions = parent_json
+        .get("factions")
+        .and_then(|x| x.as_array())
+        .unwrap();
     assert!(
         parent_factions.is_empty(),
         "父 core 不应持有城镇，实际 {} 座",
         parent_factions.len()
     );
     // 头像定义文件（portraits*.json）不是英雄实体，不应混入父 core
-    let parent_heroes = parent_json.get("heroes").and_then(|x| x.as_array()).unwrap();
+    let parent_heroes = parent_json
+        .get("heroes")
+        .and_then(|x| x.as_array())
+        .unwrap();
     let bogus = parent_heroes
         .iter()
         .filter_map(|h| h.get("id").and_then(|x| x.as_str()))
         .filter(|id| id.starts_with("portrait"))
         .count();
-    assert_eq!(bogus, 0, "父 core 不应包含 portrait* 伪英雄，实际 {bogus} 个");
+    assert_eq!(
+        bogus, 0,
+        "父 core 不应包含 portrait* 伪英雄，实际 {bogus} 个"
+    );
 
     // 子模组 core.castle：应恰好 1 座城镇，且生物/英雄非空
     let child = build_mod_wiki_inner(
@@ -63,14 +67,20 @@ fn core_faction_split_regression() {
     );
     let child_txt = fs::read_to_string(cache.join("core.castle/cache.json")).unwrap();
     let child_json: Value = serde_json::from_str(&child_txt).unwrap();
-    let factions = child_json.get("factions").and_then(|x| x.as_array()).unwrap();
+    let factions = child_json
+        .get("factions")
+        .and_then(|x| x.as_array())
+        .unwrap();
     assert_eq!(factions.len(), 1, "core.castle 应恰好 1 座城镇");
     assert_eq!(
         factions[0].get("factionId").and_then(|x| x.as_str()),
         Some("castle"),
         "城镇应归属 castle"
     );
-    let creatures = child_json.get("creatures").and_then(|x| x.as_array()).unwrap();
+    let creatures = child_json
+        .get("creatures")
+        .and_then(|x| x.as_array())
+        .unwrap();
     let heroes = child_json.get("heroes").and_then(|x| x.as_array()).unwrap();
     assert!(!creatures.is_empty(), "core.castle 应有本阵营生物");
     assert!(!heroes.is_empty(), "core.castle 应有本阵营英雄");
@@ -90,16 +100,31 @@ fn core_faction_split_regression() {
         .iter()
         .find(|c| c.get("id").and_then(|x| x.as_str()) == Some("pikeman"))
         .expect("应有 pikeman");
-    assert_eq!(pik.get("attack").and_then(|x| x.as_i64()), Some(4), "pikeman 攻击应为 4");
-    assert_eq!(pik.get("defense").and_then(|x| x.as_i64()), Some(5), "pikeman 防御应为 5");
-    assert_eq!(pik.get("hitPoints").and_then(|x| x.as_i64()), Some(10), "pikeman HP 应为 10");
+    assert_eq!(
+        pik.get("attack").and_then(|x| x.as_i64()),
+        Some(4),
+        "pikeman 攻击应为 4"
+    );
+    assert_eq!(
+        pik.get("defense").and_then(|x| x.as_i64()),
+        Some(5),
+        "pikeman 防御应为 5"
+    );
+    assert_eq!(
+        pik.get("hitPoints").and_then(|x| x.as_i64()),
+        Some(10),
+        "pikeman HP 应为 10"
+    );
     // 建筑动画资源名（仅文本引用，供前端按需懒加载 —— 设计 §11）
     let anims = factions[0]
         .get("buildingAnimations")
         .and_then(|x| x.as_object())
         .map(|m| m.len())
         .unwrap_or(0);
-    assert!(anims > 0, "core.castle 应带建筑动画资源名（town.structures）");
+    assert!(
+        anims > 0,
+        "core.castle 应带建筑动画资源名（town.structures）"
+    );
     println!(
         "core.castle: factions={} creatures={} heroes={}",
         factions.len(),
@@ -107,7 +132,10 @@ fn core_faction_split_regression() {
         heroes.len()
     );
     // 抽样确认生物 id 真实存在（多 key 文件已正确展开，而非折叠成文件名）
-    let sample = creatures[0].get("id").and_then(|x| x.as_str()).unwrap_or("");
+    let sample = creatures[0]
+        .get("id")
+        .and_then(|x| x.as_str())
+        .unwrap_or("");
     assert!(
         !sample.is_empty() && sample != "castle",
         "生物 id 不应是折叠后的文件名，实际: {sample}"
@@ -154,20 +182,16 @@ fn core_hero_primary_skills_regression() {
         "core.conflux",
     ];
     for mod_id in mod_ids {
-        let r = build_mod_wiki_inner(
-            &core_mod.to_string_lossy(),
-            mod_id,
-            &cache,
-            &game_dir,
-        );
+        let r = build_mod_wiki_inner(&core_mod.to_string_lossy(), mod_id, &cache, &game_dir);
         assert_eq!(
             r.get("ok").and_then(|x| x.as_bool()),
             Some(true),
             "{mod_id} 应构建成功: {r}"
         );
-        let v: Value =
-            serde_json::from_str(&fs::read_to_string(cache.join(format!("{mod_id}/cache.json"))).unwrap())
-                .unwrap();
+        let v: Value = serde_json::from_str(
+            &fs::read_to_string(cache.join(format!("{mod_id}/cache.json"))).unwrap(),
+        )
+        .unwrap();
         let heroes = v.get("heroes").and_then(|x| x.as_array()).unwrap();
         // 原版英雄四维不得全 0（数值来自 h3-core 烘焙的 HCTRAITS；配置本身不含）
         let zero = heroes
@@ -191,11 +215,30 @@ fn core_hero_primary_skills_regression() {
         .iter()
         .find(|h| h.get("id").and_then(|x| x.as_str()) == Some("yog"))
         .expect("应有约克 yog");
-    assert_eq!(yog.get("attack").and_then(|x| x.as_i64()), Some(4), "约克攻击应为 4");
-    assert_eq!(yog.get("defense").and_then(|x| x.as_i64()), Some(0), "约克防御应为 0");
-    assert_eq!(yog.get("spellPower").and_then(|x| x.as_i64()), Some(1), "约克力量应为 1");
-    assert_eq!(yog.get("knowledge").and_then(|x| x.as_i64()), Some(1), "约克知识应为 1");
-    println!("core 英雄四维回归通过：yog=4/0/1/1，缓存根={}", cache.display());
+    assert_eq!(
+        yog.get("attack").and_then(|x| x.as_i64()),
+        Some(4),
+        "约克攻击应为 4"
+    );
+    assert_eq!(
+        yog.get("defense").and_then(|x| x.as_i64()),
+        Some(0),
+        "约克防御应为 0"
+    );
+    assert_eq!(
+        yog.get("spellPower").and_then(|x| x.as_i64()),
+        Some(1),
+        "约克力量应为 1"
+    );
+    assert_eq!(
+        yog.get("knowledge").and_then(|x| x.as_i64()),
+        Some(1),
+        "约克知识应为 1"
+    );
+    println!(
+        "core 英雄四维回归通过：yog=4/0/1/1，缓存根={}",
+        cache.display()
+    );
 }
 
 /// 回归：同一实体分散在多个配置文件时须**合并**而非覆盖。
@@ -221,11 +264,16 @@ fn merge_config_and_town_name_regression() {
     let _ = fs::create_dir_all(&cache);
     let mod_id = "new-chinese-mods.nightelf-town";
     let r = build_mod_wiki_inner(&mod_dir.to_string_lossy(), mod_id, &cache, &game_dir);
-    assert_eq!(r.get("ok").and_then(|x| x.as_bool()), Some(true), "构建应成功: {r}");
+    assert_eq!(
+        r.get("ok").and_then(|x| x.as_bool()),
+        Some(true),
+        "构建应成功: {r}"
+    );
 
-    let v: Value =
-        serde_json::from_str(&fs::read_to_string(cache.join(format!("{mod_id}/cache.json"))).unwrap())
-            .unwrap();
+    let v: Value = serde_json::from_str(
+        &fs::read_to_string(cache.join(format!("{mod_id}/cache.json"))).unwrap(),
+    )
+    .unwrap();
     let creatures = v.get("creatures").and_then(|x| x.as_array()).unwrap();
     assert!(!creatures.is_empty(), "应有生物");
     let with_stats = creatures
@@ -248,7 +296,10 @@ fn merge_config_and_town_name_regression() {
         .and_then(|x| x.as_str())
         .unwrap_or("");
     assert_ne!(fname, "nightelf", "城镇名应使用配置自带中文名，而非回落 id");
-    println!("合并/名称回归通过：生物带属性 {with_stats}/{}，城镇名={fname}", creatures.len());
+    println!(
+        "合并/名称回归通过：生物带属性 {with_stats}/{}，城镇名={fname}",
+        creatures.len()
+    );
 }
 
 /// h3-core 文案表必须能被定位并加载（不依赖游戏目录）。
@@ -256,9 +307,14 @@ fn merge_config_and_town_name_regression() {
 /// 原版名称/描述全部回落成 id。此测试即为该缺陷的守门测试。
 #[test]
 fn h3_core_data_loads() {
-    let dir = h3_core_data_dir().expect("应能定位 h3-core 数据目录（开发期为编译期 CARGO_MANIFEST_DIR）");
+    let dir =
+        h3_core_data_dir().expect("应能定位 h3-core 数据目录（开发期为编译期 CARGO_MANIFEST_DIR）");
     let m = load_h3_core_i18n(&dir).expect("应能加载 h3-core 文案表");
-    assert!(m.len() > 100, "h3-core 文案条目过少：{}（疑似未加载）", m.len());
+    assert!(
+        m.len() > 100,
+        "h3-core 文案条目过少：{}（疑似未加载）",
+        m.len()
+    );
     for k in [
         "skill.core.pathfinding.name",
         "skill.core.pathfinding.expert",
@@ -290,18 +346,31 @@ fn core_mod_display_name_is_multilingual() {
     // ① 无缓存阵营名 → 回退随包 h3-core 文案表（en/zh）
     let castle = crate::modcache::index::core_mod_display_name("core.castle", None)
         .expect("core.<faction> 应派生显示名");
-    assert_eq!(castle.get("chinese").and_then(|x| x.as_str()), Some("VCMI · 城堡"));
-    assert_eq!(castle.get("english").and_then(|x| x.as_str()), Some("VCMI · Castle"));
+    assert_eq!(
+        castle.get("chinese").and_then(|x| x.as_str()),
+        Some("VCMI · 城堡")
+    );
+    assert_eq!(
+        castle.get("english").and_then(|x| x.as_str()),
+        Some("VCMI · Castle")
+    );
 
     // ② 有缓存阵营名 → 优先用它（可含翻译 mod 的 tchinese/russian 等语言，与城镇实体名一致）
     let town = serde_json::json!({ "chinese": "城堡", "tchinese": "城堡", "russian": "Замок" });
     let from_cache = crate::modcache::index::core_mod_display_name("core.castle", town.as_object())
         .expect("core.<faction> 应派生显示名");
-    assert_eq!(from_cache.get("russian").and_then(|x| x.as_str()), Some("VCMI · Замок"));
-    assert_eq!(from_cache.get("tchinese").and_then(|x| x.as_str()), Some("VCMI · 城堡"));
+    assert_eq!(
+        from_cache.get("russian").and_then(|x| x.as_str()),
+        Some("VCMI · Замок")
+    );
+    assert_eq!(
+        from_cache.get("tchinese").and_then(|x| x.as_str()),
+        Some("VCMI · 城堡")
+    );
 
     // ③ 父 core 用语言中立的引擎名；常规模组不参与派生（名称来自 modMeta.name / 扫描期 name）
-    let core = crate::modcache::index::core_mod_display_name("core", None).expect("core 应派生显示名");
+    let core =
+        crate::modcache::index::core_mod_display_name("core", None).expect("core 应派生显示名");
     assert_eq!(core.get("english").and_then(|x| x.as_str()), Some("VCMI"));
     assert!(crate::modcache::index::core_mod_display_name("hota", None).is_none());
 }
@@ -325,7 +394,11 @@ fn core_town_background_resolves_regression() {
         let (b, e) = crate::vcmi::resource::resolve_resource_fallback(&core_mod, &game_dir, tb)
             .unwrap_or_else(|| panic!("{} town_background {} 应可解析", c.faction_id, tb));
         assert_eq!(e, "pcx", "{} town_background 应为 pcx", c.faction_id);
-        assert!(b.len() > 1000, "{} town_background 字节应非空", c.faction_id);
+        assert!(
+            b.len() > 1000,
+            "{} town_background 字节应非空",
+            c.faction_id
+        );
         let (_, ce) = crate::vcmi::resource::resolve_resource_fallback(&core_mod, &game_dir, cb)
             .unwrap_or_else(|| panic!("{} creature_background {} 应可解析", c.faction_id, cb));
         assert_eq!(ce, "pcx", "{} creature_background 应为 pcx", c.faction_id);
@@ -343,9 +416,13 @@ fn core_town_background_composites_buildings() {
         .iter()
         .find(|c| c.faction_id == "castle")
         .expect("应有原版 castle 配置");
-    assert!(!castle.structures.is_empty(), "原版 castle 应含建筑结构位置");
-    let (buf, ext) = crate::vcmi::resource::resolve_resource_fallback(&game_dir, &game_dir, "TBCSBACK.bmp")
-        .expect("应解析到 TBCSBACK 资源");
+    assert!(
+        !castle.structures.is_empty(),
+        "原版 castle 应含建筑结构位置"
+    );
+    let (buf, ext) =
+        crate::vcmi::resource::resolve_resource_fallback(&game_dir, &game_dir, "TBCSBACK.bmp")
+            .expect("应解析到 TBCSBACK 资源");
     let base_webp = crate::infra::image::encode_webp(&buf, &ext).expect("底图应可解码");
     let base = image::load_from_memory(&base_webp).unwrap().to_rgba8();
     let comp_webp = composite_structures_to_canvas(
@@ -381,15 +458,22 @@ fn core_town_background_cached_is_composited() {
         .join("town")
         .join("castle.webp");
     let bytes = fs::read(&cache_root).expect("缓存 webp 应存在（需先 --fresh 重建）");
-    let comp = image::load_from_memory(&bytes).expect("缓存 webp 应可解码").to_rgba8();
-    let (buf, ext) = crate::vcmi::resource::resolve_resource_fallback(&game_dir, &game_dir, "TBCSBACK.bmp")
-        .expect("应解析到 TBCSBACK 资源");
+    let comp = image::load_from_memory(&bytes)
+        .expect("缓存 webp 应可解码")
+        .to_rgba8();
+    let (buf, ext) =
+        crate::vcmi::resource::resolve_resource_fallback(&game_dir, &game_dir, "TBCSBACK.bmp")
+            .expect("应解析到 TBCSBACK 资源");
     let base = image::load_from_memory(&crate::infra::image::encode_webp(&buf, &ext).unwrap())
         .unwrap()
         .to_rgba8();
     assert_eq!(comp.dimensions(), base.dimensions(), "缓存图应保持底图尺寸");
     let diff = base.iter().zip(comp.iter()).filter(|(a, b)| a != b).count();
-    assert!(diff > 100_000, "缓存背景应与裸底图有显著像素差异（建筑已叠加），实得 {}", diff);
+    assert!(
+        diff > 100_000,
+        "缓存背景应与裸底图有显著像素差异（建筑已叠加），实得 {}",
+        diff
+    );
 }
 
 #[test]
@@ -411,8 +495,14 @@ fn core_original_creature_hero_images_present() {
         .iter()
         .find(|c| c.get("id").and_then(|x| x.as_str()) == Some("champion"))
         .expect("应有 champion");
-    let img_large = champ.get("imageLarge").and_then(|x| x.as_str()).expect("原版生物 imageLarge 应非空");
-    assert!(fs::metadata(cache_root.join(img_large)).is_ok(), "imageLarge 文件应存在: {img_large}");
+    let img_large = champ
+        .get("imageLarge")
+        .and_then(|x| x.as_str())
+        .expect("原版生物 imageLarge 应非空");
+    assert!(
+        fs::metadata(cache_root.join(img_large)).is_ok(),
+        "imageLarge 文件应存在: {img_large}"
+    );
     // 英雄头像（原版 imageIndex → PortraitsLarge.DEF）
     let orrin = j
         .get("heroes")
@@ -421,10 +511,22 @@ fn core_original_creature_hero_images_present() {
         .iter()
         .find(|h| h.get("id").and_then(|x| x.as_str()) == Some("orrin"))
         .expect("应有 orrin");
-    let img = orrin.get("image").and_then(|x| x.as_str()).expect("原版英雄 image 应非空");
-    assert!(fs::metadata(cache_root.join(img)).is_ok(), "image 文件应存在: {img}");
-    let spec = orrin.get("specialtyIcon").and_then(|x| x.as_str()).expect("原版英雄 specialtyIcon 应非空");
-    assert!(fs::metadata(cache_root.join(spec)).is_ok(), "specialtyIcon 文件应存在: {spec}");
+    let img = orrin
+        .get("image")
+        .and_then(|x| x.as_str())
+        .expect("原版英雄 image 应非空");
+    assert!(
+        fs::metadata(cache_root.join(img)).is_ok(),
+        "image 文件应存在: {img}"
+    );
+    let spec = orrin
+        .get("specialtyIcon")
+        .and_then(|x| x.as_str())
+        .expect("原版英雄 specialtyIcon 应非空");
+    assert!(
+        fs::metadata(cache_root.join(spec)).is_ok(),
+        "specialtyIcon 文件应存在: {spec}"
+    );
 }
 
 #[test]
@@ -443,8 +545,8 @@ fn core_town_background_pcx_decode_regression() {
         crate::infra::image::decode_pcx(&raw).is_none(),
         "H3 专有 PCX 不应被标准 PCX 解码器误解"
     );
-    let (w, h, rgba) = crate::infra::image::decode_h3_pcx(&raw)
-        .expect("TBCSBACK 应被 decode_h3_pcx 解出");
+    let (w, h, rgba) =
+        crate::infra::image::decode_h3_pcx(&raw).expect("TBCSBACK 应被 decode_h3_pcx 解出");
     assert_eq!((w, h), (800, 374));
     assert_eq!(rgba.len(), 800 * 374 * 4);
     let tl = (rgba[0], rgba[1], rgba[2]);

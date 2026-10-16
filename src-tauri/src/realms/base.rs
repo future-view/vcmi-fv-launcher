@@ -5,9 +5,9 @@
 
 use crate::infra::berror::be_err;
 use std::fs;
-use std::path::PathBuf;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
+use std::path::PathBuf;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -36,11 +36,8 @@ pub(crate) const VCMI_PROCESS_NAMES: &[&str] = &[
 ///
 /// 只列会持有存档 / 游戏状态、改动 `dirs.json` 会让它写错位置的进程；
 /// 官方启动器 `VCMI_launcher.exe` 不在此列（可共存，理由见 `vcmi_is_running`）。
-pub(crate) const VCMI_GAME_PROCESS_NAMES: &[&str] = &[
-    "VCMI_client.exe",
-    "VCMI_server.exe",
-    "VCMI_mapeditor.exe",
-];
+pub(crate) const VCMI_GAME_PROCESS_NAMES: &[&str] =
+    &["VCMI_client.exe", "VCMI_server.exe", "VCMI_mapeditor.exe"];
 
 /// 当前进程自身的 exe 文件名（小写）。用于**把自己排除在进程守卫之外**。
 ///
@@ -202,7 +199,11 @@ pub(crate) fn game_dir_of(state: &State<AppPaths>) -> PathBuf {
 /// 此处按启动器便携模型以 exe 所在盘补全盘符（与 `normalize_abs` 同口径）。
 pub(crate) fn global_user_config_dir() -> PathBuf {
     read_config()
-        .map(|c| c.resolve_relative_to(&VcmiPaths::exe_dir()).paths.user_config_dir)
+        .map(|c| {
+            c.resolve_relative_to(&VcmiPaths::exe_dir())
+                .paths
+                .user_config_dir
+        })
         .unwrap_or_default()
 }
 
@@ -232,8 +233,8 @@ pub fn now_date() -> String {
 
 /// 确保领域隔离目录的 5 个真实 key 子目录存在（VCMI 只自动建 cache/config/logs/Saves，不建 Mods）。
 pub(crate) fn ensure_realm_dirs(id: &str) -> Result<(), String> {
-    let base = VcmiPaths::realm_vcmi_dir(id)
-        .ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
+    let base =
+        VcmiPaths::realm_vcmi_dir(id).ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
     for d in VcmiPaths::realm_vcmi_subdirs(&base) {
         fs::create_dir_all(&d).map_err(|e| be_err("realm_dir_create_failed", &format!("{}", e)))?;
     }
@@ -249,13 +250,15 @@ pub(crate) fn realm_lock_path(id: &str) -> Option<PathBuf> {
 pub(crate) fn write_realm_lock(id: &str) -> Result<(), String> {
     let p = realm_lock_path(id).ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
     if let Some(parent) = p.parent() {
-        fs::create_dir_all(parent).map_err(|e| be_err("realm_dir_create_failed", &format!("{}", e)))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| be_err("realm_dir_create_failed", &format!("{}", e)))?;
     }
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    fs::write(&p, ts.to_string()).map_err(|e| be_err("realm_edit_lock_write_failed", &format!("{}", e)))
+    fs::write(&p, ts.to_string())
+        .map_err(|e| be_err("realm_edit_lock_write_failed", &format!("{}", e)))
 }
 
 /// 点文件名：进入领域前的 `activePreset` 快照。与 `.bgmMuted` / `.introPlayedAt` 同构，

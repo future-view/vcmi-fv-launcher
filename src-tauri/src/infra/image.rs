@@ -4,7 +4,6 @@
 //! - `decode_pcx`：标准 PCX；
 //! - `encode_webp*`：图标类小图走 libwebp 有损（约为无损 1/3 耗时），大图走 `image` 无损。
 
-
 /// H3 专有 "PCX"（client/render/CBitmapHandler.cpp:28-105，`loadH3PCX`）：
 /// 12 字节头 = u32 fSize / u32 width / u32 height，其后为像素数据，8bpp 时末尾另含 256×3 调色板。
 /// 区分 8bpp/24bpp **必须看 fSize**（与 VCMI `isPCX` 一致）：`fSize==w*h` 为 8bpp、`fSize==w*h*3` 为 24bpp。
@@ -33,7 +32,11 @@ pub(crate) fn decode_h3_pcx(buf: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
             let g = buf[o + 1];
             let b = buf[o + 2];
             // VCMI：调色板为洋红 (0,255,255) 的像素透明
-            let a = if r == 0 && g == 255 && b == 255 { 0u8 } else { 255u8 };
+            let a = if r == 0 && g == 255 && b == 255 {
+                0u8
+            } else {
+                255u8
+            };
             rgba.extend_from_slice(&[r, g, b, a]);
         }
         return Some((w, h, rgba));
@@ -157,7 +160,8 @@ pub(crate) fn encode_webp_lossless(rgba: &[u8], w: u32, h: u32) -> Option<Vec<u8
     }
     let mut out = Vec::new();
     let enc = image::codecs::webp::WebPEncoder::new_lossless(&mut out);
-    enc.encode(rgba, w, h, image::ExtendedColorType::Rgba8).ok()?;
+    enc.encode(rgba, w, h, image::ExtendedColorType::Rgba8)
+        .ok()?;
     Some(out)
 }
 

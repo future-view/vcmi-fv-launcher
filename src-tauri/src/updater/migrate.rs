@@ -110,7 +110,9 @@ fn clear_derived() {
         return;
     }
     match fs::remove_dir_all(&mods) {
-        Ok(()) => tracing::warn!(target: "updater", "已清空派生数据（下次启动将重建）：{}", mods.display()),
+        Ok(()) => {
+            tracing::warn!(target: "updater", "已清空派生数据（下次启动将重建）：{}", mods.display())
+        }
         Err(e) => tracing::error!(target: "updater", "清空派生数据失败：{e}"),
     }
 }
@@ -181,7 +183,10 @@ mod tests {
         assert!(should_run("0.1.0", "0.3.0", "0.2.0"), "跨过断点应执行");
         assert!(!should_run("0.3.0", "0.3.0", "0.2.0"), "同版本重入不应执行");
         assert!(!should_run("0.3.0", "0.4.0", "0.5.0"), "断点在未来不应执行");
-        assert!(!should_run("0.2.0", "0.3.0", "0.2.0"), "断点已在起点之前（含相等）不应执行");
+        assert!(
+            !should_run("0.2.0", "0.3.0", "0.2.0"),
+            "断点已在起点之前（含相等）不应执行"
+        );
     }
 
     /// 门槛判定：低于 floor 走"清派生数据"兜底，而不是重放历史迁移

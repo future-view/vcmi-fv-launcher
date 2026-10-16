@@ -15,8 +15,8 @@ use tauri::State;
 
 use super::base::guard_vcmi_not_running;
 
-use crate::state::AppPaths;
 use crate::infra::links::{self, is_link, remove_link};
+use crate::state::AppPaths;
 use crate::vcmi::paths::VcmiPaths;
 
 /// 领域私有副本操作：`unlink`（删私有副本/联接）| `link`（重建借用联接）。
@@ -47,8 +47,9 @@ pub fn realm_mod_ops(
                 if is_link(&realm_mod) {
                     remove_link(&realm_mod)?;
                 } else if realm_mod.is_dir() {
-                    fs::remove_dir_all(&realm_mod)
-                        .map_err(|e| be_err("realm_private_copy_delete_failed", &format!("{}", e)))?;
+                    fs::remove_dir_all(&realm_mod).map_err(|e| {
+                        be_err("realm_private_copy_delete_failed", &format!("{}", e))
+                    })?;
                 }
             }
             Ok(json!({ "ok": true, "removed": true, "hasGlobal": has_global }))
@@ -63,8 +64,9 @@ pub fn realm_mod_ops(
             };
             match src {
                 Some(s) => {
-                    fs::create_dir_all(base.join("Mods"))
-                        .map_err(|e| be_err("infra_realm_mods_dir_create_failed", &format!("{}", e)))?;
+                    fs::create_dir_all(base.join("Mods")).map_err(|e| {
+                        be_err("infra_realm_mods_dir_create_failed", &format!("{}", e))
+                    })?;
                     if is_link(&realm_mod) {
                         let _ = remove_link(&realm_mod);
                     }

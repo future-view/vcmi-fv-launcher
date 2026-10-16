@@ -136,7 +136,8 @@ impl HdEditionSource {
     /// ⚠️ 需要**按位置**绘制时不要用本函数，用 [`Self::lookup_with_offset`] ——
     /// 位置不能只看 DEF 的 lm/tm，还要减去 pak 帧声明的 `spriteOffset`（见该函数）。
     pub fn lookup(&self, name: &str) -> Option<(image::RgbaImage, u32)> {
-        self.lookup_with_offset(name).map(|(img, scale, _)| (img, scale))
+        self.lookup_with_offset(name)
+            .map(|(img, scale, _)| (img, scale))
     }
 
     /// 同 [`Self::lookup`]，但额外给出该帧声明的 **1x 逻辑绘制偏移**（pak 帧表的
@@ -149,10 +150,7 @@ impl HdEditionSource {
     /// 帧名命中 HD **不代表**位置可以沿用结构自身的 `x/y`：DEF 帧自带 margin
     /// （实测城镇船坞 `TBCSDKNN` 的 tm=53，忽略就会把船坞画到战神像身上）。
     /// 单图用途（图标 / 头像 / 变体放大）与位置无关，用 [`Self::lookup`] 即可。
-    pub fn lookup_with_offset(
-        &self,
-        name: &str,
-    ) -> Option<(image::RgbaImage, u32, (i32, i32))> {
+    pub fn lookup_with_offset(&self, name: &str) -> Option<(image::RgbaImage, u32, (i32, i32))> {
         let keys = candidate_keys(name);
         if keys.is_empty() {
             return None;
@@ -264,11 +262,13 @@ impl HdEditionSource {
             if let Ok(mut guard) = self.sheets.lock() {
                 // FIFO 淘汰：超限就从头丢，直到装得下（单张上限即整个缓存上限时直接不缓存）
                 while guard.bytes + bytes_used > SHEET_CACHE_MAX_BYTES {
-                    let Some(old) = guard.order.pop_front() else { break };
+                    let Some(old) = guard.order.pop_front() else {
+                        break;
+                    };
                     if let Some(v) = guard.map.remove(&old) {
-                        guard.bytes = guard.bytes.saturating_sub(
-                            (v.width() as usize) * (v.height() as usize) * 4,
-                        );
+                        guard.bytes = guard
+                            .bytes
+                            .saturating_sub((v.width() as usize) * (v.height() as usize) * 4);
                     }
                 }
                 if bytes_used <= SHEET_CACHE_MAX_BYTES {
@@ -525,10 +525,12 @@ pub fn status_json() -> serde_json::Value {
         .as_ref()
         .map(|c| !c.hd.edition_use.eq_ignore_ascii_case("off"))
         .unwrap_or(true);
-    let scale = cfg.as_ref().and_then(|c| match c.hd.edition_scale.to_ascii_lowercase().as_str() {
-        "x2" => Some(2),
-        _ => None,
-    });
+    let scale = cfg
+        .as_ref()
+        .and_then(|c| match c.hd.edition_scale.to_ascii_lowercase().as_str() {
+            "x2" => Some(2),
+            _ => None,
+        });
     let mut roots: Vec<PathBuf> = Vec::new();
     if let Some(c) = &cfg {
         roots.push(c.paths.user_mods_dir.clone());
@@ -644,7 +646,8 @@ mod tests {
             .ok()
             .map(PathBuf::from)
             .unwrap_or_else(|| {
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../references/Heroes3-VCMI/userdata/Mods")
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../references/Heroes3-VCMI/userdata/Mods")
             });
         let src = detect(&[PathBuf::from(user_mods)], Some(2)).expect("应探测到 hd-edition（x2）");
         assert_eq!(src.scales(), vec![2], "限定 x2 时只应打开 x2 档");
@@ -675,17 +678,22 @@ mod tests {
         let game = std::env::var("VCMI_GAME_DIR")
             .ok()
             .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../references/Heroes3-VCMI"));
+            .unwrap_or_else(|| {
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../references/Heroes3-VCMI")
+            });
         let user_mods = std::env::var("VCMI_USER_MODS_DIR")
             .ok()
             .map(PathBuf::from)
             .unwrap_or_else(|| {
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../references/Heroes3-VCMI/userdata/Mods")
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../references/Heroes3-VCMI/userdata/Mods")
             });
         let src = detect(&[PathBuf::from(user_mods)], Some(2)).expect("应探测到 hd-edition");
         set_source(Some(src));
-        let lod = crate::infra::lod::LodArchive::open(&PathBuf::from(game).join("Data").join("H3sprite.lod"))
-            .expect("H3sprite.lod 应可打开");
+        let lod = crate::infra::lod::LodArchive::open(
+            &PathBuf::from(game).join("Data").join("H3sprite.lod"),
+        )
+        .expect("H3sprite.lod 应可打开");
         let def_bytes = lod.read("HALLCSTL.DEF").expect("应能读出 HALLCSTL.DEF");
         let (img, _scale) = lookup_def_frame(&def_bytes, 0, 0).expect("第 0 帧应取到 HD 图");
         assert_eq!(img.dimensions(), (300, 140), "THCSMAG1 = 300×140");
@@ -701,7 +709,8 @@ mod tests {
             .ok()
             .map(PathBuf::from)
             .unwrap_or_else(|| {
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../references/Heroes3-VCMI/userdata/Mods")
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../references/Heroes3-VCMI/userdata/Mods")
             });
         let src = detect(&[PathBuf::from(user_mods)], None).expect("应探测到 hd-edition");
         assert_eq!(src.scales(), vec![3, 2], "默认应含 x3 与 x2（降序）");
@@ -726,7 +735,10 @@ mod tests {
     /// 这是幕布（`TBCSBACK.bmp`）与头像（`Sprites/HPL000KN.pcx`）能命中 pak 键的关键。
     #[test]
     fn candidate_keys_normalizes() {
-        assert_eq!(candidate_keys("TBCSBACK.bmp"), vec!["TBCSBACK.bmp", "TBCSBACK"]);
+        assert_eq!(
+            candidate_keys("TBCSBACK.bmp"),
+            vec!["TBCSBACK.bmp", "TBCSBACK"]
+        );
         assert_eq!(
             candidate_keys("Sprites/HPL000KN.pcx"),
             vec!["HPL000KN.pcx", "HPL000KN"]
@@ -739,14 +751,15 @@ mod tests {
     #[test]
     fn setup_from_config_off_and_missing() {
         let _g = test_guard();
-        let mut cfg: crate::vcmi::config::LauncherConfig = serde_json::from_value(serde_json::json!({
-            "paths": {
-                "game_dir": "Z:/definitely/not/here",
-                "user_data_dir": "Z:/definitely/not/here",
-                "user_mods_dir": "Z:/definitely/not/here/Mods"
-            }
-        }))
-        .expect("LauncherConfig 应可由最小 JSON 构造");
+        let mut cfg: crate::vcmi::config::LauncherConfig =
+            serde_json::from_value(serde_json::json!({
+                "paths": {
+                    "game_dir": "Z:/definitely/not/here",
+                    "user_data_dir": "Z:/definitely/not/here",
+                    "user_mods_dir": "Z:/definitely/not/here/Mods"
+                }
+            }))
+            .expect("LauncherConfig 应可由最小 JSON 构造");
 
         cfg.hd.edition_use = "off".into();
         setup_from_config(Some(&cfg), Path::new("Z:/definitely/not/here"));

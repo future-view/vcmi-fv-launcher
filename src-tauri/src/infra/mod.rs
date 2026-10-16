@@ -23,28 +23,38 @@
 
 pub mod berror;
 pub mod cache;
+/// 构建期进程级缓存的统一释放入口（整轮构建结束时调用一次）。
+pub mod cache_gc;
 pub mod def;
+/// 目录清单缓存：`Content/` 只递归一次，产物供资源索引与配置收集共用。
+pub mod dirscan;
 // 高清放大算法层：`modcache::hd` 已在素材阶段实际调用
 // （`default_upscaler` / `upscaler_by_id` / `upscale_with`）。
 // 仍保留 allow 的原因：`all_upscalers` 与 `upscale_rgba(id,…)` 目前只被 `hd_bench`（选型对比）使用。
-#[allow(dead_code)]
-pub mod upscale;
 /// AI 超分（Real-ESRGAN ONNX，模型内嵌进二进制）。
 /// 仅 `modcache::hd` 的**插画档**调用；任何失败都返回 `None`，由调用方回退传统算法。
 pub mod ai;
+pub mod h3m;
+pub mod hash;
 pub mod http;
 pub mod idle;
 pub mod image;
-pub mod hash;
-pub mod h3m;
 pub mod json;
 pub mod links;
 pub mod lod;
 pub mod logging;
+/// 按字节上界的容量受限缓存（构建期各缓存的统一底座）。
+pub mod lru;
+/// 机器内存探测 + 缓存预算分档。
+pub mod mem;
+/// 按 VCMI modId 解析磁盘目录（大小写不敏感 + 子模组嵌套）。
+pub mod moddir;
 pub mod metrics;
 /// 锐化算子（USM）：传统插画档放大后叠加 —— AI 超分不可用（组件缺失 / 倍率不符 / 类型不适用）
 /// 时的锐度补偿，见 `modcache::hd::upscale_file` 的编码前处理。
 pub mod sharpen;
+#[allow(dead_code)]
+pub mod upscale;
 // H3 高清版素材容器（`.pak`）：解析索引 + 帧表 + sheet 解压。
 // 目前仅 `vcmi::hd_edition` 消费；接线过程中先放宽 dead_code（方法会逐步被用上）。
 #[allow(dead_code)]

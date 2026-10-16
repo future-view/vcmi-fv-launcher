@@ -1833,26 +1833,46 @@ async function cmdPublish(opts) {
     throw ghError(found, "查询发行");
   }
   if (!rel) {
-    rel = await ghRetry(
-      async () =>
-        ghJson(
-          await ghRequest({
-            method: "POST",
-            urlPath: `/repos/${repo.owner}/${repo.name}/releases`,
-            token,
-            body: {
-              tag_name: tag,
-              target_commitish: opts.target || headSha,
-              name: entry.title || `${PRODUCT} ${releaseId}`,
-              body,
-              draft: false,
-              prerelease: !!entry.prerelease,
-            },
-          }),
-          "创建发行",
-        ),
-      "创建发行",
-    );
+    const createBody = {
+      tag_name: tag,
+      target_commitish: opts.target || headSha,
+      name: entry.title || `${PRODUCT} ${releaseId}`,
+      body,
+      draft: false,
+      prerelease: !!entry.prerelease,
+    };
+    try {
+      rel = await ghRetry(
+        async () =>
+          ghJson(
+            await ghRequest({
+              method: "POST",
+              urlPath: `/repos/${repo.owner}/${repo.name}/releases`,
+              token,
+              body: createBody,
+            }),
+            "创建发行",
+          ),
+        "创建发行",
+      );
+    } catch (e) {
+      // ⚠️ tag 不存在时，GitHub 会在 `target_commitish` 指向的提交上**新建 tag**；该提交若还没推到远端，
+      //    必然 422 —— 而 API 文案只说 "tag_name is not a valid tag"，真正出问题的字段是 target_commitish。
+      //    这里把真实原因与三条解法直接给出来（否则极易误判为「tag 名字不合法」）。
+      if (/HTTP 422/.test(String(e.message))) {
+        die(
+          `${e.message}\n` +
+            `  最常见原因：target 指向的提交**还没推送到 GitHub** —— tag 不存在时 GitHub 会在该提交上新建 tag，\n` +
+            `  未知提交即 422（API 文案里的 "tag_name is not a valid tag" 有误导性，真正字段是 target_commitish）。\n` +
+            `  本次 target = ${createBody.target_commitish}\n` +
+            `  请任选其一：\n` +
+            `    ① 先 git push（把该提交推到远端）再重跑；\n` +
+            `    ② --target <已推送到远端的 sha|分支名>；\n` +
+            `    ③ 先手工 git tag ${tag} <commit> && git push origin ${tag}，再重跑（tag 已存在时 GitHub 忽略 target_commitish）。`,
+        );
+      }
+      throw e;
+    }
     log(`已创建发行：${rel.html_url}`);
   }
 

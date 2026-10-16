@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { LangDict } from "@/i18n/types";
-import type { WikiLinkTarget } from "@/lib/modcache";
+import type { WikiCategory, WikiEntry, WikiLinkTarget } from "@/lib/modcache";
 import { fullImgCandidates, fullImgUrl, pickName } from "@/lib/modcache";
 import { getDefGroup } from "@/lib/def/animationCache";
 import type { DefFrame } from "@/lib/def/decoder";
@@ -17,6 +17,7 @@ import {
   StatTableRow,
   costText,
   formatResourceAmount,
+  makeRefResolver,
   type ResourceInfo,
 } from "./detailShared";
 
@@ -29,6 +30,7 @@ export function CreatureDetail({
   t,
   compact,
   onNavigate,
+  getEntry,
 }: {
   d: Record<string, unknown>;
   lang: string;
@@ -38,6 +40,7 @@ export function CreatureDetail({
   t: LangDict;
   onNavigate?: (target: WikiLinkTarget) => void;
   compact?: boolean;
+  getEntry?: (category: WikiCategory, id: string) => WikiEntry | undefined;
 }) {
   // VCMI CCreaturePic（client/widgets/MiscWidgets.cpp:675-706）：
   //   背景 = 阵营 creatureBackground 130px；动画 = creature.animDefName（战斗动画），
@@ -223,19 +226,24 @@ export function CreatureDetail({
       ? `${t.wiki.sections.recruitCost}（含升级链）: ${fullCostText}\n${t.wiki.sections.cost}: ${ownCostText}`
       : undefined;
 
-  // 升级链 / 招募建筑：名称与图标都从**当前 mod 的缓存**里按 id 取（同 mod 是常态，
-  // 原版生物全在 core.<faction> 内闭环）；跨 mod 的升级（mod 生物升级 core 生物）
-  // 取不到名字时回退 id，跳转由 WikiView 的按 id 兜底处理。
-  const modCreatures = (modCache?.creatures as Record<string, unknown>[]) ?? [];
-  const creatureById = (id: string) => modCreatures.find((c) => String(c.id ?? "") === id);
-  const creatureLabel = (id: string) => {
-    const hit = creatureById(id);
-    return (hit && pickName(hit.name as Record<string, string>, lang)) || id;
+  // 升级链 / 招募建筑：名称、图标、归属 mod 都走共享解析器（本 mod 缓存优先 →
+  // 全类目索引兜底）。跨 mod 是常态（mod 生物升级 core 生物），没有兜底时相关行既无名也无图。
+  const creatureRef = makeRefResolver({ category: "creatures", modId, lang, modCache, getEntry });
+  const creatureLabel = (id: string) => creatureRef(id).name;
+  /**
+   * 图标 URL **基准路径**（不含高清变体）。
+   *
+   * ⚠️ 不要在这里取候选链的第 0 项（`fullImgCandidates(...)[0]`）：那是 `@Nx` 变体，
+   * 而 `HdIcon` 会对传入的 src 再算一次候选链 → 变成 `a@4x@4x.webp`，兜底项也是这个
+   * 不存在的文件 → 整行必然空白（见 `lib/hd.ts::hdVariantUrl` 的护栏注释）。
+   * 交给 `HdIcon` 自己从基准路径展开候选链。
+   */
+  const creatureIconUrl = (id: string) => {
+    const img = creatureRef(id).image;
+    return img ? fullImgUrl(cacheDir ?? null, img) : null;
   };
-  const creatureIcon = (id: string) => {
-    const hit = creatureById(id);
-    return hit ? fullImgCandidates(cacheDir ?? null, String(hit.image ?? ""), rate) : [];
-  };
+  /** 升级链指向**别的模组**时，跳转要带对方的 modId，否则会跳到本 mod 的同名空位。 */
+  const creatureModId = (id: string) => creatureRef(id).modId;
   const idList = (v: unknown) =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x) : [];
   /**
@@ -252,7 +260,7 @@ export function CreatureDetail({
     for (const id of ids) {
       if (seenId.has(id)) continue;
       seenId.add(id);
-      const key = `${creatureLabel(id)}|${creatureIcon(id)[0] ?? ""}`;
+      const key = `${creatureLabel(id)}|${creatureRef(id).image ?? ""}`;
       if (seenKey.has(key)) continue;
       seenKey.add(key);
       out.push(id);
@@ -261,7 +269,8 @@ export function CreatureDetail({
   };
   const upgradeTo = dedupeRel(idList(d.upgrades));
   const upgradeFrom = dedupeRel(idList(d.upgradedFrom));
-  const navTo = (id: string) => onNavigate?.({ modId, category: "creatures", id });
+  const navTo = (id: string) =>
+    onNavigate?.({ modId: creatureModId(id), category: "creatures", id });
 
   // 招募建筑：后端 `creature_dwellings` 是「语言 → 建筑名数组」（town.rs:165-178），
   // 没有 id/图标，故渲染为不可点的名称条（不是伪链接）。
@@ -421,7 +430,7 @@ export function CreatureDetail({
   const relRow = (id: string) => (
     <RelatedRow
       key={id}
-      icon={creatureIcon(id)[0]}
+      icon={creatureIconUrl(id)}
       label={creatureLabel(id)}
       onClick={() => navTo(id)}
       onContextMenu={(e) => {
@@ -464,47 +473,65 @@ export function CreatureDetail({
     </div>
   );
 
-  /** 能力卡片列表（宽态网格与弹窗第三列共用同一份卡片） */
-  const abilityCards = abilities.map((ab, i) => {
-    const abName = pickName((ab.name as Record<string, string>) ?? {}, lang);
-    const abDesc = pickName((ab.description as Record<string, string>) ?? {}, lang) || abName;
-    if (!abDesc && !abName) return null;
-    // 能力图标（VCMI JsonBonus.cpp:892 取 ability["icon"]）
-    const abIcon = ab.icon ? fullImgUrl(cacheDir, ab.icon as string) : undefined;
-    return (
-      <div key={i} className="flex gap-2 rounded-lg border border-slate-800/60 bg-slate-900/40 p-2">
-        <div className="flex-none">
-          <div
-            className={cn(
-              "relative h-[52px] w-[52px] rounded border bg-slate-800/40",
-              abilityBorder(String(ab.source ?? "")),
-            )}
-            // VCMI：能力格右键 = 描述文本气泡
-            {...triggers((p) => popup.showText(abDesc, p))}
-          >
-            {abIcon ? <HdIcon src={abIcon} alt="" className="h-full w-full object-contain" /> : null}
-            <span className="absolute inset-x-0 bottom-0 truncate bg-slate-900/80 px-0.5 text-center text-[8px] leading-3 text-slate-400">
-              {sourceLabel(ab.source as string)}
-            </span>
+  /**
+   * 能力卡片（宽态网格与弹窗第三列共用，但两种版面**对"没有图标"的处理不同**）：
+   *
+   * - `wikiStyle=true`（百科页右栏，对齐 VCMI `WikiCreatureContent.cpp:330-332`）：
+   *   `hasIcon = !icon.empty()`，**没有图标就不画图标列**，文字整宽左对齐、行更高更矮。
+   *   这是本安装绝大多数能力的实际情况（能力图标来自 bonuses 的 graphics 表，本发行版
+   *   `config/bonuses.json` 里一个都没有）—— 旧实现恒画一个 52px 空框，
+   *   于是整页出现一排"空框 + 技能"。
+   * - `wikiStyle=false`（右键弹窗，对齐 `CCreatureWindow.cpp` 的 BonusLineSection）：
+   *   框与来源小字**恒画**（那里框本身承载来源配色信息），只是框内没有图标。
+   */
+  const abilityCards = (wikiStyle: boolean) =>
+    abilities.map((ab, i) => {
+      const abName = pickName((ab.name as Record<string, string>) ?? {}, lang);
+      const abDesc = pickName((ab.description as Record<string, string>) ?? {}, lang) || abName;
+      if (!abDesc && !abName) return null;
+      // 能力图标（VCMI JsonBonus.cpp:892 取 ability["icon"]）
+      const abIcon = ab.icon ? fullImgUrl(cacheDir, ab.icon as string) : undefined;
+      const showIconCol = !wikiStyle || !!abIcon;
+      return (
+        <div key={i} className="flex gap-2 rounded-lg border border-slate-800/60 bg-slate-900/40 p-2">
+          {showIconCol && (
+            <div className="flex-none">
+              <div
+                className={cn(
+                  "relative h-[52px] w-[52px] rounded border bg-slate-800/40",
+                  abilityBorder(String(ab.source ?? "")),
+                )}
+                // VCMI：能力格右键 = 描述文本气泡
+                {...triggers((p) => popup.showText(abDesc, p))}
+              >
+                {abIcon ? (
+                  <HdIcon src={abIcon} alt="" className="h-full w-full object-contain" />
+                ) : null}
+                <span className="absolute inset-x-0 bottom-0 truncate bg-slate-900/80 px-0.5 text-center text-[8px] leading-3 text-slate-400">
+                  {sourceLabel(ab.source as string)}
+                </span>
+              </div>
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[11px] font-medium text-slate-200" title={abName}>
+              {abName || abDesc}
+            </p>
+            <p className="mt-0.5 line-clamp-3 text-[10px] leading-tight text-slate-400" title={abDesc}>
+              {abDesc}
+            </p>
           </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[11px] font-medium text-slate-200" title={abName}>
-            {abName || abDesc}
-          </p>
-          <p className="mt-0.5 line-clamp-3 text-[10px] leading-tight text-slate-400" title={abDesc}>
-            {abDesc}
-          </p>
-        </div>
-      </div>
-    );
-  });
+      );
+    });
 
   /** 宽态（wiki 右栏）：能力区是两列主干之下的全宽网格，列数随可用宽度 1→3 */
   const abilitiesBlock = abilities.length > 0 && (
     <div className="space-y-2">
       {sectionTitle(t.wiki.creature.abilities)}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-2">{abilityCards}</div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-2">
+        {abilityCards(true)}
+      </div>
     </div>
   );
 
@@ -525,7 +552,7 @@ export function CreatureDetail({
           ref={abilityScrollRef}
           className="max-h-[385px] space-y-2 overflow-y-auto pr-0.5"
         >
-          {abilityCards}
+          {abilityCards(false)}
         </div>
         {/* 底部渐隐：仅当"还有下方内容"时出现，作为可滚动的可见提示 */}
         {abilityCanScroll && (

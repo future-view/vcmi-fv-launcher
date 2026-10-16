@@ -446,7 +446,9 @@ fn existing_variant_rates(src: &Path) -> Vec<u32> {
 
 /// 候选 1x 图（不含 `@Nx`）
 fn collect_1x(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(ents) = std::fs::read_dir(dir) else { return };
+    let Ok(ents) = std::fs::read_dir(dir) else {
+        return;
+    };
     for e in ents.flatten() {
         let p = e.path();
         if p.is_dir() {
@@ -553,7 +555,10 @@ fn all_picks(root: &Path, opt: &HdOptions) -> Vec<Pick> {
 fn hd_compare_controlled() {
     let root = sample_root();
     if !root.is_dir() {
-        println!("⚠️ 缓存目录不存在：{}（用 HD_BENCH_MODS 指定）", root.display());
+        println!(
+            "⚠️ 缓存目录不存在：{}（用 HD_BENCH_MODS 指定）",
+            root.display()
+        );
         return;
     }
     let out_root = PathBuf::from("../target/hd-compare");
@@ -561,14 +566,16 @@ fn hd_compare_controlled() {
 
     // AI 组件目录（源码位置；与打包映射一致）
     let rt = PathBuf::from("resources/runtime/ai");
-    let ai_ready = rt.join("onnxruntime.dll").is_file() && rt.join("realesr-animevideo-v3-x4.onnx").is_file();
+    let ai_ready =
+        rt.join("onnxruntime.dll").is_file() && rt.join("realesr-animevideo-v3-x4.onnx").is_file();
     if ai_ready {
         crate::infra::ai::configure_runtime(Some(rt));
     } else {
         println!("⚠️ 组件目录不完整，AI 方案将全部缺席：{}", rt.display());
     }
 
-    let Some(opt) = HdOptions::new(Some(CAP), Some(PHYS), Some("xbrz".to_string()), Some(true)) else {
+    let Some(opt) = HdOptions::new(Some(CAP), Some(PHYS), Some("xbrz".to_string()), Some(true))
+    else {
         println!("⚠️ HdOptions 构造失败");
         return;
     };
@@ -710,12 +717,8 @@ fn hd_compare_controlled() {
         // 传统算法 B：Lanczos3（插画档回退）+ 其 USM 两档。
         // 插画档带**生产同款的放大前预处理**（透明区填色）以消除插值彩边 ——
         // 否则这一列会比生产产物多一圈青边，失去对照意义（见 `hd::preprocess_for_interpolation`）。
-        let lanc_src = crate::modcache::hd::preprocess_for_interpolation(
-            src.as_raw(),
-            w,
-            h,
-            !is_pixel,
-        );
+        let lanc_src =
+            crate::modcache::hd::preprocess_for_interpolation(src.as_raw(), w, h, !is_pixel);
         let lanczos = if want_lanczos {
             crate::infra::upscale::upscaler_by_id("lanczos3")
                 .and_then(|u| crate::modcache::hd::upscale_lowpass(u, &lanc_src, w, h, rate))
@@ -727,7 +730,10 @@ fn hd_compare_controlled() {
             if (*bw, *bh) == (tw, th) {
                 items.push(("20_lanczos3.png".into(), base.clone()));
             }
-            for (tag, amount) in [("30_lanczos3_usm040.png", 0.4f32), ("31_lanczos3_usm080.png", 0.8)] {
+            for (tag, amount) in [
+                ("30_lanczos3_usm040.png", 0.4f32),
+                ("31_lanczos3_usm080.png", 0.8),
+            ] {
                 let v = usm(base, tw, th, USM_SIGMA, amount);
                 save_png(&folder, tag, &v, tw, th);
                 items.push((tag.into(), v));
@@ -763,7 +769,10 @@ fn hd_compare_controlled() {
 
         // 传统算法 C/D：Triangle / CatmullRom（image crate 重采样，作为"比 Lanczos3 锐一点"的对照）。
         // 与 Lanczos3 共用生产同款预处理源（lanc_src），保证差异只来自滤波核本身。
-        for (tag, id) in [("16_triangle.png", "triangle"), ("15_catmullrom.png", "catmullrom")] {
+        for (tag, id) in [
+            ("16_triangle.png", "triangle"),
+            ("15_catmullrom.png", "catmullrom"),
+        ] {
             if let Some(u) = crate::infra::upscale::upscaler_by_id(id) {
                 if let Some((v, vw, vh)) =
                     crate::modcache::hd::upscale_lowpass(u, &lanc_src, w, h, rate)
@@ -802,11 +811,16 @@ fn hd_compare_controlled() {
             let t0 = std::time::Instant::now();
             ai = crate::infra::ai::upscale(src.as_raw(), w, h, 4);
             match &ai {
-                Some((_, aw, ah)) => println!("    AI 4x → {aw}×{ah}  用时 {}ms", t0.elapsed().as_millis()),
+                Some((_, aw, ah)) => {
+                    println!("    AI 4x → {aw}×{ah}  用时 {}ms", t0.elapsed().as_millis())
+                }
                 None => println!("    AI 返回 None（运行库/推理失败，详见日志）"),
             }
         } else if ai_ready && want_ai {
-            println!("    跳过 AI：源图 {} px 超过安全阈值（整图推理无 tiling）", w * h);
+            println!(
+                "    跳过 AI：源图 {} px 超过安全阈值（整图推理无 tiling）",
+                w * h
+            );
         }
 
         if let Some((ai_raw, aw, ah)) = ai {
@@ -900,10 +914,20 @@ fn hd_compare_controlled() {
                 if rate != 4 {
                     save_png(&folder, "41_ai_down_to_rate.png", &ai_t, tw, th);
                 }
-                items.push((if rate == 4 { "40_ai.png" } else { "41_ai_down_to_rate.png" }.into(), ai_t.clone()));
+                items.push((
+                    if rate == 4 {
+                        "40_ai.png"
+                    } else {
+                        "41_ai_down_to_rate.png"
+                    }
+                    .into(),
+                    ai_t.clone(),
+                ));
                 if let Some((base, _, _)) = &lanczos {
                     if base.len() == ai_t.len() {
-                        for (tag, alpha) in [("50_ai_mix050.png", 0.5f32), ("51_ai_mix075.png", 0.75)] {
+                        for (tag, alpha) in
+                            [("50_ai_mix050.png", 0.5f32), ("51_ai_mix075.png", 0.75)]
+                        {
                             let v = blend(&ai_t, base, alpha);
                             save_png(&folder, tag, &v, tw, th);
                             items.push((tag.into(), v));
@@ -957,7 +981,9 @@ fn hd_compare_controlled() {
         let prod_line = if prod_in_items {
             "05_production.png = 缓存真实产物（与本次目标一致，含 webp 编码）".to_string()
         } else if prod_path.is_some() {
-            format!("⚠️ 缓存产物与目标尺寸不符：{prod_note}；现状请单独打开源目录里的 @{rate}x.webp")
+            format!(
+                "⚠️ 缓存产物与目标尺寸不符：{prod_note}；现状请单独打开源目录里的 @{rate}x.webp"
+            )
         } else {
             format!("⚠️ 缓存无 @{rate}x 产物：{prod_note}；本次「现状」只能参考 {production}")
         };
@@ -968,9 +994,7 @@ fn hd_compare_controlled() {
         } else if ai_reachable {
             "40/41/50/51/60 —— 模型 4x 原始输出（本样本生产也用 AI，故此组即现状）".to_string()
         } else if rate != 4 {
-            format!(
-                "40/41/50/51/60 —— AI 4x → 降采样到 @{rate}x（生产未启用 AI，此处为实验对照）"
-            )
+            format!("40/41/50/51/60 —— AI 4x → 降采样到 @{rate}x（生产未启用 AI，此处为实验对照）")
         } else {
             "40/41/50/51/60 —— AI 4x 输出（本用途已排除 AI / 运行库不可用，生产不会走 AI）"
                 .to_string()
@@ -1153,5 +1177,8 @@ fn hd_compare_controlled() {
             ms.len()
         );
     }
-    println!("完成：共 {} 个样本（根目录另有 INDEX.txt 汇总）。", picks.len());
+    println!(
+        "完成：共 {} 个样本（根目录另有 INDEX.txt 汇总）。",
+        picks.len()
+    );
 }

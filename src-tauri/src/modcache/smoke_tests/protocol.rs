@@ -9,7 +9,10 @@ fn protocol_covers_schema_text_fields() {
     match crate::modcache::schema::check_protocol_coverage() {
         Ok(n) => {
             println!("协议覆盖的文本字段数: {}", n);
-            assert!(n > 0, "协议表未覆盖任何 schema 文本字段（协议表或 schema 目录有问题）");
+            assert!(
+                n > 0,
+                "协议表未覆盖任何 schema 文本字段（协议表或 schema 目录有问题）"
+            );
         }
         Err(violations) => panic!(
             "协议未登记 {} 个文本字段（请补进 mod-cache-protocol.json 的 textFields/ignoredPaths，\

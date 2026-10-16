@@ -37,8 +37,12 @@ fn build_and_read(mod_rel: &str, mod_id: &str, game_dir: &Path) -> Value {
         Some(true),
         "构建失败 {mod_id}: {r}"
     );
-    let text = fs::read_to_string(cache_root.join(crate::modcache::sanitize_id(mod_id)).join("cache.json"))
-        .unwrap_or_else(|e| panic!("{mod_id} cache.json 未落盘: {e}"));
+    let text = fs::read_to_string(
+        cache_root
+            .join(crate::modcache::sanitize_id(mod_id))
+            .join("cache.json"),
+    )
+    .unwrap_or_else(|e| panic!("{mod_id} cache.json 未落盘: {e}"));
     serde_json::from_str(&text).expect("cache.json 解析失败")
 }
 
@@ -71,22 +75,44 @@ fn town_name_of(data: &Value) -> String {
 #[test]
 #[ignore]
 fn town_name_merge_restores_chinese_names() {
-    let Some(game_dir) = test_game_dir() else { return };
+    let Some(game_dir) = test_game_dir() else {
+        return;
+    };
 
     // 新中文包（磁盘 `config/xanadu/town/faction.json` = "灵墟"，此前回落 "xanadu"）
-    let data = build_and_read("new-chinese-mods/mods/xanadu", "new-chinese-mods.xanadu", &game_dir);
-    assert_eq!(town_name_of(&data), "灵墟", "factions={:?}", data.get("factions"));
+    let data = build_and_read(
+        "new-chinese-mods/mods/xanadu",
+        "new-chinese-mods.xanadu",
+        &game_dir,
+    );
+    assert_eq!(
+        town_name_of(&data),
+        "灵墟",
+        "factions={:?}",
+        data.get("factions")
+    );
 
     // 老中文包（zip 内 `config/glade/town/Faction.json` = "禁猎地"，此前回落 "glade"）
-    let data = build_and_read("old-chinese-mods/mods/Glade", "old-chinese-mods.Glade", &game_dir);
-    assert_eq!(town_name_of(&data), "禁猎地", "factions={:?}", data.get("factions"));
+    let data = build_and_read(
+        "old-chinese-mods/mods/Glade",
+        "old-chinese-mods.Glade",
+        &game_dir,
+    );
+    assert_eq!(
+        town_name_of(&data),
+        "禁猎地",
+        "factions={:?}",
+        data.get("factions")
+    );
 }
 
 /// 2) 空 factionId 幽灵条目：`sprites/**/town/townhall.json` 不再被当城镇配置。
 #[test]
 #[ignore]
 fn no_empty_faction_id_entries() {
-    let Some(game_dir) = test_game_dir() else { return };
+    let Some(game_dir) = test_game_dir() else {
+        return;
+    };
 
     // hota.bulwark / cove：此前各含 2 条（正常 faction + 空条目）
     for (rel, id, fid) in [
@@ -94,13 +120,13 @@ fn no_empty_faction_id_entries() {
         ("hota/mods/cove", "hota.cove", "cove"),
     ] {
         let data = build_and_read(rel, id, &game_dir);
-        let facs = data.get("factions").and_then(|x| x.as_array()).expect("factions");
+        let facs = data
+            .get("factions")
+            .and_then(|x| x.as_array())
+            .expect("factions");
         assert_eq!(facs.len(), 1, "{id} 应只有 1 条城镇，实际 {facs:?}");
         assert_eq!(facs[0].get("factionId").and_then(|x| x.as_str()), Some(fid));
-        assert!(
-            !town_name_of(&data).is_empty(),
-            "{id} 城镇名不应为空"
-        );
+        assert!(!town_name_of(&data).is_empty(), "{id} 城镇名不应为空");
     }
 }
 
@@ -108,18 +134,29 @@ fn no_empty_faction_id_entries() {
 #[test]
 #[ignore]
 fn cross_mod_reference_marked_as_ref() {
-    let Some(game_dir) = test_game_dir() else { return };
+    let Some(game_dir) = test_game_dir() else {
+        return;
+    };
 
     let data = build_and_read("hota/mods/supplementary", "hota.supplementary", &game_dir);
-    let facs = data.get("factions").and_then(|x| x.as_array()).expect("factions");
+    let facs = data
+        .get("factions")
+        .and_then(|x| x.as_array())
+        .expect("factions");
     assert_eq!(facs.len(), 1, "factions={facs:?}");
     assert_eq!(
         facs[0].get("ref").and_then(|x| x.as_bool()),
         Some(true),
         "hota.factory:factory 应标记 ref"
     );
-    assert_eq!(facs[0].get("refMod").and_then(|x| x.as_str()), Some("hota.factory"));
-    assert_eq!(facs[0].get("refId").and_then(|x| x.as_str()), Some("factory"));
+    assert_eq!(
+        facs[0].get("refMod").and_then(|x| x.as_str()),
+        Some("hota.factory")
+    );
+    assert_eq!(
+        facs[0].get("refId").and_then(|x| x.as_str()),
+        Some("factory")
+    );
 }
 
 /// 5) 跨模组翻译（祖先链）+ 大小写不敏感 + `translation*` 目录变体：
@@ -127,13 +164,27 @@ fn cross_mod_reference_marked_as_ref() {
 #[test]
 #[ignore]
 fn ancestor_i18n_restores_english_town_names() {
-    let Some(game_dir) = test_game_dir() else { return };
+    let Some(game_dir) = test_game_dir() else {
+        return;
+    };
 
     // crossroads 子模组：中文名在**父 mod** 的 content.zip，键含空格（sand castle / night watch）
     for (rel, id, expect) in [
-        ("crossroads-of-worlds/mods/Fen", "crossroads-of-worlds.Fen", "泥沼"),
-        ("crossroads-of-worlds/mods/Sand Castle", "crossroads-of-worlds.Sand Castle", "红城"),
-        ("crossroads-of-worlds/mods/Highland", "crossroads-of-worlds.Highland", "高地"),
+        (
+            "crossroads-of-worlds/mods/Fen",
+            "crossroads-of-worlds.Fen",
+            "泥沼",
+        ),
+        (
+            "crossroads-of-worlds/mods/Sand Castle",
+            "crossroads-of-worlds.Sand Castle",
+            "红城",
+        ),
+        (
+            "crossroads-of-worlds/mods/Highland",
+            "crossroads-of-worlds.Highland",
+            "高地",
+        ),
     ] {
         let data = build_and_read(rel, id, &game_dir);
         assert_eq!(town_name_of(&data), expect, "{id} 中文名应命中父模组翻译");
@@ -159,11 +210,17 @@ fn ancestor_i18n_restores_english_town_names() {
 #[test]
 #[ignore]
 fn multilang_text_extraction_regression() {
-    let Some(game_dir) = test_game_dir() else { return };
+    let Some(game_dir) = test_game_dir() else {
+        return;
+    };
 
     // 技能：creature-heroes/chBackstab 的三级描述（键顺序修复）
     let data = build_and_read("creature-heroes", "creature-heroes", &game_dir);
-    let skills = data.get("skills").and_then(|x| x.as_array()).cloned().unwrap_or_default();
+    let skills = data
+        .get("skills")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
     let sk = skills
         .iter()
         .find(|s| s.get("id").and_then(|x| x.as_str()) == Some("chBackstab"))
@@ -182,7 +239,11 @@ fn multilang_text_extraction_regression() {
     // 原版法术中英分列（h3-core english.spells.json）
     // builtin 法术已收敛到原版 core 伪模组（不再逐 mod 注入），故从 core 读取
     let data = build_and_read("vcmi", "core", &game_dir);
-    let spells = data.get("spells").and_then(|x| x.as_array()).cloned().unwrap_or_default();
+    let spells = data
+        .get("spells")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
     let sp = spells
         .iter()
         .find(|s| {
@@ -191,7 +252,9 @@ fn multilang_text_extraction_regression() {
         })
         .expect("builtin 法术 scuttleBoat 应存在");
     assert_eq!(
-        sp.get("name").and_then(|n| n.get("english")).and_then(|x| x.as_str()),
+        sp.get("name")
+            .and_then(|n| n.get("english"))
+            .and_then(|x| x.as_str()),
         Some("Scuttle Boat"),
         "原版法术英文名应取自 english.spells.json（此前被中文覆盖）"
     );
@@ -201,10 +264,17 @@ fn multilang_text_extraction_regression() {
         .and_then(|b| b.get("english"))
         .and_then(|x| x.as_str())
         .unwrap_or("");
-    assert!(lv_en.contains("Scuttle Boat"), "原版法术分级描述英文应可得，实际: {lv_en:?}");
+    assert!(
+        lv_en.contains("Scuttle Boat"),
+        "原版法术分级描述英文应可得，实际: {lv_en:?}"
+    );
 
     // 模组宝物 description（crossroads 翻译含 artifact.<scope>.<id>.description）
-    let arts = data.get("artifacts").and_then(|x| x.as_array()).cloned().unwrap_or_default();
+    let arts = data
+        .get("artifacts")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
     let with_desc = arts
         .iter()
         .filter(|a| {
@@ -226,7 +296,9 @@ fn multilang_text_extraction_regression() {
 #[test]
 #[ignore]
 fn building_files_recognized() {
-    let Some(game_dir) = test_game_dir() else { return };
+    let Some(game_dir) = test_game_dir() else {
+        return;
+    };
 
     let data = build_and_read(
         "old-chinese-mods/mods/Celestial-master",
@@ -240,7 +312,10 @@ fn building_files_recognized() {
         .and_then(|f| f.get("buildings"))
         .and_then(|x| x.as_array())
         .expect("buildings");
-    assert!(!b.is_empty(), "发条城建筑列表不应为空（building.json 单数）");
+    assert!(
+        !b.is_empty(),
+        "发条城建筑列表不应为空（building.json 单数）"
+    );
 
     let data = build_and_read("new-pavilion", "new-pavilion", &game_dir);
     let b = data
@@ -250,7 +325,10 @@ fn building_files_recognized() {
         .and_then(|f| f.get("buildings"))
         .and_then(|x| x.as_array())
         .expect("buildings");
-    assert!(!b.is_empty(), "Pavilion 建筑列表不应为空（townPavilion/buildings.json）");
+    assert!(
+        !b.is_empty(),
+        "Pavilion 建筑列表不应为空（townPavilion/buildings.json）"
+    );
 }
 
 /// 7) 城镇数据缺口与建筑图标解析（2026-09-14 第六轮，`WIKI_CACHE_VERSION` 83）：
@@ -261,7 +339,9 @@ fn building_files_recognized() {
 #[test]
 #[ignore]
 fn town_variant_paths_and_icons_regression() {
-    let Some(game_dir) = test_game_dir() else { return };
+    let Some(game_dir) = test_game_dir() else {
+        return;
+    };
 
     // 家园：变体目录 `config/Abode/`（建筑）与 `config/Abode-creatures/`（生物）
     let data = build_and_read(
@@ -270,7 +350,10 @@ fn town_variant_paths_and_icons_regression() {
         &game_dir,
     );
     let fac = faction_of(&data, "abode");
-    let bl = fac.get("buildings").and_then(|x| x.as_array()).expect("buildings");
+    let bl = fac
+        .get("buildings")
+        .and_then(|x| x.as_array())
+        .expect("buildings");
     assert!(
         bl.len() >= 30,
         "家园建筑列表应恢复（变体目录 config/Abode/），实际 {} 条",
@@ -298,11 +381,26 @@ fn town_variant_paths_and_icons_regression() {
 
     // 5 个城镇：建筑图标（此前 100% 缺失）
     for (rel, id, fid, min_buildings) in [
-        ("new-chinese-mods/mods/xanadu", "new-chinese-mods.xanadu", "xanadu", 40usize),
+        (
+            "new-chinese-mods/mods/xanadu",
+            "new-chinese-mods.xanadu",
+            "xanadu",
+            40usize,
+        ),
         ("hota/mods/cove", "hota.cove", "cove", 35),
         ("hota/mods/bulwark", "hota.bulwark", "bulwark", 35),
-        ("old-chinese-mods/mods/christmas", "old-chinese-mods.christmas", "christmas", 34),
-        ("new-chinese-mods/mods/shuHan", "new-chinese-mods.shuHan", "shuhan", 33),
+        (
+            "old-chinese-mods/mods/christmas",
+            "old-chinese-mods.christmas",
+            "christmas",
+            34,
+        ),
+        (
+            "new-chinese-mods/mods/shuHan",
+            "new-chinese-mods.shuHan",
+            "shuhan",
+            33,
+        ),
     ] {
         let data = build_and_read(rel, id, &game_dir);
         let bl = faction_of(&data, fid)

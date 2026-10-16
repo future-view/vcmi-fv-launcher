@@ -41,7 +41,12 @@ fn test_resolve_town_background_resource() {
         res
     );
     let (buf, ext) = found.unwrap();
-    println!("townBackground {} -> {} 字节, 扩展名 {}", res, buf.len(), ext);
+    println!(
+        "townBackground {} -> {} 字节, 扩展名 {}",
+        res,
+        buf.len(),
+        ext
+    );
     assert!(!buf.is_empty());
 }
 
@@ -91,7 +96,11 @@ fn fallback_searches_user_data_dir_when_game_dir_lacks_data() {
     let (buf, ext) = resolve_resource_fallback(&fake_game, &fake_game, "TBCSBACK.bmp")
         .expect("应经 user_data_dir/Data 回退取到 TBCSBACK");
     assert!(!buf.is_empty());
-    println!("user_dir 回退取到 TBCSBACK：{} 字节, ext={}", buf.len(), ext);
+    println!(
+        "user_dir 回退取到 TBCSBACK：{} 字节, ext={}",
+        buf.len(),
+        ext
+    );
 }
 
 /// 跨模组资源回退回归：父模组配置引用了子模组（如 Fen）`Sprites/fen/creatures/...` 的精灵，
@@ -99,8 +108,7 @@ fn fallback_searches_user_data_dir_when_game_dir_lacks_data() {
 /// （对齐 VCMI `findResourceOrigin` 的全局检索）。纯单测，不依赖真实游戏目录。
 #[test]
 fn crossmod_fallback_resolves_resource_in_foreign_mod() {
-    let tmp = std::env::temp_dir()
-        .join(format!("vcmi-fv-crossmod-{}", std::process::id()));
+    let tmp = std::env::temp_dir().join(format!("vcmi-fv-crossmod-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
 
     let current = tmp.join("current-mod");
@@ -141,14 +149,22 @@ fn crossmod_fallback_resolves_resource_in_foreign_mod() {
 fn same_basename_diff_ext_prefers_requested_ext() {
     let tmp = std::env::temp_dir().join(format!("vcmi-fv-extkey-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
-    let dir = tmp.join("Content").join("Sprites").join("town").join("buildings");
+    let dir = tmp
+        .join("Content")
+        .join("Sprites")
+        .join("town")
+        .join("buildings");
     std::fs::create_dir_all(&dir).unwrap();
 
     // 真实 PNG（`load_structure_frame` 会真的解码它，故不能用假字节）
     let mut png = Vec::new();
-    image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(2, 2, image::Rgba([1, 2, 3, 255])))
-        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
-        .unwrap();
+    image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+        2,
+        2,
+        image::Rgba([1, 2, 3, 255]),
+    ))
+    .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+    .unwrap();
 
     // ① 同基名定义 + 位图帧（VCMI 1.6+ sprites-json 的标准形态）
     std::fs::write(
@@ -169,7 +185,10 @@ fn same_basename_diff_ext_prefers_requested_ext() {
     assert_eq!(ext, "json");
     // 定义文件按其自身引用可解出位图帧（端到端复现原有失败路径）
     let frame = load_structure_frame(&tmp, &tmp, &tmp, "town/buildings/mageGuild1.json");
-    assert!(frame.is_some(), "sprites-json 定义 + 同基名位图必须能取出帧");
+    assert!(
+        frame.is_some(),
+        "sprites-json 定义 + 同基名位图必须能取出帧"
+    );
     // ② 扩展名与实际不符 → 仍回落宽松匹配（不因新增精确命中而回归）
     let (_, ext) = resolve_resource(&tmp, "town/buildings/onlyJson.def").expect("应回落宽松匹配");
     assert_eq!(ext, "json");
@@ -184,8 +203,7 @@ fn same_basename_diff_ext_prefers_requested_ext() {
 /// 跨模组回退在未设置模组路径列表时退化为「仅本模组 + 游戏根」，不产生误命中或崩溃。
 #[test]
 fn crossmod_fallback_no_paths_is_safe() {
-    let tmp = std::env::temp_dir()
-        .join(format!("vcmi-fv-crossmod-none-{}", std::process::id()));
+    let tmp = std::env::temp_dir().join(format!("vcmi-fv-crossmod-none-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
     std::fs::create_dir_all(tmp.join("Content")).unwrap();
     // 不调用 set_wiki_mod_paths；引用一个不存在的资源应安全返回 None

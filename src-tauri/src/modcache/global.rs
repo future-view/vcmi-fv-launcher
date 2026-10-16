@@ -20,7 +20,11 @@ use crate::modcache::assets_enabled;
 
 /// 提取生物表 8 属性表头图标（游戏 Sprites/stackWindow/*.def 首帧），
 /// 存 `cache_root/<mod>/images/stats/{key}.webp`，返回 {key: 相对路径}。
-pub(crate) fn extract_stat_icons_for_mod(game_dir: &Path, cache_root: &Path, _mod_id: &str) -> Value {
+pub(crate) fn extract_stat_icons_for_mod(
+    game_dir: &Path,
+    cache_root: &Path,
+    _mod_id: &str,
+) -> Value {
     if !assets_enabled() {
         return Value::Object(serde_json::Map::new());
     }
@@ -44,7 +48,10 @@ pub(crate) fn extract_stat_icons_for_mod(game_dir: &Path, cache_root: &Path, _mo
             continue;
         }
         // stackWindow 图标为 png（VCMI 核心 mod 散文件）
-        let bytes = match crate::vcmi::resource::read_game_resource_fallback(game_dir, &format!("stackWindow/{def_name}.png")) {
+        let bytes = match crate::vcmi::resource::read_game_resource_fallback(
+            game_dir,
+            &format!("stackWindow/{def_name}.png"),
+        ) {
             Some(b) => b,
             None => continue,
         };
@@ -84,7 +91,10 @@ pub(crate) fn extract_shared_ui_icons(game_dir: &Path, cache_root: &Path, _mod_i
             out.insert(format!("stackwin/{key}"), json!(rel));
             continue;
         }
-        if let Some(bytes) = crate::vcmi::resource::read_game_resource_fallback(game_dir, &format!("stackWindow/{def_name}.png")) {
+        if let Some(bytes) = crate::vcmi::resource::read_game_resource_fallback(
+            game_dir,
+            &format!("stackWindow/{def_name}.png"),
+        ) {
             if let Some(webp) = encode_webp(&bytes, "png") {
                 let _ = fs::create_dir_all(&stackwin_dir);
                 if fs::write(stackwin_dir.join(format!("{key}.webp")), &webp).is_ok() {
@@ -108,7 +118,9 @@ pub(crate) fn extract_shared_ui_icons(game_dir: &Path, cache_root: &Path, _mod_i
             out.insert(format!("pskil42/{key}"), json!(rel));
             continue;
         }
-        if let Some(rel2) = extract_game_def_frame_and_save(game_dir, cache_root, _mod_id, "PSKIL42", 0, frame, "pskil42", key) {
+        if let Some(rel2) = extract_game_def_frame_and_save(
+            game_dir, cache_root, _mod_id, "PSKIL42", 0, frame, "pskil42", key,
+        ) {
             out.insert(format!("pskil42/{key}"), json!(rel2));
         }
     }
@@ -117,11 +129,15 @@ pub(crate) fn extract_shared_ui_icons(game_dir: &Path, cache_root: &Path, _mod_i
     let spellbon_dir = cache_root.join("core").join("images").join("spellbon");
     // 产物跨 mod 共享且帧数多（80+ 帧，每帧都要解码+编码）：已生成则**整体跳过**。
     // 此前每个 mod 都完整重跑一遍，是 `shared.icons` 的头号开销（实测 ③批次 412s）。
-    let spellbon_done = fs::read_dir(&spellbon_dir).map(|rd| rd.count()).unwrap_or(0);
+    let spellbon_done = fs::read_dir(&spellbon_dir)
+        .map(|rd| rd.count())
+        .unwrap_or(0);
     if spellbon_done > 0 {
         out.insert("spellbonDir".into(), json!("core/images/spellbon"));
         out.insert("spellbonFrames".into(), json!(spellbon_done));
-    } else if let Some(bytes) = crate::vcmi::resource::read_game_resource_fallback(game_dir, "SPELLBON.DEF") {
+    } else if let Some(bytes) =
+        crate::vcmi::resource::read_game_resource_fallback(game_dir, "SPELLBON.DEF")
+    {
         let def = crate::infra::def::DefReader::new(&bytes);
         if let Some(frames) = def.decode_animation() {
             let mut idx = 0usize;
@@ -146,7 +162,16 @@ pub(crate) fn extract_shared_ui_icons(game_dir: &Path, cache_root: &Path, _mod_i
     }
 
     // 4) ARTIFACT.DEF 第 0 帧：法术书图标（英雄弹窗魔法区首格）
-    if let Some(rel) = extract_game_def_frame_and_save(game_dir, cache_root, _mod_id, "ARTIFACT", 0, 0, "spellbook", "0") {
+    if let Some(rel) = extract_game_def_frame_and_save(
+        game_dir,
+        cache_root,
+        _mod_id,
+        "ARTIFACT",
+        0,
+        0,
+        "spellbook",
+        "0",
+    ) {
         out.insert("spellbook".into(), json!(rel));
     }
 
@@ -162,9 +187,16 @@ pub(crate) fn extract_shared_ui_icons(game_dir: &Path, cache_root: &Path, _mod_i
         ("ammoCart", 150),
     ];
     for (key, frame) in war_machines {
-        if let Some(rel) =
-            extract_game_def_frame_and_save(game_dir, cache_root, _mod_id, "CPRSMALL", 0, frame, "warmachine", key)
-        {
+        if let Some(rel) = extract_game_def_frame_and_save(
+            game_dir,
+            cache_root,
+            _mod_id,
+            "CPRSMALL",
+            0,
+            frame,
+            "warmachine",
+            key,
+        ) {
             out.insert(format!("warmachine/{key}"), json!(rel));
         }
     }

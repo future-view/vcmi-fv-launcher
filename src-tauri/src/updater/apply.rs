@@ -19,7 +19,9 @@ use std::process::Command;
 
 use super::download;
 use super::platform::UpdateMode;
-use super::{data_dir, exe_path, pending_apply, phase, set_pending_apply, set_phase, target, UpdatePhase};
+use super::{
+    data_dir, exe_path, pending_apply, phase, set_pending_apply, set_phase, target, UpdatePhase,
+};
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -45,7 +47,11 @@ pub fn apply_update(relaunch: bool) -> Result<(), String> {
     if phase() != UpdatePhase::Downloaded {
         return Err(be_err("updater_apply_not_downloaded", ""));
     }
-    let entry = { target().clone().ok_or_else(|| be_err("updater_no_checked_update", ""))? };
+    let entry = {
+        target()
+            .clone()
+            .ok_or_else(|| be_err("updater_no_checked_update", ""))?
+    };
     // manual：不应用，只提示用户手动下载（macOS 无签名证书的过渡态，ADR 0008 D7）
     if entry.mode() == UpdateMode::Manual {
         return Err(be_err("upd_manual_only", ""));
@@ -67,9 +73,7 @@ pub fn apply_update(relaunch: bool) -> Result<(), String> {
         Ok(()) => {
             let _ = fs::remove_file(&probe);
         }
-        Err(e) => {
-            return Err(be_err("upd_launcher_dir_not_writable", &format!("{}", e)))
-        }
+        Err(e) => return Err(be_err("upd_launcher_dir_not_writable", &format!("{}", e))),
     }
 
     // zip 形态：脚本按「暂存目录 + 相对路径」逐文件移动，%Staged 必须是**已解压的暂存目录**；
@@ -92,13 +96,15 @@ pub fn apply_update(relaunch: bool) -> Result<(), String> {
     #[cfg(windows)]
     let script = {
         let ps1 = data.join("update-apply.ps1");
-        fs::write(&ps1, APPLY_PS1).map_err(|e| be_err("upd_script_write_failed", &format!("{}", e)))?;
+        fs::write(&ps1, APPLY_PS1)
+            .map_err(|e| be_err("upd_script_write_failed", &format!("{}", e)))?;
         ps1
     };
     #[cfg(not(windows))]
     let script = {
         let sh = data.join("update-apply.sh");
-        fs::write(&sh, APPLY_SH).map_err(|e| be_err("upd_script_write_failed", &format!("{}", e)))?;
+        fs::write(&sh, APPLY_SH)
+            .map_err(|e| be_err("upd_script_write_failed", &format!("{}", e)))?;
         sh
     };
 
@@ -479,7 +485,9 @@ pub fn apply_inplace(version: &str) -> Result<Vec<String>, String> {
 
 /// 递归收集 `root` 下的相对路径（`/` 分隔）
 fn collect_rel_files(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(), String> {
-    for e in fs::read_dir(dir).map_err(|e| be_err("upd_extract_dir_read_failed", &format!("{}", e)))? {
+    for e in
+        fs::read_dir(dir).map_err(|e| be_err("upd_extract_dir_read_failed", &format!("{}", e)))?
+    {
         let e = e.map_err(|e| be_err("upd_extract_dir_read_failed", &format!("{}", e)))?;
         let p = e.path();
         if p.is_dir() {
@@ -501,7 +509,13 @@ fn collect_rel_files(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(
 ///
 /// Windows：`powershell.exe -File`；其余平台：`sh <script>`（位置参数顺序一致）。
 #[cfg(windows)]
-fn spawn_replacer(script: &Path, staged: &Path, exe: &Path, log: &Path, relaunch: bool) -> Result<(), String> {
+fn spawn_replacer(
+    script: &Path,
+    staged: &Path,
+    exe: &Path,
+    log: &Path,
+    relaunch: bool,
+) -> Result<(), String> {
     let pid = std::process::id();
     Command::new("powershell.exe")
         .arg("-NoProfile")
@@ -525,7 +539,13 @@ fn spawn_replacer(script: &Path, staged: &Path, exe: &Path, log: &Path, relaunch
 
 /// 非 Windows：`sh <script>` 承载（路径只经命令行参数传入，脚本体不含路径）。
 #[cfg(not(windows))]
-fn spawn_replacer(script: &Path, staged: &Path, exe: &Path, log: &Path, relaunch: bool) -> Result<(), String> {
+fn spawn_replacer(
+    script: &Path,
+    staged: &Path,
+    exe: &Path,
+    log: &Path,
+    relaunch: bool,
+) -> Result<(), String> {
     Command::new("sh")
         .arg(script)
         .arg(std::process::id().to_string())

@@ -25,4 +25,4 @@ pub(crate) const ASSETS_VERSION: u32 = 1;
 /// `modPath` 采用相对路径编码（`gameMods:`/`userMods:`/`realm:<id>:`），base 取自
 /// `launcher.json` 权威配置与 `.vcmi-fv-launcher` 根，不写死绝对路径、不依赖
 /// `VcmiPaths::detect()` 重探测游戏目录（见 `encode_mod_path_for_cache`）。
-pub(crate) const WIKI_CACHE_VERSION: u32 = 1;
+pub(crate) const WIKI_CACHE_VERSION: u32 = 2;

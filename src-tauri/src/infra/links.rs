@@ -6,10 +6,10 @@
 
 use crate::infra::berror::be_err;
 use std::fs;
-use std::path::{Component, Path, PathBuf};
-use std::process::Command;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
+use std::path::{Component, Path, PathBuf};
+use std::process::Command;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -44,7 +44,8 @@ pub fn ensure_link(link: &Path, target: &Path) -> Result<(), String> {
             remove_link(link)?;
         } else {
             // 陈旧的真实目录占位，强制清除
-            fs::remove_dir_all(link).map_err(|e| be_err("infra_stale_dir_clear_failed", &format!("{}", e)))?;
+            fs::remove_dir_all(link)
+                .map_err(|e| be_err("infra_stale_dir_clear_failed", &format!("{}", e)))?;
         }
     }
     if let Some(parent) = link.parent() {
@@ -93,8 +94,8 @@ pub fn remove_link(link: &Path) -> Result<(), String> {
 /// 用 `current_exe()`（必然带盘符）而非进程 CWD——GUI 进程 CWD 可能不可达，会导致补盘失败、原样透传。
 #[cfg(windows)]
 pub(crate) fn safe_win_path(path: &Path) -> String {
-    let needs_drive = path.is_absolute()
-        && matches!(path.components().next(), Some(Component::RootDir));
+    let needs_drive =
+        path.is_absolute() && matches!(path.components().next(), Some(Component::RootDir));
     if needs_drive {
         if let Some(root) = current_drive_root() {
             return root
@@ -182,7 +183,8 @@ fn ensure_file_link(link: &Path, target: &Path) -> Result<(), String> {
 /// 递归复制目录（用于「整合」模组快照：把来源目录复制到领域目录）。
 pub fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), String> {
     fs::create_dir_all(dst).map_err(|e| be_err("cmd_mkdir_failed", &format!("{}", e)))?;
-    let entries = fs::read_dir(src).map_err(|e| be_err("infra_src_dir_read_failed", &format!("{}", e)))?;
+    let entries =
+        fs::read_dir(src).map_err(|e| be_err("infra_src_dir_read_failed", &format!("{}", e)))?;
     for entry in entries.filter_map(|e| e.ok()) {
         let path = entry.path();
         let dst_path = dst.join(entry.file_name());
@@ -192,23 +194,27 @@ pub fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), String> {
         if ft.is_dir() {
             copy_dir_all(&path, &dst_path)?;
         } else {
-            fs::copy(&path, &dst_path).map_err(|e| be_err("infra_file_copy_failed", &format!("{}", e)))?;
+            fs::copy(&path, &dst_path)
+                .map_err(|e| be_err("infra_file_copy_failed", &format!("{}", e)))?;
         }
     }
     Ok(())
 }
 
-/// 解析某个 mod id 的来源目录（先在全局用户 Mods 找，再在游戏目录 Mods 找）。
-fn mod_source(id: &str, user_mods: &Path, game_mods: &Path) -> Option<PathBuf> {
-    let u = user_mods.join(id);
-    if u.is_dir() {
-        return Some(u);
+/// 解析某个 mod id 的来源目录：`(是否来自游戏目录, 目录)`，用户 Mods 优先。
+///
+/// ⚠️ 必须走 [`crate::infra::moddir::resolve_mod_dir`]，不能用 `join(id)`：
+/// 调用方传进来的是**VCMI modId**（小写、子模组用 `.` 分层），
+/// 而磁盘目录保留作者原本大小写（`HuaXia`、`1-Knight-town`），子模组还位于
+/// `<root>/<父>/Mods/<子>`。`join(id)` 只在 Windows 上侥幸命中，Linux 上会让
+/// 借用联接与整合复制全部落空。
+///
+/// 顺带把"是否 game 源"一并返回，避免调用方再 `join` 一次做二次判断（那样又会踩同一个坑）。
+fn mod_source(id: &str, user_mods: &Path, game_mods: &Path) -> Option<(bool, PathBuf)> {
+    if let Some(u) = crate::infra::moddir::resolve_mod_dir(user_mods, id) {
+        return Some((false, u));
     }
-    let g = game_mods.join(id);
-    if g.is_dir() {
-        return Some(g);
-    }
-    None
+    crate::infra::moddir::resolve_mod_dir(game_mods, id).map(|g| (true, g))
 }
 
 /// 将领域模组组合落地到 `{realm_vcmi_dir}/Mods`（§3.4 / realm-mods-management §8.1）：
@@ -233,7 +239,8 @@ pub fn apply_realm_mods(
     game_mods: &Path,
 ) -> Result<(), String> {
     let realm_mods = realm_vcmi_dir.join("Mods");
-    fs::create_dir_all(&realm_mods).map_err(|e| be_err("infra_realm_mods_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&realm_mods)
+        .map_err(|e| be_err("infra_realm_mods_dir_create_failed", &format!("{}", e)))?;
 
     // 计算有效引用集合（pinned 是领域私有副本，不参与联接/复制）
     let borrowed_set: std::collections::HashSet<String> = borrowed
@@ -287,10 +294,12 @@ pub fn apply_realm_mods(
 
     // 建立借用联接（来源感知）：user 源建目录联接；game 源天然可见不建链。
     for id in &borrowed_set {
-        let src = mod_source(id, user_mods, game_mods).unwrap();
+        // 来源缺失不 panic（调用方已把这类 id 交给"引用模组缺失"校验）：
+        // 原本 `unwrap()` 会在跨平台大小写不匹配时直接崩，属静默失效的放大版。
+        let Some((src_is_game, src)) = mod_source(id, user_mods, game_mods) else {
+            continue;
+        };
         let dst = realm_mods.join(id);
-        // user 优先解析：来源不在 user 目录（即 game 目录）时为 game 源
-        let src_is_game = !user_mods.join(id).is_dir();
         if src_is_game {
             // game 源：无需链接（游戏目录恒可见）；清理历史遗留的冗余/悬空链接
             if is_link(&dst) {
@@ -304,7 +313,9 @@ pub fn apply_realm_mods(
 
     // 复制整合模组（已存在真实目录则跳过，避免重复大体积复制）
     for id in &bundled_set {
-        let src = mod_source(id, user_mods, game_mods).unwrap();
+        let Some((_, src)) = mod_source(id, user_mods, game_mods) else {
+            continue;
+        };
         let dst = realm_mods.join(id);
         if is_link(&dst) {
             remove_link(&dst)?;

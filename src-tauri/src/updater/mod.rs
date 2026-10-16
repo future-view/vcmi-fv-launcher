@@ -158,7 +158,8 @@ pub(crate) fn data_dir() -> Result<PathBuf, String> {
 /// 更新下载/暂存目录（`<exe>/.vcmi-fv-launcher/downloads`，与 exe 同盘 → `move` 原子）。
 pub(crate) fn downloads_dir() -> Result<PathBuf, String> {
     let d = data_dir()?.join("downloads");
-    fs::create_dir_all(&d).map_err(|e| be_err("repo_download_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&d)
+        .map_err(|e| be_err("repo_download_dir_create_failed", &format!("{}", e)))?;
     Ok(d)
 }
 

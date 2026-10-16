@@ -1,13 +1,20 @@
 import { useState, Fragment } from "react";
 import type { LangDict } from "@/i18n/types";
-import type { WikiLinkTarget } from "@/lib/modcache";
+import type { WikiEntry, WikiLinkTarget } from "@/lib/modcache";
 import { fullImgCandidates, fullImgUrl, pickName, type WikiCategory } from "@/lib/modcache";
 import { cn } from "@/lib/utils";
 import { HdIcon } from "@/shared/HdIcon";
 import { HdImg } from "@/shared/HdImg";
 import { useHdRate } from "@/shared/useHdRate";
 import { useWikiPopup, usePopupTriggers } from "./WikiPopupContext";
-import { SafeImg, WikiLink, formatCost, type ResourceInfo } from "./detailShared";
+import {
+  SafeImg,
+  WikiLink,
+  formatCost,
+  makeRefResolver,
+  type RelatedRef,
+  type ResourceInfo,
+} from "./detailShared";
 
 export function FactionDetail({
   d,
@@ -17,6 +24,7 @@ export function FactionDetail({
   cacheDir,
   modCache,
   onNavigate,
+  getEntry,
 }: {
   d: Record<string, unknown>;
   lang: string;
@@ -25,16 +33,23 @@ export function FactionDetail({
   cacheDir?: string | null;
   modCache?: Record<string, unknown>;
   onNavigate?: (target: WikiLinkTarget) => void;
+  getEntry?: (category: WikiCategory, id: string) => WikiEntry | undefined;
 }) {
   /** 高清素材倍率：本页顶部城镇背景是**全宽大图**，是"糊"最明显的一处 */
   const rate = useHdRate();
   // 资源多语言名（cache.json.resources，v79 起）：花费显示用
   const resList = modCache?.resources as ResourceInfo[] | undefined;
   const creatureList = (d.creatureList as string[]) ?? [];
-  const creaturesAll = ((modCache?.creatures as unknown[]) ?? []) as Record<string, unknown>[];
-  const creatureRows = creatureList
-    .map((id) => creaturesAll.find((c) => String(c.id) === id))
-    .filter((c): c is Record<string, unknown> => !!c);
+  /**
+   * 城镇生物表：`creatureList` 给的是 id，记录要按 id 解析，且**必须跨模组** ——
+   * 实测该发行版 4,687 条引用里 1,539 条不在本 mod 的生物表（1,506 条在同发行版的
+   * 别的 mod：聚合 mod `66expfixmod` 的城镇引用 `ark-town` 的生物最典型）。
+   * 旧实现只在本 mod 表里找，找不到就 `.filter` 掉 → 整行凭空消失。
+   */
+  const creatureRef = makeRefResolver({ category: "creatures", modId, lang, modCache, getEntry });
+  const creatureRows: { id: string; ref: RelatedRef }[] = creatureList
+    .map((id) => ({ id: String(id), ref: creatureRef(String(id)) }))
+    .filter(({ ref }) => !!ref.record);
   const buildings = (d.buildings as Record<string, unknown>[]) ?? [];
   const heroesAll = ((modCache?.heroes as unknown[]) ?? []) as Record<string, unknown>[];
   // VCMI 式弹窗：右键按住显示 / 松开关闭（建筑行=文本气泡，生物行/英雄行=完整窗）
@@ -217,36 +232,39 @@ export function FactionDetail({
                 {(() => {
                   // 升级链去重：跨条目追踪已渲染 id，避免同一生物既作 + 行又作 T 行重复显示
                   const seen = new Set<string>();
-                  return creatureRows.map((c) => {
-                    const cid = String(c.id);
+                  return creatureRows.map(({ id: cid, ref }) => {
                     if (seen.has(cid)) return null;
-                    const chain: Record<string, unknown>[] = [c];
                     seen.add(cid);
-                    let cur = c;
+                    // 链上每一跳都按 id 重新解析（升级目标可能在别的 mod，如 core）
+                    const chain: { id: string; ref: RelatedRef }[] = [];
+                    let curId = cid;
+                    let curRef = ref;
                     for (let k = 0; k < 8; k++) {
-                      const nx = ((cur.upgrades as string[]) ?? [])
-                        .map((u) => creaturesAll.find((x) => String(x.id) === u))
-                        .find((x): x is Record<string, unknown> => !!x);
-                      const nid = nx ? String(nx.id) : "";
-                      if (!nx || seen.has(nid)) break;
-                      seen.add(nid);
-                      chain.push(nx);
-                      cur = nx;
+                      const rec = curRef.record;
+                      if (!rec) break;
+                      chain.push({ id: curId, ref: curRef });
+                      const nxId = ((rec.upgrades as string[]) ?? [])
+                        .map(String)
+                        .find((u) => !seen.has(u) && !!creatureRef(u).record);
+                      if (!nxId) break;
+                      seen.add(nxId);
+                      curId = nxId;
+                      curRef = creatureRef(nxId);
                     }
                     return (
                     <Fragment key={cid}>
-                      {chain.map((r, idx) => {
-                        const rid = String(r.id);
-                        const dm = r as Record<string, unknown>;
-                        const dmgMin = Number(dm.damageMin ?? 0);
-                        const dmgMax = Number(dm.damageMax ?? 0);
+                      {chain.map(({ id: rid, ref: rref }, idx) => {
+                        const r = rref.record as Record<string, unknown>;
+                        const dmgMin = Number(r.damageMin ?? 0);
+                        const dmgMax = Number(r.damageMax ?? 0);
                         return (
                           <tr
                             key={rid}
                             className="cursor-pointer border-t border-slate-800/40 hover:bg-slate-800/30"
-                            onClick={() => onNavigate?.({ modId, category: "creatures", id: rid })}
+                            // 跨模组生物要跳到它**自己的** mod，否则落到本 mod 的同名空位
+                            onClick={() => onNavigate?.({ modId: rref.modId, category: "creatures", id: rid })}
                             // VCMI WikiTownContent.cpp:434：生物行右键 = CStackWindow 完整生物窗
-                            {...triggers(() => openEntry("creatures", rid))}
+                            {...triggers(() => popup.showEntry(rref.modId, "creatures", r))}
                           >
                             <td className="px-2 py-1">
                               <SafeImg
@@ -268,7 +286,7 @@ export function FactionDetail({
                                 {pickName((r.name as Record<string, string>) ?? {}, lang)}
                               </span>
                             </td>
-                            <td className="px-2 py-1 text-amber-300">{formatCost(r.fullRecruitCost ?? r.cost, cacheDir, modId, resList, lang)}</td>
+                            <td className="px-2 py-1 text-amber-300">{formatCost(r.fullRecruitCost ?? r.cost, cacheDir, rref.modId, resList, lang)}</td>
                             <td className="px-2 py-1 text-slate-300">{String(r.level ?? "")}</td>
                             <td className="px-2 py-1 text-slate-300">{String(r.attack ?? "")}</td>
                             <td className="px-2 py-1 text-slate-300">{String(r.defense ?? "")}</td>
@@ -292,24 +310,44 @@ export function FactionDetail({
         </div>
       )}
       {heroesAll.length > 0 && (() => {
-        // 对齐 VCMI addHeroesTable：按 heroClass affinity 分 might/magic 两个表；
-        // 组标题 = 组内出现过的职业名（" / " 连接）；special 英雄不显示
-        const visible = heroesAll.filter((h) => h.special !== true);
-        const byAff = new Map<string, Record<string, unknown>[]>();
-        visible.forEach((h) => {
-          const aff = String(h.affinity ?? "");
-          if (!byAff.has(aff)) byAff.set(aff, []);
-          byAff.get(aff)!.push(h);
-        });
+        // 对齐 VCMI `WikiTownContent.cpp:455` 的 addHeroesTable：
+        //   ① 跳过 special 英雄；
+        //   ② 只列**本阵营**的英雄（`h->heroClass->faction != factionId` 即跳过）——
+        //      一个 mod 可以带多个城镇/阵营，旧实现把该 mod 的**全部**英雄铺在每座城镇页上；
+        //   ③ 按 heroClass affinity 分 might/magic 两个表，组标题 = 组内出现过的职业名。
+        //
+        // ② 带兜底：`factionId` 由 heroClass.faction 推导，老 mod 可能缺失 → 缺失的照旧显示；
+        // 过滤后若一个都不剩（阵营 id 对不上，宁可多显示也别清空整表）则退回不过滤。
+        const factionId = String(d.id ?? "");
+        const base = heroesAll.filter((h) => h.special !== true);
+        const scoped = factionId
+          ? base.filter((h) => {
+              const f = String(h.factionId ?? "");
+              return !f || f === factionId;
+            })
+          : base;
+        const visible = scoped.length > 0 ? scoped : base;
+        // 分组顺序对齐 VCMI：**力量组在前、魔法组在后**（`WikiTownContent.cpp:568-569`
+        // 先 `renderHeroGroup(mightHeroes)` 再 `magicHeroes`）；affinity 缺失的垫在最前，
+        // 保持可见而不是被吞掉（老 mod 的职业表可能没有 affinity）。
+        const affOrder = ["might", "magic"];
+        const groups: { key: string; rows: Record<string, unknown>[] }[] = [];
+        const rest = visible.filter((h) => !affOrder.includes(String(h.affinity ?? "")));
+        if (rest.length) groups.push({ key: "", rows: rest });
+        for (const key of affOrder) {
+          const rows = visible.filter((h) => String(h.affinity ?? "") === key);
+          if (rows.length) groups.push({ key, rows });
+        }
         const classNamesOf = (rows: Record<string, unknown>[]) =>
           Array.from(
             new Set(rows.map((h) => pickName((h.className as Record<string, string>) ?? {}, lang) || String(h.class ?? ""))),
           ).join(" / ");
+        // 标题层级对齐 VCMI：整段只有一个「英雄」标题（`WikiTownContent.cpp` 的
+        // vcmi.wiki.town.heroes），力量/魔法各一张表，表头是该组出现过的职业名。
         const renderGroup = (heroes: Record<string, unknown>[], key: string) =>
           heroes.length === 0 ? null : (
             <div key={key}>
-              <h3 className="mb-1 text-sm font-semibold text-slate-300">{t.wiki.sections.heroes}</h3>
-              <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{classNamesOf(heroes)}</h4>
+              <h4 className="mb-1 text-xs font-semibold tracking-wide text-slate-400">{classNamesOf(heroes)}</h4>
               <div className="overflow-x-auto rounded-xl border border-slate-800/60">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-800/60 text-slate-400">
@@ -374,10 +412,9 @@ export function FactionDetail({
             </div>
           );
         return (
-          <div className="space-y-3">
-            {renderGroup(byAff.get("might") ?? [], "might")}
-            {renderGroup(byAff.get("magic") ?? [], "magic")}
-            {!byAff.has("might") && !byAff.has("magic") ? renderGroup(visible, "all") : null}
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-slate-300">{t.wiki.sections.heroes}</h3>
+            {groups.map((g) => renderGroup(g.rows, g.key || "all"))}
           </div>
         );
       })()}

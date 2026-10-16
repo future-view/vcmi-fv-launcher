@@ -129,8 +129,14 @@ export interface LangDict {
       cost: string;
     };
     allMods: string;
-    search: string;
     searchPlaceholder: string;
+    searchClear: string;
+    /**
+     * 右栏内容区在"未选中任何条目"时的占位文本。
+     * 对齐 VCMI `vcmi.wiki.content.placeholder`（`WikiWindow.cpp:1195` 未选中时
+     * `contentBox->setText(...)`）—— 官方用**指令式句子**而不是名词/图标。
+     */
+    contentPlaceholder: string;
     /** 中栏「筛选」浮层：维度按类目声明，见 features/wiki/filters.ts */
     filter: {
       title: string;
@@ -173,6 +179,13 @@ export interface LangDict {
     stageData: string;
     stageAssets: string;
     stageHd: string;
+    /**
+     * 准备阶段（排序前的 mod 目录成本估算）标签。
+     *
+     * 冷缓存下它是分钟级且发生在第一个 mod 开工之前，故**始终显示**、
+     * 不参与任何页面的撤除判定（见 `shared/WikiBuildOverlay.tsx::StageRows`）。
+     */
+    stagePrep: string;
     /**
      * 「何时可用」模板 —— 用**依赖阶段名列表**填充 `{stages}`，再补一句 `readyHintRest`。
      *

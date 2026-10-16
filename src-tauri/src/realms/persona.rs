@@ -1,12 +1,11 @@
 //! 领域个性化：介绍页（intro）状态、BGM 开关、自定义素材导入（封面 / 主题曲 / 背景）。
 
-use crate::infra::berror::be_err;
 use super::base::realm_root;
+use crate::infra::berror::be_err;
 
 use serde_json::{json, Value};
 use std::fs;
 use std::path::Path;
-
 
 /// 返回领域目录绝对路径（`{realm-data}/realms/<id>`），供前端解析 `assets/` 素材。
 #[tauri::command]
@@ -54,7 +53,10 @@ pub fn get_bgm_muted(realm_id: String) -> bool {
         Err(_) => return false,
     };
     let f = root.join(".bgmMuted");
-    f.is_file() && fs::read_to_string(&f).map(|t| t.trim() == "true").unwrap_or(false)
+    f.is_file()
+        && fs::read_to_string(&f)
+            .map(|t| t.trim() == "true")
+            .unwrap_or(false)
 }
 
 /// 写入当前启动器下该领域的背景音乐静音开关（`{realm-dir}/.bgmMuted`）。
@@ -127,7 +129,8 @@ pub fn import_realm_asset(
     } else {
         assets.join(&sub_owned)
     };
-    fs::create_dir_all(&dir).map_err(|e| be_err("realm_assets_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&dir)
+        .map_err(|e| be_err("realm_assets_dir_create_failed", &format!("{}", e)))?;
     // 清理同名不同扩展名的旧素材，避免反复上传后堆积
     if let Ok(entries) = fs::read_dir(&dir) {
         for entry in entries.flatten() {
@@ -145,6 +148,7 @@ pub fn import_realm_asset(
     } else {
         format!("assets/{sub_owned}/{stem_owned}.{ext}")
     };
-    fs::copy(src_path, root.join(&rel)).map_err(|e| be_err("realm_assets_copy_failed", &format!("{}", e)))?;
+    fs::copy(src_path, root.join(&rel))
+        .map_err(|e| be_err("realm_assets_copy_failed", &format!("{}", e)))?;
     Ok(json!({ "path": rel }))
 }

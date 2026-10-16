@@ -171,9 +171,7 @@ fn exe_dir() -> Option<PathBuf> {
 pub fn dir_of(id: &str) -> Option<PathBuf> {
     let preferred = VcmiPaths::launcher_data_dir()
         .map(|d| d.join("runtime").join(id))
-        .or_else(|| {
-            exe_dir().map(|d| d.join(".vcmi-fv-launcher").join("runtime").join(id))
-        });
+        .or_else(|| exe_dir().map(|d| d.join(".vcmi-fv-launcher").join("runtime").join(id)));
     match cfg_of(id).and_then(|c| c.dir.clone()) {
         Some(p) if !p.as_os_str().is_empty() => {
             if p.is_relative() {
@@ -255,7 +253,11 @@ pub fn status(id: &str) -> Result<ComponentStatus, String> {
         dir: dir.map(|p| p.to_string_lossy().replace('\\', "/")),
         installed,
         // 只有真正装好才报版本，避免 UI 显示"已装 1.28.0"却用不了
-        version: if installed { pkg.as_ref().and_then(|p| p.version.clone()) } else { None },
+        version: if installed {
+            pkg.as_ref().and_then(|p| p.version.clone())
+        } else {
+            None
+        },
         files,
         has_package: pkg.is_some(),
     })
@@ -358,7 +360,10 @@ mod tests {
             required.iter().all(|n| !n.ends_with(".onnx")),
             "必需文件不应含模型：{required:?}"
         );
-        assert!(!d.models.is_empty(), "应登记随包模型（安装校验 + 扫描标注）");
+        assert!(
+            !d.models.is_empty(),
+            "应登记随包模型（安装校验 + 扫描标注）"
+        );
         assert!(
             d.models.iter().any(|f| f.name == RECOMMENDED_AI_MODEL),
             "推荐模型应在清单内"

@@ -60,7 +60,11 @@ fn core_castle_hd_registration_and_variants() {
         "写下后指纹应与当前来源一致"
     );
     let has = |prefix: &str| map.keys().any(|k| k.starts_with(prefix));
-    println!("hd-map 登记 {} 项，样例: {:?}", map.len(), map.iter().take(5).collect::<Vec<_>>());
+    println!(
+        "hd-map 登记 {} 项，样例: {:?}",
+        map.len(),
+        map.iter().take(5).collect::<Vec<_>>()
+    );
     assert!(has("creature/"), "应有生物登记");
     assert!(has("building/") || has("hero/"), "应有建筑或英雄登记");
 
@@ -174,7 +178,10 @@ fn core_castle_hd_registration_and_variants() {
         .map(|(_, _, c, _)| *c)
         .sum();
     println!("埋点: {}", crate::infra::metrics::format_items(&items, 12));
-    assert!(hd_variants > 0, "变体应由 HD 源生成（hd_src.variant 埋点 > 0）");
+    assert!(
+        hd_variants > 0,
+        "变体应由 HD 源生成（hd_src.variant 埋点 > 0）"
+    );
 
     // 4) HD 源本体：登记名应可直接取到，且尺寸 = 基准 × 档位（证明"x2/x3 真素材"而非缩放件）
     let (base_key, hd_name) = map
@@ -183,8 +190,13 @@ fn core_castle_hd_registration_and_variants() {
         .map(|(k, v)| (k.clone(), v.clone()))
         .expect("应有 creature 登记");
     let base_img = image::load_from_memory(
-        &fs::read(cache_root.join("core.castle").join("images").join(format!("{base_key}.webp")))
-            .expect("基准图应存在"),
+        &fs::read(
+            cache_root
+                .join("core.castle")
+                .join("images")
+                .join(format!("{base_key}.webp")),
+        )
+        .expect("基准图应存在"),
     )
     .unwrap();
     let (hd_img, h, k) = crate::vcmi::hd_edition::lookup_for(&hd_name, 4).expect("HD 源应可取");
@@ -265,7 +277,11 @@ fn core_family_hd_volume_probe() {
 
     let mod_path = game.join("Mods").join("vcmi");
     let mods: Vec<String> = std::iter::once("core".to_string())
-        .chain(crate::vcmi::h3core::CORE_FACTIONS.iter().map(|f| format!("core.{f}")))
+        .chain(
+            crate::vcmi::h3core::CORE_FACTIONS
+                .iter()
+                .map(|f| format!("core.{f}")),
+        )
         .collect();
     let opt = HdOptions::new(Some(4), Some(1.5), None, Some(false)).expect("rate>=2 应有选项");
 
@@ -273,7 +289,13 @@ fn core_family_hd_volume_probe() {
     let (mut town_b, mut town_n) = (0u64, 0usize);
     let (mut var_b, mut total_b) = (0u64, 0u64);
     for m in &mods {
-        let r = build_mod_wiki_phase(mod_path.to_string_lossy().as_ref(), m, &cache_root, &game, 1);
+        let r = build_mod_wiki_phase(
+            mod_path.to_string_lossy().as_ref(),
+            m,
+            &cache_root,
+            &game,
+            1,
+        );
         assert_eq!(
             r.get("ok").and_then(|x| x.as_bool()),
             Some(true),
@@ -281,7 +303,9 @@ fn core_family_hd_volume_probe() {
         );
         let stats = generate_for_mod(&cache_root, m, &opt);
         println!("  {m}: 变体 {:?}", stats);
-        let dir = cache_root.join(crate::modcache::sanitize_id(m)).join("images");
+        let dir = cache_root
+            .join(crate::modcache::sanitize_id(m))
+            .join("images");
         walk_images(&dir, &mut |path, len| {
             total_b += len;
             let s = path.replace('\\', "/");

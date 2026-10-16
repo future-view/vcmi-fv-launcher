@@ -29,10 +29,7 @@ fn resource_dir(name: &str) -> Option<PathBuf> {
     }
     let exe = std::env::current_exe().ok()?;
     let base = exe.parent()?;
-    for rel in [
-        format!("resources/{}", name),
-        name.to_string(),
-    ] {
+    for rel in [format!("resources/{}", name), name.to_string()] {
         let p = base.join(&rel);
         if p.is_dir() {
             return Some(p);
@@ -64,7 +61,10 @@ pub(crate) fn schema_content_hash() -> String {
 
 /// 提取协议表（`resources/mod-cache-protocol.json`）。
 pub(crate) fn protocol() -> Option<Value> {
-    parse_vcmi_json(PROTOCOL_JSON).as_object().cloned().map(Value::Object)
+    parse_vcmi_json(PROTOCOL_JSON)
+        .as_object()
+        .cloned()
+        .map(Value::Object)
 }
 
 /// 文本字段判定：schema 字符串字段且末段是文本语义（与脚本 `mod-cache-audit.mjs` 一致）。
@@ -76,7 +76,16 @@ fn is_text_field(path: &str) -> bool {
     let last = last.trim_end_matches("[]");
     matches!(
         last.to_lowercase().as_str(),
-        "name" | "desc" | "description" | "biography" | "tooltip" | "event" | "message" | "title" | "text" | "infix"
+        "name"
+            | "desc"
+            | "description"
+            | "biography"
+            | "tooltip"
+            | "event"
+            | "message"
+            | "title"
+            | "text"
+            | "infix"
     )
 }
 
@@ -84,7 +93,12 @@ fn is_text_field(path: &str) -> bool {
 ///
 /// 仅被 [`check_protocol_coverage`] 使用，与之一同在非 debug 构建下裁掉（见该函数的说明）。
 #[cfg(any(debug_assertions, test))]
-fn collect_text_paths(node: &Value, prefix: &str, acc: &mut std::collections::BTreeSet<String>, depth: usize) {
+fn collect_text_paths(
+    node: &Value,
+    prefix: &str,
+    acc: &mut std::collections::BTreeSet<String>,
+    depth: usize,
+) {
     if depth > 8 {
         return;
     }
@@ -128,13 +142,25 @@ fn collect_text_paths(node: &Value, prefix: &str, acc: &mut std::collections::BT
 /// 协议实体的登记路径集合（`ignoredPaths` + `textFields[].configPaths`）。
 pub(crate) fn registered_paths(ent: &Value) -> std::collections::BTreeSet<String> {
     let mut set = std::collections::BTreeSet::new();
-    for p in ent.get("ignoredPaths").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
+    for p in ent
+        .get("ignoredPaths")
+        .and_then(|x| x.as_array())
+        .unwrap_or(&vec![])
+    {
         if let Some(s) = p.as_str() {
             set.insert(s.to_string());
         }
     }
-    for tf in ent.get("textFields").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
-        for p in tf.get("configPaths").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
+    for tf in ent
+        .get("textFields")
+        .and_then(|x| x.as_array())
+        .unwrap_or(&vec![])
+    {
+        for p in tf
+            .get("configPaths")
+            .and_then(|x| x.as_array())
+            .unwrap_or(&vec![])
+        {
             if let Some(s) = p.as_str() {
                 set.insert(s.to_string());
             }
@@ -228,9 +254,15 @@ pub(crate) fn check_protocol_coverage() -> Result<usize, Vec<String>> {
         return Err(vec!["协议表解析失败".to_string()]);
     };
     let Some(dir) = schemas_dir() else {
-        return Err(vec!["未找到内置 schema 目录（resources/vcmi-schemas）".to_string()]);
+        return Err(vec![
+            "未找到内置 schema 目录（resources/vcmi-schemas）".to_string()
+        ]);
     };
-    let entities = protocol.get("entities").and_then(|x| x.as_object()).cloned().unwrap_or_default();
+    let entities = protocol
+        .get("entities")
+        .and_then(|x| x.as_object())
+        .cloned()
+        .unwrap_or_default();
     let out_of_scope: std::collections::BTreeSet<String> = protocol
         .get("outOfScope")
         .and_then(|x| x.get("schemas"))
@@ -267,7 +299,9 @@ pub(crate) fn check_protocol_coverage() -> Result<usize, Vec<String>> {
         if out_of_scope.contains(&f) {
             continue;
         }
-        let Ok(txt) = fs::read_to_string(dir.join(&f)) else { continue };
+        let Ok(txt) = fs::read_to_string(dir.join(&f)) else {
+            continue;
+        };
         let schema = parse_vcmi_json(&txt);
         if !schema.is_object() {
             continue;

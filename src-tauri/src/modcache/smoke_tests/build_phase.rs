@@ -56,7 +56,10 @@ fn two_phase_build_regression() {
         "阶段二 assetsDone 应为 true"
     );
     assert!(
-        v1.get("assetsVersion").and_then(|x| x.as_u64()).unwrap_or(0) >= 1,
+        v1.get("assetsVersion")
+            .and_then(|x| x.as_u64())
+            .unwrap_or(0)
+            >= 1,
         "阶段二应写入 assetsVersion"
     );
 
@@ -76,7 +79,9 @@ fn two_phase_build_regression() {
 fn source_hash_is_content_based() {
     fn copy_dir(from: &Path, to: &Path) {
         let _ = fs::create_dir_all(to);
-        let Ok(entries) = fs::read_dir(from) else { return };
+        let Ok(entries) = fs::read_dir(from) else {
+            return;
+        };
         for e in entries.flatten() {
             let p = e.path();
             let dst = to.join(e.file_name());
@@ -165,14 +170,21 @@ fn test_build_mod_wiki_cache() {
         &cache,
         Path::new(""),
     );
-    assert_eq!(abyss.get("ok").and_then(|x| x.as_bool()).unwrap_or(false), true, "abyss 应构建成功");
+    assert_eq!(
+        abyss.get("ok").and_then(|x| x.as_bool()).unwrap_or(false),
+        true,
+        "abyss 应构建成功"
+    );
     let mod_json = cache.join("abyss-town/cache.json");
     assert!(mod_json.is_file(), "应生成 abyss-town/cache.json");
     let text = fs::read_to_string(&mod_json).unwrap();
     let v: Value = serde_json::from_str(&text).unwrap();
     let factions = v.get("factions").and_then(|x| x.as_array()).unwrap();
     assert!(!factions.is_empty(), "应有 faction");
-    let bg = factions[0].get("background").and_then(|x| x.as_str()).unwrap_or("");
+    let bg = factions[0]
+        .get("background")
+        .and_then(|x| x.as_str())
+        .unwrap_or("");
     println!("abyss 背景图路径: {}", bg);
     // 若生成了图片，验证 webp 文件存在且为 RIFF
     if !bg.is_empty() {
@@ -212,23 +224,51 @@ fn test_build_all_mod_cache_index() {
         }
     ]);
     let res = build_all_wiki_inner(&mods, &cache);
-    assert_eq!(res.get("ok").and_then(|x| x.as_bool()).unwrap_or(false), true);
-    assert!(res.get("built").and_then(|x| x.as_i64()).unwrap_or(0) >= 1, "abyss-town 应被构建");
+    assert_eq!(
+        res.get("ok").and_then(|x| x.as_bool()).unwrap_or(false),
+        true
+    );
+    assert!(
+        res.get("built").and_then(|x| x.as_i64()).unwrap_or(0) >= 1,
+        "abyss-town 应被构建"
+    );
     // 所有 mod（含非 Town）都应入索引，且带 contentCount
-    assert!(res.get("totalIndexed").and_then(|x| x.as_i64()).unwrap_or(0) >= 2, "所有 mod 都应入索引");
+    assert!(
+        res.get("totalIndexed")
+            .and_then(|x| x.as_i64())
+            .unwrap_or(0)
+            >= 2,
+        "所有 mod 都应入索引"
+    );
     let idx = cache.join("index.json");
     assert!(idx.is_file(), "应生成 index.json");
     let text = fs::read_to_string(&idx).unwrap();
     let v: Value = serde_json::from_str(&text).unwrap();
     let mods_arr = v.get("mods").and_then(|x| x.as_array()).unwrap();
-    assert!(mods_arr.iter().any(|m| m.get("modId").and_then(|x| x.as_str()) == Some("abyss-town")));
+    assert!(mods_arr
+        .iter()
+        .any(|m| m.get("modId").and_then(|x| x.as_str()) == Some("abyss-town")));
     // index 条目应带 contentCount
-    let abyss_entry = mods_arr.iter().find(|m| m.get("modId").and_then(|x| x.as_str()) == Some("abyss-town")).unwrap();
-    let cc = abyss_entry.get("contentCount").and_then(|x| x.get("creature")).and_then(|x| x.as_i64()).unwrap_or(0);
+    let abyss_entry = mods_arr
+        .iter()
+        .find(|m| m.get("modId").and_then(|x| x.as_str()) == Some("abyss-town"))
+        .unwrap();
+    let cc = abyss_entry
+        .get("contentCount")
+        .and_then(|x| x.get("creature"))
+        .and_then(|x| x.as_i64())
+        .unwrap_or(0);
     assert!(cc > 0, "abyss 的 index 应记录生物数，实际 {}", cc);
     // abyss-town 的 mod.json 应已生成
-    assert!(cache.join("abyss-town/cache.json").is_file(), "应生成 abyss-town/cache.json");
-    println!("index.json 已生成，收录 {} 个 mod，abyss 生物数 {}", mods_arr.len(), cc);
+    assert!(
+        cache.join("abyss-town/cache.json").is_file(),
+        "应生成 abyss-town/cache.json"
+    );
+    println!(
+        "index.json 已生成，收录 {} 个 mod，abyss 生物数 {}",
+        mods_arr.len(),
+        cc
+    );
 }
 
 #[test]
@@ -243,18 +283,33 @@ fn test_read_wiki_cache_roundtrip() {
     assert_eq!(b.get("ok").and_then(|x| x.as_bool()).unwrap_or(false), true);
 
     let r = read_mod_wiki_inner(&cache, "abyss-town");
-    assert_eq!(r.get("ok").and_then(|x| x.as_bool()).unwrap_or(false), true, "应能命中缓存读取");
+    assert_eq!(
+        r.get("ok").and_then(|x| x.as_bool()).unwrap_or(false),
+        true,
+        "应能命中缓存读取"
+    );
     let data = r.get("data").unwrap();
     let factions = data.get("factions").and_then(|x| x.as_array()).unwrap();
     assert_eq!(factions.len(), 1, "abyss 应有 1 个 faction");
     let f = &factions[0];
-    assert_eq!(f.get("factionId").and_then(|x| x.as_str()).unwrap_or(""), "abyss");
+    assert_eq!(
+        f.get("factionId").and_then(|x| x.as_str()).unwrap_or(""),
+        "abyss"
+    );
     let bg = f.get("background").and_then(|x| x.as_str()).unwrap_or("");
     assert!(!bg.is_empty(), "背景图应已写入缓存并在 JSON 中记录路径");
     // 缓存命中后，再次读取同样成功（幂等）
     let r2 = read_mod_wiki_inner(&cache, "abyss-town");
-    assert_eq!(r2.get("ok").and_then(|x| x.as_bool()).unwrap_or(false), true);
-    println!("免递归读取验证通过：{} faction={} bg={}", data.get("modId").and_then(|x| x.as_str()).unwrap_or(""), f.get("factionId").unwrap(), bg);
+    assert_eq!(
+        r2.get("ok").and_then(|x| x.as_bool()).unwrap_or(false),
+        true
+    );
+    println!(
+        "免递归读取验证通过：{} faction={} bg={}",
+        data.get("modId").and_then(|x| x.as_str()).unwrap_or(""),
+        f.get("factionId").unwrap(),
+        bg
+    );
 }
 
 #[test]
@@ -291,18 +346,37 @@ fn test_wiki_all_types() {
 
     // 关系链验证
     let facs = data.get("factions").and_then(|x| x.as_array()).unwrap();
-    let cl = facs[0].get("creatureList").and_then(|x| x.as_array()).unwrap();
-    assert!(!cl.is_empty(), "城镇应提取 creatureList 关系链，实际 {}", cl.len());
+    let cl = facs[0]
+        .get("creatureList")
+        .and_then(|x| x.as_array())
+        .unwrap();
+    assert!(
+        !cl.is_empty(),
+        "城镇应提取 creatureList 关系链，实际 {}",
+        cl.len()
+    );
     println!("abyss faction creatureList 数量: {}", cl.len());
     // 生物升级链/动画引用
     let has_any = cs.iter().any(|c| {
-        c.get("upgrades").and_then(|u| u.as_array()).map(|a| !a.is_empty()).unwrap_or(false)
+        c.get("upgrades")
+            .and_then(|u| u.as_array())
+            .map(|a| !a.is_empty())
+            .unwrap_or(false)
     });
     println!("abyss 有生物带 upgrades: {}", has_any);
-    let anim_refs = cs.iter().filter(|c| {
-        c.get("animation").and_then(|a| a.as_str()).map(|s| !s.is_empty()).unwrap_or(false)
-            || c.get("mapAnimation").and_then(|a| a.as_str()).map(|s| !s.is_empty()).unwrap_or(false)
-    }).count();
+    let anim_refs = cs
+        .iter()
+        .filter(|c| {
+            c.get("animation")
+                .and_then(|a| a.as_str())
+                .map(|s| !s.is_empty())
+                .unwrap_or(false)
+                || c.get("mapAnimation")
+                    .and_then(|a| a.as_str())
+                    .map(|s| !s.is_empty())
+                    .unwrap_or(false)
+        })
+        .count();
     println!("abyss 生物带动画引用数: {}", anim_refs);
 }
 
@@ -329,12 +403,24 @@ fn probe_mod_cache_matches_build() {
     let state = |c: &Path| probe_mod_cache(&mp, "core.castle", c, &game_dir).state;
 
     // 1) 无缓存 → 需要数据重建
-    assert_eq!(state(&cache), ModCacheState::NeedData, "无缓存应判 NeedData");
+    assert_eq!(
+        state(&cache),
+        ModCacheState::NeedData,
+        "无缓存应判 NeedData"
+    );
 
     // 2) 两阶段全量构建 → 完全命中
     let b = build_mod_wiki_inner(&mp, "core.castle", &cache, &game_dir);
-    assert_eq!(b.get("ok").and_then(|x| x.as_bool()), Some(true), "构建应成功: {b}");
-    assert_eq!(state(&cache), ModCacheState::Cached, "全量构建后应判 Cached");
+    assert_eq!(
+        b.get("ok").and_then(|x| x.as_bool()),
+        Some(true),
+        "构建应成功: {b}"
+    );
+    assert_eq!(
+        state(&cache),
+        ModCacheState::Cached,
+        "全量构建后应判 Cached"
+    );
 
     // 3) 素材版本落后（篡改 `assetsVersion`）→ 仅素材缺失，强制重提取
     let images = cache.join("core.castle").join("images");
@@ -342,18 +428,32 @@ fn probe_mod_cache_matches_build() {
     let mut v: Value = serde_json::from_str(&fs::read_to_string(&cache_json).unwrap()).unwrap();
     v["assetsVersion"] = json!(0);
     fs::write(&cache_json, serde_json::to_string(&v).unwrap()).unwrap();
-    assert_eq!(state(&cache), ModCacheState::NeedAssets, "assetsVersion 落后应判 NeedAssets");
+    assert_eq!(
+        state(&cache),
+        ModCacheState::NeedAssets,
+        "assetsVersion 落后应判 NeedAssets"
+    );
     // 重建补素材 → 回到命中
     let _ = build_mod_wiki_inner(&mp, "core.castle", &cache, &game_dir);
-    assert_eq!(state(&cache), ModCacheState::Cached, "补素材后应回到 Cached");
+    assert_eq!(
+        state(&cache),
+        ModCacheState::Cached,
+        "补素材后应回到 Cached"
+    );
 
     // 4) 篡改缓存里的 sourceHash（等价于内容变化，且**不动游戏目录**）→ 缓存键失效
     let mut v: Value = serde_json::from_str(&fs::read_to_string(&cache_json).unwrap()).unwrap();
     v["sourceHash"] = json!("deadbeefdeadbeef");
     fs::write(&cache_json, serde_json::to_string(&v).unwrap()).unwrap();
-    assert_eq!(state(&cache), ModCacheState::NeedData, "缓存键失效应判 NeedData");
+    assert_eq!(
+        state(&cache),
+        ModCacheState::NeedData,
+        "缓存键失效应判 NeedData"
+    );
 
-    println!("probe_mod_cache 与构建同源判定回归通过（NeedData→Cached→NeedAssets→Cached→NeedData）");
+    println!(
+        "probe_mod_cache 与构建同源判定回归通过（NeedData→Cached→NeedAssets→Cached→NeedData）"
+    );
 }
 
 #[test]
@@ -365,14 +465,62 @@ fn test_wiki_incremental_cache() {
     let _ = fs::create_dir_all(&cache);
     let mp = fixture("abyss-town").to_string_lossy().to_string();
     let r1 = build_mod_wiki_inner(&mp, "abyss-town", &cache, Path::new(""));
-    assert_eq!(r1.get("ok").and_then(|x| x.as_bool()).unwrap_or(false), true);
-    assert_eq!(r1.get("cached").and_then(|x| x.as_bool()).unwrap_or(false), false, "首次应真正构建");
+    assert_eq!(
+        r1.get("ok").and_then(|x| x.as_bool()).unwrap_or(false),
+        true
+    );
+    assert_eq!(
+        r1.get("cached").and_then(|x| x.as_bool()).unwrap_or(false),
+        false,
+        "首次应真正构建"
+    );
     // 读取已生成 mod.json 应有 sourceHash
     let text = fs::read_to_string(cache.join("abyss-town/cache.json")).unwrap();
     let v: Value = serde_json::from_str(&text).unwrap();
-    assert!(v.get("sourceHash").and_then(|x| x.as_str()).is_some(), "应写入 sourceHash");
+    assert!(
+        v.get("sourceHash").and_then(|x| x.as_str()).is_some(),
+        "应写入 sourceHash"
+    );
     // 第二次：哈希一致 → cached=true
     let r2 = build_mod_wiki_inner(&mp, "abyss-town", &cache, Path::new(""));
-    assert_eq!(r2.get("cached").and_then(|x| x.as_bool()).unwrap_or(false), true, "第二次应命中缓存跳过");
+    assert_eq!(
+        r2.get("cached").and_then(|x| x.as_bool()).unwrap_or(false),
+        true,
+        "第二次应命中缓存跳过"
+    );
     println!("增量验证通过：首次 built，二次 cached");
+}
+
+/// 索引归一：**旧 modId 口径（含大写）留下的重复条目必须被丢掉，且新口径那条胜出**。
+///
+/// 背景：modId 口径改为 VCMI 式小写（`1-Knight-town` → `1-knight-town`，见
+/// `vcmi::scan::norm_mod_id`）后，索引因「只增不删」的合并语义会同时留着两种 key。而前端
+/// 求交用的是小写键（`visibleModKeySet` / `modIdKey`）→ 两条**都能命中** → 城镇 / 英雄 /
+/// 建筑（不做跨 mod 去重的类目）把同一个 mod 列两遍，每条还要多读一份 cache.json。
+/// 用户实测：`百妖谷`、`北境` 各出现两次。
+///
+/// 纯逻辑用例（不需要游戏目录）：锁住 `dedup_index_mods`（读侧归一）的语义与幂等性 ——
+/// 与 `batch.rs` 的小写合并 key 一起，构成"旧口径条目会被清掉"的两道口子。
+#[test]
+fn index_dedup_drops_legacy_case_entries() {
+    let mut v = json!({
+        "mods": [
+            // 旧口径（磁盘原名）条目在**前**：归一后应被同 key 的规范小写条目顶掉，且原位替换
+            { "modId": "1-Knight-town", "name": { "chinese": "旧条目" } },
+            { "modId": "1-knight-town", "name": { "chinese": "新条目" } },
+            { "modId": "core", "name": { "chinese": "原版" } },
+        ]
+    });
+    assert_eq!(crate::modcache::index::dedup_index_mods(&mut v), 1);
+    let mods = v["mods"].as_array().unwrap();
+    assert_eq!(mods.len(), 2, "同 key 的两条应合成一条：{v}");
+    assert_eq!(mods[0]["modId"], "1-knight-town", "应保留规范小写那条：{v}");
+    assert_eq!(mods[0]["name"]["chinese"], "新条目", "内容应是新口径那条：{v}");
+    assert_eq!(mods[1]["modId"], "core", "位置稳定：首条原位保留，不追加到末尾");
+    // 幂等：已归一的索引再跑一次不再丢任何条目
+    assert_eq!(crate::modcache::index::dedup_index_mods(&mut v), 0);
+    // 只有旧口径条目时也要保留（不是"见到就删"）：落到它自己的小写 key 上
+    let mut only_legacy = json!({ "mods": [{ "modId": "29- Jadelake-town" }] });
+    assert_eq!(crate::modcache::index::dedup_index_mods(&mut only_legacy), 0);
+    assert_eq!(only_legacy["mods"][0]["modId"], "29- Jadelake-town");
 }

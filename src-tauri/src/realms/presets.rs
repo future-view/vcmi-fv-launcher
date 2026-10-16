@@ -3,9 +3,9 @@
 //! 预设文件位于领域根的 `modSettings.json`；`inject_required_mods` 负责把领域声明的
 //! 必需 mod 强制置为启用，避免用户误关导致领域不可用。
 
-use crate::infra::berror::be_err;
-use super::base::{PREV_ACTIVE_PRESET_FILE, REALM_PRESET_ID, read_config, realm_root};
+use super::base::{read_config, realm_root, PREV_ACTIVE_PRESET_FILE, REALM_PRESET_ID};
 use super::meta::get_realm;
+use crate::infra::berror::be_err;
 
 use serde_json::{json, Value};
 use std::fs;
@@ -33,8 +33,8 @@ pub(crate) fn realm_mod_settings_path(id: &str) -> Result<PathBuf, String> {
             .unwrap_or_default()
             .join("modSettings.json"));
     }
-    let base = VcmiPaths::realm_vcmi_dir(id)
-        .ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
+    let base =
+        VcmiPaths::realm_vcmi_dir(id).ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
     Ok(base.join("config").join("modSettings.json"))
 }
 
@@ -94,7 +94,8 @@ pub(crate) fn write_realm_preset(id: &str) -> Result<(), String> {
 
     let p = realm_mod_settings_path(id)?;
     let mut settings: Value = if p.is_file() {
-        let text = fs::read_to_string(&p).map_err(|e| be_err("realm_modsettings_read_failed", &format!("{}", e)))?;
+        let text = fs::read_to_string(&p)
+            .map_err(|e| be_err("realm_modsettings_read_failed", &format!("{}", e)))?;
         // **解析失败必须报错**：静默降级为空对象会在回写时清空官方已有的全部预设。
         crate::infra::json::parse_json_lenient(&text)
             .map_err(|e| be_err("realm_modsettings_parse_abort", &format!("{}", e)))?
@@ -147,7 +148,8 @@ pub(crate) fn write_realm_preset(id: &str) -> Result<(), String> {
 /// 写入 `modSettings.json`（自动建父目录）。
 pub(crate) fn write_settings_file(p: &Path, settings: &Value) -> Result<(), String> {
     if let Some(parent) = p.parent() {
-        fs::create_dir_all(parent).map_err(|e| be_err("realm_realm_config_dir_create_failed", &format!("{}", e)))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| be_err("realm_realm_config_dir_create_failed", &format!("{}", e)))?;
     }
     let text = serde_json::to_string_pretty(settings)
         .map_err(|e| be_err("realm_modsettings_serialize_failed", &format!("{}", e)))?;
@@ -191,7 +193,8 @@ pub(crate) fn record_prev_active_preset(id: &str, prev: Option<&str>) -> Result<
         return Ok(());
     }
     fs::create_dir_all(&root).map_err(|e| be_err("realm_dir_create_failed", &format!("{}", e)))?;
-    fs::write(&f, prev.unwrap_or("")).map_err(|e| be_err("realm_preset_snapshot_write_failed", &format!("{}", e)))
+    fs::write(&f, prev.unwrap_or(""))
+        .map_err(|e| be_err("realm_preset_snapshot_write_failed", &format!("{}", e)))
 }
 
 /// 退出领域时恢复进入前的 `activePreset`，并删除快照点文件。
@@ -205,7 +208,10 @@ pub(crate) fn restore_prev_active_preset(id: &str) -> Result<(), String> {
     if !f.is_file() {
         return Ok(());
     }
-    let prev = fs::read_to_string(&f).unwrap_or_default().trim().to_string();
+    let prev = fs::read_to_string(&f)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     let realm_preset_id = get_realm(id)
         .ok()
         .and_then(|r| {
@@ -218,7 +224,8 @@ pub(crate) fn restore_prev_active_preset(id: &str) -> Result<(), String> {
 
     let p = realm_mod_settings_path(id)?;
     if p.is_file() {
-        let text = fs::read_to_string(&p).map_err(|e| be_err("cmd_modsettings_read_failed", &format!("{}", e)))?;
+        let text = fs::read_to_string(&p)
+            .map_err(|e| be_err("cmd_modsettings_read_failed", &format!("{}", e)))?;
         let mut settings = crate::infra::json::parse_json_lenient(&text)
             .map_err(|e| be_err("realm_modsettings_parse_skip", &format!("{}", e)))?;
         let target = {
@@ -268,7 +275,8 @@ pub fn write_realm_presets(
     let id = VcmiPaths::sanitize_realm_id(&realm_id);
     let p = realm_mod_settings_path(&id)?;
     let mut settings: Value = if p.is_file() {
-        let text = fs::read_to_string(&p).map_err(|e| be_err("realm_modsettings_read_failed", &format!("{}", e)))?;
+        let text = fs::read_to_string(&p)
+            .map_err(|e| be_err("realm_modsettings_read_failed", &format!("{}", e)))?;
         // 解析失败必须报错：静默降级为空对象会在回写时清空既有预设
         crate::infra::json::parse_json_lenient(&text)
             .map_err(|e| be_err("realm_modsettings_parse_abort", &format!("{}", e)))?
@@ -314,7 +322,8 @@ pub fn write_realm_presets(
     settings["activePreset"] = json!(active_preset);
 
     if let Some(parent) = p.parent() {
-        fs::create_dir_all(parent).map_err(|e| be_err("realm_realm_config_dir_create_failed", &format!("{}", e)))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| be_err("realm_realm_config_dir_create_failed", &format!("{}", e)))?;
     }
     let text = serde_json::to_string_pretty(&settings)
         .map_err(|e| be_err("realm_modsettings_serialize_failed", &format!("{}", e)))?;

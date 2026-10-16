@@ -7,12 +7,10 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
-use crate::vcmi::h3core::I18nMap;
-use crate::modcache::assets::{
-    extract_game_def_frame_and_save, extract_icon_and_save,
-};
+use crate::modcache::assets::{extract_game_def_frame_and_save, extract_icon_and_save};
 use crate::modcache::collect::collect_config_jsons_merged;
 use crate::modcache::i18n::{i18n_get_multi, i18n_mod_scope, name_obj_with_inline};
+use crate::vcmi::h3core::I18nMap;
 
 pub(crate) fn build_skills(
     p: &Path,
@@ -25,11 +23,57 @@ pub(crate) fn build_skills(
     let mut skills = Vec::new();
     for (id, obj) in collect_config_jsons_merged(&p, "skills") {
         let scope = i18n_mod_scope(mod_id);
-        let img = obj.get("basic").and_then(|b| b.get("images")).and_then(|i| i.get("medium"))
-            .and_then(|v| v.as_str())
-            .and_then(|r| extract_icon_and_save(&p, game_dir, cache_root, mod_id, "skill", &id, Some(r)));
+        // 图标来源：VCMI `skill.json` schema 的 `images` 全集 =
+        // `small`(32×32) / `medium`(44×44) / `large`(82×93) / `scenarioBonus`(58×64)，
+        // 挂在 `basic` / `advanced` / `expert` **任一级**下（schema 里 required 四个都有，
+        // 但实测大量 mod 只写其中一两个，且只挂在 basic 之外的档位）。
+        //
+        // ⚠️ 此前硬取 `basic.images.medium` 单一路径：medium 缺失、或图标只写在
+        // advanced/expert 档时 → `image` 恒为 null（用户报"有些技能也是没有图片"）。
+        // 口径：先按档位（basic → advanced → expert），档内按尺寸（medium → large → small
+        // → scenarioBonus）——medium 是技能栏标准尺寸，取不到再退而求其次。
+        let img = (["basic", "advanced", "expert"]).iter().find_map(|lvl| {
+            obj.get(*lvl)
+                .and_then(|b| b.get("images"))
+                .and_then(|i| {
+                    i.get("medium")
+                        .or_else(|| i.get("large"))
+                        .or_else(|| i.get("small"))
+                        .or_else(|| i.get("scenarioBonus"))
+                })
+                .and_then(|v| v.as_str())
+        }).and_then(|r| {
+            extract_icon_and_save(&p, game_dir, cache_root, mod_id, "skill", &id, Some(r))
+        });
+        // **内部记账技能不展示**（2026-10-16）：HotA / 潮战的「符文等级计数器」
+        // （`RUNE_LEVEL_COUNTER` / `YETI_RUNE_LEVEL_COUNTER` / `APE_RUNE_LEVEL_COUNTER`）
+        // 三档都没有 `images`（VCMI 侧 `RenderHandler.cpp:496-501` 空名直接跳过注册 →
+        // 渲染时按 `index*3+3` 取不到帧 → **空图标**），也没有任何语言的名称
+        // （列表里只剩裸 id），描述原文更是写着"If this is shown, it's a bug with the …"。
+        //
+        // VCMI schema（`config/schemas/skill.json`）**没有** `hidden` 字段，故不存在
+        // "VCMI 官方过滤"可对齐；这里用「无图标 **且** 无名称」双条件兜底 ——
+        // 只缺图标的技能仍保留（VCMI 也照样列出来，只是图标空白），避免误伤。
+        let has_i18n_name = i18n_get_multi(&i18n, &format!("skill.{}.{}.name", scope, &id))
+            .map(|m| m.values().any(|s| !s.trim().is_empty()))
+            .unwrap_or(false);
+        let has_inline_name = match obj.get("name") {
+            Some(Value::String(s)) => !s.trim().is_empty(),
+            Some(Value::Object(o)) => o
+                .values()
+                .any(|x| x.as_str().map(|s| !s.trim().is_empty()).unwrap_or(false)),
+            _ => false,
+        };
+        if img.is_none() && !has_i18n_name && !has_inline_name {
+            continue;
+        }
         // 名称：i18n 键 → 配置内嵌文本（部分 mod 把技能名直接写在配置里）→ id
-        let skill_name_obj = name_obj_with_inline(&i18n, &format!("skill.{}.{}.name", scope, id), obj.get("name"), &id);
+        let skill_name_obj = name_obj_with_inline(
+            &i18n,
+            &format!("skill.{}.{}.name", scope, id),
+            obj.get("name"),
+            &id,
+        );
         // VCMI 技能键：`skill.<scope>.<id>.description.<basic|advanced|expert>`。
         // 此前拼成 `...<lvl>.description`，**模组技能的三级描述因此全部落空**
         // （实测 `skill.andruids-expansion.initiative.initiative.description.advanced`）；
@@ -37,19 +81,27 @@ pub(crate) fn build_skills(
         // 第三路：**配置内嵌** `basic/advanced/expert.description`（schema 允许；实测各 78 个配置，
         // 作者把描述直接写在技能配置里）——审计器（scripts/wiki-audit.mjs）发现。
         let lvl_desc = |lvl: &str, lang: &str| -> String {
-            let hit = i18n_get_multi(&i18n, &format!("skill.{}.{}.description.{}", scope, id, lvl))
-                .or_else(|| {
-                    i18n_get_multi(&i18n, &format!("skill.{}.{}.{}.description", scope, id, lvl))
-                });
+            let hit = i18n_get_multi(
+                &i18n,
+                &format!("skill.{}.{}.description.{}", scope, id, lvl),
+            )
+            .or_else(|| {
+                i18n_get_multi(
+                    &i18n,
+                    &format!("skill.{}.{}.{}.description", scope, id, lvl),
+                )
+            });
             let from_i18n = hit
                 .and_then(|m| {
                     if lang == "chinese" {
-                        m.get("chinese").cloned()
+                        m.get("chinese")
+                            .cloned()
                             .or_else(|| m.get("auto").cloned())
                             .or_else(|| m.get("english").cloned())
                             .or_else(|| m.values().next().cloned())
                     } else {
-                        m.get("english").cloned()
+                        m.get("english")
+                            .cloned()
                             .or_else(|| m.get("auto").cloned())
                             .or_else(|| m.get("chinese").cloned())
                             .or_else(|| m.values().next().cloned())
@@ -128,7 +180,11 @@ pub(crate) fn build_skills(
                 "secsk32",
                 sid,
             );
-            let auto = if name_zh.is_empty() { name_en.clone() } else { name_zh.clone() };
+            let auto = if name_zh.is_empty() {
+                name_en.clone()
+            } else {
+                name_zh.clone()
+            };
             skills.push(json!({
                 "id": sid,
                 "name": { "chinese": name_zh, "english": name_en, "auto": auto },
@@ -146,4 +202,52 @@ pub(crate) fn build_skills(
     }
 
     skills
+}
+
+/// 技能**内部记账条目**回归（2026-10-16）：无图标 **且** 无名称的技能不进列表。
+///
+/// 实测形态：HotA / 潮战的符文等级计数器（`RUNE_LEVEL_COUNTER` 等）——三档都没有
+/// `images`，也没有任何语言的名称，列表里只剩一个裸 id 与一张空图标。
+/// 只缺图标的技能（VCMI 也会照样列出，只是图标空白）**必须保留**，不得误伤。
+#[cfg(test)]
+mod visibility_tests {
+    use super::*;
+    use std::fs;
+
+    fn build(cfg: &str) -> Vec<String> {
+        let root = std::env::temp_dir().join("vcmi_fv_skill_visibility");
+        let _ = fs::remove_dir_all(&root);
+        let dir = root.join("Content").join("config").join("skills");
+        fs::create_dir_all(&dir).expect("建目录");
+        fs::write(dir.join("skills.json"), cfg).expect("写配置");
+        let cache = root.join("cache");
+        fs::create_dir_all(&cache).unwrap();
+        let i18n: I18nMap = HashMap::new();
+        let idx: HashMap<String, i64> = HashMap::new();
+        let out = build_skills(&root, "t", &cache, Path::new(""), &i18n, &idx);
+        let _ = fs::remove_dir_all(&root);
+        out.iter()
+            .filter_map(|s| s.get("id").and_then(|v| v.as_str()).map(|x| x.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn iconless_and_nameless_skill_is_hidden() {
+        let ids = build(
+            r#"{
+                "RUNE_LEVEL_COUNTER": { "basic": { "effects": {} } },
+                "namedNoIcon":       { "name": "吸血", "basic": { "effects": {} } },
+                "inlineZhNoIcon":    { "name": { "chinese": "活力再生" } }
+            }"#,
+        );
+        assert!(
+            !ids.iter().any(|i| i == "RUNE_LEVEL_COUNTER"),
+            "无图标且无名称的记账技能不应收录：{ids:?}"
+        );
+        assert!(
+            ids.iter().any(|i| i == "namedNoIcon"),
+            "有名称、只缺图标的技能必须保留（VCMI 也照样列出）：{ids:?}"
+        );
+        assert!(ids.iter().any(|i| i == "inlineZhNoIcon"), "内嵌中文名同样算有名称：{ids:?}");
+    }
 }

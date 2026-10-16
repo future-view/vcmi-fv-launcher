@@ -42,9 +42,17 @@ pub(crate) fn read_skill_index_map(game_dir: &Path) -> HashMap<String, i64> {
 }
 
 /// VCMI 原版法术 identifier → 数字 index（法术书图标 SPELLBON 帧号 = index）。
-/// 来源：lib/constants/EntityIdentifiers.h 的 SpellID 枚举（枚举名转驼峰即 identifier），
-/// 生成脚本 scripts/gen-spell-ids.mjs。
+/// 来源：lib/constants/EntityIdentifiers.h 的 SpellID 枚举（枚举名转驼峰即 identifier）。
+///
+/// ⚠️ 2026-10-16 修正表尾：此前 59 及之后的段来自**别的口径**（`airElemental=59` …
+/// `stoneSkin=63`、`haste=65`，且 `haste/slow/shield/bloodlust/…` 与 53+ 段重复），
+/// 与 1.8 枚举完全对不上，直接后果是 **`clone` / `blind` / `teleport` / `berserk` /
+/// `hypnotize` / `forgetfulness` / `removeObstacle` / 四系召唤元素 / 生物能力伪法术
+/// 全部查不到 index** —— 英雄页「魔法」里这些法术既没有图标（index=-1 → 无 SPELLBON 帧）
+/// 也拿不到名字（实测该发行版 1,749 条英雄法术里有 147 条因此空白）。
+/// 索引唯一性由本文件末尾的单测锁住，防止再次出现重复/错位的段。
 pub(crate) const SPELL_ID_TABLE: &[(&str, i64)] = &[
+    ("summonBoat", 0),
     ("scuttleBoat", 1),
     ("visions", 2),
     ("viewEarth", 3),
@@ -103,39 +111,82 @@ pub(crate) const SPELL_ID_TABLE: &[(&str, i64)] = &[
     ("frenzy", 56),
     ("titansLightningBolt", 57),
     ("counterstrike", 58),
-    ("airElemental", 59),
-    ("earthElemental", 60),
-    ("fireElemental", 61),
-    ("waterElemental", 62),
-    ("stoneSkin", 63),
-    ("magicMirror", 64),
-    ("haste", 65),
-    ("slow", 66),
-    ("shield", 67),
-    ("bloodlust", 68),
-    ("precision", 69),
-    ("disruptingRay", 70),
-    ("prayer", 71),
-    ("mirth", 72),
-    ("sorrow", 73),
-    ("fortune", 74),
-    ("misfortune", 75),
-    ("deathRipple", 76),
-    ("destroyUndead", 77),
-    ("resurrection", 78),
+    // 4~5 级控制系与召唤系（59-69）：此前整段缺失
+    ("berserk", 59),
+    ("hypnotize", 60),
+    ("forgetfulness", 61),
+    ("blind", 62),
+    ("teleport", 63),
+    ("removeObstacle", 64),
+    ("clone", 65),
+    ("summonFireElemental", 66),
+    ("summonEarthElemental", 67),
+    ("summonWaterElemental", 68),
+    ("summonAirElemental", 69),
+    // 70 起是**生物能力伪法术**（枚举 `FIRST_NON_SPELL = 70`）：它们在 SPELLBON 里没有帧，
+    // 列出只为让 index 语义与枚举一致（`firstNonSpell` 自身不是法术，故不入表）。
+    ("stoneGaze", 70),
+    ("poison", 71),
+    ("bind", 72),
+    ("disease", 73),
+    ("paralyze", 74),
+    ("age", 75),
+    ("deathCloud", 76),
+    ("thunderbolt", 77),
+    ("dispelHelpfulSpells", 78),
     ("deathStare", 79),
     ("acidBreathDefense", 80),
     ("acidBreathDamage", 81),
 ];
 
-pub(crate) static STACK_CHANCES_CACHE: std::sync::OnceLock<Mutex<Vec<(String, std::sync::Arc<Vec<i64>>)>>> =
-    std::sync::OnceLock::new();
+#[cfg(test)]
+mod tests {
+    use super::SPELL_ID_TABLE;
+
+    /// 表必须与 `lib/constants/EntityIdentifiers.h` 的 SpellID 枚举一致，且 **index 唯一**。
+    ///
+    /// 回归背景（2026-10-16）：表尾 59+ 段曾来自别的口径（`airElemental=59`…`haste=65`），
+    /// 与枚举冲突且与 53+ 段重复 —— 英雄页 `clone`/`blind`/`teleport` 等法术因此拿不到
+    /// SPELLBON 帧号（无图标）与名字，实测 1,749 条英雄法术里 147 条空白。
+    #[test]
+    fn spell_id_table_matches_vcmi_enum_and_is_unique() {
+        let idx = |id: &str| SPELL_ID_TABLE.iter().find(|(k, _)| *k == id).map(|(_, i)| *i);
+        // 抽样覆盖：冒险法术 / 表尾曾缺失段 / 生物能力伪法术
+        assert_eq!(idx("summonBoat"), Some(0));
+        assert_eq!(idx("townPortal"), Some(9));
+        assert_eq!(idx("berserk"), Some(59));
+        assert_eq!(idx("blind"), Some(62));
+        assert_eq!(idx("teleport"), Some(63));
+        assert_eq!(idx("clone"), Some(65));
+        assert_eq!(idx("summonAirElemental"), Some(69));
+        assert_eq!(idx("poison"), Some(71));
+        assert_eq!(idx("acidBreathDamage"), Some(81));
+
+        let mut seen = std::collections::HashMap::new();
+        for (id, ix) in SPELL_ID_TABLE {
+            if let Some(prev) = seen.insert(*ix, *id) {
+                panic!("index {ix} 同时属于 {prev} 与 {id}（表尾曾有重复/错位段）");
+            }
+        }
+        assert!(
+            SPELL_ID_TABLE.len() >= 80,
+            "条目数骤减（{}），疑似误删",
+            SPELL_ID_TABLE.len()
+        );
+    }
+}
+
+pub(crate) static STACK_CHANCES_CACHE: std::sync::OnceLock<
+    Mutex<Vec<(String, std::sync::Arc<Vec<i64>>)>>,
+> = std::sync::OnceLock::new();
 
 /// 初始部队出现概率。
 pub(crate) fn cached_starting_stack_chances(game_dir: &Path) -> std::sync::Arc<Vec<i64>> {
     let cands = starting_stack_chances_candidates(game_dir);
     let key = format!("chance:{}", fingerprint_of(&cands));
-    cfg_cache_get(&STACK_CHANCES_CACHE, key, || read_starting_stack_chances(game_dir))
+    cfg_cache_get(&STACK_CHANCES_CACHE, key, || {
+        read_starting_stack_chances(game_dir)
+    })
 }
 
 pub(crate) fn starting_stack_chances_candidates(game_dir: &Path) -> Vec<PathBuf> {
@@ -159,7 +210,9 @@ pub(crate) static HERO_CLASS_INDEX_CACHE: std::sync::OnceLock<
 pub(crate) fn cached_hero_class_index_map(game_dir: &Path) -> std::sync::Arc<HashMap<String, i64>> {
     let cands = hero_class_index_candidates(game_dir);
     let key = format!("hci:{}", fingerprint_of(&cands));
-    cfg_cache_get(&HERO_CLASS_INDEX_CACHE, key, || read_hero_class_index_map(game_dir))
+    cfg_cache_get(&HERO_CLASS_INDEX_CACHE, key, || {
+        read_hero_class_index_map(game_dir)
+    })
 }
 
 pub(crate) fn hero_class_index_candidates(game_dir: &Path) -> Vec<PathBuf> {
@@ -217,7 +270,12 @@ pub(crate) fn read_starting_stack_chances(game_dir: &Path) -> Vec<i64> {
 }
 
 /// 把单个配置文件的解析结果按 `{ "<id>": {...} }` 拆入 out；无包裹时用文件名作 id。
-pub(crate) fn push_config_object(out: &mut Vec<(String, Value)>, path: &str, v: Value, _type: &str) {
+pub(crate) fn push_config_object(
+    out: &mut Vec<(String, Value)>,
+    path: &str,
+    v: Value,
+    _type: &str,
+) {
     let fname = path
         .rsplit(['/', '\\'])
         .next()

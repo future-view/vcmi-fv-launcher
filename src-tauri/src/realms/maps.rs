@@ -2,13 +2,13 @@
 //! （`Maps.vcmi-fv-realm/`：VCMI 不挂载的真相源，含元数据缓存 `index.json`）、
 //! 引入/移动/删除与游戏内语言隔离（按语言重建 `Maps/` 下的 junction 集合）。
 
-use crate::infra::berror::be_err;
 use super::base::{
-    MAPS_NATIVE_SUFFIX, game_dir_of, guard_vcmi_not_running, now_date, read_config, realm_root,
+    game_dir_of, guard_vcmi_not_running, now_date, read_config, realm_root, MAPS_NATIVE_SUFFIX,
 };
 use super::meta::{get_realm, write_realm_meta};
+use crate::infra::berror::be_err;
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -28,7 +28,11 @@ const MAP_EXTS: [&str; 3] = ["h3m", "h3c", "vmap"];
 
 /// 切换「屏蔽游戏自带地图」阀门（§8.3）。仅对当前激活领域即时生效，并持久化偏好。
 #[tauri::command]
-pub fn set_realm_maps_blocked(realm_id: String, blocked: bool, state: State<AppPaths>) -> Result<(), String> {
+pub fn set_realm_maps_blocked(
+    realm_id: String,
+    blocked: bool,
+    state: State<AppPaths>,
+) -> Result<(), String> {
     let id = VcmiPaths::sanitize_realm_id(&realm_id);
     let mut realm = get_realm(&id)?;
     {
@@ -82,13 +86,15 @@ pub(crate) fn apply_maps_valve(game_dir: &Path, blocked: bool) -> Result<(), Str
 
     // 首次：把真实 Maps 改名为 native（仅当真实 Maps 存在且 native 不存在）
     if maps.is_dir() && !native.exists() {
-        fs::rename(&maps, &native).map_err(|e| be_err("realm_maps_collect_failed", &format!("{}", e)))?;
+        fs::rename(&maps, &native)
+            .map_err(|e| be_err("realm_maps_collect_failed", &format!("{}", e)))?;
     }
 
     if blocked {
         // 移除 junction 暴露（不删真实文件：remove_dir 仅删目录联接本身）
         if maps.is_dir() {
-            fs::remove_dir(&maps).map_err(|e| be_err("realm_maps_block_failed", &format!("{}", e)))?;
+            fs::remove_dir(&maps)
+                .map_err(|e| be_err("realm_maps_block_failed", &format!("{}", e)))?;
         }
     } else {
         // 透明态：确保 junction 存在
@@ -129,7 +135,8 @@ pub fn repair_game_maps(action: String, state: State<AppPaths>) -> Result<(), St
             }
             move_dir_contents(&maps, &native)?;
             // 已搬空：此处 `maps` 是真实目录（形态已校验），删除它不会波及真相源
-            fs::remove_dir_all(&maps).map_err(|e| be_err("realm_temp_maps_clear_failed", &format!("{}", e)))?;
+            fs::remove_dir_all(&maps)
+                .map_err(|e| be_err("realm_temp_maps_clear_failed", &format!("{}", e)))?;
             ensure_link(&maps, &native)
         }
         "revert" => {
@@ -142,7 +149,8 @@ pub fn repair_game_maps(action: String, state: State<AppPaths>) -> Result<(), St
             if is_link(&maps) {
                 remove_link(&maps)?;
             }
-            fs::rename(&native, &maps).map_err(|e| be_err("realm_maps_restore_failed", &format!("{}", e)))
+            fs::rename(&native, &maps)
+                .map_err(|e| be_err("realm_maps_restore_failed", &format!("{}", e)))
         }
         _ => Err(be_err("realm_unsupported_repair_action", "")),
     }
@@ -152,7 +160,8 @@ pub fn repair_game_maps(action: String, state: State<AppPaths>) -> Result<(), St
 /// 文件先试 `rename`（同卷零拷贝），跨卷失败回退「复制 + 删源」；
 /// 目录联接**不许当作目录递归**（会顺着联接跑到真相源），改为在新位置重建同名联接。
 fn move_dir_contents(src: &Path, dst: &Path) -> Result<(), String> {
-    fs::create_dir_all(dst).map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(dst)
+        .map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
     let entries: Vec<_> = fs::read_dir(src)
         .map_err(|e| be_err("realm_map_dir_read_failed", &format!("{}", e)))?
         .flatten()
@@ -181,12 +190,14 @@ fn move_dir_contents(src: &Path, dst: &Path) -> Result<(), String> {
         }
         // 先判联接：目录联接被 `is_dir()` 判为真目录（Windows 跟随联接），放前面会误递归
         if is_link(&from) {
-            let tgt = fs::read_link(&from).map_err(|e| be_err("realm_junction_read_failed", &format!("{}", e)))?;
+            let tgt = fs::read_link(&from)
+                .map_err(|e| be_err("realm_junction_read_failed", &format!("{}", e)))?;
             ensure_link(&target, &tgt)?;
             remove_link(&from)?;
         } else if from.is_dir() {
             move_dir_contents(&from, &target)?;
-            fs::remove_dir_all(&from).map_err(|e| be_err("realm_src_dir_clear_failed", &format!("{}", e)))?;
+            fs::remove_dir_all(&from)
+                .map_err(|e| be_err("realm_src_dir_clear_failed", &format!("{}", e)))?;
         } else {
             fs::rename(&from, &target)
                 .or_else(|_| fs::copy(&from, &target).and_then(|_| fs::remove_file(&from)))
@@ -218,7 +229,9 @@ pub(crate) fn realm_blocked(id: &str) -> bool {
 
 /// 收纳仓库根：`{realm}/vcmi/Maps.vcmi-fv-realm/`。
 fn repo_dir(id: &str) -> Result<PathBuf, String> {
-    Ok(realm_root(id)?.join("vcmi").join(format!("Maps.{MAPS_REALM_SUFFIX}")))
+    Ok(realm_root(id)?
+        .join("vcmi")
+        .join(format!("Maps.{MAPS_REALM_SUFFIX}")))
 }
 
 /// VCMI 可视目录：`{realm}/vcmi/Maps/`（内容全部为指向仓库的 junction）。
@@ -285,7 +298,12 @@ fn fallback_entry(file: &str, abs: &Path, kind_dir: &str) -> Value {
         file,
         abs,
         MapMeta {
-            kind: (if kind_dir == "campaigns" { "campaign" } else { "map" }).to_string(),
+            kind: (if kind_dir == "campaigns" {
+                "campaign"
+            } else {
+                "map"
+            })
+            .to_string(),
             lang: "unknown".into(),
             encoding: String::new(),
             name: String::new(),
@@ -304,7 +322,10 @@ fn fallback_entry(file: &str, abs: &Path, kind_dir: &str) -> Value {
         },
     );
     if let Some(o) = e.as_object_mut() {
-        o.insert("parseError".to_string(), json!(format!("unsupported .{ext}")));
+        o.insert(
+            "parseError".to_string(),
+            json!(format!("unsupported .{ext}")),
+        );
     }
     e
 }
@@ -384,7 +405,11 @@ fn rebuild_index(id: &str) -> Result<Vec<Value>, String> {
             let mut found: Vec<(String, PathBuf)> = Vec::new();
             collect_map_files(&d, &mut found);
             // 统一加上分区前缀：`maps/chinese/x.h3m` / `campaigns/chinese/y.h3c`
-            files.extend(found.into_iter().map(|(rel, p)| (format!("{kind}/{rel}"), p)));
+            files.extend(
+                found
+                    .into_iter()
+                    .map(|(rel, p)| (format!("{kind}/{rel}"), p)),
+            );
         }
     }
     files.sort_by(|a, b| a.0.cmp(&b.0));
@@ -425,10 +450,14 @@ fn rebuild_index(id: &str) -> Result<Vec<Value>, String> {
     }
 
     let repo = repo_dir(id)?;
-    fs::create_dir_all(&repo).map_err(|e| be_err("realm_map_repo_create_failed", &format!("{}", e)))?;
-    let text = serde_json::to_string_pretty(&json!({ "version": INDEX_CACHE_VERSION, "entries": entries }))
-        .map_err(|e| be_err("realm_index_serialize_failed", &format!("{}", e)))?;
-    fs::write(repo.join("index.json"), text).map_err(|e| be_err("realm_index_write_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&repo)
+        .map_err(|e| be_err("realm_map_repo_create_failed", &format!("{}", e)))?;
+    let text = serde_json::to_string_pretty(
+        &json!({ "version": INDEX_CACHE_VERSION, "entries": entries }),
+    )
+    .map_err(|e| be_err("realm_index_serialize_failed", &format!("{}", e)))?;
+    fs::write(repo.join("index.json"), text)
+        .map_err(|e| be_err("realm_index_write_failed", &format!("{}", e)))?;
     Ok(entries)
 }
 
@@ -486,13 +515,18 @@ fn migrate_legacy_maps(id: &str) -> Result<(), String> {
         let kind_dir = kind_by_ext(&ext);
         let meta = h3m::parse_file(&abs).ok();
         let lang = meta.map(|m| m.lang).unwrap_or_else(|| "unknown".into());
-        let name = abs.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let name = abs
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
         let dest = repo.join(kind_dir).join(&lang).join(&name);
         if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).map_err(|e| be_err("realm_repo_dir_create_failed", &format!("{}", e)))?;
+            fs::create_dir_all(parent)
+                .map_err(|e| be_err("realm_repo_dir_create_failed", &format!("{}", e)))?;
         }
         if abs.is_file() {
-            fs::rename(&abs, &dest).or_else(|_| fs::copy(&abs, &dest).map(|_| ()))
+            fs::rename(&abs, &dest)
+                .or_else(|_| fs::copy(&abs, &dest).map(|_| ()))
                 .map_err(|e| be_err("realm_map_migrate_failed", &format!("{} {}", name, e)))?;
         }
     }
@@ -506,14 +540,20 @@ fn prune_empty_dirs(root: &Path) -> Result<(), String> {
     if !root.is_dir() {
         return Ok(());
     }
-    for e in fs::read_dir(root).map_err(|e| be_err("realm_generic_arg", &format!("{}", e)))?.flatten() {
+    for e in fs::read_dir(root)
+        .map_err(|e| be_err("realm_generic_arg", &format!("{}", e)))?
+        .flatten()
+    {
         let p = e.path();
         if p.is_dir() && !is_link(&p) {
             prune_empty_dirs(&p)?;
         }
     }
     // 目录已空才删除；junction 交给上层按链接处理
-    if fs::read_dir(root).map(|mut rd| rd.next().is_none()).unwrap_or(false) {
+    if fs::read_dir(root)
+        .map(|mut rd| rd.next().is_none())
+        .unwrap_or(false)
+    {
         if is_link(root) {
             remove_link(root)?;
         } else {
@@ -559,17 +599,22 @@ pub(crate) fn rebuild_realm_maps_valve(id: &str) -> Result<(), String> {
 
     // 可视目录：清掉旧 junction（真实目录留给迁移逻辑处理）
     if vis.is_dir() {
-        for e in fs::read_dir(&vis).map_err(|e| be_err("realm_maps_dir_read_failed", &format!("{}", e)))?.flatten() {
+        for e in fs::read_dir(&vis)
+            .map_err(|e| be_err("realm_maps_dir_read_failed", &format!("{}", e)))?
+            .flatten()
+        {
             let p = e.path();
             if is_link(&p) {
                 remove_link(&p)?;
             }
         }
         if !vis.exists() {
-            fs::create_dir_all(&vis).map_err(|e| be_err("realm_maps_dir_create_failed", &format!("{}", e)))?;
+            fs::create_dir_all(&vis)
+                .map_err(|e| be_err("realm_maps_dir_create_failed", &format!("{}", e)))?;
         }
     } else {
-        fs::create_dir_all(&vis).map_err(|e| be_err("realm_maps_dir_create_failed", &format!("{}", e)))?;
+        fs::create_dir_all(&vis)
+            .map_err(|e| be_err("realm_maps_dir_create_failed", &format!("{}", e)))?;
     }
 
     for kind in ["maps", "campaigns"] {
@@ -887,15 +932,22 @@ pub fn upload_realm_map(realm_id: String, src: String) -> Result<Value, String> 
 
     let repo = repo_dir(&id)?;
     let mut rel = format!("{kind_dir}/{lang}/{stem}.{ext}");
-    let mut target = repo.join(kind_dir).join(&lang).join(format!("{stem}.{ext}"));
+    let mut target = repo
+        .join(kind_dir)
+        .join(&lang)
+        .join(format!("{stem}.{ext}"));
     let mut n = 2;
     while target.exists() {
         rel = format!("{kind_dir}/{lang}/{stem}-{n}.{ext}");
-        target = repo.join(kind_dir).join(&lang).join(format!("{stem}-{n}.{ext}"));
+        target = repo
+            .join(kind_dir)
+            .join(&lang)
+            .join(format!("{stem}-{n}.{ext}"));
         n += 1;
     }
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| be_err("realm_repo_dir_create_failed", &format!("{}", e)))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| be_err("realm_repo_dir_create_failed", &format!("{}", e)))?;
     }
     fs::copy(&src_path, &target).map_err(|e| be_err("realm_map_copy_failed", &format!("{}", e)))?;
 
@@ -928,7 +980,9 @@ pub fn delete_realm_map(realm_id: String, file: String) -> Result<(), String> {
     let canon = p
         .canonicalize()
         .map_err(|_| be_err("realm_map_delete_not_found", ""))?;
-    let repo_canon = repo.canonicalize().map_err(|e| be_err("realm_generic_arg", &format!("{}", e)))?;
+    let repo_canon = repo
+        .canonicalize()
+        .map_err(|e| be_err("realm_generic_arg", &format!("{}", e)))?;
     if !canon.starts_with(&repo_canon) {
         return Err(be_err("realm_map_delete_invalid", ""));
     }
@@ -942,7 +996,10 @@ pub fn delete_realm_map(realm_id: String, file: String) -> Result<(), String> {
         if d == repo || d == repo.join("maps") || d == repo.join("campaigns") {
             break;
         }
-        if fs::read_dir(&d).map(|mut rd| rd.next().is_none()).unwrap_or(false) {
+        if fs::read_dir(&d)
+            .map(|mut rd| rd.next().is_none())
+            .unwrap_or(false)
+        {
             let _ = fs::remove_dir(&d);
             dir = d.parent().map(|x| x.to_path_buf());
         } else {
@@ -1009,7 +1066,8 @@ pub fn move_realm_map(realm_id: String, file: String, dest_dir: String) -> Resul
             n += 1;
         }
     }
-    fs::create_dir_all(&dest_parent).map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&dest_parent)
+        .map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
     fs::rename(&src, &dest).map_err(|e| be_err("realm_map_move_failed", &format!("{}", e)))?;
     let dest_rel = dest
         .strip_prefix(&repo)
@@ -1033,7 +1091,8 @@ mod tests {
     /// 这是本次唯一会**搬动玩家真实地图文件**的新代码，必须用测试锁住行为。
     #[test]
     fn move_dir_contents_merges_and_renames() {
-        let root = std::env::temp_dir().join(format!("vcmi_fv_move_dir_contents_{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("vcmi_fv_move_dir_contents_{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let src = root.join("src");
         let dst = root.join("dst");

@@ -149,7 +149,10 @@ mod tests {
             .map(|i| out[i * 4] as f64 * (src[i * 4 + 3] as f64 / 255.0))
             .sum::<f64>()
             / (0..4).map(|i| src[i * 4 + 3] as f64 / 255.0).sum::<f64>();
-        assert!((mean - 200.0).abs() > 30.0, "应对齐参考色的均值，实际 {mean}");
+        assert!(
+            (mean - 200.0).abs() > 30.0,
+            "应对齐参考色的均值，实际 {mean}"
+        );
         assert_eq!(color_match(&src, &[]), src, "长度不符时原样返回");
     }
 
@@ -193,7 +196,11 @@ mod tests {
         }
         let out = usm(&src, w, h, DEFAULT_SIGMA, ILLUSTRATION_AMOUNT);
         for i in 0..(w as usize * h as usize) {
-            assert_eq!(out[i * 4 + 3], src[i * 4 + 3], "alpha 必须原样保留（第 {i} 个像素）");
+            assert_eq!(
+                out[i * 4 + 3],
+                src[i * 4 + 3],
+                "alpha 必须原样保留（第 {i} 个像素）"
+            );
         }
     }
 
@@ -211,14 +218,23 @@ mod tests {
         // 边缘两侧对比度必须增大（USM 的核心效果）
         let (dl, dr) = (lum(&src, 7, 4), lum(&src, 8, 4));
         let (ol, or) = (lum(&out, 7, 4), lum(&out, 8, 4));
-        assert!(or - ol > dr - dl, "边缘对比度应被增强：原 {} → 新 {}", dr - dl, or - ol);
+        assert!(
+            or - ol > dr - dl,
+            "边缘对比度应被增强：原 {} → 新 {}",
+            dr - dl,
+            or - ol
+        );
     }
 
     #[test]
     fn usm_is_noop_when_disabled_or_invalid() {
         let (w, h) = (4u32, 4u32);
         let src = edge_image(w, h);
-        assert_eq!(usm(&src, w, h, DEFAULT_SIGMA, 0.0), src, "amount=0 应原样返回");
+        assert_eq!(
+            usm(&src, w, h, DEFAULT_SIGMA, 0.0),
+            src,
+            "amount=0 应原样返回"
+        );
         assert_eq!(usm(&src, w, h, DEFAULT_SIGMA, -1.0), src);
         assert_eq!(usm(&[], w, h, DEFAULT_SIGMA, 1.0), Vec::<u8>::new());
     }

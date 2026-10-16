@@ -5,8 +5,10 @@ import { classifyMod } from "./minimapBase";
  * 磁盘读取、zip 解包、编码解码等 Node 专属逻辑见 modScannerNode.ts。
  */
 export interface ModInfo {
-  id: string; // 磁盘目录名（顶层 mod 无点，子 mod 用 parent.child 或空格子 ID）
-  diskName: string; // 磁盘目录原名（可能含空格）
+  /** VCMI modId：磁盘目录名**小写**归一，子 mod 用 `parent.child`（与 VCMI 主键同一形态） */
+  id: string;
+  /** 磁盘目录原名（保留大小写；可能含空格）——磁盘定位用它，不要用 `id` */
+  diskName: string;
   parentId: string; // 顶层父 mod id（点号前第一段 或 自身）
   name: string; // 英文名
   localizedName: string; // 按语言取词后的名字
@@ -28,7 +30,14 @@ export interface ModInfo {
    * 判定见 `lib/modCompat.ts`（复刻 VCMI `CModVersion::compatible`）。
    */
   compatibility?: { min?: string | null; max?: string | null } | null;
-  modPath: string; // 该 mod 的磁盘目录绝对路径
+  /**
+   * 该 mod 的**磁盘目录绝对路径**（后端扫描回传）。
+   *
+   * 这是唯一可靠的磁盘定位依据：`diskName` 只能表达"名字"，表达不了**来源根**
+   * （游戏目录 `Mods/` 与 userDataPath 下的 `Mods/` 会同时挂载，可能有同名模组），
+   * 子模组的磁盘布局（`<父>/Mods/<子>`）也无法从 `id`/`diskName` 推出。
+   */
+  modPath: string;
   hasContentZip: boolean;
   contentZipEncrypted: boolean;
   isSubmod: boolean;
@@ -88,12 +97,17 @@ export function localizedDescription(
 }
 
 /**
- * 归一化 mod id：VCMI 在 modSettings 中用磁盘目录名小写归一化，
- * 多词保留空格，子 mod 用点号分层。此处顶层用 diskName 原样（保留大小写目录名），
- * 子 mod 拼接为 parent.diskName（VCMI 实际是归一化后的目录名，见下）。
+ * 归一化 mod id：**磁盘目录名小写**，多词保留空格，子 mod 用点号分层。
+ *
+ * 与 VCMI 一致（`lib/modding/ModManager.cpp` 对目录名做 `to_lower_copy`）：modId 是全局主键，
+ * `modSettings.json` 的 presets、依赖/冲突、跨模组引用 `<modId>:<entityId>` 都用这个形态。
+ * 实测 572 个模组的 presets 里含大写字母的 id 为 0 个 —— VCMI 侧确实小写。
+ *
+ * ⚠️ 原始目录名保留在 `ModInfo.diskName`（可能含空格与大写）；**磁盘定位请用 diskName，
+ * 不要用 id**（小写后在大小写敏感的文件系统上必然找不到目录）。
  */
 export function normalizeModId(diskName: string): string {
-  return diskName;
+  return diskName.trim().toLowerCase();
 }
 
 /**

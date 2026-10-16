@@ -221,11 +221,13 @@ fn pin_vc_runtime(_dir: &Path) {}
 
 /// 真正加载：`LoadLibrary` + 注册 env。只在首次用到 AI 时执行一次。
 fn load_runtime(dir: Option<PathBuf>) -> Result<(), String> {
-    let dir = dir
-        .ok_or_else(|| be_err("ai_component_not_installed", ""))?;
+    let dir = dir.ok_or_else(|| be_err("ai_component_not_installed", ""))?;
     let dll = dir.join(RT_DLL);
     if !dll.is_file() {
-        return Err(be_err("ai_runtime_dll_missing", &format!("{}", dll.display())));
+        return Err(be_err(
+            "ai_runtime_dll_missing",
+            &format!("{}", dll.display()),
+        ));
     }
     // ⚠️ 顺序不能反：先把正确版本的 CRT 钉进进程，再加载 ORT（原因见 `pin_vc_runtime`）
     pin_vc_runtime(&dir);
@@ -247,7 +249,9 @@ fn load_runtime(dir: Option<PathBuf>) -> Result<(), String> {
 ///
 /// 未开启「AI 高清增强」的用户不会付出任何加载开销。结果缓存在 [`RtState::loaded`]。
 fn ensure_runtime() -> bool {
-    let Ok(mut g) = rt().lock() else { return false; };
+    let Ok(mut g) = rt().lock() else {
+        return false;
+    };
     let res = match g.loaded.clone() {
         Some(r) => r,
         None => {
@@ -316,7 +320,9 @@ pub fn upscale_with_model(
         let in_name = s.inputs()[0].name().to_string();
         let out_name = s.outputs()[0].name().to_string();
         let outputs = s.run(ort::inputs![in_name.as_str() => tensor]).ok()?;
-        let (shape, data) = outputs[out_name.as_str()].try_extract_tensor::<f32>().ok()?;
+        let (shape, data) = outputs[out_name.as_str()]
+            .try_extract_tensor::<f32>()
+            .ok()?;
         Some((vec![shape[2] as u32, shape[3] as u32], data.to_vec()))
     })
     .flatten()?;
@@ -468,13 +474,7 @@ pub fn upscale(rgba: &[u8], w: u32, h: u32, factor: u32) -> Option<(Vec<u8>, u32
     //    - 不用 AI 自己生成 alpha：避免"AI 猜出来的孔洞"。
     //    同时把**全透明区**的 RGB 还原为原图色（见 [`TRANSPARENT_ALPHA`]）：否则输入端的
     //    `dilate_colors` 填色会被模型当内容输出，表现为黑底 / 半透明边缘的彩边。
-    if let Some(up) = crate::infra::upscale::upscale_rgba(
-        "xbrz",
-        &rgba[..n * 4],
-        w,
-        h,
-        AI_FACTOR,
-    ) {
+    if let Some(up) = crate::infra::upscale::upscale_rgba("xbrz", &rgba[..n * 4], w, h, AI_FACTOR) {
         let (a, _, _) = up;
         for i in 0..on.min(a.len() / 4) {
             let al = a[i * 4 + 3];

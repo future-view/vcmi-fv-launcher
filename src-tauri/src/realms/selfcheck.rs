@@ -1,7 +1,7 @@
 //! 领域自检与自愈：`realm_self_check` 汇总各项一致性检查，`realm_self_heal` 按检查结果修复。
 
 use super::activate::{dirs_realm_id, realm_dirs_match, restore_dirs};
-use super::base::{MAPS_NATIVE_SUFFIX, game_dir_of, persist, read_config};
+use super::base::{game_dir_of, persist, read_config, MAPS_NATIVE_SUFFIX};
 use super::maps::{apply_maps_valve, is_reparse_point, realm_blocked};
 use super::meta::realm_id_exists;
 
@@ -116,7 +116,10 @@ pub fn realm_self_check() -> Value {
     match read_config() {
         Some(cfg) => {
             let report = build_self_check(&cfg);
-            let status = report.get("status").and_then(|v| v.as_str()).unwrap_or("ok");
+            let status = report
+                .get("status")
+                .and_then(|v| v.as_str())
+                .unwrap_or("ok");
             if status == "ok" {
                 tracing::debug!(target: "realm", "领域自检通过");
             } else {
@@ -157,7 +160,8 @@ pub fn realm_self_heal(state: State<AppPaths>) -> Result<Value, String> {
         "maps_orphan" => {
             apply_maps_valve(&game_dir, false)?;
         }
-        _ => { /* 非自动可修复项（maps_dangling / maps_realboth）：留给用户手动处理 */ }
+        _ => { /* 非自动可修复项（maps_dangling / maps_realboth）：留给用户手动处理 */
+        }
     }
     Ok(build_self_check(&cfg))
 }

@@ -467,7 +467,8 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
       pushedRoots.add(lower);
       out.push({
         id,
-        diskName: id,
+        // 磁盘原名优先（`id` 是小写归一后的 VCMI modId，不能当目录名用）
+        diskName: g.diskName || id,
         name: g.name,
         desc: g.desc ?? "",
         type: g.type,
@@ -501,7 +502,8 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
       if (!pushedRoots.has(seg(s.id))) continue;
       out.push({
         id: s.id,
-        diskName: s.id,
+        // 磁盘原名优先（理由同上）
+        diskName: s.diskName || s.id,
         name: s.name,
         desc: s.desc ?? "",
         type: s.type,

@@ -319,8 +319,18 @@ fn encode_wide_null(s: &str) -> Vec<u16> {
 #[cfg(windows)]
 extern "system" {
     fn GetFileVersionInfoSizeW(lptstrfilename: *const u16, lpdwhandle: *mut u32) -> u32;
-    fn GetFileVersionInfoW(lptstrfilename: *const u16, dwhandle: u32, dwlen: u32, lpdata: *mut u8) -> u32;
-    fn VerQueryValueW(pblock: *mut u8, lpstrsubblock: *const u16, lplpbuffer: *mut *mut u8, pulen: *mut u32) -> u32;
+    fn GetFileVersionInfoW(
+        lptstrfilename: *const u16,
+        dwhandle: u32,
+        dwlen: u32,
+        lpdata: *mut u8,
+    ) -> u32;
+    fn VerQueryValueW(
+        pblock: *mut u8,
+        lpstrsubblock: *const u16,
+        lplpbuffer: *mut *mut u8,
+        pulen: *mut u32,
+    ) -> u32;
 }
 
 #[cfg(test)]
@@ -329,7 +339,10 @@ mod tests {
 
     #[test]
     fn normalize_version_keeps_three_numeric_segments() {
-        assert_eq!(normalize_version("1.7.4.652bb0b7c140").as_deref(), Some("1.7.4"));
+        assert_eq!(
+            normalize_version("1.7.4.652bb0b7c140").as_deref(),
+            Some("1.7.4")
+        );
         assert_eq!(normalize_version("1.7.5").as_deref(), Some("1.7.5"));
         assert_eq!(normalize_version("1.8").as_deref(), Some("1.8"));
         assert_eq!(normalize_version("abc"), None);
@@ -351,7 +364,10 @@ mod tests {
         let set = collect_xyz(&data);
         assert!(set.contains("1.7.4"), "应取出前三段：{set:?}");
         assert!(set.contains("1.2.3"), "长串也取前三段：{set:?}");
-        assert!(!set.contains("2.3.4"), "整串一次性消费，不产生错位窗口：{set:?}");
+        assert!(
+            !set.contains("2.3.4"),
+            "整串一次性消费，不产生错位窗口：{set:?}"
+        );
     }
 
     #[test]
@@ -372,10 +388,7 @@ mod tests {
         let base = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("references");
-        for (dir, expect) in [
-            ("Heroes3-VCMI", "1.7.4"),
-            ("Heroes3-VCMI", "1.7.5"),
-        ] {
+        for (dir, expect) in [("Heroes3-VCMI", "1.7.4"), ("Heroes3-VCMI", "1.7.5")] {
             let game = base.join(dir);
             if !game.is_dir() {
                 eprintln!("跳过：{} 不存在", game.display());
@@ -389,7 +402,10 @@ mod tests {
             );
             assert_eq!(info.version, expect, "{dir} 的引擎版本");
             assert_eq!(info.source, "cli", "{dir} 应走 -v 探测");
-            assert_ne!(info.version, info.core_mod_version, "不得把核心 mod 版本当引擎版本");
+            assert_ne!(
+                info.version, info.core_mod_version,
+                "不得把核心 mod 版本当引擎版本"
+            );
         }
     }
 }

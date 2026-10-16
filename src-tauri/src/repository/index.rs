@@ -1,7 +1,7 @@
 //! 远程仓库索引：仓库 URL 增删、索引拉取（带 ETag/`INDEX_TTL_SECS` 缓存）、条目构建与本地比对。
 
-use crate::infra::berror::be_err;
 use super::*;
+use crate::infra::berror::be_err;
 
 use serde_json::{json, Value};
 use std::fs;
@@ -33,7 +33,10 @@ pub(crate) fn load_cache(url: &str) -> Option<IndexCache> {
         return None;
     }
     Some(IndexCache {
-        etag: v.get("etag").and_then(|x| x.as_str()).map(|s| s.to_string()),
+        etag: v
+            .get("etag")
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string()),
         fetched_at: v.get("fetchedAt").and_then(|x| x.as_u64()).unwrap_or(0),
         index: v.get("index").cloned().unwrap_or(Value::Null),
     })
@@ -41,14 +44,16 @@ pub(crate) fn load_cache(url: &str) -> Option<IndexCache> {
 
 pub(crate) fn save_cache(url: &str, etag: Option<&str>, index: &Value) -> Result<(), String> {
     let dir = index_cache_dir().ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
-    fs::create_dir_all(&dir).map_err(|e| be_err("repo_index_cache_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&dir)
+        .map_err(|e| be_err("repo_index_cache_dir_create_failed", &format!("{}", e)))?;
     let v = json!({
         "url": url,
         "etag": etag,
         "fetchedAt": crate::infra::time::now_secs(),
         "index": index,
     });
-    let text = serde_json::to_string_pretty(&v).map_err(|e| be_err("repo_index_cache_serialize_failed", &format!("{}", e)))?;
+    let text = serde_json::to_string_pretty(&v)
+        .map_err(|e| be_err("repo_index_cache_serialize_failed", &format!("{}", e)))?;
     fs::write(dir.join(format!("{}.json", url_key(url))), text)
         .map_err(|e| be_err("repo_index_cache_write_failed", &format!("{}", e)))
 }
@@ -93,7 +98,11 @@ fn realm_update_state(local: &LocalRealm, entry_version: &str, entry_sha: &str) 
 
 /// 把单个索引整理成前端可用列表：补齐 id / tags，按本地安装情况打 `state`，
 /// 并给每条打上来源 `repositoryUrl`（聚合多源时用于定位下载 / 校验信息）。
-pub(crate) fn build_items(local: &HashMap<String, LocalRealm>, url: &str, index: &Value) -> Vec<Value> {
+pub(crate) fn build_items(
+    local: &HashMap<String, LocalRealm>,
+    url: &str,
+    index: &Value,
+) -> Vec<Value> {
     let mut items: Vec<Value> = Vec::new();
     if let Some(obj) = index.get("realms").and_then(|v| v.as_object()) {
         for (id, entry) in obj {
@@ -127,7 +136,12 @@ pub(crate) fn build_items(local: &HashMap<String, LocalRealm>, url: &str, index:
             items.push(e);
         }
     }
-    items.sort_by_key(|v| v.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string());
+    items.sort_by_key(|v| {
+        v.get("id")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string()
+    });
     items
 }
 
@@ -148,7 +162,12 @@ pub fn add_realm_repository(url: String) -> Result<Value, String> {
     validate_repository_url(&trimmed)?;
     let mut cfg =
         VcmiPaths::read_launcher_config().ok_or_else(|| be_err("settings_not_init", ""))?;
-    if !cfg.realms.repository_urls.iter().any(|u| u.trim() == trimmed) {
+    if !cfg
+        .realms
+        .repository_urls
+        .iter()
+        .any(|u| u.trim() == trimmed)
+    {
         cfg.realms.repository_urls.push(trimmed);
     }
     VcmiPaths::write_launcher_config(&cfg)?;
@@ -184,8 +203,8 @@ fn test_realm_repository_blocking(url: String) -> Result<Value, String> {
     let final_url = target.to_string();
     let started = Instant::now();
     let (_, _, bytes) = http_get(&final_url, None)?;
-    let index: Value = serde_json::from_slice(&bytes)
-        .map_err(|_| be_err("repo_index_parse_invalid", ""))?;
+    let index: Value =
+        serde_json::from_slice(&bytes).map_err(|_| be_err("repo_index_parse_invalid", ""))?;
     if index.get("realms").and_then(|v| v.as_object()).is_none() {
         return Err(be_err("repo_index_no_realms", ""));
     }
@@ -239,8 +258,7 @@ fn fetch_realm_index_blocking(force: bool) -> Result<Value, String> {
     for url in &urls {
         let cached = load_cache(url);
         // P6 缓存加强（与 mod 侧同构）：验证时刻 = max(fetchedAt, 文件 mtime)；304 只 touch 不重写
-        let cache_file =
-            index_cache_dir().map(|d| d.join(format!("{}.json", url_key(url))));
+        let cache_file = index_cache_dir().map(|d| d.join(format!("{}.json", url_key(url))));
         let cache_fetched = cached.as_ref().map(|c| {
             let mt = cache_file
                 .as_ref()
@@ -256,7 +274,11 @@ fn fetch_realm_index_blocking(force: bool) -> Result<Value, String> {
         let (index, fetched_at, err) = if !force && age < INDEX_TTL_SECS {
             match cached {
                 Some(c) => (c.index, cache_fetched.unwrap_or(c.fetched_at), None),
-                None => (Value::Null, 0u64, Some("领域索引为空，请刷新重试".to_string())),
+                None => (
+                    Value::Null,
+                    0u64,
+                    Some("领域索引为空，请刷新重试".to_string()),
+                ),
             }
         } else {
             let etag = cached.as_ref().and_then(|c| c.etag.clone());
@@ -273,7 +295,11 @@ fn fetch_realm_index_blocking(force: bool) -> Result<Value, String> {
                             None,
                         )
                     }
-                    None => (Value::Null, 0u64, Some("领域索引为空，请刷新重试".to_string())),
+                    None => (
+                        Value::Null,
+                        0u64,
+                        Some("领域索引为空，请刷新重试".to_string()),
+                    ),
                 },
                 Ok((_, new_etag, bytes)) => {
                     // Gitee 的 Content-Type 是 text/plain，只能靠"解析成功"判定
@@ -323,7 +349,12 @@ fn fetch_realm_index_blocking(force: bool) -> Result<Value, String> {
     }
 
     let mut realms: Vec<Value> = merged.into_values().collect();
-    realms.sort_by_key(|v| v.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string());
+    realms.sort_by_key(|v| {
+        v.get("id")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string()
+    });
 
     let error = if any_ok { None } else { last_error };
     Ok(json!({
@@ -373,7 +404,10 @@ mod tests {
     #[test]
     fn state_matrix_degrades_gracefully_without_sha() {
         // 同版本、sha 不可比（任一侧缺）→ installed（退回纯版本比较）
-        assert_eq!(realm_update_state(&local("1.0.0", ""), "1.0.0", ""), "installed");
+        assert_eq!(
+            realm_update_state(&local("1.0.0", ""), "1.0.0", ""),
+            "installed"
+        );
         assert_eq!(
             realm_update_state(&local("1.0.0", ""), "1.0.0", "bb"),
             "installed"
@@ -383,7 +417,10 @@ mod tests {
             "installed"
         );
         // 无 sha 也不影响版本高低判定
-        assert_eq!(realm_update_state(&local("1.0.0", ""), "1.1.0", ""), "updatable");
+        assert_eq!(
+            realm_update_state(&local("1.0.0", ""), "1.1.0", ""),
+            "updatable"
+        );
         // 后缀不参与：1.0.0-rc1 vs 1.0.0 视为同版
         assert_eq!(
             realm_update_state(&local("1.0.0-rc1", ""), "1.0.0", ""),

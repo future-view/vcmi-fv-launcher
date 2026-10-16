@@ -62,14 +62,21 @@ fn main() -> ExitCode {
     let mut groups: BTreeMap<(String, String, String), Vec<PathBuf>> = BTreeMap::new();
     let mut seen = 0usize;
     collect(&corpus, 0, "", &mut |path: &PathBuf, rel| {
-        let ext = path.extension().and_then(|e| e.to_str())?.to_ascii_lowercase();
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())?
+            .to_ascii_lowercase();
         if !matches!(ext.as_str(), "h3m" | "h3c") {
             return None;
         }
         let mut parts = Path::new(rel).components();
         let version = parts.next()?.as_os_str().to_string_lossy().into_owned();
         let kind_dir = parts.next()?.as_os_str().to_string_lossy().into_owned();
-        let kind = if kind_dir == "campaign" { "campaign" } else { "map" };
+        let kind = if kind_dir == "campaign" {
+            "campaign"
+        } else {
+            "map"
+        };
         let lang_dir = parts.next()?.as_os_str().to_string_lossy().into_owned();
         groups
             .entry((version, kind.to_string(), lang_dir))
@@ -102,7 +109,9 @@ fn main() -> ExitCode {
         files.sort();
         let picked: &[PathBuf] = if sample > 0 && files.len() > sample {
             let step = files.len() / sample;
-            &(0..sample).map(|i| files[i * step].clone()).collect::<Vec<_>>()
+            &(0..sample)
+                .map(|i| files[i * step].clone())
+                .collect::<Vec<_>>()
         } else {
             &files
         };
@@ -124,7 +133,12 @@ fn main() -> ExitCode {
                         miss += 1;
                         lang_miss += 1;
                         line_bad = true;
-                        lang_issues.push(format!("{}: lang={} 期望 {}", path.display(), meta.lang, expected));
+                        lang_issues.push(format!(
+                            "{}: lang={} 期望 {}",
+                            path.display(),
+                            meta.lang,
+                            expected
+                        ));
                     }
                     if kind == "campaign" {
                         if meta.scenario_count < 1 {
@@ -162,7 +176,10 @@ fn main() -> ExitCode {
                             .replace(['\r', '\n'], " ");
                         println!(
                             "  {version} | {kind} | {lang_dir} | lang={} enc={} | {} | {}",
-                            meta.lang, meta.encoding, name, path.display()
+                            meta.lang,
+                            meta.encoding,
+                            name,
+                            path.display()
                         );
                     } else if line_bad && hard_failures.len() + lang_issues.len() > 200 {
                         break;
@@ -212,7 +229,10 @@ fn main() -> ExitCode {
 
 /// 从常见工作目录探测默认语料位置（仓库根 / src-tauri）。
 fn default_corpus() -> Option<PathBuf> {
-    for rel in ["../homm3-map-translator/Maps", "../../homm3-map-translator/Maps"] {
+    for rel in [
+        "../homm3-map-translator/Maps",
+        "../../homm3-map-translator/Maps",
+    ] {
         let p = PathBuf::from(rel);
         if p.is_dir() {
             return Some(p);
@@ -222,11 +242,18 @@ fn default_corpus() -> Option<PathBuf> {
 }
 
 /// 递归遍历（限深度，跳过不可读目录）；`rel` 为相对语料根的完整路径。
-fn collect(dir: &Path, depth: usize, prefix: &str, out: &mut impl FnMut(&PathBuf, &str) -> Option<()>) {
+fn collect(
+    dir: &Path,
+    depth: usize,
+    prefix: &str,
+    out: &mut impl FnMut(&PathBuf, &str) -> Option<()>,
+) {
     if depth > 12 {
         return;
     }
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     let mut paths: Vec<(PathBuf, bool)> = entries
         .flatten()
         .map(|e| {
@@ -237,7 +264,10 @@ fn collect(dir: &Path, depth: usize, prefix: &str, out: &mut impl FnMut(&PathBuf
         .collect();
     paths.sort();
     for (path, is_dir) in paths {
-        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
         let rel = if prefix.is_empty() {
             name
         } else {

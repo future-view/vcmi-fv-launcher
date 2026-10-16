@@ -21,6 +21,7 @@
 //! - [`wiki`]　        百科缓存命令（读取 / 预览 / 批量构建 / 进度 / 取消）
 
 mod app;
+mod cache;
 mod game_import;
 mod gamedata;
 mod launch;
@@ -32,39 +33,54 @@ mod runtime;
 mod settings;
 mod updater;
 mod vcmi_settings;
-mod cache;
 
 pub use app::{
-    apply_main_window_geometry, close_window, get_compile_info, get_primary_monitor, list_monitors,
-    get_runtime_info, is_debug, list_resolutions, log_frontend, minimize_window, open_in_explorer,
-    toggle_maximize_window,
+    apply_main_window_geometry, close_window, get_compile_info, get_primary_monitor,
+    get_runtime_info, is_debug, list_monitors, list_resolutions, log_frontend, minimize_window,
+    open_in_explorer, toggle_maximize_window,
 };
-pub use gamedata::gamedata_health_check;
+pub use cache::{
+    build_all_mod_cache,
+    build_mods_cache_batch,
+    // 领域加急队列（S1）：独立进度通道 + 就绪检查
+    build_realm_cache_urgent,
+    cache_build_progress,
+    cancel_cache_build,
+    cancel_realm_cache_build,
+    check_realm_assets,
+    ensure_showcase_audio,
+    generate_town_preview,
+    get_mods_cache_dir,
+    read_cache_index,
+    read_mod_cache,
+    read_mod_metas,
+    read_showcase_slides,
+    read_town_cards,
+    realm_cache_build_progress,
+    // 整轮构建结束后的内存回收（构建期进程级缓存的统一释放入口）
+    release_wiki_caches,
+    // 启动预检：是否需要重建缓存（供前端决定是否弹蒙层）
+    wiki_cache_state,
+};
 pub use game_import::import_game_files;
+pub use gamedata::gamedata_health_check;
 pub use launch::{launch_editor, launch_game, launch_native_launcher};
 pub use mod_install::{install_local_mod, preview_mod_zip};
-pub use mod_settings::{clear_mod_validation, patch_preset_lang_mods, read_mod_settings, write_mod_settings};
+pub use mod_settings::{
+    clear_mod_validation, patch_preset_lang_mods, read_mod_settings, write_mod_settings,
+};
 pub use mods::{detect_edition, list_installed_mods, read_def_bytes, scan_mods};
 pub use paths::{detect_vcmi_paths, get_dirs, suggest_user_data_dir};
 pub use runtime::{runtime_cancel, runtime_install, runtime_status, runtime_uninstall};
 pub use settings::{
     hd_edition_status, list_ai_models, read_launcher_config, set_ai_hd_enhance, set_ai_model,
     set_hd_edition_scale, set_hd_edition_use, set_hd_enhance, set_launcher_pref,
-    set_network_mirror_rules, set_network_proxy, set_realm_mod_auto_check, set_realm_publish_target,
-    set_town_preview, set_ui_lang, verify_ai_model, write_launcher_config,
+    set_network_mirror_rules, set_network_proxy, set_realm_mod_auto_check,
+    set_realm_publish_target, set_town_preview, set_ui_lang, verify_ai_model,
+    write_launcher_config,
 };
 pub use updater::{
     apply_launcher_update, cancel_launcher_update, check_launcher_update, download_launcher_update,
     set_update_manifest_url, set_update_pref,
 };
 pub use vcmi_settings::{read_vcmi_settings, set_vcmi_language, write_vcmi_settings};
-pub use cache::{
-    build_all_mod_cache, build_mods_cache_batch, cancel_cache_build, generate_town_preview,
-    get_mods_cache_dir, read_mod_cache, read_cache_index, cache_build_progress, read_mod_metas,
-    read_town_cards, read_showcase_slides, ensure_showcase_audio,
-    // 启动预检：是否需要重建缓存（供前端决定是否弹蒙层）
-    wiki_cache_state,
-    // 领域加急队列（S1）：独立进度通道 + 就绪检查
-    build_realm_cache_urgent, cancel_realm_cache_build, check_realm_assets,
-    realm_cache_build_progress,
-};

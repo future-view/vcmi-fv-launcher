@@ -4,15 +4,124 @@
 //!
 //! 依赖方向：可依赖 `infra` 与 `vcmi`（见 `docs/architecture/backend.zh-CN.md` §4.1）。
 
+use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use serde_json::Value;
 
+use crate::infra::hash::fnv1a_of;
 use crate::infra::image::{encode_rgba_auto, encode_webp, encode_webp_from_bgra};
 use crate::infra::json::parse_vcmi_json;
-use crate::vcmi::resource::{resolve_resource, resolve_resource_fallback};
 use crate::modcache::{assets_enabled, sanitize_id};
+use crate::vcmi::resource::{resolve_resource, resolve_resource_fallback};
+
+/// webp 编码结果缓存（内容寻址）：`(源字节指纹, 源长度, 扩展名) → webp 字节`。
+///
+/// ⚠️ 必要性：跨 mod 共享的同一份源素材（原版建筑图标 `HALLCSTL.DEF` 的同一帧、
+/// 原版英雄头像 `TPLICHxx`、特长/技能图标等）此前**每个 mod 都要重新解码 + 编码一遍**——
+/// 实测 4.9 万次 `img.icon` ≈ 3,440s CPU。缓存后同一份源字节只编码一次。
+///
+/// ⚠️ 产物仍按原相对路径逐个落盘（`img.cached` / `img.saved` 语义与前端路径契约均不变），
+/// 这里省掉的只是重复的解码 + 编码算力。
+/// 编码缓存的内部结构（`clippy::type_complexity` 要求拆出别名）。
+///
+/// 容量按**字节上界**（`mem::cache_budget().image_bytes`，随机器内存分档）而非条目数：
+/// webp 产物从几 KB 到几百 KB 不等，按条目数设限无法约束真实占用。
+type EncodeCache = Mutex<crate::infra::lru::SizedCache<(u64, usize, String), Arc<Vec<u8>>>>;
+static ENCODE_CACHE: OnceLock<EncodeCache> = OnceLock::new();
+/// 只缓存小图：城镇幕布图等大图基本不重复，缓存它们只会白占内存。
+const ENCODE_CACHE_MAX_SRC: usize = 256 * 1024;
+
+/// 已成功创建的输出目录（`images/<sub>/`）。
+///
+/// ⚠️ 原实现**每张图都 `create_dir_all` 一次**（实测 4 万+ 张图 → 4 万次目录系统调用，
+/// 每次都要 stat 各级父目录）。产物目录总数只有数十个，记下来即可省掉绝大部分调用。
+static DIRS_READY: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
+
+/// 确保目录存在（已确认过的目录不再系统调用）。
+fn ensure_dir(dir: &Path) -> bool {
+    let set = DIRS_READY.get_or_init(|| Mutex::new(HashSet::new()));
+    if let Ok(g) = set.lock() {
+        if g.contains(dir) {
+            return true;
+        }
+    }
+    if fs::create_dir_all(dir).is_err() {
+        return false;
+    }
+    if let Ok(mut g) = set.lock() {
+        g.insert(dir.to_path_buf());
+    }
+    true
+}
+
+/// 释放素材侧缓存（构建全部结束后调用；见 [`crate::infra::cache_gc`]）。
+///
+/// 编码/帧缓存按机器内存分档各占一份图片预算（16~32 GB 机器合计近 200 MB），
+/// `DIRS_READY` 是纯加速用的目录集合。三者都可重建，构建完没有保留价值。
+pub(crate) fn release_caches() {
+    crate::infra::lru::clear_sized(ENCODE_CACHE.get());
+    crate::infra::lru::clear_sized(FRAME_CACHE.get());
+    if let Some(c) = DIRS_READY.get() {
+        if let Ok(mut g) = c.lock() {
+            g.clear();
+            g.shrink_to_fit();
+        }
+    }
+}
+
+/// DEF 单帧解码缓存（内容寻址）：`(源字节指纹, 长度, group, frame) → BGRA 帧`。
+///
+/// ⚠️ 必要性：与编码缓存同源——同一份 DEF 帧被多个 mod / 多个条目重复解码
+/// （实测 `img.icon` 4.9 万次，DEF 解码占其中可观一块）。命中后省掉解码 + 逐像素还原。
+///
+/// 只缓存 ≤2 MB 的帧（超大帧缓存收益低、占预算快）；与编码缓存共用图片预算，按 FIFO 淘汰。
+type FrameCache = Mutex<crate::infra::lru::SizedCache<(u64, usize, u16, u16), Arc<DefFrame>>>;
+static FRAME_CACHE: OnceLock<FrameCache> = OnceLock::new();
+/// 单帧上限（BGRA 字节；800×600 全屏帧约 1.9 MB）
+const FRAME_CACHE_MAX_BYTES: usize = 2 * 1024 * 1024;
+
+/// `DefReader::decode_frame_at` 的结果（去掉左/上边距两个 i32 后的可缓存形态）。
+#[derive(Clone)]
+struct DefFrame {
+    w: u32,
+    h: u32,
+    bgra: Vec<u8>,
+    #[allow(dead_code)]
+    left: i32,
+    #[allow(dead_code)]
+    top: i32,
+}
+
+/// 带缓存的 DEF 单帧解码。
+fn decode_def_frame_cached(buf: &[u8], group: u16, frame: u16) -> Option<DefFrame> {
+    let cap = crate::infra::mem::cache_budget().image_bytes;
+    let cache = FRAME_CACHE.get_or_init(|| Mutex::new(crate::infra::lru::SizedCache::new(cap)));
+    let key = (fnv1a_of(buf), buf.len(), group, frame);
+    if let Ok(g) = cache.lock() {
+        if let Some(v) = g.get(&key) {
+            crate::infra::metrics::count("img.decode.reuse", 1);
+            return Some(v.as_ref().clone());
+        }
+    }
+    let def = crate::infra::def::DefReader::new(buf);
+    let (w, h, bgra, lm, tm) = def.decode_frame_at(group as usize, frame as usize)?;
+    let f = DefFrame {
+        w,
+        h,
+        bgra,
+        left: lm,
+        top: tm,
+    };
+    if f.bgra.len() <= FRAME_CACHE_MAX_BYTES {
+        if let Ok(mut g) = cache.lock() {
+            g.insert(key, f.bgra.len(), Arc::new(f.clone()));
+        }
+    }
+    Some(f)
+}
 
 /// 缓存图片的相对路径（相对缓存根）。落盘与"是否已存在"判定必须**同一口径**，否则短路会误判。
 pub(crate) fn wiki_image_rel(mod_id: &str, sub: &str, name: &str) -> String {
@@ -49,7 +158,14 @@ pub(crate) fn wiki_image_exists(
     }
 }
 
-pub(crate) fn save_wiki_image(cache_root: &Path, mod_id: &str, sub: &str, name: &str, buf: &[u8], ext: &str) -> Option<String> {
+pub(crate) fn save_wiki_image(
+    cache_root: &Path,
+    mod_id: &str,
+    sub: &str,
+    name: &str,
+    buf: &[u8],
+    ext: &str,
+) -> Option<String> {
     // 阶段一（只出数据）不产图：调用方拿到 None，实体 image 字段留空，由阶段二补齐
     if !assets_enabled() {
         return None;
@@ -63,12 +179,34 @@ pub(crate) fn save_wiki_image(cache_root: &Path, mod_id: &str, sub: &str, name: 
         crate::infra::metrics::count("img.cached", 1);
         return Some(rel);
     }
-    let webp = encode_webp(buf, ext)?;
-    fs::create_dir_all(out.parent()?).ok()?;
+    let webp = encode_webp_cached(buf, ext)?;
+    // 目录创建结果记忆化（见 `ensure_dir`）：原实现每张图都 create_dir_all 一次
+    ensure_dir(out.parent()?).then_some(())?;
     fs::write(&out, &webp).ok()?;
     crate::infra::metrics::count("img.saved", 1);
     crate::infra::metrics::bytes("img.bytes.disk", webp.len() as u64);
     Some(rel)
+}
+
+/// 带缓存的 webp 编码（见 [`ENCODE_CACHE`]）：大图直接编码不入缓存。
+fn encode_webp_cached(buf: &[u8], ext: &str) -> Option<Vec<u8>> {
+    if buf.len() > ENCODE_CACHE_MAX_SRC {
+        return encode_webp(buf, ext);
+    }
+    let cap = crate::infra::mem::cache_budget().image_bytes;
+    let cache = ENCODE_CACHE.get_or_init(|| Mutex::new(crate::infra::lru::SizedCache::new(cap)));
+    let key = (fnv1a_of(buf), buf.len(), ext.to_string());
+    if let Ok(g) = cache.lock() {
+        if let Some(v) = g.get(&key) {
+            crate::infra::metrics::count("img.encode.reuse", 1);
+            return Some(v.as_ref().clone());
+        }
+    }
+    let v = Arc::new(encode_webp(buf, ext)?);
+    if let Ok(mut g) = cache.lock() {
+        g.insert(key, v.len(), v.clone());
+    }
+    Some(v.as_ref().clone())
 }
 
 /// 位图类资源登记：命中官方 HD（`hd-edition`）时把 `<sub>/<name>` → HD 键 写入登记表。
@@ -114,13 +252,29 @@ pub(crate) fn save_hd_or_raw_image(
 /// 解析单个资源字段并转 webp 保存，返回相对 `images/` 路径。
 /// 小图标（≤64px）自动执行**四角取色抠图**：mod 自带的 png/webp 图标本体常带蓝底/青底，
 /// VCMI 端无此处理但视觉上期望透明底（绿幕式抠图）。容差 48 覆盖抗锯齿边缘。
-pub(crate) fn extract_icon_and_save(p: &Path, game_dir: &Path, cache_root: &Path, mod_id: &str, sub: &str, name: &str, res: Option<&str>) -> Option<String> {
+pub(crate) fn extract_icon_and_save(
+    p: &Path,
+    game_dir: &Path,
+    cache_root: &Path,
+    mod_id: &str,
+    sub: &str,
+    name: &str,
+    res: Option<&str>,
+) -> Option<String> {
     crate::infra::metrics::scope("img.icon", || {
         extract_icon_and_save_inner(p, game_dir, cache_root, mod_id, sub, name, res)
     })
 }
 
-fn extract_icon_and_save_inner(p: &Path, game_dir: &Path, cache_root: &Path, mod_id: &str, sub: &str, name: &str, res: Option<&str>) -> Option<String> {
+fn extract_icon_and_save_inner(
+    p: &Path,
+    game_dir: &Path,
+    cache_root: &Path,
+    mod_id: &str,
+    sub: &str,
+    name: &str,
+    res: Option<&str>,
+) -> Option<String> {
     // 阶段一（只出数据）：**在解析资源之前**直接返回，省下 resolve/解码/抠图/编码
     if !assets_enabled() {
         return None;
@@ -139,31 +293,33 @@ fn extract_icon_and_save_inner(p: &Path, game_dir: &Path, cache_root: &Path, mod
     // sprites-json 资源（VCMI 1.6+）：**按内容识别**（resolve 的尾匹配可能命中同名 .def，
     // 故 ext==json 或引用尾缀 .json 时都尝试解析）；支持 sequences 形态、basepath 缺省、
     // file 自带扩展名（bmp/png）与 zip 内定义（见 read_sprite_json / sprite_json_frame）。
-    let (buf, ext) = if ext.eq_ignore_ascii_case("json") || res_trim.to_lowercase().ends_with(".json") {
-        match read_sprite_json(p, res_trim).and_then(|v| sprite_json_frame(&v, 0, 0)) {
-            Some((base, file)) => {
-                let mut got: Option<(Vec<u8>, String)> = None;
-                for cand in sprite_ref_candidates(base.as_deref(), &file) {
-                    if let Some(r) = resolve_resource_fallback(p, game_dir, &cand) {
-                        got = Some(r);
-                        break;
+    let (buf, ext) =
+        if ext.eq_ignore_ascii_case("json") || res_trim.to_lowercase().ends_with(".json") {
+            match read_sprite_json(p, res_trim).and_then(|v| sprite_json_frame(&v, 0, 0)) {
+                Some((base, file)) => {
+                    let mut got: Option<(Vec<u8>, String)> = None;
+                    for cand in sprite_ref_candidates(base.as_deref(), &file) {
+                        if let Some(r) = resolve_resource_fallback(p, game_dir, &cand) {
+                            got = Some(r);
+                            break;
+                        }
                     }
+                    got.unwrap_or((Vec::new(), String::new()))
                 }
-                got.unwrap_or((Vec::new(), String::new()))
+                None => (buf, ext),
             }
-            None => (buf, ext),
-        }
-    } else {
-        (buf, ext)
-    };
+        } else {
+            (buf, ext)
+        };
     if buf.is_empty() {
         return None;
     }
     // DEF 资源（如 HOTA 的 spells/xxx.def、mod 图标 xxx.def）：取 group0 首帧。
     // 首帧常带法术卷轴/宝物底框色（青蓝），小帧做四角抠图去底（对齐小图标 matte）。
     if ext.eq_ignore_ascii_case("def") {
-        let def = crate::infra::def::DefReader::new(&buf);
-        if let Some((w, h, bgra, _lm, _tm)) = def.decode_frame_at(0, 0) {
+        // 走解码缓存（见 `FRAME_CACHE`）：同一份 DEF 首帧被同一 mod 的多个条目重复解码
+        if let Some(f) = decode_def_frame_cached(&buf, 0, 0) {
+            let (w, h, bgra) = (f.w, f.h, f.bgra);
             if let Some(rel) = save_def_frame_matte(cache_root, mod_id, sub, name, w, h, &bgra) {
                 return Some(rel);
             }
@@ -253,11 +409,7 @@ fn matte_rgba(img: &mut image::RgbaImage) {
         *img.get_pixel(0, h - 1),
         *img.get_pixel(w - 1, h - 1),
     ];
-    let opaque: Vec<[u8; 4]> = corners
-        .iter()
-        .map(|p| p.0)
-        .filter(|c| c[3] > 0)
-        .collect();
+    let opaque: Vec<[u8; 4]> = corners.iter().map(|p| p.0).filter(|c| c[3] > 0).collect();
     if opaque.is_empty() {
         return;
     }
@@ -458,7 +610,9 @@ pub(crate) fn extract_portrait_frame_mod(
     }
     let idx = image_index as usize;
     // a) 老版本 PortraitsLarge.DEF（group0 顺序帧）
-    if let Some(bytes) = crate::vcmi::resource::read_game_resource_fallback(game_dir, "PortraitsLarge.DEF") {
+    if let Some(bytes) =
+        crate::vcmi::resource::read_game_resource_fallback(game_dir, "PortraitsLarge.DEF")
+    {
         // 只解目标帧：此前每个英雄都解码**整个** PortraitsLarge（150+ 帧）再挑 1 帧
         let def = crate::infra::def::DefReader::new(&bytes);
         if let Some((w, h, bgra, _lm, _tm)) = def.decode_frame_at(0, idx) {
@@ -501,9 +655,13 @@ pub(crate) fn extract_portrait_frame_mod(
                         (format!("{stem}.png"), "png"),
                     ];
                     for (cand, ext) in tries {
-                        if let Some(b) = crate::vcmi::resource::read_game_resource_fallback(game_dir, &cand) {
+                        if let Some(b) =
+                            crate::vcmi::resource::read_game_resource_fallback(game_dir, &cand)
+                        {
                             if let Some(webp) = encode_webp(&b, ext) {
-                                let rel = save_wiki_image(cache_root, mod_id, "hero", hero_id, &webp, "webp")?;
+                                let rel = save_wiki_image(
+                                    cache_root, mod_id, "hero", hero_id, &webp, "webp",
+                                )?;
                                 // json 的 `file`（如 `HPL000KN.bmp`）就是 HD pak 的键（`HPL*`）→ 登记
                                 if let Some(hd) = crate::vcmi::hd_edition::probe(file) {
                                     crate::modcache::hd_map::record(mod_id, "hero", hero_id, &hd);
@@ -543,7 +701,16 @@ pub(crate) fn resolve_specialty_icon_mod(
             return None;
         }
         let def_name = if small { "UN32" } else { "UN44" };
-        return extract_game_def_frame_and_save_mod(game_dir, cache_root, mod_id, def_name, 0, image_index as usize, sub, &name);
+        return extract_game_def_frame_and_save_mod(
+            game_dir,
+            cache_root,
+            mod_id,
+            def_name,
+            0,
+            image_index as usize,
+            sub,
+            &name,
+        );
     }
     if let Some((buf, ext)) = resolve_resource(p, raw) {
         if ext.eq_ignore_ascii_case("def") {
@@ -655,7 +822,11 @@ pub(crate) fn sprite_json_frame(
                 x.get("frame").and_then(|f| f.as_i64()) == Some(frame as i64)
                     && g_of(x).map(|g| g == group).unwrap_or(true)
             })
-            .or_else(|| images.iter().find(|x| g_of(x).map(|g| g == group).unwrap_or(true)))
+            .or_else(|| {
+                images
+                    .iter()
+                    .find(|x| g_of(x).map(|g| g == group).unwrap_or(true))
+            })
             .or_else(|| images.first())?;
         let file = f.get("file").and_then(|x| x.as_str())?.to_string();
         return Some((base, file));
@@ -766,7 +937,9 @@ pub(crate) fn extract_sprite_frame_and_save(
             return Some(rel);
         }
     }
-    extract_def_frame_and_save(p, game_dir, cache_root, mod_id, sub, name, res_ref, 0, frame)
+    extract_def_frame_and_save(
+        p, game_dir, cache_root, mod_id, sub, name, res_ref, 0, frame,
+    )
 }
 
 /// 城镇结构「金色描边」图（`town.structures[id].border`）提取并落盘，返回 `(相对缓存路径, 宽, 高)`。

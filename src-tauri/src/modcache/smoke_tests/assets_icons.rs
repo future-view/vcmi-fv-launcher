@@ -1,8 +1,8 @@
 //! DEF 帧解码 / webp 编码 / 图标与肖像提取（冒烟测试，多数 `#[ignore]`，需真实游戏目录）。
 
 use super::*;
-use crate::vcmi::resource::set_wiki_user_data_dir;
 use crate::modcache::set_assets_enabled;
+use crate::vcmi::resource::set_wiki_user_data_dir;
 
 /// 游戏资源提取冒烟测试（依赖本机游戏目录，默认跳过）：
 /// 覆盖 lod 解包（SMALRES/stackWindow 均在 H3sprite.lod 内）→ webp 产物落盘。
@@ -46,7 +46,13 @@ fn structure_frame_probe() {
     let towns_v = Value::Object(towns);
     let _ = fs::remove_file(cache_root.join("HuaXia/images/townscreen/huaXia.webp"));
     let _ = fs::remove_file(cache_root.join("HuaXia/cache.json"));
-    match compose_town_preview_for(&mods_dir.join("HuaXia"), &cache_root, "HuaXia", "huaXia", &towns_v) {
+    match compose_town_preview_for(
+        &mods_dir.join("HuaXia"),
+        &cache_root,
+        "HuaXia",
+        "huaXia",
+        &towns_v,
+    ) {
         Ok(rel) => println!("compose OK -> {rel}"),
         Err(e) => println!("compose ERR -> {e}"),
     }
@@ -82,7 +88,12 @@ fn game_resource_icons_extract_smoke() {
     // 默认走仓库内 references 符号链接；若本机符号链接不可访问（Windows 权限），
     // 可用 VCMI_TEST_MOD_DIR 指向真实 mod 目录。
     let mod_dir = fixture("abyss-town");
-    let built = build_mod_wiki_inner(&mod_dir.to_string_lossy(), "abyss-town", &cache_root, &game_dir);
+    let built = build_mod_wiki_inner(
+        &mod_dir.to_string_lossy(),
+        "abyss-town",
+        &cache_root,
+        &game_dir,
+    );
 
     // 5) 自愈重建 mock index.json（清缓存后跑测试即可恢复浏览器自测数据源）
     // ⚠️ 仅在索引缺失/为空时兜底生成（本逻辑条目字段较简，name/type 为空）；
@@ -107,14 +118,27 @@ fn game_resource_icons_extract_smoke() {
                                 .map(|a| {
                                     a.iter()
                                         .filter(|s| {
-                                            s.get("builtin").and_then(|b| b.as_bool()).unwrap_or(false)
+                                            s.get("builtin")
+                                                .and_then(|b| b.as_bool())
+                                                .unwrap_or(false)
                                         })
                                         .count()
                                 })
                                 .unwrap_or(0)
                         };
-                        for key in ["factions", "creatures", "heroes", "spells", "artifacts", "skills"] {
-                            let n = v.get(key).and_then(|x| x.as_array()).map(|a| a.len()).unwrap_or(0);
+                        for key in [
+                            "factions",
+                            "creatures",
+                            "heroes",
+                            "spells",
+                            "artifacts",
+                            "skills",
+                        ] {
+                            let n = v
+                                .get(key)
+                                .and_then(|x| x.as_array())
+                                .map(|a| a.len())
+                                .unwrap_or(0);
                             let n = if key == "spells" {
                                 n - builtin_of("spells")
                             } else if key == "skills" {
@@ -126,11 +150,19 @@ fn game_resource_icons_extract_smoke() {
                         }
                         counts.insert("spellBuiltin".to_string(), json!(builtin_of("spells")));
                         counts.insert("skillBuiltin".to_string(), json!(builtin_of("skills")));
-                        let mid = v.get("modId").and_then(|x| x.as_str()).unwrap_or("").to_string();
+                        let mid = v
+                            .get("modId")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("")
+                            .to_string();
                         if mid.is_empty() {
                             continue;
                         }
-                        let dname = d.file_name().and_then(|x| x.to_str()).unwrap_or("").to_string();
+                        let dname = d
+                            .file_name()
+                            .and_then(|x| x.to_str())
+                            .unwrap_or("")
+                            .to_string();
                         index_mods.push(json!({
                             "modId": mid,
                             "diskName": dname,
@@ -149,10 +181,17 @@ fn game_resource_icons_extract_smoke() {
         let existing_nonempty = fs::read_to_string(cache_root.join("index.json"))
             .ok()
             .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-            .and_then(|v| v.get("mods").and_then(|x| x.as_array()).map(|a| !a.is_empty()))
+            .and_then(|v| {
+                v.get("mods")
+                    .and_then(|x| x.as_array())
+                    .map(|a| !a.is_empty())
+            })
             .unwrap_or(false);
         if !existing_nonempty {
-            let _ = fs::write(cache_root.join("index.json"), serde_json::to_string_pretty(&index).unwrap());
+            let _ = fs::write(
+                cache_root.join("index.json"),
+                serde_json::to_string_pretty(&index).unwrap(),
+            );
         }
     }
     assert!(
@@ -181,23 +220,55 @@ fn game_resource_icons_extract_smoke() {
         &fs::read_to_string(cache_root.join("abyss-town/cache.json")).expect("cache.json"),
     )
     .expect("cache.json parse");
-    let stat_n = mj.get("statIcons").and_then(|s| s.as_object()).map(|m| m.len()).unwrap_or(0);
+    let stat_n = mj
+        .get("statIcons")
+        .and_then(|s| s.as_object())
+        .map(|m| m.len())
+        .unwrap_or(0);
     assert!(stat_n >= 6, "cache.json statIcons 应 ≥6，实际 {}", stat_n);
-    let f0 = mj.get("factions").and_then(|f| f.as_array()).and_then(|a| a.first()).cloned().unwrap_or(json!({}));
+    let f0 = mj
+        .get("factions")
+        .and_then(|f| f.as_array())
+        .and_then(|a| a.first())
+        .cloned()
+        .unwrap_or(json!({}));
     let bld_empty = f0
         .get("buildings")
         .and_then(|b| b.as_array())
-        .map(|a| a.iter().filter(|b| b.get("image").and_then(|x| x.as_str()).unwrap_or("").is_empty()).count())
+        .map(|a| {
+            a.iter()
+                .filter(|b| {
+                    b.get("image")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or("")
+                        .is_empty()
+                })
+                .count()
+        })
         .unwrap_or(999);
     assert_eq!(bld_empty, 0, "建筑图标缺失数应为 0，实际 {}", bld_empty);
     assert!(
-        f0.get("preview").and_then(|x| x.as_str()).unwrap_or("").len() > 0,
+        f0.get("preview")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .len()
+            > 0,
         "preview 应写入 cache.json"
     );
 
     // 7) 建筑 bid 应对齐 VCMI buildingsLibrary（buildingsIcons 按 bid 取帧）
-    let bl = f0.get("buildings").and_then(|b| b.as_array()).cloned().unwrap_or_default();
-    for (name, want) in [("mageGuild1", 0i64), ("tavern", 5), ("fort", 7), ("dwellingLvl1", 30), ("dwellingUpLvl1", 37)] {
+    let bl = f0
+        .get("buildings")
+        .and_then(|b| b.as_array())
+        .cloned()
+        .unwrap_or_default();
+    for (name, want) in [
+        ("mageGuild1", 0i64),
+        ("tavern", 5),
+        ("fort", 7),
+        ("dwellingLvl1", 30),
+        ("dwellingUpLvl1", 37),
+    ] {
         let got = bl
             .iter()
             .find(|b| b.get("id").and_then(|x| x.as_str()) == Some(name))
@@ -216,8 +287,7 @@ fn game_resource_icons_extract_smoke() {
 #[ignore]
 fn resource_icons_extracted_from_user_data_dir() {
     set_assets_enabled(true);
-    let lod_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../references/Heroes3-VCMI");
+    let lod_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../references/Heroes3-VCMI");
     assert!(
         lod_dir.join("Data").join("H3sprite.lod").is_file()
             || lod_dir.join("Data").join("H3Sprite.lod").is_file(),
@@ -247,8 +317,17 @@ fn test_encode_webp() {
     let res = cfg.town_background.as_deref().expect("abyss 应有背景");
     let (buf, ext) = resolve_resource(&p, res).expect("应能定位背景图");
     let webp = encode_webp(&buf, &ext).expect("应能编码为 webp");
-    assert!(webp.starts_with(b"RIFF"), "webp 应以 RIFF 开头，实际前4字节: {:?}", &webp[..4.min(webp.len())]);
-    assert!(webp.len() < buf.len(), "webp 应比原 bmp 小（压缩），原={} webp={}", buf.len(), webp.len());
+    assert!(
+        webp.starts_with(b"RIFF"),
+        "webp 应以 RIFF 开头，实际前4字节: {:?}",
+        &webp[..4.min(webp.len())]
+    );
+    assert!(
+        webp.len() < buf.len(),
+        "webp 应比原 bmp 小（压缩），原={} webp={}",
+        buf.len(),
+        webp.len()
+    );
     println!("{}: bmp={} webp={}", cfg.faction_id, buf.len(), webp.len());
 }
 
@@ -276,7 +355,10 @@ fn test_def_animation_frames() {
     // 地图动画
     if let Some((mapbuf, _)) = resolve_resource(&p, "abyss/map/creatures/AVWAbyssalCrab.def") {
         let mg = crate::infra::def::DefReader::new(&mapbuf).decode_animation();
-        eprintln!("map def 方向组数: {}", mg.as_ref().map(|x| x.len()).unwrap_or(0));
+        eprintln!(
+            "map def 方向组数: {}",
+            mg.as_ref().map(|x| x.len()).unwrap_or(0)
+        );
     }
 }
 
@@ -315,11 +397,95 @@ fn shared_ui_icons_portraits_smoke() {
     let game_dir = game_dir();
     let cache_root = default_cache_root(&game_dir);
     let icons = extract_shared_ui_icons(&game_dir, &cache_root, "vcmi");
-    println!("sharedIcons keys = {:?}", icons.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+    println!(
+        "sharedIcons keys = {:?}",
+        icons.as_object().map(|o| o.keys().collect::<Vec<_>>())
+    );
     // 英雄大头像已改为按模组抽取（core.<faction>/images/hero/），不再落入全局 sharedIcons，
     // 故此处不再断言 portraitsLargeFrames。
     // 生物弹窗属性图标 + 英雄四主属性图标
-    for k in ["stackwin/shots", "stackwin/mana", "pskil42/attack", "pskil42/spellPower"] {
+    for k in [
+        "stackwin/shots",
+        "stackwin/mana",
+        "pskil42/attack",
+        "pskil42/spellPower",
+    ] {
         assert!(icons.get(k).is_some(), "缺少公共 UI 图标 {k}");
     }
+}
+
+/// **「无图条目」根因修复的端到端回归**（ignored，需真实游戏目录）。
+///
+/// 环境变量 `VCMI_FV_AUDIT_MODS` 给出**相对 `<游戏目录>/Mods` 的模组路径**（`;` 分隔），
+/// 逐个重建到临时缓存并打印各分类总数 / 无图数，用于核对 2026-10-16 的三项修复：
+/// ① 法术不再收录 `type=ability` / `flags.special`；② 技能/宝物配置不再被采成英雄；
+/// ③ `config/` 下的定义文件不再抢占素材 stem（资源在盘却无图）。
+///
+/// ```bash
+/// VCMI_GAME_DIR="D:/Games/…" VCMI_FV_AUDIT_MODS="tidesOfWar;moonspire;21-lianjin1029-twon;immortal-cultivation-heroes/Mods/L-skills" \
+///   cargo test --lib no_image_root_cause_audit -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore]
+fn no_image_root_cause_audit() {
+    let list = match std::env::var("VCMI_FV_AUDIT_MODS") {
+        Ok(v) if !v.trim().is_empty() => v,
+        _ => {
+            eprintln!("跳过：未设置 VCMI_FV_AUDIT_MODS（相对 <游戏目录>/Mods 的路径，; 分隔）");
+            return;
+        }
+    };
+    let game_dir = game_dir();
+    if !game_dir.is_dir() {
+        eprintln!("跳过：游戏目录不存在 {}", game_dir.display());
+        return;
+    }
+    set_wiki_user_data_dir(&user_data_dir(&game_dir));
+    let cache = std::env::temp_dir().join("vcmi_fv_no_image_audit");
+    let _ = fs::remove_dir_all(&cache);
+    let _ = fs::create_dir_all(&cache);
+    set_assets_enabled(true);
+
+    for raw in list.split(';').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        let mod_dir = game_dir.join("Mods").join(raw);
+        if !mod_dir.is_dir() {
+            eprintln!("⚠️ 跳过不存在的模组目录：{}", mod_dir.display());
+            continue;
+        }
+        let mod_id = mod_dir
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(raw)
+            .to_string();
+        let res = build_mod_wiki_inner(&mod_dir.to_string_lossy(), &mod_id, &cache, &game_dir);
+        let ok = res.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
+        let mut line = format!("{mod_id} ok={ok}");
+        for cat in ["factions", "creatures", "heroes", "artifacts", "spells", "skills"] {
+            let arr = cache
+                .join(&mod_id)
+                .join("cache.json")
+                .exists()
+                .then(|| fs::read_to_string(cache.join(&mod_id).join("cache.json")).ok())
+                .flatten()
+                .and_then(|t| serde_json::from_str::<Value>(&t).ok());
+            let (total, no_img) = match arr.as_ref().and_then(|v| v.get(cat)).and_then(|x| x.as_array()) {
+                Some(a) => (
+                    a.len(),
+                    a.iter()
+                        .filter(|it| {
+                            !it.get("ref").and_then(|r| r.as_bool()).unwrap_or(false)
+                                && it
+                                    .get("image")
+                                    .map(|v| v.is_null())
+                                    .unwrap_or(true)
+                        })
+                        .count(),
+                ),
+                None => (0, 0),
+            };
+            line.push_str(&format!(" | {cat} {total}/无图{no_img}"));
+        }
+        println!("{line}");
+    }
+    set_assets_enabled(false);
 }

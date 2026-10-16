@@ -14,8 +14,17 @@
 类目（9）：`factions` / `creatures` / `heroes` / `artifacts` / `spells` / `skills` / `buildings` / `terrains` / `mods`。
 
 - 搜索按**条目的全部语言名**（`name` 多语言对象的每个值：chinese / tchinese / english / …）+ 条目 `id` 做小写子串匹配，**不枚举具体语言**（新增界面语言无需改这里）；
+- **清空按钮**：仅在输入框有内容时渲染，hover / focus 才显形（`opacity-0 → group-hover:opacity-100`），不占常驻宽度；VCMI 的 `CTextInput` 没有这个按钮（`WikiWindow.cpp:722-724`），这是有意的可用性改进；
 - **列表排序**：按当前界面语言的显示名升序（`Intl.Collator`，对齐 VCMI `WikiWindow.cpp` 各分类的 `std::sort(a.name < b.name)`）。`buildings` 额外保留「中立置顶」；
-- 列表滚动分页窗口 300 条，避免长列表卡顿。
+- 列表滚动分页窗口 300 条，避免长列表卡停。
+
+### 2.1 右栏空态占位
+
+未选中任何条目时，右栏显示 `wiki.contentPlaceholder`（「选择一个条目以查看其说明。」），对齐 VCMI `vcmi.wiki.content.placeholder`（`WikiWindow.cpp:1193-1195`：未选中时 `contentBox->setText(...)`）。要点：
+
+- **用指令式句子，不用名词或图标** —— 它同时回答"这面板是干嘛的"和"我该做什么"；图标无法传达动作。
+- 类别已在左栏选中，所以**不说"选择类别"**（VCMI 原句含类别，是因为它的左栏是分类+条目两级）。
+- 此前这里显示的是 `wiki.search`（"搜索"）—— 那是**搜索框的提示词**，放在内容区会让人以为要在这里输入，属于键位误用；该键已从 wiki 词库移除。
 
 ### 2.1 筛选
 
@@ -50,6 +59,8 @@
 - `loadWikiIndex()` 读 `mods/index.json`，`loadModCache(modId)` 读 `mods/<modId>/cache.json`。
 - 图片经 `fullImgUrl` / `fullImgCandidates` + `convertFileSrc` 拼绝对 URL；高清变体 `@Nx` 由 `SafeImg` 自动回退。
 - **幽灵条目过滤**：索引条目先与 `visibleModKeySet()`（实时 `scan_mods` ∪ core 伪模组）求交，剔除已卸载或属于其它领域的条目。缓存 `index.json` 只合并不删除，过滤发生在读侧。
+- **收录口径（后端，2026-10-16）**：`spells` 不收录 `"type": "ability"` 与 `flags.special` 的法术（对齐 VCMI 法术书与内建百科：`CSpellWindow.cpp:338`、`WikiModContent.cpp:88,337`、`CSpell.cpp:238-241`）；`skills` 不收录「三档都无 `images` 且无任何语言名称」的记账技能（HotA / 潮战的符文等级计数器）。两类条目在 VCMI 里也没有可展示的图标，留着只会得到「有名无图」的空壳行。
+- **分类归属（后端，2026-10-16）**：配置类型判定只在**最后一个 `config/` 段之后**比对；`config/skills/…`、`config/artifacts/…` 这类路径不会再因为**模组目录名**（`…-heroes` / `…-creatures`）被采成英雄 / 生物。子路径没有类型目录时（如 `config/cherub/cherub.json`）仍保留旧的模组目录名容错——它们正是靠这条容错才被采到的真实实体。
 
 ## 4. 详情分发
 
@@ -104,6 +115,16 @@
 **升级链去重**：同一个基础生物可能被多处注册（mod 覆盖 core 时，缓存里 core 的原版条目与 mod 自己的条目都指向它），二者 id 不同但**显示名与图标完全相同**，不去重就会在「升级自」里出现两行一模一样的条目（实测阿尔法龙）。口径 = 先按 id，再按「显示名 + 图标」；仅同名而图不同仍视为不同生物。
 
 **跳转后中栏同步**：`navigateTo` 会置 `pendingListScrollRef`，于是点升级链 / 模组条目后，中栏会滚动到目标行并高亮（此前只有"返回"才滚，链接跳转后右栏换了、中栏停在原地）。
+
+**中栏滚动位置（按类目记忆）**：中栏是跨类目复用的**同一个**滚动容器，DOM 不变则浏览器保留 `scrollTop`。语义（2026-10-17 确认）由代码显式实现，不依赖渲染时序：
+
+- **没打开过的类目** → 从顶部开始；
+- **打开过、重新激活的类目** → 回到上次离开的位置（`listScrollMemoRef`，各类目各记各的）；
+- 跳转 / 返回优先滚到目标行，并**取消**本次激活的恢复资格，避免后续分页扩容把旧位置硬塞回来；
+- 记忆位置落在分页窗口之外时先把 `visibleCount` 开够再写入（直接写会被当前内容高度夹掉）；
+- 数据重载（`catCacheKey` 变化：补图 / 换语言 / 装卸载模组）后条目集合变了，记忆值整体清空。
+
+> ⚠️ 此前这两条语义都是**副作用**：没打开过的类目"回到顶部"其实是被 4 行骨架屏把 `scrollTop` 夹到 0 —— 一旦装载变快或去掉骨架屏就会漂。
 
 **能力区**：每格 = 52px 图标框（描边色按来源区分，对齐 VCMI `CCreatureWindow.cpp:277-290` 的 bonusColors）+ 名称（1 行）+ 描述（`line-clamp-3`，`title` 给全文，右键气泡保留）。原版实测中位数 2 个能力、≤3 个占 73%、15% 为 0（此时整块含标题隐藏）。
 

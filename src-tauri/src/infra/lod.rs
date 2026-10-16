@@ -33,6 +33,11 @@ pub struct LodArchive {
     entries: Arc<HashMap<String, LodEntry>>,
 }
 
+/// 释放 lod 目录表缓存（构建结束调用；见 [`crate::infra::cache_gc`]）。
+pub fn release_caches() {
+    crate::infra::cache::cfg_cache_clear(&LOD_INDEX_CACHE);
+}
+
 impl LodArchive {
     /// 打开 lod 并解析目录表（失败返回 None，调用方回退下一个候选 lod）。
     ///
@@ -76,12 +81,21 @@ impl LodArchive {
             let name_bytes = &data[pos..pos + 16];
             let name_end = name_bytes.iter().position(|&b| b == 0).unwrap_or(16);
             let name = String::from_utf8_lossy(&name_bytes[..name_end]).to_uppercase();
-            let rd_u32 = |off: usize| u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]);
+            let rd_u32 = |off: usize| {
+                u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]])
+            };
             let offset = rd_u32(pos + 16);
             let full_size = rd_u32(pos + 20);
             let compressed_size = rd_u32(pos + 28);
             if !name.is_empty() {
-                entries.insert(name, LodEntry { offset, full_size, compressed_size });
+                entries.insert(
+                    name,
+                    LodEntry {
+                        offset,
+                        full_size,
+                        compressed_size,
+                    },
+                );
             }
             pos += 32;
         }
@@ -99,7 +113,11 @@ impl LodArchive {
         let mut f = fs::File::open(&self.path).ok()?;
         use std::io::{Seek, SeekFrom};
         f.seek(SeekFrom::Start(e.offset as u64)).ok()?;
-        let raw_size = if e.compressed_size > 0 { e.compressed_size } else { e.full_size } as usize;
+        let raw_size = if e.compressed_size > 0 {
+            e.compressed_size
+        } else {
+            e.full_size
+        } as usize;
         let mut raw = vec![0u8; raw_size];
         f.read_exact(&mut raw).ok()?;
         if e.compressed_size == e.full_size || e.compressed_size == 0 {
@@ -169,7 +187,10 @@ mod tests {
         let p = dir.join("mini.lod");
         write_fake_lod(&p, &["help.txt", "Players.PAL", "default.def"]);
         let names = lod_entry_names(&p).expect("parse entries");
-        assert!(names.contains(&"HELP.TXT".to_string()), "应大写归一：{names:?}");
+        assert!(
+            names.contains(&"HELP.TXT".to_string()),
+            "应大写归一：{names:?}"
+        );
         assert!(names.contains(&"PLAYERS.PAL".to_string()));
         assert!(names.contains(&"DEFAULT.DEF".to_string()));
         assert_eq!(names.len(), 3);
@@ -210,8 +231,16 @@ pub fn read_game_resource_ext(game_dir: &Path, name: &str) -> Option<(Vec<u8>, S
     }
     // 1) 磁盘散文件：精确名 + 基名配各扩展名
     let sprite_roots = [
-        game_dir.join("Mods").join("vcmi").join("Content").join("Sprites"),
-        game_dir.join("Mods").join("vcmi").join("Content").join("Sprites2x"),
+        game_dir
+            .join("Mods")
+            .join("vcmi")
+            .join("Content")
+            .join("Sprites"),
+        game_dir
+            .join("Mods")
+            .join("vcmi")
+            .join("Content")
+            .join("Sprites2x"),
         game_dir.join("Sprites"),
         game_dir.to_path_buf(),
         game_dir.join("Data"),
@@ -237,7 +266,12 @@ pub fn read_game_resource_ext(game_dir: &Path, name: &str) -> Option<(Vec<u8>, S
         }
     }
     // 2) lod 包：基名配各扩展名（lod 内名称为扁平大写基名）
-    let lod_candidates = ["H3sprite.lod", "H3ab_spr.lod", "H3bitmap.lod", "H3ab_bmp.lod"];
+    let lod_candidates = [
+        "H3sprite.lod",
+        "H3ab_spr.lod",
+        "H3bitmap.lod",
+        "H3ab_bmp.lod",
+    ];
     for lod_name in lod_candidates {
         let lod_path = game_dir.join("Data").join(lod_name);
         if !lod_path.is_file() {

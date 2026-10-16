@@ -1,9 +1,9 @@
 import type { LangDict } from "@/i18n/types";
-import type { WikiLinkTarget } from "@/lib/modcache";
+import type { WikiEntry, WikiLinkTarget } from "@/lib/modcache";
 import { fullImgUrl, pickName, type WikiCategory } from "@/lib/modcache";
 import { HdIcon } from "@/shared/HdIcon";
 import { useWikiPopup, usePopupTriggers } from "./WikiPopupContext";
-import { SafeImg } from "./detailShared";
+import { SafeImg, makeRefResolver } from "./detailShared";
 
 export function HeroDetail({
   d,
@@ -14,6 +14,7 @@ export function HeroDetail({
   modCache,
   onNavigate,
   compact,
+  getEntry,
 }: {
   d: Record<string, unknown>;
   lang: string;
@@ -23,6 +24,7 @@ export function HeroDetail({
   modCache?: Record<string, unknown>;
   onNavigate?: (target: WikiLinkTarget) => void;
   compact?: boolean;
+  getEntry?: (category: WikiCategory, id: string) => WikiEntry | undefined;
 }) {
   const bio = (d.biography as Record<string, string>) ?? {};
   const spec = (d.specialty as Record<string, string>) ?? {};
@@ -36,10 +38,20 @@ export function HeroDetail({
     ? fullImgUrl(cacheDir, d.image as string)
     : undefined;
 
-  const creatureById = (cid: string) =>
-    ((modCache?.creatures as unknown[]) ?? []).find(
-      (x) => String((x as Record<string, unknown>).id) === cid,
-    ) as Record<string, unknown> | undefined;
+  /**
+   * 初始部队 / 战争机器的生物解析：本 mod 生物表优先，缺失回退**全类目索引**。
+   *
+   * 必须是跨模组的：实测 7,397 个部队单位里 126 个是只存在于 core 的原版战争机器
+   * （`ballista` / `firstAidTent` / `catapult`）。取不到记录时它们既没有图标、右键弹不出
+   * 生物窗，还会因为读不到 `warMachine` 而被错分到"初始部队"格里（下方 `machines` 判据）。
+   */
+  const creatureRef = makeRefResolver({ category: "creatures", modId, lang, modCache, getEntry });
+  const creatureById = (cid: string) => creatureRef(cid).record;
+  /**
+   * 初始法术解析：同样是跨模组引用（4,581/4,822 条初始法术属 core），
+   * 本 mod 法术表优先 → 全类目索引兜底。名称、图标、描述都从这里取。
+   */
+  const spellRef = makeRefResolver({ category: "spells", modId, lang, modCache, getEntry });
 
   // 初始部队出现概率（VCMI gameConfig.json 的 heroes.startingStackChances，
   // CHeroOverview.cpp:135-153 按部队在 initialArmy 中的**原始索引**取，与英雄配置无关）
@@ -62,10 +74,8 @@ export function HeroDetail({
       const cr = creatureById(String(u.creature ?? u.id ?? ""));
       return Boolean(cr && String(cr.warMachine ?? "").length > 0);
     });
-  // 投石车条目（若本 mod 收录了 catapult，则右键可开完整生物窗）
-  const catapultEntry = ((modCache?.creatures as unknown[]) ?? []).find(
-    (x) => String((x as Record<string, unknown>).id) === "catapult",
-  ) as Record<string, unknown> | undefined;
+  // 投石车（首格恒为它）：本 mod 或 core 收录了 catapult 时右键可开完整生物窗
+  const catapultRef = creatureRef("catapult");
 
   const skillById = (sid: string) =>
     ((modCache?.skills as unknown[]) ?? []).find(
@@ -87,12 +97,50 @@ export function HeroDetail({
     ) as Record<string, unknown> | undefined;
     if (hit) popup.showEntry(modId, category, hit);
   };
+  /** 部队单元格右键：本 mod 记录优先，缺失用全局索引条目（跨模组，如 core 的 ballista） */
+  const openCreature = (cid: string) => {
+    const ref = creatureRef(cid);
+    if (ref.record) popup.showEntry(ref.modId, "creatures", ref.record);
+  };
 
+  /**
+   * 四维主属性行（攻击力/防御力/力量/知识）。
+   *
+   * 右键 / 长按 = 该属性的说明文本，对齐 VCMI `CHeroWindow.cpp:131-132`：
+   * `area->text = LIBRARY->generaltexth->arraytxt[2 + v]`（`0..3` 依次四种属性）。
+   * 文案由后端从 h3-core 的 `ARRAYTXT.TXT`（`core.arraytxt.<行号>`）解出，写在 mod 缓存的
+   * 顶层 `primarySkillTexts`（游戏级数据，与 `factionNames` 同处），故本页取用零额外 IPC。
+   */
+  const primaryTexts = (modCache?.primarySkillTexts ?? {}) as Record<
+    string,
+    Record<string, string>
+  >;
+  const primaryDesc = (key: string) => pickName(primaryTexts[key] ?? {}, lang);
   const primaries = [
-    { icon: pskilIcon("attack"), label: t.wiki.creature.attack, value: d.attack },
-    { icon: pskilIcon("defense"), label: t.wiki.creature.defense, value: d.defense },
-    { icon: pskilIcon("spellPower"), label: t.wiki.hero.spellPower, value: d.spellPower },
-    { icon: pskilIcon("knowledge"), label: t.wiki.hero.knowledge, value: d.knowledge },
+    {
+      icon: pskilIcon("attack"),
+      label: t.wiki.creature.attack,
+      value: d.attack,
+      desc: primaryDesc("attack"),
+    },
+    {
+      icon: pskilIcon("defense"),
+      label: t.wiki.creature.defense,
+      value: d.defense,
+      desc: primaryDesc("defense"),
+    },
+    {
+      icon: pskilIcon("spellPower"),
+      label: t.wiki.hero.spellPower,
+      value: d.spellPower,
+      desc: primaryDesc("spellPower"),
+    },
+    {
+      icon: pskilIcon("knowledge"),
+      label: t.wiki.hero.knowledge,
+      value: d.knowledge,
+      desc: primaryDesc("knowledge"),
+    },
   ];
 
   // VCMI 等级术语（NSecondarySkill: none/basic/advanced/expert）随启动器界面语言取词（`t`）；
@@ -118,10 +166,8 @@ export function HeroDetail({
     withPopup = true,
   ) => {
     const cid = String(u.creature ?? u.id ?? "");
-    const cr = creatureById(cid);
-    const iconUrl = (cr?.image as string)
-      ? fullImgUrl(cacheDir, cr.image as string)
-      : undefined;
+    const ref = creatureRef(cid);
+    const iconUrl = ref.image ? fullImgUrl(cacheDir, ref.image) : undefined;
     const min = Number(u.min ?? 0);
     const max = Number(u.max ?? 0);
     const count = min || max ? `${min}${max !== min ? `-${max}` : ""}` : String(u.count ?? "");
@@ -131,7 +177,7 @@ export function HeroDetail({
       <div
         key={key}
         className="flex w-10 flex-col items-center gap-0.5"
-        {...(withPopup && cr ? triggers(() => openEntry("creatures", cid)) : {})}
+        {...(withPopup && ref.record ? triggers(() => openCreature(cid)) : {})}
       >
         <SafeImg
           src={iconUrl}
@@ -193,6 +239,10 @@ export function HeroDetail({
               {primaries.map((p, i) => (
                 <div
                   key={i}
+                  // 右键 / 长按 = 该属性说明（VCMI 主属性区是 `LRClickableAreaWText`，
+                  // 右键文本 = `arraytxt[2 + v]`，见 `primaryTexts` 的说明）
+                  {...(p.desc ? triggers((pt) => popup.showText(p.desc, pt)) : {})}
+                  title={p.desc || undefined}
                   className="flex flex-col items-center gap-1 rounded border border-slate-700/50 bg-slate-800/60 p-1"
                 >
                   {p.icon ? <HdIcon src={p.icon} alt="" className="h-8 w-8 object-contain" /> : <div className="h-8 w-8" />}
@@ -261,9 +311,7 @@ export function HeroDetail({
                   <div
                     key="catapult"
                     className="flex w-10 flex-col items-center gap-0.5"
-                    {...(catapultEntry
-                      ? triggers(() => openEntry("creatures", String(catapultEntry.id ?? "")))
-                      : {})}
+                    {...(catapultRef.record ? triggers(() => openCreature("catapult")) : {})}
                   >
                     <SafeImg
                       src={fullImgUrl(cacheDir, sharedIcons["warmachine/catapult"])}
@@ -307,10 +355,14 @@ export function HeroDetail({
                   // （此前直接查 "1"/"2"/"3"，永远取不到，气泡回退成技能名）
                   const levelKey =
                     ["basic", "advanced", "expert"][Math.min(2, Math.max(0, Number(s.level ?? 1) - 1))];
-                  const skillDesc = pickName(
-                    (skillEntry?.levels as Record<string, Record<string, string>> | undefined)?.[levelKey] ?? {},
-                    lang,
-                  );
+                  const skillDesc =
+                    pickName(
+                      (skillEntry?.levels as Record<string, Record<string, string>> | undefined)?.[levelKey] ?? {},
+                      lang,
+                    ) ||
+                    // 技能不在本 mod 技能表里时（实测 4,581/4,822 条初始技能是 core 技能），
+                    // 用后端随英雄条目预解析的 `levelDescriptions`（[basic, advanced, expert]）
+                    String((s.levelDescriptions as string[] | undefined)?.[Number(s.level ?? 1) - 1] ?? "");
                   return (
                     <div
                       key={i}
@@ -351,27 +403,39 @@ export function HeroDetail({
                   </div>
                 )}
                 {spells.map((sid) => {
-                  // 英雄初始法术可能是原版法术（不在 mod 缓存），优先用后端预解析的 spellDetails
+                  // 英雄初始法术**跨模组是常态**（实测该发行版 4,822 条初始法术里 4,581 条不在本
+                  // mod 的法术表内，属 core），名称/图标/描述一律走共享解析器：
+                  // 本 mod 法术表优先 → 全类目索引兜底。
+                  const ref = spellRef(sid);
+                  const rec = ref.record ?? {};
+                  // 后端随英雄预解析的 spellDetails（含 name / index），作为兜底与优先级判据
                   const detail = ((d.spellDetails as Record<string, unknown>[]) ?? []).find(
                     (x) => String(x.id ?? "") === sid,
                   );
-                  const sp = spellById(sid);
-                  const iconIdx =
-                    detail?.index !== undefined
-                      ? Number(detail.index)
-                      : sp?.iconIndex;
-                  const iconUrl =
-                    iconIdx !== undefined && Number(iconIdx) >= 0
-                      ? fullImgUrl(cacheDir, `core/images/spellbon/${iconIdx}.webp`)
-                      : (sp?.image as string)
-                        ? fullImgUrl(cacheDir, sp.image as string)
-                        : undefined;
-                  const spName = detail
+                  /**
+                   * 图标优先级：**条目的 `image`** → `spellDetails.index` 拼 spellbon 路径。
+                   *
+                   * 不能反过来：mod 法术的 `index` 常为 -1（不在 H3 法术表内），而原版法术的
+                   * `index` 虽有效、其记录里也有现成的 `core/images/spellbon/<idx>.webp`。
+                   * 旧代码只认 index，于是 index=-1 的法术整行空白（实测「瞬间移动」无图，
+                   * 同一页里没索引的反而有图）。
+                   */
+                  const idxFallback = Number(detail?.index ?? rec.iconIndex ?? -1);
+                  const iconUrl = ref.image
+                    ? fullImgUrl(cacheDir, ref.image)
+                    : idxFallback >= 0
+                      ? fullImgUrl(cacheDir, `core/images/spellbon/${idxFallback}.webp`)
+                      : undefined;
+                  // 名字：spellDetails 的名字可能是**裸 id**（该法术没有 i18n 文案），
+                  // 此时让位给全局索引里的名字；两者都拿不到才显示 id。
+                  const detailName = detail
                     ? pickName((detail.name as Record<string, string>) ?? {}, lang)
-                    : sp
-                      ? pickName((sp.name as Record<string, string>) ?? {}, lang)
-                      : sid;
-                  const spDesc = pickName((sp?.description as Record<string, string>) ?? {}, lang);
+                    : "";
+                  const spName =
+                    (detailName && detailName !== sid ? detailName : "") ||
+                    (ref.name !== sid ? ref.name : "") ||
+                    sid;
+                  const spDesc = pickName((rec.description as Record<string, string>) ?? {}, lang);
                   return (
                     <div
                       key={sid}

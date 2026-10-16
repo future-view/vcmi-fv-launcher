@@ -23,7 +23,10 @@ static VCMI_SETTINGS_LOCK: Mutex<()> = Mutex::new(());
 ///
 /// ⚠️ `async` + `spawn_blocking`：读整份 settings.json + 解析（模组页 `loadVcmiLanguage` 的路径）。
 #[tauri::command]
-pub async fn read_vcmi_settings(state: State<'_, AppPaths>, config_dir: Option<String>) -> Result<Value, String> {
+pub async fn read_vcmi_settings(
+    state: State<'_, AppPaths>,
+    config_dir: Option<String>,
+) -> Result<Value, String> {
     let p = {
         let paths = state.0.lock().expect("paths lock poisoned");
         match &config_dir {
@@ -36,8 +39,10 @@ pub async fn read_vcmi_settings(state: State<'_, AppPaths>, config_dir: Option<S
         if !p.is_file() {
             return Ok(json!({}));
         }
-        let text = fs::read_to_string(&p).map_err(|e| be_err("cmd_settings_read_failed", &format!("{}", e)))?;
-        serde_json::from_str(&text).map_err(|e| be_err("cmd_settings_parse_failed", &format!("{}", e)))
+        let text = fs::read_to_string(&p)
+            .map_err(|e| be_err("cmd_settings_read_failed", &format!("{}", e)))?;
+        serde_json::from_str(&text)
+            .map_err(|e| be_err("cmd_settings_parse_failed", &format!("{}", e)))
     })
     .await
     .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?
@@ -74,7 +79,8 @@ pub async fn write_vcmi_settings(
         }
         // 读出现有内容（不存在则为空对象）
         let mut existing = if p.is_file() {
-            let text = fs::read_to_string(&p).map_err(|e| be_err("cmd_settings_read_failed", &format!("{}", e)))?;
+            let text = fs::read_to_string(&p)
+                .map_err(|e| be_err("cmd_settings_read_failed", &format!("{}", e)))?;
             serde_json::from_str::<Value>(&text).unwrap_or(json!({}))
         } else {
             json!({})
@@ -103,8 +109,8 @@ pub async fn write_vcmi_settings(
             let parts: Vec<&str> = k.split('.').collect();
             remove_path(&mut existing, &parts);
         }
-        let text =
-            serde_json::to_string_pretty(&existing).map_err(|e| be_err("cmd_serialize_failed", &format!("{}", e)))?;
+        let text = serde_json::to_string_pretty(&existing)
+            .map_err(|e| be_err("cmd_serialize_failed", &format!("{}", e)))?;
         fs::write(&p, text).map_err(|e| be_err("cmd_settings_write_failed", &format!("{}", e)))
     })
     .await
@@ -148,7 +154,8 @@ pub async fn set_vcmi_language(
     tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
         let _guard = VCMI_SETTINGS_LOCK.lock().expect("settings lock poisoned");
         let mut settings: Value = if p.is_file() {
-            let text = fs::read_to_string(&p).map_err(|e| be_err("cmd_settings_read_failed", &format!("{}", e)))?;
+            let text = fs::read_to_string(&p)
+                .map_err(|e| be_err("cmd_settings_read_failed", &format!("{}", e)))?;
             crate::infra::json::parse_json_lenient(&text)
                 .map_err(|e| be_err("cmd_settings_parse_abort", &format!("{}", e)))?
         } else {
@@ -182,8 +189,8 @@ pub async fn set_vcmi_language(
         if let Some(g) = settings.get_mut("general").and_then(|v| v.as_object_mut()) {
             g.insert("language".to_string(), json!(lang));
         }
-        let text =
-            serde_json::to_string_pretty(&settings).map_err(|e| be_err("cmd_serialize_failed", &format!("{}", e)))?;
+        let text = serde_json::to_string_pretty(&settings)
+            .map_err(|e| be_err("cmd_serialize_failed", &format!("{}", e)))?;
         fs::write(&p, text).map_err(|e| be_err("cmd_settings_write_failed", &format!("{}", e)))?;
         tracing::info!(target: "lang", "已同步 VCMI 语言设置 general.language={lang}");
         Ok(())

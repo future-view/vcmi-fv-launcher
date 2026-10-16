@@ -188,7 +188,8 @@ fn enc_by_name(name: &str) -> &'static encoding_rs::Encoding {
 
 /// 简体常用字表 + 日 / 韩常用字表（对照 C++ commonChinese/commonJapanese/commonKorean）
 const COMMON_CHINESE: &str = "的一是不在人有我他这中大来上国个到说们为子和你地出道也时年得就那要下以生会自着去之过家学对可她里后小心多天而能好都然没日于起还发成事作当想看文无开手十用主行方前所本见经头面公同三已老从动两长知民样现分将外但身些与高意进把法实回二理美点月明暗光王战英雄龙神魔";
-const COMMON_JAPANESE: &str = "のにをはがとでてもからまでよりするしたですますないあるいるこれそれ英雄王戦争地図物語魔神竜";
+const COMMON_JAPANESE: &str =
+    "のにをはがとでてもからまでよりするしたですますないあるいるこれそれ英雄王戦争地図物語魔神竜";
 const COMMON_KOREAN: &str = "의이가은는을를에와과한하다로서영웅왕전쟁지도마법신용";
 
 fn count_common(text: &str, common: &str) -> i32 {
@@ -234,31 +235,135 @@ fn detect_wide_language(text: &str) -> String {
         // 乌克兰语特征词（і/ї/є + 高频词），对照 C++ uk 词典
         let uk = ["і", "ї", "є", "та", "що", "для", "цей", "бути", "герої"];
         let hits = uk.iter().filter(|w| text.contains(**w)).count();
-        return if hits >= 2 { "uk-UA".into() } else { "ru-RU".into() };
+        return if hits >= 2 {
+            "uk-UA".into()
+        } else {
+            "ru-RU".into()
+        };
     }
     // 拉丁语系小词典评分（对照 C++ dictionaries）
     const DICTS: &[(&str, &[&str])] = &[
-        ("en-US", &["the", "and", "your", "you", "are", "with", "for", "from", "this", "that", "have", "will", "hero", "kingdom"]),
-        ("pl-PL", &["nie", "się", "jest", "dla", "który", "przez", "oraz", "bohater", "królestwo", "musisz", "jeśli", "znasz", "nazwa", "pomoże", "możesz", "został"]),
-        ("cs-CZ", &["není", "jste", "který", "tento", "musíte", "hrdina", "království", "může", "jsou", "pokud", "bude", "byl", "získat"]),
-        ("de-DE", &["der", "die", "das", "und", "ist", "nicht", "für", "werden", "held", "königreich", "musst"]),
-        ("fr-FR", &["les", "des", "dans", "pour", "avec", "vous", "votre", "héros", "royaume", "devez"]),
-        ("es-ES", &["los", "para", "que", "con", "una", "por", "del", "héroe", "reino", "debes"]),
-        ("pt-PT", &["para", "que", "com", "uma", "não", "dos", "das", "seu", "herói", "reino"]),
-        ("it-IT", &["per", "che", "con", "una", "nel", "della", "eroe", "regno", "devi"]),
-        ("nl-NL", &["het", "een", "van", "voor", "met", "niet", "held", "koninkrijk", "moet"]),
-        ("hu-HU", &["egy", "hogy", "nem", "kell", "vissza", "gonosz", "város", "szárny", "lehet", "vagy"]),
-        ("ro-RO", &["este", "pentru", "care", "trebuie", "sunt", "lume", "erou", "regat", "poate", "fără"]),
+        (
+            "en-US",
+            &[
+                "the", "and", "your", "you", "are", "with", "for", "from", "this", "that", "have",
+                "will", "hero", "kingdom",
+            ],
+        ),
+        (
+            "pl-PL",
+            &[
+                "nie",
+                "się",
+                "jest",
+                "dla",
+                "który",
+                "przez",
+                "oraz",
+                "bohater",
+                "królestwo",
+                "musisz",
+                "jeśli",
+                "znasz",
+                "nazwa",
+                "pomoże",
+                "możesz",
+                "został",
+            ],
+        ),
+        (
+            "cs-CZ",
+            &[
+                "není",
+                "jste",
+                "který",
+                "tento",
+                "musíte",
+                "hrdina",
+                "království",
+                "může",
+                "jsou",
+                "pokud",
+                "bude",
+                "byl",
+                "získat",
+            ],
+        ),
+        (
+            "de-DE",
+            &[
+                "der",
+                "die",
+                "das",
+                "und",
+                "ist",
+                "nicht",
+                "für",
+                "werden",
+                "held",
+                "königreich",
+                "musst",
+            ],
+        ),
+        (
+            "fr-FR",
+            &[
+                "les", "des", "dans", "pour", "avec", "vous", "votre", "héros", "royaume", "devez",
+            ],
+        ),
+        (
+            "es-ES",
+            &[
+                "los", "para", "que", "con", "una", "por", "del", "héroe", "reino", "debes",
+            ],
+        ),
+        (
+            "pt-PT",
+            &[
+                "para", "que", "com", "uma", "não", "dos", "das", "seu", "herói", "reino",
+            ],
+        ),
+        (
+            "it-IT",
+            &[
+                "per", "che", "con", "una", "nel", "della", "eroe", "regno", "devi",
+            ],
+        ),
+        (
+            "nl-NL",
+            &[
+                "het",
+                "een",
+                "van",
+                "voor",
+                "met",
+                "niet",
+                "held",
+                "koninkrijk",
+                "moet",
+            ],
+        ),
+        (
+            "hu-HU",
+            &[
+                "egy", "hogy", "nem", "kell", "vissza", "gonosz", "város", "szárny", "lehet",
+                "vagy",
+            ],
+        ),
+        (
+            "ro-RO",
+            &[
+                "este", "pentru", "care", "trebuie", "sunt", "lume", "erou", "regat", "poate",
+                "fără",
+            ],
+        ),
     ];
     let lower = text.to_lowercase();
     let mut best = "und";
     let mut best_score = 0;
     let mut second = 0;
     for (lang, words) in DICTS {
-        let score: i32 = words
-            .iter()
-            .map(|w| lower.matches(w).count() as i32)
-            .sum();
+        let score: i32 = words.iter().map(|w| lower.matches(w).count() as i32).sum();
         if score > best_score {
             second = best_score;
             best = lang;
@@ -373,10 +478,7 @@ fn analyze_text_bytes(samples: &[&[u8]]) -> (String, String) {
     let ascii = combined.iter().all(|b| *b < 0x80);
     let mut best_encoding = "cp1252";
     if !ascii {
-        let ascii_letters = combined
-            .iter()
-            .filter(|b| b.is_ascii_alphabetic())
-            .count() as i32;
+        let ascii_letters = combined.iter().filter(|b| b.is_ascii_alphabetic()).count() as i32;
         let high_bytes = combined.iter().filter(|b| **b >= 0x80).count() as i32;
         let mut best_score = i32::MIN;
         for (name, enc) in ENCODINGS {
@@ -548,12 +650,16 @@ pub fn parse_file(path: &Path) -> Result<MapMeta, String> {
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase())
         .unwrap_or_default();
-    let data = std::fs::read(path).map_err(|e| be_err("infra_map_read_failed", &format!("{}", e)))?;
+    let data =
+        std::fs::read(path).map_err(|e| be_err("infra_map_read_failed", &format!("{}", e)))?;
     match ext.as_str() {
         "h3m" => parse_h3m_bytes(&data, "map"),
         "h3c" => parse_h3c_bytes(&data),
         "vmap" => parse_vmap_bytes(&data),
-        other => Err(be_err("infra_map_format_unsupported", &format!("{}", other))),
+        other => Err(be_err(
+            "infra_map_format_unsupported",
+            &format!("{}", other),
+        )),
     }
 }
 
@@ -684,7 +790,18 @@ fn parse_h3m_bytes(data: &[u8], kind: &str) -> Result<MapMeta, String> {
     }
     if r.eof() {
         // 头部被截断：胜负条件缺失不致命，返回已解析部分
-        return Ok(base_meta(kind, &lang_bcp47, &encoding, name, description, version_name, difficulty, players, humans, size_w));
+        return Ok(base_meta(
+            kind,
+            &lang_bcp47,
+            &encoding,
+            name,
+            description,
+            version_name,
+            difficulty,
+            players,
+            humans,
+            size_w,
+        ));
     }
     let (victory, loss) = parse_victory_loss(&mut r, &f);
 
@@ -816,7 +933,7 @@ fn parse_h3c_bytes(data: &[u8]) -> Result<MapMeta, String> {
         }
         let map_file_raw = r.raw_string(1000).to_vec(); // mapFileName
         r.skip(4); // packedMapSize
-        // Unholy Alliance（>8 场景）为 2 字节前置条件
+                   // Unholy Alliance（>8 场景）为 2 字节前置条件
         r.skip(if map_count > 8 { 2 } else { 1 });
         r.skip(1); // regionColor
         let difficulty = r.u8() as i8; // 场景默认难度（0..4）
@@ -944,7 +1061,8 @@ fn localized(v: &serde_json::Value) -> String {
 /// 解析 VMAP（ZIP 内 header.json + 语言 json 文件名）。语言文件名即 VCMI identifier。
 fn parse_vmap_bytes(data: &[u8]) -> Result<MapMeta, String> {
     let cursor = std::io::Cursor::new(data);
-    let mut zip = zip::ZipArchive::new(cursor).map_err(|e| be_err("infra_vmap_zip_open_failed", &format!("{}", e)))?;
+    let mut zip = zip::ZipArchive::new(cursor)
+        .map_err(|e| be_err("infra_vmap_zip_open_failed", &format!("{}", e)))?;
     let mut names: Vec<String> = Vec::new();
     for i in 0..zip.len() {
         if let Ok(n) = zip.by_index(i) {
@@ -952,7 +1070,12 @@ fn parse_vmap_bytes(data: &[u8]) -> Result<MapMeta, String> {
         }
     }
     // 语言 = 条目最多的 `<lang>.json`（对照 C++ pickBestLang；语言文件名即 VCMI identifier）
-    let structural = ["header.json", "objects.json", "terrain0.json", "terrain1.json"];
+    let structural = [
+        "header.json",
+        "objects.json",
+        "terrain0.json",
+        "terrain1.json",
+    ];
     let mut best_lang = "unknown";
     let mut best_count = 0usize;
     for name in &names {
@@ -965,9 +1088,11 @@ fn parse_vmap_bytes(data: &[u8]) -> Result<MapMeta, String> {
         }
         let count = zip
             .by_name(name)
-            .map(|f| serde_json::from_reader::<_, serde_json::Map<String, serde_json::Value>>(f)
-                .map(|m| m.len())
-                .unwrap_or(0))
+            .map(|f| {
+                serde_json::from_reader::<_, serde_json::Map<String, serde_json::Value>>(f)
+                    .map(|m| m.len())
+                    .unwrap_or(0)
+            })
             .unwrap_or(0);
         if count > best_count {
             best_count = count;
@@ -1030,7 +1155,10 @@ mod tests {
 
     #[test]
     fn language_detect_cjk() {
-        assert_eq!(detect_wide_language("恶魔入侵了为了拯救摇摇欲坠的艾恩法斯特王朝"), "zh-CN");
+        assert_eq!(
+            detect_wide_language("恶魔入侵了为了拯救摇摇欲坠的艾恩法斯特王朝"),
+            "zh-CN"
+        );
         assert_eq!(detect_wide_language("Might and Magic Heroes"), "en-US");
         assert_eq!(detect_wide_language("Освободите землю от врагов"), "ru-RU");
         assert_eq!(detect_wide_language(""), "und");
@@ -1075,7 +1203,11 @@ mod tests {
             };
             for e in rd.flatten().take(5) {
                 let p = e.path();
-                if p.extension().and_then(|x| x.to_str()).map(|x| x.eq_ignore_ascii_case("h3m")) != Some(true) {
+                if p.extension()
+                    .and_then(|x| x.to_str())
+                    .map(|x| x.eq_ignore_ascii_case("h3m"))
+                    != Some(true)
+                {
                     continue;
                 }
                 let meta = parse_file(&p).expect("parse should succeed");
@@ -1107,7 +1239,9 @@ mod tests {
                 if !kind_dir.is_dir() {
                     continue;
                 }
-                let Ok(langs) = std::fs::read_dir(&kind_dir) else { continue };
+                let Ok(langs) = std::fs::read_dir(&kind_dir) else {
+                    continue;
+                };
                 for lang_e in langs.flatten() {
                     let lang_dir = lang_e.path();
                     if !lang_dir.is_dir() {
@@ -1144,7 +1278,11 @@ mod tests {
                                 path.display()
                             );
                         } else {
-                            assert!(meta.scenario_count >= 1, "战役场景数为 0: {}", path.display());
+                            assert!(
+                                meta.scenario_count >= 1,
+                                "战役场景数为 0: {}",
+                                path.display()
+                            );
                         }
                         tested += 1;
                     }
@@ -1184,9 +1322,17 @@ mod tests {
         assert!(!meta.scenarios.iter().any(|s| s.name.contains('\u{FFFD}')));
         // 第 3 景（wan003.h3m）：场景名 / 文件名 / 难度
         let s3 = &meta.scenarios[2];
-        assert!(s3.name.contains("月夜谁知起变故"), "场景名解码异常: {}", s3.name);
+        assert!(
+            s3.name.contains("月夜谁知起变故"),
+            "场景名解码异常: {}",
+            s3.name
+        );
         assert_eq!(s3.map_file, "wan003.h3m");
-        assert!((0..=4).contains(&s3.difficulty), "难度越界: {}", s3.difficulty);
+        assert!(
+            (0..=4).contains(&s3.difficulty),
+            "难度越界: {}",
+            s3.difficulty
+        );
         // 第 1 景的场景名 / 文件名在磁盘上即为空（作者未填），非解析缺陷
         assert!(meta.scenarios[0].name.is_empty());
         assert!(meta.scenarios[0].map_file.is_empty());
@@ -1197,7 +1343,9 @@ mod tests {
         if depth > 10 {
             return;
         }
-        let Ok(rd) = std::fs::read_dir(dir) else { return };
+        let Ok(rd) = std::fs::read_dir(dir) else {
+            return;
+        };
         for e in rd.flatten() {
             let p = e.path();
             if p.is_dir() {

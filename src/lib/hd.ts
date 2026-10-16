@@ -161,14 +161,26 @@ function probe(): Promise<void> {
   return probing;
 }
 
+/** 已是高清变体的 URL（`…@2x.webp`，允许 query） */
+const HD_VARIANT_RE = /@\d+x\.webp(\?.*)?$/i;
+
 /**
  * 高清变体 URL：`images/a.webp` → `images/a@2x.webp`。
  *
  * - `rate <= 1` 或空 URL → 原样返回；
+ * - **已是高清变体**（`…@2x.webp`）→ 原样返回，见下；
  * - 只认 `.webp`（缓存素材的唯一格式），其它扩展名不动，避免误改外链/领域自备图。
+ *
+ * ⚠️ 幂等性不是洁癖：`HdIcon` 会对传进来的 src **再算一次候选链**，而调用方常常已经
+ * 传了候选链里的某一项（如 `fullImgCandidates(...)[0]`）。没有这条护栏时
+ * `a@4x.webp` 会被再次叠加成 `a@4x@4x.webp` / `a@4x@3x.webp` …，而
+ * `imgCandidates` 的**兜底最后一项恰好是这个叠加后的 URL** —— 于是"兜底"兜到的
+ * 是一个永不存在的文件，图片必然空白（实测：生物详情「升级自/可升级为」整行无图，
+ * 而同一份缓存里原图文件是好的）。已有的 `@Nx` 一律视为"调用方已经选好了档位"。
  */
 export function hdVariantUrl(url: string, rate: number): string {
   if (!url || rate <= 1) return url;
+  if (HD_VARIANT_RE.test(url)) return url;
   return url.replace(/\.webp(\?.*)?$/i, (_m, q) => `@${rate}x.webp${q ?? ""}`);
 }
 

@@ -31,7 +31,8 @@ fn sync_ai(id: &str) {
 #[tauri::command]
 pub fn runtime_status(id: String) -> Result<Value, String> {
     let st = runtime::status(&id)?;
-    serde_json::to_value(st).map_err(|e| be_err("cmd_runtime_state_serialize_failed", &format!("{}", e)))
+    serde_json::to_value(st)
+        .map_err(|e| be_err("cmd_runtime_state_serialize_failed", &format!("{}", e)))
 }
 
 /// 安装组件（**阻塞**至完成）：下载 → 整包 sha256 → 白名单解压 → 逐文件校验 → 原子替换。

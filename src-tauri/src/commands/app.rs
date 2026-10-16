@@ -6,9 +6,9 @@
 
 use crate::infra::berror::be_err;
 use serde_json::{json, Value};
-use std::process::Command;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
+use std::process::Command;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 use tauri::{Manager, State};
@@ -142,8 +142,7 @@ pub fn apply_main_window_geometry(app: &tauri::AppHandle) {
     };
     let saved = VcmiPaths::saved_window_size();
     let (mon_w, mon_h, scale) = primary_monitor_of(&win);
-    let (width, height) =
-        crate::infra::window::compute_window_size(saved, (mon_w, mon_h), scale);
+    let (width, height) = crate::infra::window::compute_window_size(saved, (mon_w, mon_h), scale);
 
     // 仅"按显示器自适应"这一次落盘：已有尺寸就不再写，免得每次启动都重写配置文件
     if saved.is_none() {

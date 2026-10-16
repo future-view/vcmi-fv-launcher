@@ -9,7 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::infra::cache::cfg_cache_get;
 use crate::infra::json;
@@ -18,18 +18,39 @@ use crate::vcmi::resource::content_zip_is_encrypted;
 
 pub(crate) const RESERVED_SCOPES: &[&str] = &["core", "vcmi"];
 
-/// 归一化 mod id：磁盘目录名，子 mod 用 parent.child
+/// 归一化 mod id：**磁盘目录名小写**，子 mod 用 `parent.child`（父级已小写，故只需处理叶子）。
+///
+/// 大小写不是随意的：VCMI 的 modId **恒为目录名的小写**
+/// （`lib/modding/ModManager.cpp:54` 的 `boost::algorithm::to_lower_copy`），
+/// 而 modId 是全局主键 —— `modSettings.json` 的 presets、`depends` / `conflicts`、
+/// 跨模组引用 `<modId>:<entityId>` 用的都是这个形态。
+/// 实测该发行版 572 个模组的 presets 里**含大写字母的 modId 为 0 个**，反证 VCMI 侧确实小写。
+///
+/// 此前保留磁盘原名（`1-Knight-town`），后果：启动器内部主键与 VCMI 主键**字符串不等**，
+/// 各处只能加大写容错（前端 `modIdKey`、`factionId.endsWith`、`resolvePresetIds` 的
+/// diskName 回退）；且在 Linux/macOS（大小写敏感）上缓存目录名与 Windows 不一致
+/// （跨平台发行见 ADR 0008）。
+///
+/// ⚠️ 原始目录名完整保留在 [`scan_mod_dir`] 输出的 `diskName` 字段里，磁盘定位请用它或
+/// 索引里的 `modPath`——**不要用 modId 拼磁盘路径**（小写后在 Linux 上必然找不到目录）。
 pub(crate) fn norm_mod_id(parent: Option<&str>, disk_name: &str) -> String {
+    let leaf = disk_name.trim().to_lowercase();
     match parent {
-        Some(p) => format!("{}.{}", p, disk_name.trim()),
-        None => disk_name.trim().to_string(),
+        Some(p) => format!("{}.{}", p, leaf),
+        None => leaf,
     }
 }
 
 /// 从 mod.json 提取分类：严格优先 modType；缺失时才安全推测。
 /// 翻译类关键词（ID / 名称 / 描述）优先级高于 factions，
 /// 避免含 factions 配置的翻译 mod 被误判为 Town。
-pub(crate) fn classify_mod(id: &str, mod_type: Option<&str>, name: &str, description: &str, factions: &[String]) -> String {
+pub(crate) fn classify_mod(
+    id: &str,
+    mod_type: Option<&str>,
+    name: &str,
+    description: &str,
+    factions: &[String],
+) -> String {
     // 1. 显式 modType 最优先
     if let Some(t) = mod_type {
         let tl = t.trim();
@@ -141,7 +162,11 @@ pub(crate) fn classify_mod(id: &str, mod_type: Option<&str>, name: &str, descrip
 /// 兼容大小写 variations（VCMI mod 目录 Content 可能大写 C）。
 pub(crate) fn detect_factions(dir: &Path) -> Vec<String> {
     let mut list = Vec::new();
-    for base in ["Content/config/factions", "content/config/factions", "config/factions"] {
+    for base in [
+        "Content/config/factions",
+        "content/config/factions",
+        "config/factions",
+    ] {
         let p = dir.join(base);
         if !p.is_dir() {
             continue;
@@ -149,7 +174,12 @@ pub(crate) fn detect_factions(dir: &Path) -> Vec<String> {
         if let Ok(entries) = fs::read_dir(&p) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.is_file() && path.extension().map(|s| s.eq_ignore_ascii_case("json")).unwrap_or(false) {
+                if path.is_file()
+                    && path
+                        .extension()
+                        .map(|s| s.eq_ignore_ascii_case("json"))
+                        .unwrap_or(false)
+                {
                     if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                         list.push(stem.to_string());
                     }
@@ -168,7 +198,12 @@ pub(crate) fn detect_factions(dir: &Path) -> Vec<String> {
 /// 同时覆盖磁盘散文件与 `content.zip` 两种形态。仅对声明 `modType == "Translation"` 的模组调用，
 /// 避免对全部模组做代价较高的目录/zip 探测。
 fn has_base_translation(dir: &Path) -> bool {
-    const BASE_FILES: &[&str] = &["game.json", "campaigns.json", "maps.json", "chronicles.json"];
+    const BASE_FILES: &[&str] = &[
+        "game.json",
+        "campaigns.json",
+        "maps.json",
+        "chronicles.json",
+    ];
     // 1) 磁盘 Content/translation*/<base>.json（VCMI 标准大写 Content，并兼容小写 content）
     for content_root in [dir.join("Content"), dir.join("content")] {
         if !content_root.is_dir() {
@@ -209,7 +244,10 @@ fn has_base_translation(dir: &Path) -> bool {
 
 /// 扫描单个 mod 目录（含子 mod），返回 JSON 节点
 pub(crate) fn scan_mod_dir(dir: &Path, parent_id: Option<&str>) -> Value {
-    let disk_name = dir.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    let disk_name = dir
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
     let mod_json = dir.join("mod.json");
     let id = norm_mod_id(parent_id, &disk_name);
     let mut name = disk_name.clone();
@@ -235,18 +273,33 @@ pub(crate) fn scan_mod_dir(dir: &Path, parent_id: Option<&str>) -> Value {
             if let Some(d) = obj.get("description").and_then(|v| v.as_str()) {
                 desc = d.to_string();
             }
-            mod_type = obj.get("modType").and_then(|v| v.as_str()).map(|s| s.to_string());
+            mod_type = obj
+                .get("modType")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             depends = str_arr(obj.get("depends"));
             soft_depends = str_arr(obj.get("softDepends"));
             conflicts = str_arr(obj.get("conflicts"));
-            version = obj.get("version").and_then(|v| v.as_str()).map(|s| s.to_string());
-            author = obj.get("author").and_then(|v| v.as_str()).map(|s| s.to_string());
+            version = obj
+                .get("version")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            author = obj
+                .get("author")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             factions = str_arr(obj.get("factions"));
             // keepDisabled：true=安装后不自动启用；缺失按 VCMI 语义视为 false（默认启用）。
-            keep_disabled = obj.get("keepDisabled").and_then(|v| v.as_bool()).unwrap_or(false);
+            keep_disabled = obj
+                .get("keepDisabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             // language：翻译类模组的基准语言；VCMI 用它判定「与 UI 语言不符」→ BROKEN
             // （`lib/modding/ModManager.cpp` 的 ModDependenciesResolver::tryAddMods 规则之一）。
-            language = obj.get("language").and_then(|v| v.as_str()).map(|s| s.to_string());
+            language = obj
+                .get("language")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             // compatibility：`{ min, max }`（引擎支持的版本区间）。判定语义见
             // `lib/modding/ModDescription.cpp::isCompatible` 与 `CModVersion::compatible`：
             // major 必须相等；min/max 只写到某一段（如 "1.8"）时该段以下不再比较。
@@ -327,9 +380,18 @@ pub(crate) fn scan_mod_dir(dir: &Path, parent_id: Option<&str>) -> Value {
 
 /// 不属于 VCMI 多语言块的已知字段
 pub(crate) const NON_I18N_KEYS: &[&str] = &[
-    "name", "description", "modType", "version", "author",
-    "depends", "softDepends", "conflicts", "language", "factions",
-    "compatibility", "keepDisabled",
+    "name",
+    "description",
+    "modType",
+    "version",
+    "author",
+    "depends",
+    "softDepends",
+    "conflicts",
+    "language",
+    "factions",
+    "compatibility",
+    "keepDisabled",
 ];
 
 pub(crate) fn collect_i18n(m: &Value) -> Value {
@@ -353,7 +415,11 @@ pub(crate) fn collect_i18n(m: &Value) -> Value {
 
 pub(crate) fn str_arr(v: Option<&Value>) -> Vec<String> {
     v.and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -428,6 +494,14 @@ pub(crate) fn push_installed_mod(
     let factions = m.get("factions").cloned().unwrap_or(Value::Null);
     out.push(json!({
         "id": id,
+        // 磁盘目录原名（保留大小写、可能含空格）+ 绝对路径。
+        //
+        // ⚠️ 必须透传：`id` 是**小写归一**后的 VCMI modId，**不能当目录名用**
+        // （大小写敏感的文件系统上找不到）。此前 `InstalledMod` 不带这两个字段，
+        // 消费方（领域编辑器、ModBrowser 兜底条目）只能拿小写 `id` 冒充 `diskName`，
+        // 而领域侧 `realms/*` 又用它 `join` 出磁盘路径 —— 跨平台会静默失效。
+        "diskName": m.get("diskName").cloned().unwrap_or(json!(id)),
+        "modPath": m.get("modPath").cloned().unwrap_or(json!("")),
         "name": name,
         // 展示元数据（scan_mod_dir 同源透传）：多语言名/描述选词、抽屉简介、版本列回退都依赖。
         "desc": m.get("desc").cloned().unwrap_or(json!("")),
@@ -493,8 +567,9 @@ pub(crate) fn collect_mod_paths(paths: &VcmiPaths) -> Vec<PathBuf> {
 
 /// `.def` 资源定位用的模组路径列表：按 Mods 目录指纹缓存，
 /// 避免每次 `read_def_bytes` 都重新扫描全部模组（600+ 目录）造成卡顿。
-pub(crate) static MOD_PATHS_CACHE: std::sync::OnceLock<Mutex<Vec<(String, std::sync::Arc<Vec<PathBuf>>)>>> =
-    std::sync::OnceLock::new();
+pub(crate) static MOD_PATHS_CACHE: std::sync::OnceLock<
+    Mutex<Vec<(String, std::sync::Arc<Vec<PathBuf>>)>>,
+> = std::sync::OnceLock::new();
 
 pub(crate) fn cached_mod_paths(paths: &VcmiPaths) -> std::sync::Arc<Vec<PathBuf>> {
     let key = format!(

@@ -16,10 +16,10 @@
 //! 安全红线（`infra::links`）：删除联接只能用 `remove_dir`（经 `remove_link`），
 //! 绝不 `remove_dir_all`；命令入参目录名一律经 `safe_disk_name` 护栏（防目录穿越）。
 
-use crate::infra::berror::be_err;
 use super::base::{guard_vcmi_not_running, now_date, read_config};
 use super::conflicts::dir_fingerprint;
 use super::meta::get_realm;
+use crate::infra::berror::be_err;
 
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -42,8 +42,8 @@ struct RealmModEnv {
 impl RealmModEnv {
     fn resolve(state: &State<AppPaths>, realm_id: &str) -> Result<Self, String> {
         let id = VcmiPaths::sanitize_realm_id(realm_id);
-        let base = VcmiPaths::realm_vcmi_dir(&id)
-            .ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
+        let base =
+            VcmiPaths::realm_vcmi_dir(&id).ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
         let (user_mods, game_mods) = {
             let p = state.0.lock().expect("paths lock poisoned");
             (p.user_mods_dir(), p.game_mods_dir())
@@ -56,16 +56,16 @@ impl RealmModEnv {
     }
 
     /// 解析模组来源（user 优先，对齐 `listInstalledMods` / `apply_realm_mods` 口径）。
+    ///
+    /// ⚠️ 必须走 [`crate::infra::moddir::resolve_mod_dir`] 而不是 `root.join(id)`：
+    /// 领域配置里的引用是 **VCMI modId（小写）**，而磁盘目录保留作者原本大小写
+    /// （`1-Knight-town`、`HuaXia`）、子模组还要展开成 `<root>/<父>/Mods/<子>`。
+    /// 直接 `join` 只在 Windows 上侥幸命中，Linux 上会把所有来源误判为"不存在"。
     fn source_of(&self, id: &str) -> Option<(&'static str, PathBuf)> {
-        let u = self.user_mods.join(id);
-        if u.is_dir() {
+        if let Some(u) = crate::infra::moddir::resolve_mod_dir(&self.user_mods, id) {
             return Some(("user", u));
         }
-        let g = self.game_mods.join(id);
-        if g.is_dir() {
-            return Some(("game", g));
-        }
-        None
+        crate::infra::moddir::resolve_mod_dir(&self.game_mods, id).map(|g| ("game", g))
     }
 }
 
@@ -155,7 +155,11 @@ fn push_realm_mod_flat(
     seen: &mut HashSet<String>,
     out: &mut Vec<Value>,
 ) {
-    let id = m.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let id = m
+        .get("id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
     if id.is_empty() || !seen.insert(id.to_lowercase()) {
         return;
     }
@@ -218,7 +222,12 @@ pub fn list_realm_mods(state: State<AppPaths>, realm_id: String) -> Result<Value
             "inPinned": has_id(&pinned, &disk),
             "metaOk": true,
         });
-        push_realm_mod_flat(&m, fields.as_object().expect("fields object"), &mut seen, &mut out);
+        push_realm_mod_flat(
+            &m,
+            fields.as_object().expect("fields object"),
+            &mut seen,
+            &mut out,
+        );
     }
 
     // 2) 台账补漏：game 源引用（天然可见不建链，不在领域目录）；未激活 / 未同步的
@@ -260,7 +269,12 @@ pub fn list_realm_mods(state: State<AppPaths>, realm_id: String) -> Result<Value
             "inPinned": has_id(&pinned, &gid),
             "metaOk": src.is_some(),
         });
-        push_realm_mod_flat(&m, fields.as_object().expect("fields object"), &mut seen, &mut out);
+        push_realm_mod_flat(
+            &m,
+            fields.as_object().expect("fields object"),
+            &mut seen,
+            &mut out,
+        );
     }
 
     Ok(json!({ "mods": out }))
@@ -394,7 +408,11 @@ pub fn ensure_realm_lang_visible(
             if m.get("language").and_then(|v| v.as_str()).unwrap_or("") != vcmi_lang {
                 continue;
             }
-            let Some(mid) = m.get("id").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) else {
+            let Some(mid) = m
+                .get("id")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+            else {
                 continue;
             };
             // 领域目录内：联接 = 借用（user 源，已可见）；真实目录 = 领域自带（已可见）
@@ -409,7 +427,10 @@ pub fn ensure_realm_lang_visible(
             };
             out.push(Cand {
                 id: mid.to_string(),
-                base: m.get("baseTranslation").and_then(|v| v.as_bool()).unwrap_or(false),
+                base: m
+                    .get("baseTranslation")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
                 rank,
                 source,
             });
@@ -474,7 +495,8 @@ pub fn realm_mod_bundle(
         return Err(be_err("realm_mod_not_in_dirs", &format!("{}", mid)));
     };
     let dst = env.realm_mods.join(&mid);
-    fs::create_dir_all(&env.realm_mods).map_err(|e| be_err("infra_realm_mods_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&env.realm_mods)
+        .map_err(|e| be_err("infra_realm_mods_dir_create_failed", &format!("{}", e)))?;
     let dst_is_link = is_link(&dst);
     let dst_is_real = !dst_is_link && dst.symlink_metadata().is_ok();
 
@@ -488,9 +510,13 @@ pub fn realm_mod_bundle(
                 (Ok(a), Ok(b)) if a == b
             );
             if same {
-                return Ok(json!({ "ok": true, "modId": mid, "source": source, "skipped": "same" }));
+                return Ok(
+                    json!({ "ok": true, "modId": mid, "source": source, "skipped": "same" }),
+                );
             }
-            return Ok(json!({ "ok": false, "modId": mid, "source": source, "reason": "diverged" }));
+            return Ok(
+                json!({ "ok": false, "modId": mid, "source": source, "reason": "diverged" }),
+            );
         }
     }
 
@@ -544,7 +570,9 @@ pub fn realm_mod_delete(
 
 /// 把源目录无损替换到目标目录（`.fv-old` 暂存交换；成功删旧、失败回滚）。返回是否替换。
 fn install_dir_replace(src: &Path, dest: &Path) -> Result<bool, String> {
-    let parent = dest.parent().ok_or_else(|| be_err("common_target_no_parent", ""))?;
+    let parent = dest
+        .parent()
+        .ok_or_else(|| be_err("common_target_no_parent", ""))?;
     let fname = dest
         .file_name()
         .map(|s| s.to_string_lossy().to_string())
@@ -597,7 +625,8 @@ pub fn realm_mod_import(
 ) -> Result<Value, String> {
     guard_vcmi_not_running()?;
     let env = RealmModEnv::resolve(&state, &realm_id)?;
-    fs::create_dir_all(&env.realm_mods).map_err(|e| be_err("infra_realm_mods_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&env.realm_mods)
+        .map_err(|e| be_err("infra_realm_mods_dir_create_failed", &format!("{}", e)))?;
 
     let mut results: Vec<Value> = Vec::new();
     for raw in paths {
@@ -693,5 +722,3 @@ pub fn realm_mod_import(
     }
     Ok(json!({ "results": results }))
 }
-
-

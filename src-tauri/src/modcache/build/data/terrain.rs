@@ -6,11 +6,11 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
+use crate::modcache::assets::{extract_game_def_frame_and_save, extract_icon_and_save};
+use crate::modcache::assets_enabled;
+use crate::modcache::preview::compose_town_preview_for;
 use crate::vcmi::h3core::I18nMap;
 use crate::vcmi::town::TownConfig;
-use crate::modcache::assets::{extract_game_def_frame_and_save, extract_icon_and_save};
-use crate::modcache::preview::compose_town_preview_for;
-use crate::modcache::assets_enabled;
 
 use crate::modcache::build::read_terrain_types;
 
@@ -25,13 +25,18 @@ pub(crate) fn build_terrains(
     factions: &mut [Value],
 ) -> (Vec<Value>, Vec<String>) {
     // 本族地形 → 城镇名（VCMI 在地形条目描述里列出以该地形为本族的城镇）
-    let mut terrain_towns: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    let mut terrain_towns: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
     for c in configs {
         let fname = factions
             .iter()
             .find(|f| f.get("factionId").and_then(|x| x.as_str()) == Some(c.faction_id.as_str()))
             .and_then(|f| f.get("name"))
-            .and_then(|n| n.get("chinese").or_else(|| n.get("auto")).or_else(|| n.get("english")))
+            .and_then(|n| {
+                n.get("chinese")
+                    .or_else(|| n.get("auto"))
+                    .or_else(|| n.get("english"))
+            })
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
@@ -49,16 +54,27 @@ pub(crate) fn build_terrains(
     // mod 地形（hota.highlands / dunes terrain 等）的 tiles 在 mod 自己的 resources 里，
     // 先走 mod 资源查找，再回退游戏资源。
     for t in terrains.iter_mut() {
-        let id = t.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let tiles = t.get("tiles").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let id = t
+            .get("id")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        let tiles = t
+            .get("tiles")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
         if id.is_empty() || tiles.is_empty() {
             continue;
         }
         let def = format!("{tiles}.DEF");
-        let img = extract_icon_and_save(&p, game_dir, cache_root, mod_id, "terrain", &id, Some(&def))
-            .or_else(|| {
-                extract_game_def_frame_and_save(game_dir, cache_root, mod_id, &def, 0, 0, "terrain", &id)
-            });
+        let img =
+            extract_icon_and_save(&p, game_dir, cache_root, mod_id, "terrain", &id, Some(&def))
+                .or_else(|| {
+                    extract_game_def_frame_and_save(
+                        game_dir, cache_root, mod_id, &def, 0, 0, "terrain", &id,
+                    )
+                });
         if let Some(rel) = img {
             if let Some(o) = t.as_object_mut() {
                 o.insert("image".into(), json!(rel));
@@ -70,7 +86,11 @@ pub(crate) fn build_terrains(
     {
         let towns_v = Value::Object(raw_cfgs.clone());
         for f in factions.iter_mut() {
-            let fid = f.get("factionId").and_then(|x| x.as_str()).unwrap_or("").to_string();
+            let fid = f
+                .get("factionId")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
             if fid.is_empty() {
                 continue;
             }
@@ -84,7 +104,11 @@ pub(crate) fn build_terrains(
             //
             // 此前两条路径各合成一遍、各落一份盘：实测 84 个城镇重复约 42 MB，
             // 且多花一遍最重的合成（建筑 DEF 解码 + 拼合 + 无损编码）。
-            let bg = f.get("background").and_then(|x| x.as_str()).unwrap_or("").to_string();
+            let bg = f
+                .get("background")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
             if !bg.is_empty() {
                 if let Some(obj) = f.as_object_mut() {
                     obj.insert("preview".to_string(), json!(bg));

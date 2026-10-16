@@ -18,6 +18,7 @@
  *   --lang      输出语言键（en / chinese / ...）。缺省按 --encoding 与目录名推断
  *   --encoding  TXT 编码（gbk / cp1252 / utf8 / ...）。缺省自动探测
  *   --out       输出目录，默认 src-tauri/data/h3-core
+ *   --only      只重生成指定类目（逗号分隔，如 arraytxt），不碰其它文件与 meta
  */
 import fs from "fs";
 import path from "path";
@@ -54,6 +55,21 @@ if (!args.game) {
 const GAME_DIR = path.resolve(args.game);
 const CONFIG_DIR = path.resolve(args.config || path.join(REPO, "references", "vcmi", "config"));
 const OUT_DIR = path.resolve(args.out || path.join(REPO, "src-tauri", "data", "h3-core"));
+/**
+ * 只重生成指定类目（逗号分隔），如 `--only arraytxt`。
+ *
+ * 用途：新增一个类目时补数据，**不动**其它已生成文件与 `meta.<lang>.json`
+ * （整轮重跑会刷新 `generatedAt`/`counts`，制造无意义 diff；而且英文数据需要英文版 H3
+ * 目录才生成得出来，本机不一定有）。
+ */
+const ONLY = args.only
+  ? new Set(
+      String(args.only)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    )
+  : null;
 // 人工撰写的原版城镇描述（来自百科，中英双语），由 h3-core 注入到 `faction.core.<id>.description`。
 // 独立于生成产物（`data/h3-core/<lang>.factions.json`）保存，保证重跑脚本不会覆盖。
 const DESC_PATH = path.resolve(REPO, "src-tauri", "data", "h3-core-src", "factionDescriptions.json");
@@ -743,6 +759,30 @@ function namesFromTable(indexMap, table, lang, label) {
   return out;
 }
 
+/**
+ * 数组文案：ARRAYTXT.TXT（VCMI `CGeneralTextHandler::arraytxt`，键 = **行号 0-based**）。
+ *
+ * 英雄窗口四维主属性的右键说明就取自它（`CHeroWindow.cpp:131-132`：
+ * `area->text = LIBRARY->generaltexth->arraytxt[2 + v]`）→ `2/3/4/5` = 攻击/防御/力量/知识。
+ *
+ * ⚠️ 与 VCMI `CGeneralTextHandler::readToVector` 一致：**空行也占号**（每读一行 index++），
+ * 跳号会让 `arraytxt[2 + v]` 指到别的文案。空文本条目照写，读侧（`load_h3_core_i18n`）
+ * 会跳过空值，效果与 VCMI 的"注册空串"一致。
+ */
+function extractArrayTexts(resolve, encoding) {
+  const raw = resolve("ARRAYTXT.TXT");
+  if (!raw) return null;
+  const p = new LegacyParser(decodeBuffer(raw, encoding).text);
+  const out = {};
+  let idx = 0;
+  do {
+    const text = p.readString();
+    out[String(idx)] = { index: idx, text };
+    idx++;
+  } while (p.endLine());
+  return out;
+}
+
 /** 地形：TERRNAME.TXT */
 function extractTerrains(resolve, encoding, indexMap) {
   const raw = resolve("TERRNAME.TXT");
@@ -1003,11 +1043,14 @@ function main() {
     // 资源名 / 法术派系名：LOD 与翻译池均无中文源，由官方译名表 + config index 生成
     resources: namesFromTable(indexMaps.resources, RESOURCE_NAMES, lang, "resources"),
     spellSchools: namesFromTable(indexMaps.spellSchools, SPELL_SCHOOL_NAMES, lang, "spellSchools"),
+    // 数组文案（四维主属性等的右键说明，见 `extractArrayTexts`）
+    arraytxt: extractArrayTexts(resolve, encoding),
   };
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const summary = {};
   for (const [key, data] of Object.entries(datasets)) {
+    if (ONLY && !ONLY.has(key)) continue;
     if (!data) {
       console.warn(`  - ${key}: 无数据（跳过）`);
       continue;
@@ -1016,6 +1059,11 @@ function main() {
     fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf8");
     summary[key] = Object.keys(data).length;
     console.log(`  + ${path.relative(REPO, file)} (${Object.keys(data).length} 条)`);
+  }
+
+  if (ONLY) {
+    console.log(`（--only ${[...ONLY].join(",")}）只写请求的类目，跳过 meta.<lang>.json`);
+    return;
   }
 
   // 把本地绝对路径收敛成不泄露个人目录的形式：

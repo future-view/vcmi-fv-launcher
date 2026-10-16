@@ -127,9 +127,18 @@ mod tests {
     fn update_mode_parsing() {
         assert_eq!(UpdateMode::from_manifest(None), UpdateMode::Inplace);
         assert_eq!(UpdateMode::from_manifest(Some("")), UpdateMode::Inplace);
-        assert_eq!(UpdateMode::from_manifest(Some("manual")), UpdateMode::Manual);
-        assert_eq!(UpdateMode::from_manifest(Some("BUNDLE")), UpdateMode::Bundle);
-        assert_eq!(UpdateMode::from_manifest(Some("appimage")), UpdateMode::Appimage);
+        assert_eq!(
+            UpdateMode::from_manifest(Some("manual")),
+            UpdateMode::Manual
+        );
+        assert_eq!(
+            UpdateMode::from_manifest(Some("BUNDLE")),
+            UpdateMode::Bundle
+        );
+        assert_eq!(
+            UpdateMode::from_manifest(Some("appimage")),
+            UpdateMode::Appimage
+        );
         assert_eq!(UpdateMode::from_manifest(Some("x")), UpdateMode::Inplace);
         // 过渡态：darwin 缺省 manual，其余 inplace
         assert_eq!(default_update_mode("darwin-aarch64"), UpdateMode::Manual);

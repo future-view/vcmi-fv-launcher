@@ -102,9 +102,10 @@ pub(crate) fn apply_at(config_path: &Path, patch_path: &Path) -> Result<bool, St
     if !patch_path.is_file() {
         return Ok(false);
     }
-    let text = fs::read_to_string(patch_path).map_err(|e| be_err("upd_patch_read_failed", &format!("{}", e)))?;
-    let patch =
-        parse_json_lenient(&text).map_err(|e| be_err("upd_patch_invalid_json", &format!("{}", e)))?;
+    let text = fs::read_to_string(patch_path)
+        .map_err(|e| be_err("upd_patch_read_failed", &format!("{}", e)))?;
+    let patch = parse_json_lenient(&text)
+        .map_err(|e| be_err("upd_patch_invalid_json", &format!("{}", e)))?;
     if !patch.is_object() {
         return Err(be_err("updater_patch_top_not_object", ""));
     }
@@ -184,7 +185,10 @@ mod tests {
             &cfg,
             r#"{"paths":{"game_dir":"D:/g"},"hd":{"enhance":false},"ui":{"town_preview":true}}"#,
         );
-        write(&pat, r#"{"hd":{"enhance":true},"runtime":{"log_level":"debug"}}"#);
+        write(
+            &pat,
+            r#"{"hd":{"enhance":true},"runtime":{"log_level":"debug"}}"#,
+        );
 
         assert!(apply_at(&cfg, &pat).unwrap());
         let v = read_json(&cfg);
@@ -192,7 +196,10 @@ mod tests {
         assert_eq!(v["runtime"]["log_level"], "debug", "补丁新键应写入");
         assert_eq!(v["paths"]["game_dir"], "D:/g", "未提及的键必须原样保留");
         assert_eq!(v["ui"]["town_preview"], true, "未提及的键必须原样保留");
-        assert!(cfg.with_file_name("launcher.json.bak").is_file(), "应留备份");
+        assert!(
+            cfg.with_file_name("launcher.json.bak").is_file(),
+            "应留备份"
+        );
         let _ = fs::remove_dir_all(&d);
     }
 
@@ -213,11 +220,13 @@ mod tests {
         apply_at(&cfg, &pat).unwrap();
         let v = read_json(&cfg);
         assert_eq!(
-            v["runtime"]["components"]["ai"]["dir"],
-            "custom/ai",
+            v["runtime"]["components"]["ai"]["dir"], "custom/ai",
             "对象递归：用户子键保留"
         );
-        assert_eq!(v["runtime"]["components"]["ai"]["package"]["url"], "https://x");
+        assert_eq!(
+            v["runtime"]["components"]["ai"]["package"]["url"],
+            "https://x"
+        );
         assert_eq!(v["realms"]["active"], "old");
         let _ = fs::remove_dir_all(&d);
     }
@@ -231,7 +240,10 @@ mod tests {
         write(&pat, r#"{"mods":{"required":["c"]}}"#);
 
         apply_at(&cfg, &pat).unwrap();
-        assert_eq!(read_json(&cfg)["mods"]["required"], serde_json::json!(["c"]));
+        assert_eq!(
+            read_json(&cfg)["mods"]["required"],
+            serde_json::json!(["c"])
+        );
         let _ = fs::remove_dir_all(&d);
     }
 
@@ -248,7 +260,11 @@ mod tests {
         // 用户之后改成 true —— 补丁已不在，不会被再次压回去
         write(&cfg, r#"{"hd":{"enhance":true}}"#);
         assert!(!apply_at(&cfg, &pat).unwrap(), "无补丁 → 不写回");
-        assert_eq!(read_json(&cfg)["hd"]["enhance"], true, "一次性语义：不永久压用户");
+        assert_eq!(
+            read_json(&cfg)["hd"]["enhance"],
+            true,
+            "一次性语义：不永久压用户"
+        );
         let _ = fs::remove_dir_all(&d);
     }
 

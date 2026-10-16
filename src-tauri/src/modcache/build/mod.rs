@@ -5,38 +5,36 @@
 //!
 //! 依赖方向：可依赖 `infra` 与 `vcmi`（见 `docs/architecture/backend.zh-CN.md` §4.1）。
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 
 use serde_json::{json, Value};
 
 use crate::infra::hash::compute_source_hash;
 use crate::infra::json::parse_vcmi_json;
+use crate::modcache::collect::{
+    collect_all_raw_configs, collect_config_jsons_merged, merge_json_in_place,
+};
+use crate::modcache::i18n::{name_obj_en_zhcn, set_core_i18n};
+use crate::modcache::version::{ASSETS_VERSION, WIKI_CACHE_VERSION};
+use crate::modcache::{sanitize_id, set_assets_enabled};
 use crate::vcmi::gamedata::{
     cached_hero_class_index_map, cached_starting_stack_chances, read_skill_index_map,
 };
+use crate::vcmi::h3core::h3_core_data_hash;
 use crate::vcmi::h3core::{
     cached_core_i18n, h3_core_data_dir, h3_creature_stats, load_h3_core_i18n, merge_i18n_into,
     parse_core_mod, I18nMap,
 };
 use crate::vcmi::i18n::read_i18n_map;
 use crate::vcmi::paths::VcmiPaths;
+use crate::vcmi::resource::{h3_data_key, h3_data_present, has_core_h3_lods, wiki_user_data_dir};
 use crate::vcmi::town::{
     apply_building_id_library, cached_building_id_library, read_game_root_configs,
     read_game_root_factions, read_town_configs,
 };
-use crate::modcache::collect::{
-    collect_all_raw_configs, collect_config_jsons_merged,
-    merge_json_in_place,
-};
-use crate::modcache::i18n::{
-    name_obj_en_zhcn,
-    set_core_i18n,
-};
-use crate::modcache::version::{ASSETS_VERSION, WIKI_CACHE_VERSION};
-use crate::vcmi::resource::{has_core_h3_lods, h3_data_key, h3_data_present, wiki_user_data_dir};
-use crate::vcmi::h3core::h3_core_data_hash;
-use crate::modcache::{sanitize_id, set_assets_enabled};
 
 pub(crate) mod assets;
 pub(crate) mod data;
@@ -49,6 +47,43 @@ pub(crate) mod data;
 static CORE_I18N_MERGED_CACHE: std::sync::OnceLock<
     std::sync::Mutex<Vec<(String, std::sync::Arc<I18nMap>)>>,
 > = std::sync::OnceLock::new();
+
+/// 已完成"核心 i18n 注入"的 game_dir 集合。
+///
+/// ⚠️ 2026-10-15：注入段此前**每个 mod 都完整执行一次**（572 个 mod → 572 次），
+/// 而 `set_core_i18n` 是 `OnceLock`，只有第一次生效，其余 571 次纯浪费
+/// （实测 `cfg.i18n.core` 1,397ms×572，见运行日志 Top15）。
+/// 按 game_dir 去重：同一游戏目录只做一次；**切换领域/游戏目录后仍会各自做一次**
+/// ——不能退化成进程级 `OnceLock`，否则第二个游戏目录的原版建筑/生物名称会缺失。
+static CORE_I18N_DONE: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
+
+/// 本会话已落盘 `raw.json` 的 `(modId, sourceHash)`。
+///
+/// 见下方写入处的说明：两阶段各写一次是纯浪费（内容同源），记下后跳过第二次。
+/// 条目数与 mod 数同级（数百），体积可忽略，故不做淘汰。
+static RAW_WRITTEN: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
+/// 释放本模块持有的构建期状态（构建全部结束后调用；见 [`crate::infra::cache_gc`]）。
+///
+/// - [`CORE_I18N_MERGED_CACHE`]：最多 4 份**整张核心翻译表**（`Arc<I18nMap>`），
+///   是本模块最大的常驻块；缓存本身带容量淘汰，但淘汰不到"当前这 4 份"。
+/// - [`CORE_I18N_DONE`] / [`RAW_WRITTEN`]：纯去重用集合，跨批次保留没有意义
+///   （下一批若真的重跑该 mod，需要重新判断，而不是沿用上一批的结论）。
+pub(crate) fn release_caches() {
+    crate::infra::cache::cfg_cache_clear(&CORE_I18N_MERGED_CACHE);
+    if let Some(c) = CORE_I18N_DONE.get() {
+        if let Ok(mut g) = c.lock() {
+            g.clear();
+            g.shrink_to_fit();
+        }
+    }
+    if let Some(c) = RAW_WRITTEN.get() {
+        if let Ok(mut g) = c.lock() {
+            g.clear();
+            g.shrink_to_fit();
+        }
+    }
+}
 
 /// 构建单个城镇 mod 的 Wiki 缓存核心逻辑（可测试）。
 /// 构建单个 mod 的 wiki 缓存（**两阶段编排**）。
@@ -148,7 +183,12 @@ mod tests {
     }
 }
 
-pub(crate) fn build_mod_wiki_inner(mod_path: &str, mod_id: &str, cache_root: &Path, game_dir: &Path) -> Value {
+pub(crate) fn build_mod_wiki_inner(
+    mod_path: &str,
+    mod_id: &str,
+    cache_root: &Path,
+    game_dir: &Path,
+) -> Value {
     build_mod_wiki_phase(mod_path, mod_id, cache_root, game_dir, 2)
 }
 
@@ -243,7 +283,8 @@ pub(crate) struct ModCacheProbe {
 /// - [`build_mod_wiki_phase_inner`]（真实构建，据状态决定跳过 / 补素材 / 重建）；
 /// - `commands::cache::wiki_cache_state`（启动预检，据状态决定是否弹进度蒙层）。
 ///
-/// ⚠️ 成本 = 一次 [`compute_source_hash`]（`mod.json` 全文 + `content.zip` 首尾 64 KiB 采样），
+/// ⚠️ 成本 = 一次 [`compute_source_hash`]（`mod.json` 全文 + `content.zip` 首尾 64 KiB 采样
+/// + `Content/config/**` 的 (相对路径, 字节数) 指纹——2026-10-15 补上，见该函数文档），
 /// 与真实构建同源，故预检不会引入"第二次不同口径的判断"。
 pub(crate) fn probe_mod_cache(
     mod_path: &str,
@@ -266,7 +307,8 @@ pub(crate) fn probe_mod_cache(
     let h3_key = h3_data_key(game_dir, &wiki_user_data_dir().unwrap_or_default());
     let schema_key = crate::modcache::schema::schema_content_hash();
     let h3_core_hash = h3_core_data_hash();
-    let version_key = format!("v{WIKI_CACHE_VERSION}:{source_hash}:{h3_key}:{h3_core_hash}:{schema_key}");
+    let version_key =
+        format!("v{WIKI_CACHE_VERSION}:{source_hash}:{h3_key}:{h3_core_hash}:{schema_key}");
     let out_path = cache_root.join(format!("{}/cache.json", sanitize_id(mod_id)));
     if let Ok(text) = fs::read_to_string(&out_path) {
         if let Ok(v) = serde_json::from_str::<Value>(&text) {
@@ -281,7 +323,10 @@ pub(crate) fn probe_mod_cache(
             );
             let cc = v.get("contentCount").cloned().unwrap_or(json!({}));
             if v.get("sourceHash").is_some() && old_key == version_key {
-                let assets_ver_ok = v.get("assetsDone").and_then(|x| x.as_bool()).unwrap_or(false)
+                let assets_ver_ok = v
+                    .get("assetsDone")
+                    .and_then(|x| x.as_bool())
+                    .unwrap_or(false)
                     && v.get("assetsVersion").and_then(|x| x.as_u64()).unwrap_or(0)
                         >= ASSETS_VERSION as u64;
                 // HD 来源（`hd-edition`）指纹：装 / 卸 / 升级或切档位后需重跑素材阶段补登记，
@@ -290,23 +335,36 @@ pub(crate) fn probe_mod_cache(
                 if assets_ver_ok && hd_ok {
                     // 方案 B 兜底：若该 mod 本应产出图像素材，但磁盘上的图已不在，则放弃命中、强制重提取
                     // （前线 `check_realm_assets` 会据此再次判缺失并重跑，否则陷入"每次打开都重跑"死循环）。
-                    let image_bearing = ["faction", "creature", "hero", "building"].iter().any(|k| {
-                        v.get("contentCount")
-                            .and_then(|c| c.get(k))
-                            .and_then(|x| x.as_u64())
-                            .unwrap_or(0)
-                            > 0
-                    });
+                    let image_bearing =
+                        ["faction", "creature", "hero", "building"].iter().any(|k| {
+                            v.get("contentCount")
+                                .and_then(|c| c.get(k))
+                                .and_then(|x| x.as_u64())
+                                .unwrap_or(0)
+                                > 0
+                        });
                     if !image_bearing || assets_dir_nonempty(cache_root, mod_id) {
-                        return ModCacheProbe { state: ModCacheState::Cached, content_count: cc, clear_stale: false };
+                        return ModCacheProbe {
+                            state: ModCacheState::Cached,
+                            content_count: cc,
+                            clear_stale: false,
+                        };
                     }
                     // 图不在磁盘 → 仅需重提取（无需清理：本来就没有）
-                    return ModCacheProbe { state: ModCacheState::NeedAssets, content_count: cc, clear_stale: false };
+                    return ModCacheProbe {
+                        state: ModCacheState::NeedAssets,
+                        content_count: cc,
+                        clear_stale: false,
+                    };
                 }
                 // 素材版本落后 / HD 来源变化 → 需补跑并清旧产物：
                 // 前者避免"改了编码策略但旧图还在"；后者保证 `hd-map.json` 被重新写入
                 // （图已存在时会走短路、不再登记，只有强制重提取才能补上）。
-                return ModCacheProbe { state: ModCacheState::NeedAssets, content_count: cc, clear_stale: true };
+                return ModCacheProbe {
+                    state: ModCacheState::NeedAssets,
+                    content_count: cc,
+                    clear_stale: true,
+                };
             }
         }
     }
@@ -392,7 +450,10 @@ pub(crate) fn build_mod_wiki_once(
     let h3_missing = !h3_data_present(game_dir, &ud_for_check);
     // 诊断：原版数据到底在游戏根还是用户数据目录（便携运行常在 user_data_dir/Data）。
     // 出问题（有数据却无图 / 误报缺失）时据此定位用户是否把数据放错了目录。
-    if !matches!(std::env::var("VCMI_WIKI_QUIET").as_deref(), Ok("1") | Ok("true")) {
+    if !matches!(
+        std::env::var("VCMI_WIKI_QUIET").as_deref(),
+        Ok("1") | Ok("true")
+    ) {
         let in_game = has_core_h3_lods(game_dir);
         let in_user = if ud_for_check.as_os_str().is_empty() {
             false
@@ -450,47 +511,61 @@ pub(crate) fn build_mod_wiki_once(
     // ⚠️ 埋点 `cfg.i18n.core` 用于暴露一处已知浪费：这段**每个 mod 都会完整执行一次**
     // （读 18 个 h3-core JSON + clone/merge 整张表），而 `set_core_i18n` 是 OnceLock，
     // 只有第一次真正生效——后 N-1 次的构造结果被直接丢弃。
-    crate::infra::metrics::scope("cfg.i18n.core", || {
-        // 核心模组目录优先取本次构建使用的 game_dir（测试/多安装场景可能与全局 detect 不同）
-        let detected = VcmiPaths::detect().game_dir;
-        for core_mod in [
-            game_dir.join("Mods").join("vcmi"),
-            detected.join("Mods").join("vcmi"),
-        ] {
-            if !core_mod.is_dir() {
-                continue;
-            }
-            // 合并结果按目录指纹缓存：跨 mod / 跨批次只构造一次
-            let key = crate::infra::cache::fingerprint_of(&[core_mod.clone()]);
-            let merged = crate::infra::cache::cfg_cache_get(&CORE_I18N_MERGED_CACHE, key, || {
-                let core_i18n_base = cached_core_i18n(&core_mod);
-                let mut merged: I18nMap = (*core_i18n_base).clone();
-                let h3_dir = h3_core_data_dir();
-                let h3 = h3_dir.as_ref().and_then(|d| load_h3_core_i18n(d));
-                tracing::debug!(
-                    target: "wiki-core",
-                    "core i18n 合并：h3 keys={} base keys={}",
-                    h3.as_ref().map(|m| m.len()).unwrap_or(0),
-                    merged.len()
-                );
-                if let Some(h3) = h3 {
-                    merge_i18n_into(&mut merged, &h3);
-                }
-                merged
-            });
-            set_core_i18n(merged);
-            break;
+    // 每个 mod 只做一次（见 `CORE_I18N_DONE`）：`set_core_i18n` 是 OnceLock，重复执行无意义。
+    let core_i18n_fresh = {
+        let done = CORE_I18N_DONE.get_or_init(|| Mutex::new(HashSet::new()));
+        match done.lock() {
+            Ok(mut g) => g.insert(PathBuf::from(game_dir)),
+            Err(e) => e.into_inner().insert(PathBuf::from(game_dir)),
         }
-    });
+    };
+    if core_i18n_fresh {
+        crate::infra::metrics::scope("cfg.i18n.core", || {
+            // 核心模组目录优先取本次构建使用的 game_dir（测试/多安装场景可能与全局 detect 不同）
+            let detected = VcmiPaths::detect().game_dir;
+            for core_mod in [
+                game_dir.join("Mods").join("vcmi"),
+                detected.join("Mods").join("vcmi"),
+            ] {
+                if !core_mod.is_dir() {
+                    continue;
+                }
+                // 合并结果按目录指纹缓存：跨 mod / 跨批次只构造一次
+                let key = crate::infra::cache::fingerprint_of(&[core_mod.clone()]);
+                let merged =
+                    crate::infra::cache::cfg_cache_get(&CORE_I18N_MERGED_CACHE, key, || {
+                        let core_i18n_base = cached_core_i18n(&core_mod);
+                        let mut merged: I18nMap = (*core_i18n_base).clone();
+                        let h3_dir = h3_core_data_dir();
+                        let h3 = h3_dir.as_ref().and_then(|d| load_h3_core_i18n(d));
+                        tracing::debug!(
+                            target: "wiki-core",
+                            "core i18n 合并：h3 keys={} base keys={}",
+                            h3.as_ref().map(|m| m.len()).unwrap_or(0),
+                            merged.len()
+                        );
+                        if let Some(h3) = h3 {
+                            merge_i18n_into(&mut merged, &h3);
+                        }
+                        merged
+                    });
+                set_core_i18n(merged);
+                break;
+            }
+        });
+    }
     // 游戏公共素材（SMALRES 资源图标等）——batch 路径此前缺失调用导致前端资源图标全部缺失
     assets::extract_shared_resource_icons(game_dir, cache_root, mod_id);
     // creature -> 招募建筑名（多语言）映射，用于生物页面 Dwellings 区块
-    let mut creature_dwellings: std::collections::HashMap<String, serde_json::Value> = std::collections::HashMap::new();
+    let mut creature_dwellings: std::collections::HashMap<String, serde_json::Value> =
+        std::collections::HashMap::new();
     // 预收集生物配置，便于城镇 creatureList 扩展升级生物以及标记 upgradedFrom
     let creature_jsons: std::collections::HashMap<String, Value> =
         crate::infra::metrics::scope("cfg.creatures", || {
             let mut m: std::collections::HashMap<String, Value> =
-                collect_config_jsons_merged(&p, "creatures").into_iter().collect();
+                collect_config_jsons_merged(&p, "creatures")
+                    .into_iter()
+                    .collect();
             // 原版生物不在任何 mod 内，位于游戏根 config/creatures；仅对 core 系并入。
             // 使原版城镇的 creatureList 能命中 modCache.creatures（生物小图标经 CPRSMALL 游戏根回退出图）。
             // 子模组只取本阵营文件；父 core 取 neutral / special 等无归属文件。
@@ -508,12 +583,16 @@ pub(crate) fn build_mod_wiki_once(
             m
         });
     // 扫描升级关系：升级生物 id -> 基础生物 id 列表
-    let mut upgraded_from: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    let mut upgraded_from: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
     for (base_id, obj) in &creature_jsons {
         if let Some(upgs) = obj.get("upgrades").and_then(|x| x.as_array()) {
             for u in upgs {
                 if let Some(uid) = u.as_str() {
-                    upgraded_from.entry(uid.to_string()).or_default().push(base_id.clone());
+                    upgraded_from
+                        .entry(uid.to_string())
+                        .or_default()
+                        .push(base_id.clone());
                 }
             }
         }
@@ -578,7 +657,10 @@ pub(crate) fn build_mod_wiki_once(
     // TODO：中立/地图建筑暂未纳入，需后续从游戏根 config/objects/*.json 提取。
     let mut buildings = Vec::new();
     for faction in factions.iter() {
-        let fid = faction.get("factionId").and_then(|x| x.as_str()).unwrap_or("");
+        let fid = faction
+            .get("factionId")
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
         let fname = faction.get("name").cloned().unwrap_or(Value::Null);
         if let Some(arr) = faction.get("buildings").and_then(|x| x.as_array()) {
             for b in arr {
@@ -631,7 +713,14 @@ pub(crate) fn build_mod_wiki_once(
     // ---- 生物 ----
     let mut creatures = crate::infra::metrics::scope("ent.creatures", || {
         data::creature::build_creatures(
-            &p, mod_id, cache_root, game_dir, &i18n, &factions, &mut creature_dwellings, &creature_jsons,
+            &p,
+            mod_id,
+            cache_root,
+            game_dir,
+            &i18n,
+            &factions,
+            &mut creature_dwellings,
+            &creature_jsons,
             &upgraded_from,
         )
     });
@@ -640,8 +729,17 @@ pub(crate) fn build_mod_wiki_once(
     let hero_class_index_map = cached_hero_class_index_map(game_dir);
     let mut heroes = crate::infra::metrics::scope("ent.heroes", || {
         data::hero::build_heroes(
-            &p, mod_id, cache_root, game_dir, &configs, &i18n, is_core, core_faction, &raw_cfgs,
-            &skill_index_map, &hero_class_index_map,
+            &p,
+            mod_id,
+            cache_root,
+            game_dir,
+            &configs,
+            &i18n,
+            is_core,
+            core_faction,
+            &raw_cfgs,
+            &skill_index_map,
+            &hero_class_index_map,
         )
     });
     // ---- 法术 ----
@@ -687,7 +785,14 @@ pub(crate) fn build_mod_wiki_once(
     // ---- 地形（游戏级数据，VCMI WikiWindow.cpp:660-696）----
     let (terrains, failed_previews) = crate::infra::metrics::scope("ent.terrains", || {
         data::terrain::build_terrains(
-            &p, mod_id, cache_root, game_dir, &i18n, &raw_cfgs, &configs, &mut factions,
+            &p,
+            mod_id,
+            cache_root,
+            game_dir,
+            &i18n,
+            &raw_cfgs,
+            &configs,
+            &mut factions,
         )
     });
     // ---- 资源类型（游戏级数据：金币/木材/水银/…，名称来自 h3-core 官方译名）----
@@ -696,7 +801,11 @@ pub(crate) fn build_mod_wiki_once(
     });
     // ---- 地图对象（VCMI `object.<scope>.<id>.name` 类名 + `mapObject.*` 子类型名/访问事件）----
     let objects = crate::infra::metrics::scope("ent.objects", || {
-        data::object::build_objects(&i18n, raw_cfgs.get("objects").and_then(|x| x.as_object()), mod_id)
+        data::object::build_objects(
+            &i18n,
+            raw_cfgs.get("objects").and_then(|x| x.as_object()),
+            mod_id,
+        )
     });
     // 阵营 id → 多语言名（取自 `factions[].name`）：供百科「按阵营筛选」把 id 显示为名字。
     // 放在**顶层**而非塞进每个 creature / hero 条目：前端在同一次 cache.json 读取里即可拿到，
@@ -708,6 +817,9 @@ pub(crate) fn build_mod_wiki_once(
             Some((id.to_string(), f.get("name")?.clone()))
         })
         .collect();
+    // 四维主属性的**右键说明**（游戏级数据，见下方 helper）。
+    // 与 `factionNames` 同理放在**顶层**：英雄详情页已持有整份 mod 缓存，取用零额外 IPC。
+    let primary_skill_texts = primary_skill_texts(&i18n);
     let mod_json = json!({
         "modId": mod_id,
         "sourceHash": source_hash,
@@ -750,6 +862,8 @@ pub(crate) fn build_mod_wiki_once(
         "iconFailures": icon_failures,
         // 阵营 id → 多语言名映射（百科筛选用；见上方 faction_names 的说明）
         "factionNames": faction_names,
+        // 四维主属性（攻击力/防御力/力量/知识）→ 多语言右键说明
+        "primarySkillTexts": primary_skill_texts,
         "factions": factions,
         "buildings": buildings,
         "creatures": creatures,
@@ -784,14 +898,31 @@ pub(crate) fn build_mod_wiki_once(
         "rawConfigs": Value::Object(raw_cfgs),
     });
     let raw_out = cache_root.join(format!("{}/raw.json", sanitize_id(mod_id)));
-    // 埋点：落盘序列化 + 写入（含字节数，`raw.json` 为全量原始配置聚合，体积可疑）
-    crate::infra::metrics::scope("io.write", || {
-        let text = serde_json::to_string(&raw_json).unwrap();
-        crate::infra::metrics::bytes("io.bytes.raw", text.len() as u64);
-        let _ = fs::write(&raw_out, text);
-    });
+    // ⚠️ 两阶段（phase=0 出数据 / phase=1 出素材）会对同一个 mod **各写一次** raw.json
+    // （全库 46 MB × 2 的序列化 + 写盘），而内容完全相同（同一 sourceHash）。
+    // 记下"本会话已写过"，第二阶段跳过（省一半 IO 与序列化 CPU）。
+    let raw_key = format!("{}\u{1}{}", mod_id, source_hash);
+    let raw_fresh = match RAW_WRITTEN
+        .get_or_init(|| Mutex::new(HashSet::new()))
+        .lock()
+    {
+        Ok(mut g) => g.insert(raw_key),
+        Err(e) => e.into_inner().insert(raw_key),
+    };
+    if raw_fresh {
+        // 埋点：落盘序列化 + 写入（含字节数，`raw.json` 为全量原始配置聚合，体积可疑）
+        crate::infra::metrics::scope("io.write", || {
+            let text = serde_json::to_string(&raw_json).unwrap();
+            crate::infra::metrics::bytes("io.bytes.raw", text.len() as u64);
+            let _ = fs::write(&raw_out, text);
+        });
+    } else {
+        crate::infra::metrics::count("io.raw.skip", 1);
+    }
     let ok = crate::infra::metrics::scope("io.write", || {
-        let text = serde_json::to_string_pretty(&mod_json).unwrap();
+        // 紧凑序列化：原用 `to_string_pretty`（美化缩进）会让 46 MB 的 cache.json
+        // 多花约 2~3 倍序列化时间且体积翻倍；该文件不由人工阅读，无需美化。
+        let text = serde_json::to_string(&mod_json).unwrap();
         crate::infra::metrics::bytes("io.bytes.mod", text.len() as u64);
         fs::write(&out, text).is_ok()
     });
@@ -958,6 +1089,46 @@ pub(crate) fn mod_lang_texts(
     (to_v(names), to_v(descs))
 }
 
+/// 四维主属性的**右键说明**（游戏级数据）。
+///
+/// 对齐 VCMI `CHeroWindow.cpp:131-132`：主属性区域的右键文本 = `generaltexth->arraytxt[2 + v]`
+/// （`v = 0..3` → 攻击力 / 防御力 / 力量 / 知识）。`ARRAYTXT.TXT` 已由
+/// `scripts/gen-h3-core-texts.mjs` 烘入 h3-core（`core.arraytxt.<行号>`），文本形如
+/// `{名称}\n\n描述`（与 bonus 文案同款）—— 这里只取**描述**，名称由界面自己的标签给出。
+///
+/// 返回 `{ attack: { <lang>: <描述> }, defense: …, spellPower: …, knowledge: … }`；
+/// 缺 h3-core 数据（或换了不含 arraytxt 的旧数据包）时返回空对象，前端弹窗为空文本，不报错。
+pub(crate) fn primary_skill_texts(i18n: &I18nMap) -> Value {
+    let mut out = serde_json::Map::new();
+    for (key, idx) in [
+        ("attack", 2u32),
+        ("defense", 3),
+        ("spellPower", 4),
+        ("knowledge", 5),
+    ] {
+        let Some(raw) =
+            crate::modcache::i18n::i18n_get_multi(i18n, &format!("core.arraytxt.{idx}"))
+        else {
+            continue;
+        };
+        let mut langs = serde_json::Map::new();
+        for (lang, text) in raw {
+            // `{名称}\n\n描述` → 描述（去掉名称段与其后的空行）；无花括号则整段当描述
+            let desc = match text.strip_prefix('{').and_then(|r| r.split_once('}')) {
+                Some((_, rest)) => rest.trim(),
+                None => text.trim(),
+            };
+            if !desc.is_empty() {
+                langs.insert(lang, Value::String(desc.to_string()));
+            }
+        }
+        if !langs.is_empty() {
+            out.insert(key.to_string(), Value::Object(langs));
+        }
+    }
+    Value::Object(out)
+}
+
 /// 读取地形条目（VCMI WikiWindow.cpp:660-696）：
 /// 名称 = 原版走 h3-core 的 `terrain.core.<id>.name`，mod 地形走 `terrain.<scope>.<id>.name`（含配置内嵌 name）；
 /// 图标 = `tiles` DEF 的首帧；
@@ -1032,7 +1203,11 @@ fn push_terrain(
     let name = crate::modcache::i18n::name_obj_with_inline(i18n, &key, obj.get("name"), id);
     let index = obj.get("index").and_then(|v| v.as_i64()).unwrap_or(-1);
     let move_cost = obj.get("moveCost").and_then(|v| v.as_i64()).unwrap_or(-1);
-    let tiles = obj.get("tiles").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let tiles = obj
+        .get("tiles")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
     let towns = native_towns.get(id).cloned().unwrap_or_default();
     let entry = json!({
         "id": id,
@@ -1060,7 +1235,9 @@ fn push_terrain(
                     .and_then(|x| x.as_str())
                     .map(|old| {
                         let v_str = v.as_str().unwrap_or("");
-                        (old.trim().is_empty() || old == id) && !v_str.trim().is_empty() && v_str != id
+                        (old.trim().is_empty() || old == id)
+                            && !v_str.trim().is_empty()
+                            && v_str != id
                     })
                     .unwrap_or(false);
                 if replace || !m.contains_key(k) {
@@ -1086,7 +1263,11 @@ fn push_terrain(
                         o.insert("moveCost".to_string(), v.clone());
                     }
                 }
-                if o.get("tiles").and_then(|x| x.as_str()).unwrap_or("").is_empty() {
+                if o.get("tiles")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .is_empty()
+                {
                     if let Some(v) = entry.get("tiles") {
                         o.insert("tiles".to_string(), v.clone());
                     }

@@ -7,15 +7,15 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
-use crate::vcmi::h3core::I18nMap;
-use crate::vcmi::resource::resolve_resource_fallback;
-use crate::vcmi::town::{value_to_resource, TownConfig};
 use crate::modcache::assets::{
-    extract_border_and_save, extract_def_frame_and_save, extract_icon_and_save, save_hd_or_raw_image,
-    save_wiki_image,
+    extract_border_and_save, extract_def_frame_and_save, extract_icon_and_save,
+    save_hd_or_raw_image, save_wiki_image,
 };
 use crate::modcache::i18n::{build_name_object, i18n_mod_scope, name_obj_with_inline};
 use crate::modcache::preview::{composite_structures_to_canvas_hd, load_structure_frame};
+use crate::vcmi::h3core::I18nMap;
+use crate::vcmi::resource::resolve_resource_fallback;
+use crate::vcmi::town::{value_to_resource, TownConfig};
 
 pub(crate) fn build_towns(
     p: &Path,
@@ -48,9 +48,21 @@ pub(crate) fn build_towns(
                 // 走 `_hd` 变体：底图命中官方 HD 素材时，整张幕布按 HD 档位合成（选项 A），
                 // 未命中则内部逐字节回退原版 1x 路径。
                 bg_img = if !cfg.structures.is_empty() {
-                    composite_structures_to_canvas_hd(&p, game_dir, res, &buf, &ext, &cfg.structures, &cfg.buildings_raw)
-                        .and_then(|webp| save_wiki_image(cache_root, mod_id, "town", &cfg.faction_id, &webp, "webp"))
-                        .or_else(|| save_wiki_image(cache_root, mod_id, "town", &cfg.faction_id, &buf, &ext))
+                    composite_structures_to_canvas_hd(
+                        &p,
+                        game_dir,
+                        res,
+                        &buf,
+                        &ext,
+                        &cfg.structures,
+                        &cfg.buildings_raw,
+                    )
+                    .and_then(|webp| {
+                        save_wiki_image(cache_root, mod_id, "town", &cfg.faction_id, &webp, "webp")
+                    })
+                    .or_else(|| {
+                        save_wiki_image(cache_root, mod_id, "town", &cfg.faction_id, &buf, &ext)
+                    })
                 } else {
                     save_wiki_image(cache_root, mod_id, "town", &cfg.faction_id, &buf, &ext)
                 };
@@ -101,20 +113,95 @@ pub(crate) fn build_towns(
             // 1) clientInfo.buildingsIcons 帧[bid]（VCMI 百科口径，与 VCMI 内百科截图一致）
             // 2) town.structures[id].animation 首帧（城镇界面大图，带背景场景）
             // 3) 建筑自带 animation / image
+            // 4) **升级链回退**：本建筑四通道全失败且声明了 `upgrades` 时，取被升级建筑
+            //    （base）的图标 —— 见下方 `bimg_path` 的收尾分支。
             let bimg_path = {
-                let st_anim = detail.and_then(|d| d.get("structureAnim")).and_then(|x| x.as_str()).map(|s| s.to_string());
-                let banim = detail.and_then(|d| d.get("animation")).and_then(|x| x.as_str()).map(|s| s.to_string());
-                let bgroup = detail.and_then(|d| d.get("group")).and_then(|x| x.as_u64()).unwrap_or(0) as usize;
-                let bindex = detail.and_then(|d| d.get("index")).and_then(|x| x.as_u64()).unwrap_or(0) as usize;
-                let bimg = detail.and_then(|d| d.get("image")).and_then(|x| x.as_str()).map(|s| s.to_string());
-                let bid_num = detail.and_then(|d| d.get("bid")).and_then(|x| x.as_i64()).unwrap_or(-1);
+                // 单建筑的图标提取（structureAnim / animation / image 三条通道）。
+                // 抽成闭包：第 4 级回退要复用同一套逻辑，只是换成 base 建筑的 detail。
+                let extract_one = |detail_v: &Value, icon_name: &str| -> Option<String> {
+                    let st_anim = detail_v
+                        .get("structureAnim")
+                        .and_then(|x| x.as_str())
+                        .map(|s| s.to_string());
+                    let banim = detail_v
+                        .get("animation")
+                        .and_then(|x| x.as_str())
+                        .map(|s| s.to_string());
+                    let bgroup = detail_v
+                        .get("group")
+                        .and_then(|x| x.as_u64())
+                        .unwrap_or(0) as usize;
+                    let bindex = detail_v
+                        .get("index")
+                        .and_then(|x| x.as_u64())
+                        .unwrap_or(0) as usize;
+                    let bimg = detail_v
+                        .get("image")
+                        .and_then(|x| x.as_str())
+                        .map(|s| s.to_string());
+                    if let Some(sa) = st_anim {
+                        // structureAnim 支持 sprites-json（*.json 整画布帧）与 def 双格式
+                        let core = game_dir.join("Mods").join("vcmi");
+                        match load_structure_frame(&p, &core, &game_dir, &sa) {
+                            Some((img, _lm, _tm)) => {
+                                let mut webp = Vec::new();
+                                let enc =
+                                    image::codecs::webp::WebPEncoder::new_lossless(&mut webp);
+                                if enc
+                                    .encode(
+                                        img.as_raw(),
+                                        img.width(),
+                                        img.height(),
+                                        image::ExtendedColorType::Rgba8,
+                                    )
+                                    .is_ok()
+                                {
+                                    save_wiki_image(
+                                        cache_root, mod_id, "building", icon_name, &webp, "webp",
+                                    )
+                                } else {
+                                    None
+                                }
+                            }
+                            None => extract_def_frame_and_save(
+                                &p, game_dir, cache_root, mod_id, "building", icon_name, &sa, 0, 0,
+                            ),
+                        }
+                    } else if let Some(a) = banim {
+                        extract_def_frame_and_save(
+                            &p, game_dir, cache_root, mod_id, "building", icon_name, &a, bgroup,
+                            bindex,
+                        )
+                    } else if let Some(i) = bimg {
+                        extract_icon_and_save(
+                            &p,
+                            game_dir,
+                            cache_root,
+                            mod_id,
+                            "building",
+                            icon_name,
+                            Some(&i),
+                        )
+                    } else {
+                        None
+                    }
+                };
+                let bid_num = detail
+                    .and_then(|d| d.get("bid"))
+                    .and_then(|x| x.as_i64())
+                    .unwrap_or(-1);
                 let icon_name = format!("{}-{}", cfg.faction_id, bid);
                 // 1) buildingsIcons：按**资源真实类型**分派（sprites-json / DEF）——
                 //    支持无扩展名引用、zip 内定义、images/sequences 两种 sprites-json 形态、
                 //    file 自带扩展名（bmp/png）与 basepath 缺省（见 assets::extract_sprite_frame_and_save）。
                 //    旧实现按"配置字符串后缀"选解析器：实测 xanadu（无扩展名→实际 json）、
                 //    cove/bulwark（无扩展名）、christmas（写 .def 实际 json）→ 5 个城镇建筑图标全空。
-                let from_icons = cfg.buildings_icons.as_deref().and_then(|icons_ref| {
+                //
+                //    该通道本身已含"帧号取不到 → 沿升级链换 bid 重试"：VCMI 客户端对升级
+                //    建筑按 **base** 的 bid 取帧（`CBuilding::getBase()` / `CCastleBuildings::
+                //    recreate` 的 base 分组），而 mod 常只给升级建筑一个**越界的 bid**
+                //    （如 lianjin 的 dwellingUpLvl2 = 38，buildingsIcons 里没有该帧）。
+                let mut from_icons = cfg.buildings_icons.as_deref().and_then(|icons_ref| {
                     crate::modcache::assets::extract_sprite_frame_and_save(
                         &p,
                         game_dir,
@@ -126,33 +213,80 @@ pub(crate) fn build_towns(
                         bid_num.max(0) as usize,
                     )
                 });
+                if from_icons.is_none() {
+                    if let Some(icons_ref) = cfg.buildings_icons.as_deref() {
+                        // 沿 `upgrades` 链走到链尾（= VCMI 的 getBase()），逐级换 bid 重试。
+                        // 上限 8 级防配置写环时死循环。
+                        let mut cur = detail.and_then(|d| d.get("upgrades")).and_then(|x| x.as_str()).map(|s| s.to_string());
+                        for _ in 0..8 {
+                            let Some(up_id) = cur.filter(|s| !s.is_empty()) else { break };
+                            let Some(up) = cfg
+                                .buildings_detail
+                                .iter()
+                                .find(|d| d.get("id").and_then(|x| x.as_str()) == Some(up_id.as_str()))
+                            else {
+                                break;
+                            };
+                            let up_bid = up.get("bid").and_then(|x| x.as_i64()).unwrap_or(-1);
+                            if let Some(hit) = crate::modcache::assets::extract_sprite_frame_and_save(
+                                &p,
+                                game_dir,
+                                cache_root,
+                                mod_id,
+                                "building",
+                                &icon_name,
+                                icons_ref,
+                                up_bid.max(0) as usize,
+                            ) {
+                                from_icons = Some(hit);
+                                break;
+                            }
+                            cur = up
+                                .get("upgrades")
+                                .and_then(|x| x.as_str())
+                                .map(|s| s.to_string());
+                        }
+                    }
+                }
                 if from_icons.is_some() {
                     from_icons
-                } else if let Some(sa) = st_anim {
-                    // structureAnim 支持 sprites-json（*.json 整画布帧）与 def 双格式
-                    let core = game_dir.join("Mods").join("vcmi");
-                    match load_structure_frame(&p, &core, &game_dir, &sa) {
-                        Some((img, _lm, _tm)) => {
-                            let mut webp = Vec::new();
-                            let enc = image::codecs::webp::WebPEncoder::new_lossless(&mut webp);
-                            if enc
-                                .encode(img.as_raw(), img.width(), img.height(), image::ExtendedColorType::Rgba8)
-                                .is_ok()
-                            {
-                                save_wiki_image(cache_root, mod_id, "building", &icon_name, &webp, "webp")
-                            } else {
-                                None
-                            }
-                        }
-                        None => extract_def_frame_and_save(&p, game_dir, cache_root, mod_id, "building", &icon_name, &sa, 0, 0),
-                    }
-                } else if let Some(a) = banim {
-                    extract_def_frame_and_save(&p, game_dir, cache_root, mod_id, "building", &icon_name, &a, bgroup, bindex)
-                } else if let Some(i) = bimg {
-                    extract_icon_and_save(&p, game_dir, cache_root, mod_id, "building", &icon_name, Some(&i))
+                } else if let Some(d) = detail {
+                    extract_one(d, &icon_name)
                 } else {
                     None
                 }
+                .or_else(|| {
+                    // 4) 升级链回退：本建筑（含 buildingsIcons 通道）全失败，
+                    //    且声明了 `upgrades` → 用**被升级建筑**的图标。
+                    //    依据：VCMI `CBuilding::getBase()`（lib/entities/building/CBuilding.cpp:61）
+                    //    沿 `upgrade` 链走到链尾；`CCastleBuildings::recreate`
+                    //    （client/windows/CCastleInterface.cpp:771）按 base 分组绘制建筑
+                    //    —— 即升级建筑与底座在客户端是同一组图形。
+                    //    实测：lianjin 的 dwellingUpLvl2（高级魁地奇）无 image 且
+                    //    buildingsIcons 无 bid=38 帧，而其底座 dwellingLvl2（魁地奇）两者都有。
+                    let mut cur = detail
+                        .and_then(|d| d.get("upgrades"))
+                        .and_then(|x| x.as_str())
+                        .map(|s| s.to_string());
+                    for _ in 0..8 {
+                        let Some(up_id) = cur.filter(|s| !s.is_empty()) else { break };
+                        let Some(up) = cfg.buildings_detail.iter().find(|d| {
+                            d.get("id").and_then(|x| x.as_str()) == Some(up_id.as_str())
+                        }) else {
+                            break;
+                        };
+                        // 产物文件名沿用**本建筑**的 icon_name：前端按
+                        // `<mod>/images/building/<faction>-<bid>.webp` 取值，改名会静默丢图。
+                        if let Some(hit) = extract_one(up, &icon_name) {
+                            return Some(hit);
+                        }
+                        cur = up
+                            .get("upgrades")
+                            .and_then(|x| x.as_str())
+                            .map(|s| s.to_string());
+                    }
+                    None
+                })
             };
             // 该建筑招募的生物 → 记录建筑名（多语言），供生物页面 Dwellings 显示
             let bc = detail
@@ -181,7 +315,10 @@ pub(crate) fn build_towns(
             // 诊断：声明了 buildingsIcons 但多通道（icons → structureAnim → 建筑 animation → image）
             // 全部失败 → 记录（此前完全静默：运行日志 ERROR/WARN=0，用户只能肉眼发现缺图）。
             // 产出到 cache.json 的 `iconFailures` 并由批次 WARN 汇总。
-            if bimg_path.is_none() && cfg.buildings_icons.is_some() && crate::modcache::assets_enabled() {
+            if bimg_path.is_none()
+                && cfg.buildings_icons.is_some()
+                && crate::modcache::assets_enabled()
+            {
                 icon_failures.push(json!({
                     "factionId": cfg.faction_id,
                     "buildingId": bid,

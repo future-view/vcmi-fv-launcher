@@ -72,8 +72,11 @@ export const zhCN: LangDict = {
       cost: "花费",
     },
     allMods: "全部模组",
-    search: "搜索",
     searchPlaceholder: "搜索名称…",
+    searchClear: "清空搜索",
+    // 右栏空态占位：对齐 VCMI `vcmi.wiki.content.placeholder`。类别已在左栏选中，
+    // 所以不说"选择类别"，只让用户选中栏里的条目
+    contentPlaceholder: "选择一个条目以查看其说明。",
     filter: {
       title: "筛选",
       reset: "重置",
@@ -112,6 +115,7 @@ export const zhCN: LangDict = {
     stageData: "读取游戏数据",
     stageAssets: "提取游戏素材",
     stageHd: "生成高清素材",
+    stagePrep: "扫描模组目录",
     readyHintTemplate: "本页需完成：{stages}",
     stageSeparator: "、",
     readyHintRest: "（其余阶段在后台继续，不影响本页使用）",

@@ -8,10 +8,12 @@ use std::path::Path;
 use serde_json::{json, Value};
 
 use crate::infra::json::parse_vcmi_json;
-use crate::vcmi::h3core::I18nMap;
 use crate::modcache::assets::{extract_game_def_frame_and_save, extract_icon_and_save};
 use crate::modcache::collect::collect_config_jsons_merged;
-use crate::modcache::i18n::{i18n_mod_scope, lower_camel, name_desc_from_keys, name_obj_en_zhcn, name_obj_with_inline};
+use crate::modcache::i18n::{
+    i18n_mod_scope, lower_camel, name_desc_from_keys, name_obj_en_zhcn, name_obj_with_inline,
+};
+use crate::vcmi::h3core::I18nMap;
 
 pub(crate) fn build_artifacts(
     p: &Path,
@@ -23,12 +25,25 @@ pub(crate) fn build_artifacts(
     let mut artifacts = Vec::new();
     for (id, obj) in collect_config_jsons_merged(&p, "artifacts") {
         let scope = i18n_mod_scope(mod_id);
-        // 图标字段多写法兼容：image（VCMI 规范）→ iconBook → icon（部分 mod 写法）
+        // 图标字段：**VCMI `artifact.json` schema 的 graphics 全集** =
+        // `image`（英雄界面大图）/ `scenarioBonus`（58×64）/ `map`（冒险地图 .def）。
+        //
+        // ⚠️ 此前只取 `image → iconBook → icon`：schema 里没有 `iconBook`/`icon`，
+        // 却有 `scenarioBonus` —— 实测 66expfixmod（`bastille:dwarftank` 等）只写
+        // `scenarioBonus`/`map` → `image` 恒为 null（用户报"有些宝物也是没有图片"）。
+        // `map` 是冒险地图用的 .def，不作为宝物栏图标（尺寸/语义都不对）。
         let g = obj.get("graphics");
         let icon_res = g
-            .and_then(|x| x.get("image").or_else(|| x.get("iconBook")).or_else(|| x.get("icon")))
+            .and_then(|x| {
+                x.get("image")
+                    .or_else(|| x.get("scenarioBonus"))
+                    // 宽容兜底：个别 mod 不按 schema 写
+                    .or_else(|| x.get("iconBook"))
+                    .or_else(|| x.get("icon"))
+            })
             .and_then(|v| v.as_str());
-        let img = extract_icon_and_save(&p, game_dir, cache_root, mod_id, "artifact", &id, icon_res);
+        let img =
+            extract_icon_and_save(&p, game_dir, cache_root, mod_id, "artifact", &id, icon_res);
         // 名称/描述：i18n 键 → 配置内嵌文本 → 兜底。
         // ⚠ 字段来源以 VCMI schema（artifact.json）为准：文本写在 **`text.name` /
         // `text.description` / `text.event`** 子对象里（实测 247/261/247 个配置），
@@ -63,7 +78,11 @@ pub(crate) fn build_artifacts(
         let components = obj
             .get("components")
             .and_then(|c| c.as_array())
-            .map(|a| a.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect::<Vec<_>>())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                    .collect::<Vec<_>>()
+            })
             .unwrap_or_default();
         // 装备槽（slot）：wearable 对象或 slot 数组
         let mut slots = Vec::new();
@@ -85,14 +104,23 @@ pub(crate) fn build_artifacts(
         let mut bonuses = Vec::new();
         if let Some(arr) = obj.get("bonuses").and_then(|b| b.as_array()) {
             for (i, b) in arr.iter().enumerate() {
-                let btype = b.get("type").and_then(|x| x.as_str()).unwrap_or("").to_string();
+                let btype = b
+                    .get("type")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 let bval = b.get("val").and_then(|x| x.as_i64()).unwrap_or(0);
                 // 效果文本：VCMI 主格式为 `artifact.<scope>.<id>.bonus.<bonusType 小驼峰>`，
                 // 值为 `{名称}\n描述` 组合文本（如 `artifact.core.orbOfVulnerability.bonus.noResistance`）；
                 // 兼容旧版按序号写的 `.bonus.<i>.name/.description`，最后回退配置内嵌文本。
                 let (bname_obj, bdesc_obj) = match name_desc_from_keys(
                     &i18n,
-                    &[format!("artifact.{}.{}.bonus.{}", scope, id, lower_camel(&btype))],
+                    &[format!(
+                        "artifact.{}.{}.bonus.{}",
+                        scope,
+                        id,
+                        lower_camel(&btype)
+                    )],
                     bval,
                     None,
                 ) {
@@ -174,7 +202,8 @@ pub(crate) fn build_artifacts(
                     };
                     let name = name_obj_en_zhcn(&i18n, &format!("artifact.core.{}.name", id), &id);
                     // 描述（ARTRAITS.TXT 原文形如 `{名称}\n\n正文`，去掉花括号标题行）
-                    let desc = name_obj_en_zhcn(&i18n, &format!("artifact.core.{}.description", id), "");
+                    let desc =
+                        name_obj_en_zhcn(&i18n, &format!("artifact.core.{}.description", id), "");
                     let desc = strip_braced_header(desc);
                     // 元数据：value / slots / class（语言无关，来自 ARTRAITS.TXT）
                     let m = meta.as_ref().and_then(|mm| mm.get(&id));
@@ -185,7 +214,11 @@ pub(crate) fn build_artifacts(
                         .and_then(|x| x.as_i64())
                         .unwrap_or(0);
                     let cfg_value = obj.get("value").and_then(|x| x.as_i64()).unwrap_or(0);
-                    let value = if meta_value > 0 { meta_value } else { cfg_value };
+                    let value = if meta_value > 0 {
+                        meta_value
+                    } else {
+                        cfg_value
+                    };
                     let class = m
                         .and_then(|x| x.get("class"))
                         .and_then(|x| x.as_str())
@@ -194,7 +227,11 @@ pub(crate) fn build_artifacts(
                     let mut slots: Vec<String> = m
                         .and_then(|x| x.get("slots"))
                         .and_then(|x| x.as_array())
-                        .map(|a| a.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
                         .unwrap_or_default();
                     // 回退：type 数组中非 HERO 的项视为槽位（少数 mod 配置写法）
                     if slots.is_empty() {
@@ -212,7 +249,11 @@ pub(crate) fn build_artifacts(
                     let components = obj
                         .get("components")
                         .and_then(|c| c.as_array())
-                        .map(|a| a.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect::<Vec<_>>())
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                                .collect::<Vec<_>>()
+                        })
                         .unwrap_or_default();
                     let is_combined = !components.is_empty();
                     // bonuses 对象 → 数组（描述走 `core.bonus.<TYPE>.description`，与 VCMI 一致）。
@@ -224,7 +265,11 @@ pub(crate) fn build_artifacts(
                         for (_bname, b) in bmap {
                             let btype = b.get("type").and_then(|x| x.as_str()).unwrap_or("");
                             let bval = b.get("val").and_then(|x| x.as_i64()).unwrap_or(0);
-                            let bsub = b.get("subtype").and_then(|x| x.as_str()).unwrap_or("").to_string();
+                            let bsub = b
+                                .get("subtype")
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("")
+                                .to_string();
                             let sub_base = bsub.rsplit(':').next().unwrap_or(&bsub).to_string();
                             let sub_names = if sub_base.is_empty() {
                                 None
@@ -236,12 +281,14 @@ pub(crate) fn build_artifacts(
                                 .iter()
                                 .find_map(|k| crate::modcache::i18n::i18n_get_multi(&i18n, k))
                             };
-                            let Some((names, descs)) = crate::modcache::i18n::ability_text_from_bonus_type(
-                                &i18n,
-                                btype,
-                                bval,
-                                sub_names.as_ref(),
-                            ) else {
+                            let Some((names, descs)) =
+                                crate::modcache::i18n::ability_text_from_bonus_type(
+                                    &i18n,
+                                    btype,
+                                    bval,
+                                    sub_names.as_ref(),
+                                )
+                            else {
                                 continue;
                             };
                             bonuses.push(json!({
@@ -281,13 +328,21 @@ pub(crate) fn build_artifacts(
                 let comps: Vec<String> = a
                     .get("components")
                     .and_then(|c| c.as_array())
-                    .map(|arr| arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
                     .unwrap_or_default();
                 Some((id, comps))
             })
             .collect();
         for a in artifacts.iter_mut() {
-            let aid = a.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
+            let aid = a
+                .get("id")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
             let mut parts: Vec<String> = owners
                 .iter()
                 .filter(|(_oid, comps)| comps.iter().any(|c| *c == aid))

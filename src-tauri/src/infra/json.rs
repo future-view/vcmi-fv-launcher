@@ -24,7 +24,8 @@ pub fn parse_json_lenient(text: &str) -> Result<Value, String> {
         return Ok(v);
     }
     let cleaned = sanitize_vcmi_json(text);
-    serde_json::from_str::<Value>(&cleaned).map_err(|e| be_err("cmd_json_parse_failed", &format!("{}", e)))
+    serde_json::from_str::<Value>(&cleaned)
+        .map_err(|e| be_err("cmd_json_parse_failed", &format!("{}", e)))
 }
 
 /// 读取文件并宽容解析。
@@ -35,7 +36,8 @@ pub fn read_json_file_lenient(path: &Path) -> Result<Option<Value>, String> {
     if !path.is_file() {
         return Ok(None);
     }
-    let text = fs::read_to_string(path).map_err(|e| be_err("infra_file_read_failed", &format!("{}", e)))?;
+    let text = fs::read_to_string(path)
+        .map_err(|e| be_err("infra_file_read_failed", &format!("{}", e)))?;
     parse_json_lenient(&text).map(Some)
 }
 
@@ -43,6 +45,7 @@ pub fn read_json_file_lenient(path: &Path) -> Result<Option<Value>, String> {
 /// 1. 去掉行内 `//` 注释（不在字符串内时才删）。
 /// 2. 将字符串内的 `\'` 转义替换为字面 `'`（VCMI 允许 `'` 作为转义引号）。
 /// 3. 去除对象/数组末尾多余的逗号。
+/// 4. 修正前导零整数（`083` → `83`，见 [`fix_leading_zero_numbers`]）。
 fn sanitize_vcmi_json(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let chars: Vec<char> = text.chars().collect();
@@ -83,7 +86,103 @@ fn sanitize_vcmi_json(text: &str) -> String {
             i += 1;
         }
     }
-    strip_trailing_commas(&out)
+    fix_leading_zero_numbers(&strip_trailing_commas(&out))
+}
+
+/// 修正**前导零整数**：`083` → `83`、`-007` → `-7`、`00` → `0`。
+///
+/// 为什么需要：标准 JSON 语法禁止数字带前导零，而 VCMI 的 `JsonParser` 对数字走
+/// `strtol` 式解析，`083` 就是 83（实测老中文包/苦修士等城镇配置里大量出现
+/// `"y" : 083`、`"x" : 07` 这类手工对齐写法）。后果不是"这一个数错"，而是
+/// **整份文件**解析失败 —— `parse_json_lenient` 返回 `Err` → `parse_vcmi_json`
+/// 降级成 `Null` → `build_town_config` 得到空对象 → faction_id 为空 → 被
+/// `read_town_configs` 的 `retain(!faction_id.is_empty())` 整条丢弃。
+///
+/// 实测 `8-Dervish-town`（苦修士）的 `town/structures.json` 第 31 行 `"y" : 083`：
+/// 该文件承载 39 个建筑的屏幕位置与 `animation`，整份丢掉后 `TownConfig.structures`
+/// 为空 → `build_towns` 不做结构叠加 → 城镇幕布图只剩裸底图（用户报"城镇背景图没有建筑"）。
+///
+/// 改动范围刻意收紧：
+/// - **只动 token 的整数部分**：`083` → `83`、`083.5` → `83.5`、`083e2` → `83e2`；
+///   小数部分与指数部分原样保留（`0.083` 本来就合法，`083.5` 的 `.5` 不该被动）。
+/// - **字符串字面量内一律不碰**：资源路径里全是 `0tbelmage.def`、`"083"` 这类内容，
+///   误改会直接弄坏资源引用。
+///
+/// 数字 token 的起点判定：前一个**有效字符**属于 `{` `[` `,` `:` `-` 或位于文件开头
+/// （`-` 覆盖 `-083` 的负号形态；后者作为 token 起点时会把负号也纳入收集）。
+fn fix_leading_zero_numbers(s: &str) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    let mut in_str = false;
+    // 上一个非空白字符（进入字符串后统一记为 `"`，避免把字符串内容当成数字上下文）
+    let mut prev: Option<char> = None;
+    while i < chars.len() {
+        let c = chars[i];
+        if in_str {
+            out.push(c);
+            if c == '\\' && i + 1 < chars.len() {
+                out.push(chars[i + 1]);
+                i += 2;
+                continue;
+            }
+            if c == '"' {
+                in_str = false;
+                prev = Some('"');
+            }
+            i += 1;
+            continue;
+        }
+        if c == '"' {
+            in_str = true;
+            out.push(c);
+            prev = Some('"');
+            i += 1;
+            continue;
+        }
+        let at_value_start = c.is_ascii_digit()
+            && matches!(
+                prev,
+                None | Some('{') | Some('[') | Some(',') | Some(':') | Some('-')
+            );
+        if at_value_start {
+            let mut j = i;
+            while j < chars.len()
+                && (chars[j].is_ascii_digit()
+                    || matches!(chars[j], '.' | 'e' | 'E' | '+' | '-'))
+            {
+                j += 1;
+            }
+            let token: String = chars[i..j].iter().collect();
+            // 拆成「整数部分 | 小数部分 | 指数部分」，只对整数部分去前导零：
+            // `083` → `83`、`083.5` → `83.5`、`083e2` → `83e2`。
+            let (mantissa, exp) = match token.find(['e', 'E']) {
+                Some(k) => (&token[..k], &token[k..]),
+                None => (token.as_str(), ""),
+            };
+            let (int_part, frac) = match mantissa.find('.') {
+                Some(k) => (&mantissa[..k], &mantissa[k..]),
+                None => (mantissa, ""),
+            };
+            if int_part.len() > 1 && int_part.starts_with('0') {
+                let trimmed = int_part.trim_start_matches('0');
+                out.push_str(if trimmed.is_empty() { "0" } else { trimmed });
+            } else {
+                out.push_str(int_part);
+            }
+            out.push_str(frac);
+            out.push_str(exp);
+            prev = Some(chars[j - 1]);
+            i = j;
+            continue;
+        }
+        if !c.is_whitespace() {
+            prev = Some(c);
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
 }
 
 /// 去除尾逗号（`,` 后跟可选空白再跟 `}` 或 `]`），逐字符扫描。
@@ -197,36 +296,210 @@ pub(crate) fn type_seg_match(seg: &str, type_subdir: &str) -> bool {
 /// 聚合文件名（如 `config/<mod>/heroes.json`）也算命中，但**排除 town 配置目录**：
 /// `<faction>/town/spells.json` 是魔法行会概率表（`{ "<fid>": { "town": { "guildSpells": ... } } }`），
 /// 若按聚合文件采入会生成以 faction id 为 id 的伪实体。
+///
+/// ⚠️ **「其实属于别的类型」一票否决**（2026-10-16 修正）：判定只看**最后一个 `config` 段
+/// 之后**的子路径（锚点之前是模组目录名 / 游戏目录名，与实体类型无关）。
+///
+/// 起因：`type_seg_match` 的 `<前缀>-<类型>` 变体会命中**模组目录名本身** —— 实测
+/// `immortal-cultivation-heroes`（及子模组 `L-skills` / `artifactsplus`）把
+/// `config/skills/skXx.json`、`config/artifacts/*.json` 整批采成"英雄"，产出无头像、
+/// 无职业、特长只有一个 ✦ 的幽灵行（`heroes` 分类 62/67 的无图条目全属此类）；
+/// `new-monsters-pack.kurek-creatures.*`（目录名 `…-creatures`）对"生物"同理。
+///
+/// 取舍：**只在"锚点之后的子路径明确命中另一个已知类型目录"时才否决**；子路径没有
+/// 类型目录时（如 `config/cherub/cherub.json`、`config/mapspells/accuracy.json`）仍沿用
+/// 旧的模组目录名容错——它们正是靠这条容错才被采到的真实实体（实测 404+94 个文件），
+/// 一刀切锚定会把这些真实生物/法术整批弄丢。
 pub(crate) fn is_type_config_path(rel_lower: &str, type_subdir: &str) -> bool {
-    let segs: Vec<&str> = rel_lower.split('/').collect();
-    let fname = segs.last().copied().unwrap_or("");
-    let in_dir = segs[..segs.len().saturating_sub(1)]
+    let all: Vec<&str> = rel_lower.split('/').collect();
+    let fname = all.last().copied().unwrap_or("");
+    // 取**最后一个** `config` 段之后的部分做"属于别的类型"判定；没有 `config` 段时不否决。
+    let start = all
+        .iter()
+        .rposition(|s| *s == "config")
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    let segs = &all[start..];
+    let t = type_subdir.to_lowercase();
+    let is_other = |name: &str| -> bool {
+        KNOWN_TYPE_DIRS
+            .iter()
+            .any(|k| type_seg_match(name, k) && !type_name_eq(&k.to_lowercase(), &t))
+    };
+    // ① 目录段命中别的类型目录（如 `config/skills/…` 采"英雄"）→ 否决
+    let other_dir = segs[..segs.len().saturating_sub(1)].iter().any(|s| is_other(s));
+    // ② 聚合文件名本身就是别的类型名（如 `config/x/creatures.json` 采"英雄"）→ 否决
+    let other_agg = is_other(fname.trim_end_matches(".json"));
+    if other_dir || other_agg {
+        return false;
+    }
+    let in_dir = all[..all.len().saturating_sub(1)]
         .iter()
         .any(|s| type_seg_match(s, type_subdir));
-    let is_agg = fname.trim_end_matches(".json") == type_subdir.to_lowercase()
+    let is_agg = fname.trim_end_matches(".json") == t
         && !segs
             .iter()
             .any(|s| matches!(*s, "town" | "towns" | "translation"));
     in_dir || is_agg
 }
 
+/// 已知的**实体类型目录名**（用于「其实属于别的类型」判定，见 [`is_type_config_path`]）。
+const KNOWN_TYPE_DIRS: &[&str] = &[
+    "creatures",
+    "heroes",
+    "heroClasses",
+    "spells",
+    "artifacts",
+    "skills",
+    "objects",
+    "bonuses",
+    "terrains",
+    "factions",
+    "buildings",
+    "town",
+];
+
 /// 递归收集 `config/**/<type_subdir>/*.json` 的文件路径（含大小写/单复数容错与聚合文件）。
 pub(crate) fn collect_json_files(dir: &Path, type_subdir: &str, out: &mut Vec<PathBuf>) {
-    if let Ok(entries) = fs::read_dir(dir) {
-        for e in entries.flatten() {
-            let p = e.path();
-            if p.is_dir() {
-                collect_json_files(&p, type_subdir, out);
-            } else if p
-                .file_name()
-                .map(|n| n.to_string_lossy().to_lowercase().ends_with(".json"))
-                .unwrap_or(false)
-            {
-                let rel = p.to_string_lossy().replace('\\', "/").to_lowercase();
-                if is_type_config_path(&rel, type_subdir) {
-                    out.push(p);
-                }
-            }
+    // 走**目录清单缓存**（见 `infra::dirscan`）：原实现每个类型都 `fs::read_dir` 全量递归一遍，
+    // 而同一次构建里会对同一个 `Content/` 收集 6+ 种类型（creatures/heroes/spells/skills/
+    // artifacts×2…），加上城镇目录索引与 raw 全量归一，约 9 次重复遍历。
+    // 改为"只递归一次 + 纯内存过滤"，且**匹配口径完全不变**（仍是绝对路径小写归一）。
+    let listing = crate::infra::dirscan::dir_listing(dir);
+    for i in 0..listing.len() {
+        let abs = listing.abs(i);
+        // 仍传**绝对路径**：`is_type_config_path` 内部已把匹配锚定到最后一个 `config` 段之后
+        // （见其文档），mod 目录名不再参与匹配；而"路径里根本没有 `config` 段"的兜底场景
+        // （如游戏根 `config/<sub>/x.json` 之外的写法）仍需整条路径。
+        if !abs.ends_with(".json") {
+            continue;
         }
+        if is_type_config_path(abs, type_subdir) {
+            out.push(listing.path(i).as_ref().to_path_buf());
+        }
+    }
+}
+
+#[cfg(test)]
+mod leading_zero_tests {
+    use super::*;
+
+    fn parse(text: &str) -> Value {
+        parse_json_lenient(text).unwrap_or_else(|e| panic!("应能解析: {e}"))
+    }
+
+    #[test]
+    fn 前导零整数被归一() {
+        // 实测形态：苦修士 town/structures.json 的 `"y" : 083`
+        let v = parse(r#"{ "x": 132, "y": 083, "z": -2 }"#);
+        assert_eq!(v["y"], 83);
+        assert_eq!(v["z"], -2);
+    }
+
+    #[test]
+    fn 负号与多位前导零() {
+        let v = parse(r#"{ "a": -083, "b": 007, "c": 00, "d": 0 }"#);
+        assert_eq!(v["a"], -83);
+        assert_eq!(v["b"], 7);
+        assert_eq!(v["c"], 0);
+        assert_eq!(v["d"], 0);
+    }
+
+    #[test]
+    fn 字符串与浮点不受影响() {
+        // 资源路径里的前导零必须原样保留，否则资源引用会被改坏
+        let v = parse(
+            r#"{ "anim": "Dervish/buildings/0tbelmage.def", "s": "083", "f": 0.083, "g": 083.5 }"#,
+        );
+        assert_eq!(v["anim"], "Dervish/buildings/0tbelmage.def");
+        assert_eq!(v["s"], "083");
+        assert_eq!(v["f"], 0.083);
+        assert_eq!(v["g"], 83.5);
+    }
+
+    #[test]
+    fn 数组内前导零() {
+        let v = parse(r#"[1, 02, 300]"#);
+        assert_eq!(v[1], 2);
+        assert_eq!(v[2], 300);
+    }
+
+    #[test]
+    fn 与注释尾逗号共存() {
+        // 同一文件里三种非法形态叠加（VCMI 手工配置常见）
+        let v = parse(
+            "{\n  // 注释\n  \"y\": 083,\n  \"x\": 07,\n}",
+        );
+        assert_eq!(v["y"], 83);
+        assert_eq!(v["x"], 7);
+    }
+
+    #[test]
+    fn 合法json仍走标准路径() {
+        let v = parse(r#"{ "a": 1, "b": "0x0" }"#);
+        assert_eq!(v["a"], 1);
+        assert_eq!(v["b"], "0x0");
+    }
+}
+
+/// 配置类型路径判定回归（2026-10-16：模组目录名污染实体分类的修复）。
+///
+/// 背景：`heroes` / `creatures` 分类里出现大量"无头像、无职业"的幽灵行，根因是
+/// `<前缀>-<类型>` 的目录容错命中了**模组目录名**（`immortal-cultivation-heroes`、
+/// `kurek-creatures`），导致该模组下**所有** JSON 都被采成英雄/生物。
+#[cfg(test)]
+mod type_path_tests {
+    use super::*;
+
+    #[test]
+    fn 别的类型目录下的配置不得被采成本类型() {
+        // 技能配置 —— 不得因为模组目录名 `-heroes` 被当成英雄
+        let p = "d:/games/Mods/immortal-cultivation-heroes/Mods/L-skills/content/config/skills/skxx.json";
+        assert!(!is_type_config_path(p, "heroes"), "skills/ 下的配置不是英雄");
+        assert!(is_type_config_path(p, "skills"), "skills/ 下的是技能");
+
+        // 宝物配置 —— 同上
+        let a = "d:/games/Mods/immortal-cultivation-heroes/Mods/artifactsplus/content/config/artifacts/pendantofdeath.json";
+        assert!(!is_type_config_path(a, "heroes"));
+        assert!(is_type_config_path(a, "artifacts"));
+
+        // 英雄目录下的文件 —— 不得被当成生物（模组目录名 `kurek-creatures`）
+        let h = "d:/games/Mods/new-monsters-pack/Mods/kurek-creatures/Mods/wasps/content/config/wasps/heroes/bumblewasp.json";
+        assert!(!is_type_config_path(h, "creatures"));
+        assert!(is_type_config_path(h, "heroes"));
+    }
+
+    #[test]
+    fn 无类型目录时保留模组目录名容错() {
+        // 实测：`config/cherub/cherub.json`、`config/mapspells/accuracy.json` 这类真实实体
+        // 正是靠模组目录名容错才被采到；一刀切锚定会把它们整批弄丢。
+        let c = "d:/games/Mods/new-monsters-pack/Mods/kurek-creatures/Mods/cherub/content/config/cherub/cherub.json";
+        assert!(is_type_config_path(c, "creatures"));
+        let s = "d:/games/Mods/adventure-spells-pack/Mods/air-spells/content/config/mapspells/accuracy.json";
+        assert!(is_type_config_path(s, "spells"));
+        // 聚合文件 `<mod>/fusedartifacts.json`：文件名不是类型名，靠目录名容错命中
+        let f = "d:/games/Mods/fused-artifacts/content/config/fusedartifacts.json";
+        assert!(is_type_config_path(f, "artifacts"));
+    }
+
+    #[test]
+    fn 既有容错不受影响() {
+        // 分隔符后缀目录（家园 mod 写法）
+        assert!(is_type_config_path(
+            "d:/g/Mods/abode/content/config/abode-creatures/x.json",
+            "creatures"
+        ));
+        // 聚合文件 `<mod>/heroes.json`
+        assert!(is_type_config_path("d:/g/Mods/m/content/config/m/heroes.json", "heroes"));
+        // 单复数 / 大写目录
+        assert!(is_type_config_path("d:/g/Mods/m/content/config/m/artifact/a.json", "artifacts"));
+        assert!(is_type_config_path("d:/g/Mods/m/content/config/m/Creatures/a.json", "creatures"));
+        // 游戏根 `config/<sub>/<file>.json`（`read_game_root_configs` 走这条）
+        assert!(is_type_config_path("d:/g/config/creatures/castle.json", "creatures"));
+        // 魔法行会概率表：town 目录下不得被采成法术
+        assert!(!is_type_config_path(
+            "d:/g/Mods/m/content/config/m/town/spells.json",
+            "spells"
+        ));
     }
 }

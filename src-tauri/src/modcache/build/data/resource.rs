@@ -17,11 +17,7 @@ use crate::modcache::i18n::{i18n_mod_scope, name_obj_multi_key};
 use crate::vcmi::h3core::I18nMap;
 
 /// 构建资源列表（投影给启动器：宝物价格、建筑花费、资源图标提示等场景可按 id/index 取用）。
-pub(crate) fn build_resources(
-    game_dir: &Path,
-    i18n: &I18nMap,
-    mod_id: &str,
-) -> Vec<Value> {
+pub(crate) fn build_resources(game_dir: &Path, i18n: &I18nMap, mod_id: &str) -> Vec<Value> {
     let mut out = Vec::new();
     let path = game_dir.join("config").join("resources.json");
     let Ok(text) = std::fs::read_to_string(&path) else {

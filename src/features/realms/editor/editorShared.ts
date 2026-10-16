@@ -28,7 +28,8 @@ export interface EditorProps {
 export function installedToModInfo(m: InstalledMod): ModInfo {
   return {
     id: m.id,
-    diskName: m.id,
+    // 磁盘原名优先（`id` 是小写归一后的 VCMI modId，不能当目录名用；旧后端无该字段时兜底）
+    diskName: m.diskName || m.id,
     parentId: m.parentId ?? m.id,
     name: m.name,
     localizedName: m.name,
@@ -36,7 +37,8 @@ export function installedToModInfo(m: InstalledMod): ModInfo {
     type: m.type ?? "Other",
     version: m.version ?? m.meta?.version ?? undefined,
     author: m.author ?? m.meta?.author ?? undefined,
-    modPath: "",
+    // 磁盘绝对路径：优先用后端回传值（子模组的 `<父>/Mods/<子>` 布局只有它准）
+    modPath: m.modPath ?? "",
     hasContentZip: false,
     contentZipEncrypted: false,
     isSubmod: m.isSubmod ?? false,

@@ -13,7 +13,10 @@ use std::path::PathBuf;
 use tauri::State;
 
 use crate::state::AppPaths;
-use crate::vcmi::config::{AiCfg, ArchivesCfg, HdCfg, LauncherConfig, ModsCfg, NetworkCfg, PathsCfg, RealmsCfg, RuntimeCfg, UiCfg, UpdateCfg};
+use crate::vcmi::config::{
+    AiCfg, ArchivesCfg, HdCfg, LauncherConfig, ModsCfg, NetworkCfg, PathsCfg, RealmsCfg,
+    RuntimeCfg, UiCfg, UpdateCfg,
+};
 use crate::vcmi::paths::VcmiPaths;
 
 /// 读取 launcher.json 持久化配置
@@ -421,8 +424,9 @@ pub fn set_realm_publish_target(
     cfg.realms.publish_repo_dir = repo_dir.filter(|s| !s.trim().is_empty());
     cfg.realms.publish_url_base = url_base.filter(|s| !s.trim().is_empty());
     // 分支只接受两个已知值，写进配置的不能是任意字符串
-    cfg.realms.publish_mode =
-        mode.filter(|s| s == "share" || s == "publish").map(|s| s.to_string());
+    cfg.realms.publish_mode = mode
+        .filter(|s| s == "share" || s == "publish")
+        .map(|s| s.to_string());
     VcmiPaths::write_launcher_config(&cfg)?;
     Ok(())
 }
@@ -466,7 +470,10 @@ pub fn set_hd_edition_scale(scale: String) -> Result<(), String> {
 pub fn set_network_proxy(proxy: Option<String>) -> Result<(), String> {
     let mut cfg =
         VcmiPaths::read_launcher_config().ok_or_else(|| be_err("settings_not_init", ""))?;
-    let norm: Option<String> = match proxy.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()) {
+    let norm: Option<String> = match proxy
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+    {
         None => None,
         Some(s) if s.eq_ignore_ascii_case("off") => None,
         Some(s) => {
@@ -511,7 +518,11 @@ pub fn set_network_mirror_rules(rules: Vec<crate::infra::http::MirrorRule>) -> R
             format!(
                 "第 {} 条规则无效：生效主机需非空；前缀/模板需为 http(s) 地址{}",
                 i + 1,
-                if r.mode == "template" { "且至少含一个占位符（如 {url}）" } else { "" }
+                if r.mode == "template" {
+                    "且至少含一个占位符（如 {url}）"
+                } else {
+                    ""
+                }
             )
         })?;
         norm.push(n);

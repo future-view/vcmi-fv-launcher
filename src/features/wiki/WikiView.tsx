@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +39,42 @@ const CATEGORIES: { key: WikiCategory; label: (t: LangDict) => string }[] = [
   { key: "mods", label: (t) => t.wiki.allMods },
 ];
 
+/**
+ * mod 完整缓存（`cache.json` 解析结果）的**内存上界**（条数）。
+ *
+ * 装载一个类目要遍历全部可见 mod（572 个），但装载完成后只留得下"最近用过的少数几个"
+ * 就够了：列表条目各自持有自己的 `data`（`WikiEntry.data` 只引用该条，不随缓存淘汰消失），
+ * 详情栏需要完整 mod 对象的只可能是**当前选中**那一个。
+ * 取 24：远大于"一次会话里来回点选的 mod 数"，又足以把常驻堆从上百 MB 压到几 MB。
+ */
+const MOD_CACHE_CAP = 24;
+
+/** 跨 mod **按 id 去重**的类目（覆盖规则见 `loadAllCategories` 内的 flag 说明）。 */
+const DEDUP_CATS: WikiCategory[] = ["spells", "skills", "artifacts", "creatures"];
+
+/** **逐 mod 直接入列**的类目（不去重，各自 mod 的条目都保留）。 */
+const DIRECT_CATS: WikiCategory[] = ["factions", "heroes", "buildings"];
+
+/** 一次装载的产出：**全部类目** → 条目数组（见 `loadAllCategories` / `catEntriesRef`）。 */
+type WikiCategoryMap = Map<WikiCategory, WikiEntry[]>;
+
+/** 写入并维持上界（`Map` 的迭代顺序即插入顺序，队首 = 最久未用）。 */
+function putModCache(
+  m: Map<string, Record<string, unknown>>,
+  modId: string,
+  mod: Record<string, unknown>,
+) {
+  m.delete(modId);
+  m.set(modId, mod);
+  while (m.size > MOD_CACHE_CAP) {
+    const oldest = m.keys().next().value;
+    if (oldest === undefined) break;
+    m.delete(oldest);
+  }
+}
+
+
+
 export function WikiView() {
   const { t, lang } = useI18n();
   // ⚠️ 这里**只订阅粗粒度的"阶段完成"布尔量**，绝不订阅整个 `WikiBuildStatus`：
@@ -61,12 +97,13 @@ export function WikiView() {
   const [selected, setSelected] = useState<WikiEntry | null>(null);
   // 导航历史栈（对齐 VCMI wiki navHistory）：内容区链接/列表点选前压栈，返回按钮回退
   const [navStack, setNavStack] = useState<WikiEntry[]>([]);
-  // 「全部模组」选中后按需加载该 mod 的完整缓存（含多语言 description / version），
-  // 供右侧详情栏展示描述（索引条目本身不含 description，需读 cache.json）。
+  // 「选中条目所属 mod」的完整缓存（含多语言 description / version / creatures / heroes
+  // / resources 等**整份 cache.json**）：索引条目与 `WikiEntry.data` 都不含这些，
+  // 详情栏按需加载后从这里取（见下方 effect；有界 LRU）。
   const [modCacheMap, setModCacheMap] = useState<Record<string, Record<string, unknown>>>({});
   const [loading, setLoading] = useState(false);
   /**
-   * 中栏列表**已装载完成**的类目（`loadCategory` 异步，装载期间 `entries` 还是上一个类目的数据）。
+   * 中栏列表**已装载完成**的类目（`loadAllCategories` 异步，装载期间 `entries` 还是上一个类目的数据）。
    *
    * 只有「返回后定位并滚动到恢复行」需要区分这一点：靠 `entries[0].category` 推断在
    * "上一个类目恰好为空" 时会误判成"目标不在列表"，所以显式记一个已装载类目。
@@ -87,15 +124,92 @@ export function WikiView() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   // 任一 mod 缓存缺失原版 H3 数据文件：百科图标/背景将无图（提示用户补放 Data/*.lod）
   const [h3Missing, setH3Missing] = useState(false);
-  const cacheRef = useRef<Record<string, Record<string, unknown>>>({});
+  // ⚠️ **有界 LRU**（`MOD_CACHE_CAP`）。此前是无界普通对象：装载会为**每一个**
+  // 可见 mod 各读一次整份 `cache.json` 并永久留在内存里 —— 572 个 mod、缓存 JSON 合计
+  // 32 MB，解析成 JS 对象后是几百 MB 的常驻堆。
+  // 现在**列表数据由 `catEntriesRef` 承担**（见其说明），本缓存只负责详情页 ——
+  // 真正还需要"整份 mod 对象"的只有**当前选中条目所属的那一个**（详情栏要读
+  // `sharedIcons` / `resources` / `factionNames` / 同类目数组），其余 mod 的数据已被
+  // `WikiEntry.data` 各自持有（条目只引用自己那一条，不受缓存淘汰影响）。
+  const cacheRef = useRef<Map<string, Record<string, unknown>>>(new Map());
+  /**
+   * **全类目**的「id → 条目」索引（懒建，数据源是 `catEntriesRef` —— 它已经一次装载了
+   * 全部类目，建索引只是加一张 Map，不额外读盘）。
+   *
+   * 为什么必须是"全类目"而不是"当前类目"：跨模组引用无处不在，而引用场景往往**不在**
+   * 当前类目上——
+   * - 在城镇页右键生物行弹生物窗（当前类目是 `factions`，查 `creatures`）；
+   * - 宝物详情页查"组成组件"（组件常在 `core`，与母宝物不同 mod）；
+   * - 生物详情页查"可升级为"（升级目标常在 core / 别的城镇 mod）。
+   * 旧实现只保留**当前类目**的一张索引（`cat` 不等就查不到），这些场景全部落空 →
+   * 表现为"可升级为只剩原始 id 且无图""宝物组成组件三格全空"。
+   */
+  const entryByIdRef = useRef<Map<WikiCategory, Map<string, WikiEntry>>>(new Map());
+  /**
+   * **全部类目**的装载结果（`WikiCategory` → 条目数组）。
+   *
+   * 为什么必须是"全部"而不是"按需 + LRU"：装载任何类目都要遍历**全部可见 mod**
+   * （572 个）各读一份 `cache.json`（合计约 32 MB + JSON 解析，本地 SSD 上 1~3 秒）。
+   * 若按需装载，切到每个**新**类目都要重付这笔钱 —— 实测用户感受就是"切换分类变慢很多"。
+   * 而 `cacheRef` 的 24 条 LRU 无法代劳（容量上不可能覆盖 572 个 mod，装载时会一路淘汰）。
+   *
+   * 所以改为**一次装载产出全部类目**：遍历 mod 只发生一次，之后所有类目切换都只是
+   * 从内存取数组。二者职责因此清晰分离：
+   * - 本 ref → 服务**列表**（条目各自持有 `data`，不需要整份 mod 对象）；
+   * - `cacheRef`（24 条）/ `modCacheMap` → 服务**详情页**（要整份 mod 对象的
+   *   `sharedIcons` / `resources` / `factionNames` / `structures`）。
+   *
+   * 内存：只保留**列表实体的引用**，比"所有 mod 的完整缓存"小（后者还含
+   * `modMeta` / `sharedIcons` / `buildingAnimations` 等非列表字段）。
+   */
+  const catEntriesRef = useRef<Map<WikiCategory, WikiEntry[]> | null>(null);
+  /**
+   * `catEntriesRef` 的有效性键。涵盖所有会改变装载结果的因素：
+   * - `epoch`：后台补图完成后自增（图片字段由 null 变有值）
+   * - `contentLang`：列表排序按当前语言的显示名（`sortByName`）
+   * - `indexed.size` / 可见集合大小：安装或启停模组后条目集合会变
+   */
+  const catCacheKeyRef = useRef<string>("");
   // 右栏详情滚动容器：切换条目时要把滚动位置归零（见下方「切换条目后右栏回到顶部」）
   const detailScrollRef = useRef<HTMLDivElement | null>(null);
   // 中栏列表滚动容器 + 「返回后需要把列表滚到恢复行」的待办标记（见下方「返回后把中栏滚到恢复的高亮行」）
   const listScrollRef = useRef<HTMLDivElement | null>(null);
   const pendingListScrollRef = useRef(false);
+  /**
+   * 中栏**按类目**记忆的滚动位置（语义见下方「切换类目后恢复中栏滚动位置」）。
+   * 键缺失 / 值为 0 都表示"该类目从顶部开始"。只在用户滚动时写入（`onScroll`）。
+   */
+  const listScrollMemoRef = useRef<Map<WikiCategory, number>>(new Map());
+  /** 待恢复滚动位置的类目：切类目时置位，恢复成功（或判定无需恢复）后清掉。 */
+  const pendingRestoreRef = useRef<WikiCategory | null>(null);
   // 缓存代数：后台构建（尤其阶段二补图）完成后自增，驱动当前分类重新拉取 mod.json，
   // 否则 cacheRef 里阶段一的旧对象（图片字段为 null）会一直用到刷新页面为止。
   const [epoch, setEpoch] = useState(0);
+  /**
+   * 装载有效性的键（`catCacheKeyRef` 的候选值）：涵盖所有会改变装载结果的因素 ——
+   * `epoch`、`contentLang`、`indexed.size`、可见集合大小（见 `catCacheKeyRef` 说明）。
+   *
+   * 提到 `useMemo` 是为了让调用方能**按同一个键判重**（见 `loadInflightRef`）。
+   */
+  const catCacheKey = useMemo(
+    () => `${epoch}|${contentLang}|${indexed.size}|${visibleKeys ? visibleKeys.size : -1}`,
+    [epoch, contentLang, indexed, visibleKeys],
+  );
+  // 数据重载（后台补图 / 换显示语言 / 装卸载模组）后条目集合与排序都变了，
+  // 记下来的行位置不再指向同一批条目 → 清空，各类目重新从顶部开始。
+  useEffect(() => {
+    listScrollMemoRef.current.clear();
+  }, [catCacheKey]);
+  /**
+   * 正在跑的那一轮装载（`key` = 它对应的 `catCacheKey`）。
+   *
+   * ⚠️ 必须有这个判重，否则"切类目"会把机器读穿：装载要遍历全部可见 mod 各读一份
+   * `cache.json`（572 份 / 约 32 MB，HDD 上十几秒），而装载期间 `catEntriesRef` 还是
+   * `null`（命中不了缓存）—— 此前 `category` 直接进 effect 的 deps，于是**用户每点一次
+   * 左栏就再起一轮全量读盘**。点得越多越慢（HDD 上多轮并发互相拖慢），表现就是
+   * "切分类再也没有数据"（2026-10-16 实测）。
+   */
+  const loadInflightRef = useRef<{ key: string; p: Promise<WikiCategoryMap> } | null>(null);
 
   // 获取缓存根目录（拼图片完整路径）+ 订阅后台构建状态
   useEffect(() => {
@@ -147,7 +261,7 @@ export function WikiView() {
 
   const reloadAll = useCallback(async () => {
     // 构建完成后丢弃内存里的旧 mod 缓存（阶段一对象图片字段为 null），强制重新读取
-    cacheRef.current = {};
+    cacheRef.current.clear();
     setEpoch((n) => n + 1);
     await applyIndex();
   }, [applyIndex]);
@@ -178,191 +292,269 @@ export function WikiView() {
     [nameCollator, contentLang],
   );
 
-  // 按需加载目标类目的条目（聚合各 mod）
-  const loadCategory = useCallback(
-    async (cat: WikiCategory) => {
-      setLoading(true);
-      const result: WikiEntry[] = [];
-      if (cat === "mods") {
-        const idx = await loadWikiIndex();
-        if (idx) {
-          // 与「当前可见集合」求交：剔除已卸载 / 其它领域的缓存条目（索引只增不删）
-          const mods = visibleKeys ? idx.mods.filter((m) => visibleKeys.has(modIdKey(m.modId))) : idx.mods;
-          for (const m of mods) {
-            result.push({
-              category: "mods",
-              id: m.modId,
-              modId: m.modId,
-              // pickName 只认 VCMI 语言键（chinese/english），勿用 en/zh-CN。
-              // 后端索引 name 为多语言对象（modMeta.name）；兼容旧缓存/外部 mock 的单串回退。
-              name:
-                typeof m.name === "object" && m.name
-                  ? (m.name as Record<string, string>)
-                  : { chinese: String(m.name ?? m.modId), english: String(m.name ?? m.modId) },
-              data: { ...m },
-            });
-          }
+  /**
+   * 一次装载**全部类目**的条目（聚合各 mod），返回 `类目 → 条目数组`。
+   *
+   * 为什么不是"按需装载单个类目"：装载要遍历全部可见 mod（572 个）各读一份 `cache.json`，
+   * 按需装载会让每个**新**类目都重付这笔钱（约 32 MB + 解析）。改为一次产出全部类目后，
+   * 切换分类（无论新旧）都只是从内存取数组（见 `catEntriesRef` 的说明）。
+   */
+  const loadAllCategories = useCallback(async (key: string): Promise<WikiCategoryMap> => {
+    // ── 命中：直接复用，零 IPC ──
+    if (catCacheKeyRef.current !== key) {
+      // 数据源变了（补图完成 / 换语言 / 增删模组）→ 旧条目可能过期，整体作废
+      catEntriesRef.current = null;
+      entryByIdRef.current.clear();
+      catCacheKeyRef.current = key;
+    }
+    if (catEntriesRef.current) return catEntriesRef.current;
+
+    setLoading(true);
+    const out = new Map<WikiCategory, WikiEntry[]>();
+    {
+      // ── `mods` 类目：读 `index.json`（不遍历 mod 的 cache.json）──
+      const list: WikiEntry[] = [];
+      const idx = await loadWikiIndex();
+      if (idx) {
+        // 与「当前可见集合」求交：剔除已卸载 / 其它领域的缓存条目（索引只增不删）
+        const mods = visibleKeys ? idx.mods.filter((m) => visibleKeys.has(modIdKey(m.modId))) : idx.mods;
+        for (const m of mods) {
+          list.push({
+            category: "mods",
+            id: m.modId,
+            modId: m.modId,
+            // pickName 只认 VCMI 语言键（chinese/english），勿用 en/zh-CN。
+            // 后端索引 name 为多语言对象（modMeta.name）；兼容旧缓存/外部 mock 的单串回退。
+            name:
+              typeof m.name === "object" && m.name
+                ? (m.name as Record<string, string>)
+                : { chinese: String(m.name ?? m.modId), english: String(m.name ?? m.modId) },
+            data: { ...m },
+          });
         }
-        result.sort(sortByName);
-        setEntries(result);
-        setLoadedCategory(cat);
-        setLoading(false);
-        return result;
       }
-      // 只遍历「当前可见」的 mod：索引条目随时间累积（卸载后仍保留），
-      // 而下面每条都要一次 IPC 读 cache.json —— 不筛选的话，开销会随使用时长单调增长。
-      const modIds = Array.from(indexed).filter((id) => !visibleKeys || visibleKeys.has(modIdKey(id)));
-      let processed = 0;
-      // 地形是游戏级数据（**每个 mod 缓存里都是同一份**），必须跨 mod 按 id 去重；
-      // nativeTowns 按 mod 分散（各 mod 只报自己的本族城镇），去重时合并城镇列表。
-      // 此前按单个 mod 建 map → 每个 mod 各出 10 条，17 个 mod 就是 170 条假重复。
-      const terrainAcc = new Map<string, { mod: Record<string, unknown>; obj: Record<string, unknown> }>();
-      // 法术/技能/宝物/生物：跨 mod 按 id 去重（builtin/原版收敛到 core，mod 定义优先覆盖原版）
-      const spellMap = new Map<string, { mod: Record<string, unknown>; item: Record<string, unknown>; builtin: boolean }>();
-      const entityMap = new Map<string, { mod: Record<string, unknown>; item: Record<string, unknown>; core: boolean }>();
-      // 阵营 id → 多语言名（cache.json 顶层 `factionNames`）：与分类数据同一次读取拿到，
-      // 无须为取标签额外发 IPC；跨 mod 合并，后见者覆盖。
-      const namesAcc: Record<string, Record<string, string>> = {};
-      for (const mid of modIds) {
-        let mod = cacheRef.current[mid];
-        if (!mod) {
-          mod = (await loadModCache(mid)) ?? undefined;
-          if (mod) cacheRef.current[mid] = mod;
-        }
-        if (!mod) continue;
-        if (mod.factionNames && typeof mod.factionNames === "object") {
-          Object.assign(namesAcc, mod.factionNames as Record<string, Record<string, string>>);
-        }
-        const arr = (mod[cat] as unknown[]) ?? [];
-        if (cat === "terrains") {
-          for (const item of arr) {
-            const o = { ...(item as Record<string, unknown>) };
-            const id = String(o.id ?? "");
-            if (!id) continue;
-            const prev = terrainAcc.get(id);
-            if (!prev) {
-              terrainAcc.set(id, { mod, obj: o });
-              continue;
-            }
-            // **多语言合并**：同名地形可能被多个 mod 定义、各带部分语言
-            // （A 有中文、B 有英文），合并后任意界面语言都能取到；
-            // 不做"某语言优先"（会偏袒中文，对以外文为主的模组不公平）。
-            // 语言中立的质量规则：已有值为空或就是实体 id 原文时，用新值替换。
-            const mergeNames = (a: unknown, b: unknown) => {
-              const out: Record<string, string> = { ...((a as Record<string, string>) ?? {}) };
-              for (const [k, v] of Object.entries((b as Record<string, string>) ?? {})) {
-                const old = out[k];
-                if ((!old || old === id) && typeof v === "string" && v && v !== id) out[k] = v;
-              }
-              return out;
-            };
-            prev.obj.name = mergeNames(prev.obj.name, o.name);
-            if (!prev.obj.image && o.image) prev.obj.image = o.image;
-            if (!prev.obj.tiles && o.tiles) prev.obj.tiles = o.tiles;
-            const towns = [
-              ...((prev.obj.nativeTowns as string[]) ?? []),
-              ...((o.nativeTowns as string[]) ?? []),
-            ];
-            prev.obj.nativeTowns = [...new Set(towns)];
-          }
-          processed += 1;
-          if (processed % 24 === 0) await new Promise((r) => setTimeout(r, 0));
-          continue;
-        }
-        // 法术/技能：builtin 已收敛到 core，按 id 去重（非 builtin 覆盖 builtin → mod 覆盖原版优先）
-        if (cat === "spells" || cat === "skills") {
-          for (const item of arr) {
-            const o = item as Record<string, unknown>;
-            // 跨 mod 引用条目（VCMI `<modId>:<entityId>` 补丁语法）：无独立数据，不进入列表
-            if (o.ref) continue;
-            const id = String(o.id ?? "");
-            if (!id) continue;
-            const builtin = !!o.builtin;
-            const ex = spellMap.get(id);
-            if (ex) {
-              if (ex.builtin && !builtin) spellMap.set(id, { mod, item: o, builtin });
-              continue;
-            }
-            spellMap.set(id, { mod, item: o, builtin });
-          }
-          processed += 1;
-          if (processed % 24 === 0) await new Promise((r) => setTimeout(r, 0));
-          continue;
-        }
-        // 宝物/生物：按 id 跨 mod 去重（mod 定义优先于 core 原版，避免同名实体重复入列）
-        if (cat === "artifacts" || cat === "creatures") {
-          for (const item of arr) {
-            const obj = item as Record<string, unknown>;
-            if (obj.ref) continue;
-            const id = String(obj.id ?? obj.factionId ?? "");
-            if (!id) continue;
-            const isCore = mid === "core" || mid.startsWith("core.");
-            const ex = entityMap.get(id);
-            if (ex) {
-              if (ex.core && !isCore) entityMap.set(id, { mod, item: obj, core: isCore });
-              continue;
-            }
-            entityMap.set(id, { mod, item: obj, core: isCore });
-          }
-          processed += 1;
-          if (processed % 24 === 0) await new Promise((r) => setTimeout(r, 0));
-          continue;
-        }
-        // 其余类目（英雄/城镇/建筑）逐 mod 入列
-        for (const item of arr) {
+      list.sort(sortByName);
+      out.set("mods", list);
+    }
+    // 只遍历「当前可见」的 mod：索引条目随时间累积（卸载后仍保留），
+    // 而下面每条都要一次 IPC 读 cache.json —— 不筛选的话，开销会随使用时长单调增长。
+    const modIds = Array.from(indexed).filter((id) => !visibleKeys || visibleKeys.has(modIdKey(id)));
+    let processed = 0;
+    // 跨 mod 去重的累加器：**每个类目一份**（此前只用一份 `spellMap`/`entityMap`，
+    // 因为每次只装载一个类目；现在一次装载全部，混用会把不同类目的条目串在一起）。
+    type DedupEntry = { mod: Record<string, unknown>; item: Record<string, unknown>; flag: boolean };
+    const dedupAcc: Record<string, Map<string, DedupEntry>> = {
+      spells: new Map(),
+      skills: new Map(),
+      artifacts: new Map(),
+      creatures: new Map(),
+    };
+    // 逐 mod 直接入列的类目容器
+    const directAcc: Record<string, WikiEntry[]> = {
+      factions: [],
+      heroes: [],
+      buildings: [],
+    };
+    // 地形是游戏级数据（**每个 mod 缓存里都是同一份**），必须跨 mod 按 id 去重；
+    // nativeTowns 按 mod 分散（各 mod 只报自己的本族城镇），去重时合并城镇列表。
+    // 此前按单个 mod 建 map → 每个 mod 各出 10 条，17 个 mod 就是 170 条假重复。
+    const terrainAcc = new Map<string, { mod: Record<string, unknown>; obj: Record<string, unknown> }>();
+    // 阵营 id → 多语言名（cache.json 顶层 `factionNames`）：与分类数据同一次读取拿到，
+    // 无须为取标签额外发 IPC；跨 mod 合并，后见者覆盖。
+    const namesAcc: Record<string, Record<string, string>> = {};
+    for (const mid of modIds) {
+      let mod = cacheRef.current.get(mid);
+      if (!mod) {
+        mod = (await loadModCache(mid)) ?? undefined;
+        if (mod) putModCache(cacheRef.current, mid, mod);
+      }
+      if (!mod) continue;
+      if (mod.factionNames && typeof mod.factionNames === "object") {
+        Object.assign(namesAcc, mod.factionNames as Record<string, Record<string, string>>);
+      }
+
+      // ── 逐 mod 直接入列的类目（城镇/英雄/建筑）──
+      for (const c of DIRECT_CATS) {
+        for (const item of (mod[c] as unknown[]) ?? []) {
           const obj = item as Record<string, unknown>;
           // 跨 mod 引用条目（如 `core:dimensionDoor`、`hota.factory:factory`）是补丁引用，
           // 构建期已标记 `ref:true`；列表默认不展示（计数同样已排除）
           if (obj.ref) continue;
-          result.push(buildEntry(mod, cat, obj));
+          directAcc[c].push(buildEntry(mod, c, obj));
         }
-        // 每 24 个 mod 让出一帧，避免长任务阻塞交互（卡死防护）
-        processed += 1;
-        if (processed % 24 === 0) {
-          await new Promise((r) => setTimeout(r, 0));
-        }
-        }
-        // 法术/技能/宝物/生物：跨 mod 去重结果一次性入列
-        if (cat === "spells" || cat === "skills") {
-          for (const { mod, item } of spellMap.values()) {
-            result.push(buildEntry(mod, cat, item));
+      }
+
+      // ── 跨 mod 按 id 去重的类目（法术/技能/宝物/生物）──
+      // 覆盖规则统一为"旧标记为真、新标记为假 → 替换"：
+      //   spells/skills 的标记 = `builtin`（非 builtin 覆盖 builtin → mod 覆盖原版优先）
+      //   artifacts/creatures 的标记 = 来自 core（mod 定义优先于原版，避免同名重复入列）
+      for (const c of DEDUP_CATS) {
+        const isSpellKind = c === "spells" || c === "skills";
+        const flagOf = (o: Record<string, unknown>) =>
+          isSpellKind ? !!o.builtin : mid === "core" || mid.startsWith("core.");
+        const acc = dedupAcc[c];
+        for (const item of (mod[c] as unknown[]) ?? []) {
+          const o = item as Record<string, unknown>;
+          // 跨 mod 引用条目（VCMI `<modId>:<entityId>` 补丁语法）：无独立数据，不进入列表
+          if (o.ref) continue;
+          const id = String(o.id ?? o.factionId ?? "");
+          if (!id) continue;
+          const flag = flagOf(o);
+          const ex = acc.get(id);
+          if (ex) {
+            if (ex.flag && !flag) acc.set(id, { mod, item: o, flag });
+            continue;
           }
+          acc.set(id, { mod, item: o, flag });
         }
-        if (cat === "artifacts" || cat === "creatures") {
-          for (const { mod, item } of entityMap.values()) {
-            result.push(buildEntry(mod, cat, item));
+      }
+
+      // ── 地形（游戏级数据，跨 mod 按 id 去重 + 多语言合并）──
+      for (const item of (mod.terrains as unknown[]) ?? []) {
+        const o = { ...(item as Record<string, unknown>) };
+        const id = String(o.id ?? "");
+        if (!id) continue;
+        const prev = terrainAcc.get(id);
+        if (!prev) {
+          terrainAcc.set(id, { mod, obj: o });
+          continue;
+        }
+        // **多语言合并**：同名地形可能被多个 mod 定义、各带部分语言
+        // （A 有中文、B 有英文），合并后任意界面语言都能取到；
+        // 不做"某语言优先"（会偏袒中文，对以外文为主的模组不公平）。
+        // 语言中立的质量规则：已有值为空或就是实体 id 原文时，用新值替换。
+        const mergeNames = (a: unknown, b: unknown) => {
+          const acc: Record<string, string> = { ...((a as Record<string, string>) ?? {}) };
+          for (const [k, v] of Object.entries((b as Record<string, string>) ?? {})) {
+            const old = acc[k];
+            if ((!old || old === id) && typeof v === "string" && v && v !== id) acc[k] = v;
           }
-        }
-        // 地形：跨 mod 去重结果一次性入列（每个 mod 只贡献本族 nativeTowns）
-        if (cat === "terrains") {
-          for (const { mod, obj } of terrainAcc.values()) {
-            result.push(buildEntry(mod, cat, obj));
-          }
-        }
-        // 建筑：中立建筑置顶，避免被 370+ 条城镇建筑淹没（用户实测"看不到中立建筑"）。
-        // 置顶语义**优先于**名称序，组内再按显示名升序。
-        if (cat === "buildings") {
-          result.sort((a, b) => {
-            const an = String((a.data as Record<string, unknown>).factionId ?? "") === "neutral" ? 0 : 1;
-            const bn = String((b.data as Record<string, unknown>).factionId ?? "") === "neutral" ? 0 : 1;
-            return an - bn || sortByName(a, b);
-          });
-        } else {
-          // 其余分类统一按显示名升序（含地形：原按 `index` 排序是启动器自创，
-          // 官方 `WikiWindow.cpp` 的地形列表同样按 `a.name < b.name`，此处对齐官方）
-          result.sort(sortByName);
-        }
-        // 左栏计数 = 实际聚合条目数（原版法术等已跨 mod 去重，与列表一致）
-        setCounts((prev) => ({ ...prev, [cat]: result.length }));
-        // 阵营名映射：合并各 mod 的顶层表（渲染时按 id 取词）
-        setFactionNames((prev) => ({ ...prev, ...namesAcc }));
-        setEntries(result);
-      setLoadedCategory(cat);
-      setLoading(false);
-      return result;
+          return acc;
+        };
+        prev.obj.name = mergeNames(prev.obj.name, o.name);
+        if (!prev.obj.image && o.image) prev.obj.image = o.image;
+        if (!prev.obj.tiles && o.tiles) prev.obj.tiles = o.tiles;
+        const towns = [
+          ...((prev.obj.nativeTowns as string[]) ?? []),
+          ...((o.nativeTowns as string[]) ?? []),
+        ];
+        prev.obj.nativeTowns = [...new Set(towns)];
+      }
+
+      // 每 24 个 mod 让出一帧，避免长任务阻塞交互（卡死防护）
+      processed += 1;
+      if (processed % 24 === 0) {
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+
+    // ── 产出各累加器的条目数组（排序口径与原「按类目装载」完全一致）──
+    // 一次产出全部类目意味着这一段是**同步长任务**（上万个 `buildEntry` + 排序），
+    // 故每处理一个类目让出一帧，避免一次性卡住交互（与上面 mod 循环同款防护）。
+    const yieldFrame = () => new Promise((r) => setTimeout(r, 0));
+    for (const c of DIRECT_CATS) {
+      const list = directAcc[c];
+      list.sort(sortByName);
+      out.set(c, list);
+      await yieldFrame();
+    }
+    for (const c of DEDUP_CATS) {
+      const list: WikiEntry[] = [];
+      for (const { mod, item } of dedupAcc[c].values()) {
+        list.push(buildEntry(mod, c, item));
+      }
+      list.sort(sortByName);
+      out.set(c, list);
+      await yieldFrame();
+    }
+    {
+      // 地形：跨 mod 去重结果一次性入列（每个 mod 只贡献本族 nativeTowns）。
+      // 按显示名升序：原按 `index` 排序是启动器自创，官方 `WikiWindow.cpp` 的地形列表
+      // 同样按 `a.name < b.name`，此处对齐官方。
+      const list: WikiEntry[] = [];
+      for (const { mod, obj } of terrainAcc.values()) {
+        list.push(buildEntry(mod, "terrains", obj));
+      }
+      list.sort(sortByName);
+      out.set("terrains", list);
+      await yieldFrame();
+    }
+    {
+      // 建筑：中立建筑置顶，避免被 370+ 条城镇建筑淹没（用户实测"看不到中立建筑"）。
+      // 置顶语义**优先于**名称序，组内再按显示名升序。
+      const list = out.get("buildings") ?? [];
+      list.sort((a, b) => {
+        const an =
+          String((a.data as Record<string, unknown>).factionId ?? "") === "neutral" ? 0 : 1;
+        const bn =
+          String((b.data as Record<string, unknown>).factionId ?? "") === "neutral" ? 0 : 1;
+        return an - bn || sortByName(a, b);
+      });
+    }
+    // 左栏计数 = 实际聚合条目数（原版法术等已跨 mod 去重，与列表一致）。
+    // 一次装载产出全部类目，故一次写全；此前是每装载一个类目写一次。
+    setCounts((prev) => {
+      const next = { ...prev };
+      for (const [c, list] of out) next[c] = list.length;
+      return next;
+    });
+    // 阵营名映射：合并各 mod 的顶层表（渲染时按 id 取词）
+    setFactionNames((prev) => ({ ...prev, ...namesAcc }));
+    // ⚠️ 装载期间数据源可能又变了（`key` 由调用方给出、`catCacheKeyRef` 已被新一轮改写）：
+    // 这份结果已经过期，**不能**写进缓存（否则新一轮的装载结果会被它顶掉，页面一直显示旧数据）。
+    if (catCacheKeyRef.current === key) catEntriesRef.current = out;
+    setLoading(false);
+    return out;
+  }, [
+    indexed,
+    visibleKeys,
+    sortByName,
+    // `contentLang` 进 deps 是**必需**的：闭包内的 `sortByName` 要按当前语言排序。
+    // 有效性键（含 `epoch`）由调用方以 `key` 传入，见 `catCacheKey`。
+    contentLang,
+  ]);
+
+  /**
+   * 取（必要时启动）某一轮装载 —— **按 `key` 单飞**（single-flight）。
+   *
+   * 同一 `key` 已有装载在跑 → 直接复用那个 promise，不再起第二轮（见 `loadInflightRef`）。
+   * 切类目因此在装载期间也是零成本（只是换个数组取），不会再叠出多轮全量读盘。
+   */
+  const ensureCategoriesLoaded = useCallback(
+    (key: string): Promise<WikiCategoryMap> => {
+      const inflight = loadInflightRef.current;
+      if (inflight && inflight.key === key) return inflight.p;
+      const rec: { key: string; p: Promise<WikiCategoryMap> } = {
+        key,
+        p: loadAllCategories(key),
+      };
+      // 收尾时清掉登记（只清自己那条：期间可能已被新一轮覆盖）
+      rec.p = rec.p.finally(() => {
+        if (loadInflightRef.current === rec) loadInflightRef.current = null;
+      });
+      loadInflightRef.current = rec;
+      return rec.p;
     },
-    [indexed, visibleKeys, sortByName],
+    [loadAllCategories],
   );
+
+  /**
+   * 按 (类目, id) 查条目 —— **全类目**索引（数据源 `catEntriesRef`，见 `entryByIdRef` 注释）。
+   *
+   * 消费者：详情组件的跨模组引用解析（生物升级链、宝物组成组件/所属组合、
+   * 英雄初始部队的生物头像与战争机器判定），以及弹窗（`WikiPopup`）。
+   * 索引未就绪（首次装载中）时返回 `undefined`，调用方各自回退到 mod 本地查找。
+   */
+  const lookupEntry = useCallback((cat: WikiCategory, id: string): WikiEntry | undefined => {
+    const src = catEntriesRef.current;
+    if (!src) return undefined;
+    let m = entryByIdRef.current.get(cat);
+    if (!m) {
+      m = new Map((src.get(cat) ?? []).map((e) => [String(e.id), e]));
+      entryByIdRef.current.set(cat, m);
+    }
+    return m.get(id);
+  }, []);
 
   // 压栈跳转：记录当前选中，再切换（对齐 VCMI navigateTo + navHistory）
   const pushAndSelect = useCallback(
@@ -417,10 +609,10 @@ export function WikiView() {
         return;
       }
       // 2. 从缓存取该 mod 的对应类目对象
-      let mod = cacheRef.current[target.modId];
+      let mod = cacheRef.current.get(target.modId);
       if (!mod) {
         mod = (await loadModCache(target.modId)) ?? undefined;
-        if (mod) cacheRef.current[target.modId] = mod;
+        if (mod) putModCache(cacheRef.current, target.modId, mod);
       }
       const arr = mod ? ((mod[target.category] as unknown[]) ?? []) : [];
       const obj = arr.find((it) => {
@@ -454,9 +646,24 @@ export function WikiView() {
   );
 
   useEffect(() => {
-    // mods 分支在 loadCategory 内部处理（读 index.json），同样需要加载
-    loadCategory(category);
-  }, [category, loadCategory, epoch]);
+    // ⚠️ 只**取**当前类目，不重新装载：装载一次产出全部类目（`ensureCategoriesLoaded`
+    // 按 `catCacheKey` 单飞，切类目不会叠出第二轮全量读盘），之后每次切类目都命中其
+    // 内部缓存 → 零 IPC（这正是"切分类不再卡"的关键）。
+    let cancelled = false;
+    void (async () => {
+      const map = await ensureCategoriesLoaded(catCacheKey);
+      // ⚠️ 必须判 `cancelled`：类目可能在装载期间被切走，此时这份结果属于**上一个类目**，
+      // 再 `setEntries` 会把当前类目的列表顶掉（用户看到"切了分类，列表却没变"）。
+      if (cancelled) return;
+      const list = map.get(category) ?? [];
+      // 跨模组引用索引由 `lookupEntry` 从 `catEntriesRef` 懒建（全类目，不再限定当前类目）
+      setEntries(list);
+      setLoadedCategory(category);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [category, catCacheKey, ensureCategoriesLoaded]);
 
   // 数据重载（如后台阶段二补图完成）后刷新当前详情对象，避免详情页停留在旧的无图对象
   useEffect(() => {
@@ -481,12 +688,46 @@ export function WikiView() {
     if (el) el.scrollTop = 0;
   }, [selectedKey]);
 
-  // 「全部模组」选中后按需加载该 mod 完整缓存（含 description），供右侧栏展示
+  // 「切换类目后按类目记忆 / 恢复中栏滚动位置」的两个 effect 见下方 `filtered` 之后
+
+  /**
+   * 选中条目后按需加载**该 mod 的完整缓存**（`cache.json` 全文），供右侧详情栏使用。
+   *
+   * ## 为什么必须按需（2026-10-16 修复「城镇详情页没有生物/英雄表」）
+   *
+   * `cacheRef` 是**有界 LRU（24 条）**，而一次装载要遍历**全部**可见 mod（572 个，
+   * 见 `loadAllCategories`）—— 装载完只剩最后 24 个 mod 在里面。详情页要的
+   * `creatures` / `heroes` / `resources` / `statIcons` / `factionNames` 都在整份
+   * `cache.json` 里，而 `WikiEntry.data` 只持有**该条目自己那一条**，取不到其余数组。
+   * 原先这条按需加载只对 `mods` 类目生效，于是 `factions` / `creatures` / `heroes` /
+   * `artifacts` / `spells` / `buildings` 的详情页有 96% 的概率拿到 `undefined`
+   * （572 个 mod 里只有 24 个在 LRU 里）→ 生物表 / 英雄表整段不渲染。
+   *
+   * 代价：每次选中**新** mod 的条目多一次 IPC（本地读一份 cache.json，MB 级）——
+   * `mods` 类目一向如此，且 `modCacheMap` 同样是有界 LRU，内存不增长。
+   */
   useEffect(() => {
-    if (selected?.category !== "mods") return;
+    if (!selected) return;
+    // LRU 里已有该 mod（同 mod 的连续点选：一个 town mod 的多个 faction、
+    // 一个生物 mod 的几十条生物）→ 渲染处的 `?? cacheRef.current.get(...)` 直接兜底，
+    // 不必再发一次 IPC。
+    if (cacheRef.current.has(selected.modId)) return;
     let cancelled = false;
     void loadModCache(selected.modId).then((c) => {
-      if (!cancelled) setModCacheMap((m) => ({ ...m, [selected.modId]: c ?? {} }));
+      if (cancelled) return;
+      // 与 `cacheRef` 同理：**只留最近几个**。此前的 `{...m, [id]: c}` 会随"逐个点开
+      // 全部模组"无限增长 —— 每份都是整份 `cache.json`，几百个就是几百 MB。
+      setModCacheMap((m) => {
+        const next = new Map(Object.entries(m));
+        next.delete(selected.modId);
+        next.set(selected.modId, c ?? {});
+        while (next.size > MOD_CACHE_CAP) {
+          const oldest = next.keys().next().value;
+          if (oldest === undefined) break;
+          next.delete(oldest);
+        }
+        return Object.fromEntries(next);
+      });
     });
     return () => {
       cancelled = true;
@@ -530,7 +771,7 @@ export function WikiView() {
   /**
    * 返回后把中栏滚到恢复的高亮行（对齐 VCMI `WikiWindow.cpp:1836 elementList->scrollTo(foundIdx)`）。
    *
-   * 时序陷阱：中栏内容由 `loadCategory(category)` **异步**填充。`setCategory` 之后、装载完成之前，
+   * 时序陷阱：中栏内容由 `loadAllCategories()` **异步**填充。`setCategory` 之后、装载完成之前，
    * `entries` 仍是上一个类目的数据 —— 此刻既找不到目标行，也不代表「目标不在列表里」，
    * 必须等 `loadedCategory` 追平 `category` 再定位（见 `loadedCategory` 的说明，勿用
    * `entries[0].category` 推断："上一个类目恰好为空" 时会误判成目标丢失）。
@@ -553,6 +794,62 @@ export function WikiView() {
     listScrollRef.current?.querySelector('[data-wiki-active="true"]')?.scrollIntoView({ block: "nearest" });
   }, [filtered, selected, visibleCount, category, loadedCategory]);
 
+  /**
+   * 切换类目后**按类目记忆 / 恢复**中栏滚动位置。
+   *
+   * ## 语义（2026-10-17 确认）
+   * - **没打开过的类目** → 从顶部开始；
+   * - **打开过、重新激活的类目** → 回到上次离开的位置（每个类目各记各的）；
+   * - 链接跳转 / 返回（`pendingListScrollRef`）优先滚到目标行，此时**不使用**记忆值。
+   *
+   * ## 为什么必须显式实现（此前这两条都是副作用）
+   * 中栏是**跨类目复用的同一个滚动容器**（见下方 `ref={listScrollRef}` 的 `div`），
+   * DOM 节点不变 → 浏览器保留 `scrollTop`：
+   * - 没打开过的类目要走真装载，期间渲染 4 行骨架 → 内容高度骤降把 `scrollTop` **夹**到 0，
+   *   看着像"回到顶部"，实则是被夹出来的 —— 一旦装载变快或去掉骨架屏，这条就漂；
+   * - 打开过的类目命中 `catEntriesRef`、条目整体替换且中间没有 paint → 位置保留（恰好是想要的）。
+   *
+   * 现在两条都由代码显式决定，不依赖渲染时序的巧合。
+   *
+   * 位置说明：必须排在 `filtered` 之后 —— 恢复前可能要先按记忆位置把分页窗口开够。
+   */
+  // ① 切类目 → 标记"待恢复"。必须排在 ② 之前：同一轮提交里先置位，② 才能在同一 tick 命中。
+  useLayoutEffect(() => {
+    pendingRestoreRef.current = category;
+  }, [category]);
+
+  // ② 等当前类目的条目真的渲染出来后再写回记忆位置
+  useLayoutEffect(() => {
+    if (pendingRestoreRef.current === null) return; // 已恢复过 / 已被跳转接管 → 不再打扰用户后续的滚动
+    // 跳转 / 返回排在前面（见上方「返回后把中栏滚到恢复的高亮行」）：本次不恢复，
+    // 并**顺手取消**本次激活的恢复资格，否则后续 `visibleCount` 变大时会把记忆位置硬塞回来。
+    if (pendingListScrollRef.current) {
+      pendingRestoreRef.current = null;
+      return;
+    }
+    if (pendingRestoreRef.current !== category) return;
+    if (loadedCategory !== category) return; // 列表尚未换成当前类目 → 继续等
+    const el = listScrollRef.current;
+    if (!el) return;
+    const saved = listScrollMemoRef.current.get(category) ?? 0;
+    if (saved <= 0) {
+      el.scrollTop = 0;
+      pendingRestoreRef.current = null;
+      return;
+    }
+    // 记忆位置可能落在分页窗口之外（新类目会把窗口复位到 300 条）→ 先把窗口开够，
+    // 下一次 render 再写入；直接写会被当前内容高度夹掉。
+    const rendered = Math.min(filtered.length, visibleCount);
+    if (rendered > 0 && saved > el.scrollHeight - el.clientHeight && visibleCount < filtered.length) {
+      const rowH = el.scrollHeight / rendered;
+      const need = Math.ceil(saved / Math.max(rowH, 1)) + 50;
+      setVisibleCount((c) => Math.min(Math.max(c, need), filtered.length));
+      return;
+    }
+    el.scrollTop = saved;
+    pendingRestoreRef.current = null;
+  }, [category, loadedCategory, visibleCount, filtered]);
+
   // ⚠️ **未就绪时只渲染蒙层，不渲染任何内容**（早返回）：
   // 被蒙层遮住的内容照样会渲染、跑 effect、拉数据（列表、图片、甚至按需合成预览），
   // 用户却完全看不见 —— 纯浪费，首次构建期间还会造成前端卡顿（实测）。
@@ -570,7 +867,8 @@ export function WikiView() {
       contentLang={contentLang}
       t={t}
       cacheDir={cacheDir}
-      getModCache={(modId) => cacheRef.current[modId]}
+      getModCache={(modId) => cacheRef.current.get(modId)}
+      getEntry={lookupEntry}
       onNavigate={navigateTo}
     >
       <div className="relative flex h-full gap-3 p-3">
@@ -620,14 +918,33 @@ export function WikiView() {
               筛选维度按类目变化的部分全部收进浮层（见 WikiFilterPanel），
               以保证任何类目下输入框宽度与列表上沿都恒定。 */}
           <div className="flex items-center gap-1.5">
-            <div className="relative min-w-0 flex-1">
+            <div className="group relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t.wiki.searchPlaceholder}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800/70 py-2 pl-8 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                className={cn(
+                  "w-full rounded-lg border border-slate-700 bg-slate-800/70 py-2 pl-8 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-blue-500",
+                  // 有内容时右侧留出 X 图标的位置
+                  query ? "pr-8" : "pr-3",
+                )}
               />
+              {/* 清空按钮：**仅在有输入时出现**（没内容可清时不占位、不分散注意），
+                  hover / focus 时才显形 —— 与输入框的 hover 语义一致，不额外引入常驻元素。
+                  VCMI 的 CTextInput 没有这个按钮（它的做法是搜索框旁一个常驻 hint 标签，
+                  见 WikiWindow.cpp:1032-1034），这里是我们补的可用性改进。 */}
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  title={t.wiki.searchClear}
+                  aria-label={t.wiki.searchClear}
+                  className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-slate-500 opacity-0 transition-opacity hover:text-slate-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
             <WikiFilterPanel
               key={category}
@@ -649,6 +966,10 @@ export function WikiView() {
           className="min-h-0 flex-1 overflow-y-auto"
           onScroll={(ev) => {
             const el = ev.currentTarget;
+            // 记下当前类目的滚动位置（切走再切回时按它恢复）。
+            // ⚠️ 只在用户可见的滚动期间记录：`loading` 时渲染的是 4 行骨架，内容变矮会把
+            // `scrollTop` 夹到 0 —— 那是滚动容器的高度限制，不是用户的位置，不能覆盖记忆值。
+            if (!loading) listScrollMemoRef.current.set(category, el.scrollTop);
             if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) {
               setVisibleCount((c) => (c < filtered.length ? c + 300 : c));
             }
@@ -774,12 +1095,20 @@ export function WikiView() {
               contentLang={contentLang}
               t={t}
               cacheDir={cacheDir}
-              modCache={modCacheMap[selected.modId] ?? cacheRef.current[selected.modId]}
+              modCache={
+                modCacheMap[selected.modId] ?? cacheRef.current.get(selected.modId)
+              }
+              getEntry={lookupEntry}
               onNavigate={navigateTo}
             />
           ) : (
-            <div className="flex h-full items-center justify-center text-sm text-slate-600">
-              {t.wiki.search}
+            // 未选中条目时的右栏空态。对齐 VCMI `vcmi.wiki.content.placeholder`
+            // （`WikiWindow.cpp:1195`：未选中时 contentBox->setText(...)）——
+            // 官方用的是**指令式句子**而非名词/图标：它同时回答"这面板是干嘛的"
+            // 和"我该做什么"。此前这里显示 `t.wiki.search`（"搜索"），那是搜索框的
+            // 提示词，放在内容区只会让人以为要在这里输入。
+            <div className="flex h-full items-center justify-center px-6 text-center text-sm leading-relaxed text-slate-600">
+              {t.wiki.contentPlaceholder}
             </div>
           )}
         </div>

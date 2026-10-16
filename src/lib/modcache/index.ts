@@ -61,8 +61,24 @@ export interface WikiIndex {
   generatedAt?: number;
   version?: number;
   mods: {
+    /** VCMI modId：磁盘目录名**小写**归一（与 VCMI 主键同形态，见 `modIdKey`） */
     modId: string;
+    /** 磁盘目录原名（保留大小写，可能含空格）——磁盘定位用它，不要用 `modId` */
     diskName?: string;
+    /**
+     * 模组磁盘位置的**来源根标识**：`game`（游戏目录 `Mods/`）/ `user`（用户数据 `Mods/`）
+     * / `realm`（领域 `vcmi/Mods`）/ `abs`（未命中已知根，此时 `modPathRel` 是绝对路径）。
+     *
+     * 与 `modPathRel` 配对使用：按当前 `launcher.json` 解出对应根的绝对路径，拼上 `modPathRel`
+     * 才是最终路径。**刻意不存绝对路径** —— 缓存目录常被整体复制复用（换机器/换路径），
+     * 绝对路径随即失效；而"相对 `launcher.json`"也不成立（它与游戏目录可能跨盘符，
+     * Windows 无法表示跨盘相对路径）。详见后端 `modpath_root_rel`。
+     */
+    modPathRoot?: string;
+    /** 相对 `modPathRoot` 的路径（`/` 分隔，跨平台可移植） */
+    modPathRel?: string;
+    /** 缓存相对目录 `mods/<sanitize(modId)>`（后端 `index.rs` 写入） */
+    cacheDir?: string;
     /** 顶层父 mod id（子模组指向父；顶层为自身），由后端 `batch.rs` 写入 */
     parentId?: string;
     type?: string;
@@ -79,10 +95,12 @@ export interface WikiIndex {
  * modId 的**比较键**（小写）。
  *
  * VCMI 的规范 modId 是「磁盘目录名小写、点号分层」（见 `references/vcmi/lib/modding/ModManager.cpp`
- * 的 `to_lower_copy`；`getModDescription` 甚至 `assert` 入参已小写）。因此 `modSettings.json`
- * 里写的是 `fairytale`，而缓存索引沿用磁盘原名 `Fairytale` —— 两侧**必须按小写比较**才能命中。
+ * 的 `to_lower_copy`；`getModDescription` 甚至 `assert` 入参已小写）。
  *
- * 只用于查表比较；传给后端 / 拼路径时仍用原始 id（后端有大小写无关解析）。
+ * 后端 `norm_mod_id` 现已按同一口径归一，正常情况下入参**已经是小写**，本函数是幂等的。
+ * 保留它只为兜底两类非当前口径的来源：
+ * ① 旧版本生成的缓存索引 / 外部 mock（`modId` 仍是磁盘原名如 `Fairytale`）；
+ * ② 手写的 `modSettings.json`（大小写不受控）。
  */
 export function modIdKey(id: string): string {
   return (id ?? "").toLowerCase();

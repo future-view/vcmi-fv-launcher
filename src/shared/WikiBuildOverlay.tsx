@@ -4,15 +4,16 @@ import { getWikiStatus, subscribeWikiStatus } from "@/lib/modcache/status";
 import { LoadingOverlay } from "@/shared/LoadingOverlay";
 
 /** 缓存构建阶段（与 `status.stages` 的键一致） */
-export type BuildStage = "data" | "assets" | "hd";
+export type BuildStage = "prep" | "data" | "assets" | "hd";
 
 /**
  * 三条进度条：`labelKey` 是 `t.wiki` 的键，`bar` 是配色。
  *
- * ⚠️ **文案一律走 i18n**（`src/i18n/{types,zh-CN,en}.ts`）—— 这里绝不硬编码中文/英文，
+ * ⚠️ **文案一律走 i18n**（`src/i18n/{types,zh-CN,en,ru,pl,de}.ts`）—— 这里绝不硬编码中文/英文，
  * 否则某一语言界面下会漏出另一种语言。
  */
 const ROWS = [
+  { key: "prep", labelKey: "stagePrep", bar: "bg-slate-400" },
   { key: "data", labelKey: "stageData", bar: "bg-blue-500" },
   { key: "assets", labelKey: "stageAssets", bar: "bg-sky-500" },
   { key: "hd", labelKey: "stageHd", bar: "bg-emerald-500" },
@@ -20,6 +21,7 @@ const ROWS = [
 
 /** 阶段 → i18n 键（与 `ROWS` 的 `labelKey` 同一套） */
 const STAGE_LABEL_KEY = {
+  prep: "stagePrep",
   data: "stageData",
   assets: "stageAssets",
   hd: "stageHd",
@@ -120,9 +122,20 @@ export function useWikiBuilding(): boolean {
 export function StageRows({ stages }: { stages: readonly BuildStage[] }) {
   const { t } = useI18n();
   const s = useSyncExternalStore(subscribeWikiStatus, getWikiStatus, getWikiStatus);
+  // `prep`（扫描模组目录）是**所有页面共用的前置阶段**：排序前要对每个 mod 目录递归
+  // 枚举估成本，冷缓存下是分钟级且发生在第一个 mod 开工之前。它不属于任何页面的
+  // `deps`（不参与撤除判定），但只要后端报过它就始终显示 —— 否则那段分钟级工作
+  // 在 UI 上就是"0% 静止一分钟"（2026-10-16 实测 63 s，是"卡在 0%"投诉的来源）。
+  const prep = s.stages?.prep;
+  const rows = ROWS.filter(
+    (r) =>
+      (r.key === "prep"
+        ? !!prep && prep.total > 0
+        : stages.includes(r.key) && (r.key !== "hd" || s.hdEnabled)),
+  );
   return (
     <div className="w-[60%] max-w-md space-y-1.5">
-      {ROWS.filter((r) => stages.includes(r.key) && (r.key !== "hd" || s.hdEnabled)).map((r) => {
+      {rows.map((r) => {
         const p = s.stages?.[r.key] ?? { done: 0, total: 0 };
         const pct = p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
         return (

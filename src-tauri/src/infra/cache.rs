@@ -48,3 +48,15 @@ pub(crate) fn cfg_cache_get<T>(
     }
     v
 }
+
+/// 清空小缓存并**收缩容器**（构建结束释放常驻内存，见 [`crate::infra::lru::SizedCache::clear`]）。
+pub(crate) fn cfg_cache_clear<T>(
+    cache: &'static std::sync::OnceLock<Mutex<Vec<(String, std::sync::Arc<T>)>>>,
+) {
+    if let Some(list) = cache.get() {
+        if let Ok(mut g) = list.lock() {
+            g.clear();
+            g.shrink_to_fit();
+        }
+    }
+}

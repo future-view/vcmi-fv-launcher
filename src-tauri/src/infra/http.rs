@@ -239,7 +239,9 @@ fn rules_value() -> Vec<MirrorRule> {
 
 /// hosts 匹配：精确域名或子域（`.suffix`）。
 fn hosts_match(hosts: &[String], host: &str) -> bool {
-    hosts.iter().any(|e| e == host || host.ends_with(&format!(".{e}")))
+    hosts
+        .iter()
+        .any(|e| e == host || host.ends_with(&format!(".{e}")))
 }
 
 /// 按规则改写 URL。占位符缺值/无法解析 → `None`（跳过该规则并记日志，不阻断回退链，§3.2.3）。
@@ -294,10 +296,13 @@ fn build_client(with_proxy: bool) -> Result<Client, String> {
         .connect_timeout(Duration::from_secs(12));
     if with_proxy {
         if let Some(p) = proxy_value() {
-            b = b.proxy(Proxy::all(&p).map_err(|e| be_err("infra_proxy_invalid", &format!("{}", e)))?);
+            b = b.proxy(
+                Proxy::all(&p).map_err(|e| be_err("infra_proxy_invalid", &format!("{}", e)))?,
+            );
         }
     }
-    b.build().map_err(|e| be_err("infra_http_client_create_failed", &format!("{}", e)))
+    b.build()
+        .map_err(|e| be_err("infra_http_client_create_failed", &format!("{}", e)))
 }
 
 /// 执行一个 GET 的**连接层自动回退**：（粘性出口→）直连 → 逐条镜像规则 → 代理（仅 GitHub）。
@@ -326,7 +331,12 @@ where
                 match rewritten {
                     Some(mu) => match build(&direct, &mu).send() {
                         Ok(resp) if !retryable_status(resp.status().as_u16()) => {
-                            return Ok((resp, Egress::Mirror { host: url_host(&mu) }));
+                            return Ok((
+                                resp,
+                                Egress::Mirror {
+                                    host: url_host(&mu),
+                                },
+                            ));
                         }
                         // 粘性镜像坏了（连接失败或坏状态码）：清除后走完整链重选
                         Ok(_) | Err(_) => set_sticky(None),
@@ -449,7 +459,11 @@ pub fn http_get(url: &str, etag: Option<&str>) -> Result<(u16, Option<String>, V
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
     if status == 304 {
-        return Ok((304, new_etag.or_else(|| etag.map(|s| s.to_string())), Vec::new()));
+        return Ok((
+            304,
+            new_etag.or_else(|| etag.map(|s| s.to_string())),
+            Vec::new(),
+        ));
     }
     if !(200..300).contains(&status) {
         return Err(be_err("infra_server_returned", &format!("{}", status)));
@@ -496,11 +510,15 @@ mod tests {
         assert!(!host_is_github("notgithub.com"));
         assert!(!host_is_github("gitee.com"));
         // URL 解析（大小写不敏感、忽略路径）
-        assert!(is_github_url("https://GitHub.com/a/b/releases/download/v1/x.zip"));
+        assert!(is_github_url(
+            "https://GitHub.com/a/b/releases/download/v1/x.zip"
+        ));
         assert!(is_github_url(
             "https://raw.githubusercontent.com/vcmi/x/develop/vcmi-1.7.json"
         ));
-        assert!(!is_github_url("https://gitee.com/futureview/x/raw/master/index.json"));
+        assert!(!is_github_url(
+            "https://gitee.com/futureview/x/raw/master/index.json"
+        ));
     }
 
     #[test]
@@ -524,7 +542,8 @@ mod tests {
     #[test]
     fn template_rewrite_examples() {
         // 方案 §3.2.3 例 1：raw → jsdelivr
-        let raw = "https://raw.githubusercontent.com/vcmi/vcmi-mods-repository/develop/vcmi-1.7.json";
+        let raw =
+            "https://raw.githubusercontent.com/vcmi/vcmi-mods-repository/develop/vcmi-1.7.json";
         let r = rule_template("https://cdn.jsdelivr.net/gh/{owner}/{repo}@{ref}/{path}");
         assert_eq!(
             rewrite_url(raw, &r).as_deref(),
@@ -567,7 +586,10 @@ mod tests {
     fn host_scope_matching() {
         // D5：任意主机可配；子域匹配；近似域不误命中
         assert!(hosts_match(&["github.com".into()], "github.com"));
-        assert!(hosts_match(&["githubusercontent.com".into()], "raw.githubusercontent.com"));
+        assert!(hosts_match(
+            &["githubusercontent.com".into()],
+            "raw.githubusercontent.com"
+        ));
         assert!(!hosts_match(&["github.com".into()], "notgithub.com"));
         assert!(hosts_match(&["gitee.com".into()], "gitee.com"));
         // 例 6：Gitee 不命中纯 GitHub 规则 → 恒直连

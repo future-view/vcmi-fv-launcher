@@ -74,8 +74,9 @@ export const en: LangDict = {
       cost: "Cost",
     },
     allMods: "All Mods",
-    search: "Search",
     searchPlaceholder: "Search name…",
+    searchClear: "Clear search",
+    contentPlaceholder: "Select an entry to view its description.",
     filter: {
       title: "Filter",
       reset: "Reset",
@@ -114,6 +115,7 @@ export const en: LangDict = {
     stageData: "Reading game data",
     stageAssets: "Extracting game assets",
     stageHd: "Generating HD assets",
+    stagePrep: "Scanning mod directories",
     readyHintTemplate: "This page requires: {stages}",
     stageSeparator: ", ",
     readyHintRest: "(the rest continues in the background; this page is unaffected)",

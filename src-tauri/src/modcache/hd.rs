@@ -315,9 +315,11 @@ pub(crate) fn grad_energy(rgba: &[u8], w: u32, h: u32) -> f64 {
             if i + 8 > rgba.len() {
                 continue;
             }
-            let a = 0.299 * rgba[i] as f32 + 0.587 * rgba[i + 1] as f32 + 0.114 * rgba[i + 2] as f32;
-            let b =
-                0.299 * rgba[i + 4] as f32 + 0.587 * rgba[i + 5] as f32 + 0.114 * rgba[i + 6] as f32;
+            let a =
+                0.299 * rgba[i] as f32 + 0.587 * rgba[i + 1] as f32 + 0.114 * rgba[i + 2] as f32;
+            let b = 0.299 * rgba[i + 4] as f32
+                + 0.587 * rgba[i + 5] as f32
+                + 0.114 * rgba[i + 6] as f32;
             sum += (a - b).abs() as f64;
             n += 1;
         }
@@ -377,7 +379,8 @@ pub(crate) fn rich_texture_pct(rgba: &[u8], w: u32, h: u32) -> u32 {
     if n == 0 || rgba.len() < n * 4 {
         return 0;
     }
-    let mut set: std::collections::HashSet<[u8; 4]> = std::collections::HashSet::with_capacity(1024);
+    let mut set: std::collections::HashSet<[u8; 4]> =
+        std::collections::HashSet::with_capacity(1024);
     for i in 0..n {
         set.insert([
             rgba[i * 4],
@@ -735,12 +738,7 @@ fn collect_webp(dir: &Path, out: &mut Vec<PathBuf>) {
 /// （边缘保持，只取边缘一侧颜色）都不需要。
 ///
 /// `hd_compare` 的实验列也调用本函数 —— 否则那一列会比生产产物多一圈彩边，失去对照意义。
-pub(crate) fn preprocess_for_interpolation(
-    rgba: &[u8],
-    w: u32,
-    h: u32,
-    apply: bool,
-) -> Vec<u8> {
+pub(crate) fn preprocess_for_interpolation(rgba: &[u8], w: u32, h: u32, apply: bool) -> Vec<u8> {
     if !apply {
         return rgba.to_vec();
     }
@@ -924,14 +922,13 @@ pub(crate) fn upscale_file(
         // 像素画档不需要 —— xBRZ 是边缘保持，只取边缘一侧颜色，本就不会混色。
         let src_rgba = preprocess_for_interpolation(img.as_raw(), w, h, !pixel_like);
         // 低通插值（Lanczos3 族）必须走预乘插值（见 `upscale_lowpass`）；xBRZ / AI 直调
-        let run_upscaler =
-            |u: &'static dyn Upscaler, rgba: &[u8]| -> Option<(Vec<u8>, u32, u32)> {
-                if u.id() == "lanczos3" {
-                    upscale_lowpass(u, rgba, w, h, k)
-                } else {
-                    upscale_with(u, rgba, w, h, k)
-                }
-            };
+        let run_upscaler = |u: &'static dyn Upscaler, rgba: &[u8]| -> Option<(Vec<u8>, u32, u32)> {
+            if u.id() == "lanczos3" {
+                upscale_lowpass(u, rgba, w, h, k)
+            } else {
+                upscale_with(u, rgba, w, h, k)
+            }
+        };
         // AI 是增强项：失败（模型不可用 / 推理异常）时**静默回退** Lanczos3，绝不因此丢图
         let mut used_ai = upscaler.id() == "ai";
         let Some((up, uw, uh)) = run_upscaler(upscaler, &src_rgba).or_else(|| {

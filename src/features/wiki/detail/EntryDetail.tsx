@@ -1,5 +1,5 @@
 import type { LangDict } from "@/i18n/types";
-import type { WikiEntry, WikiLinkTarget } from "@/lib/modcache";
+import type { WikiCategory, WikiEntry, WikiLinkTarget } from "@/lib/modcache";
 import { fullImgCandidates, pickName } from "@/lib/modcache";
 import { HdImg } from "@/shared/HdImg";
 import { useHdRate } from "@/shared/useHdRate";
@@ -14,7 +14,16 @@ import { SkillDetail } from "./SkillDetail";
 import { ModDetail } from "./ModDetail";
 import { TerrainDetail } from "./TerrainDetail";
 
-export function EntryDetail({ entry, contentLang, t, cacheDir, modCache, onNavigate, compact }: DetailProps) {
+export function EntryDetail({
+  entry,
+  contentLang,
+  t,
+  cacheDir,
+  modCache,
+  onNavigate,
+  compact,
+  getEntry,
+}: DetailProps) {
   const d = entry.data as Record<string, unknown>;
 
   const name = pickName(entry.name, contentLang);
@@ -70,7 +79,7 @@ export function EntryDetail({ entry, contentLang, t, cacheDir, modCache, onNavig
       )}
 
       {/* 按类型渲染详情 */}
-      {renderDetail(entry, d, contentLang, t, onNavigate, cacheDir, modCache, compact)}
+      {renderDetail(entry, d, contentLang, t, onNavigate, cacheDir, modCache, compact, getEntry)}
     </div>
   );
 }
@@ -84,19 +93,20 @@ function renderDetail(
   cacheDir?: string | null,
   modCache?: Record<string, unknown>,
   compact?: boolean,
+  getEntry?: (category: WikiCategory, id: string) => WikiEntry | undefined,
 ) {
   const modId = entry.modId;
   switch (entry.category) {
     case "buildings":
       return <BuildingDetail d={d} lang={lang} modId={modId} cacheDir={cacheDir} resources={modCache?.resources as ResourceInfo[] | undefined} onNavigate={onNavigate} compact={compact} />;
     case "creatures":
-      return <CreatureDetail d={d} lang={lang} modId={modId} cacheDir={cacheDir} modCache={modCache} t={t} onNavigate={onNavigate} compact={compact} />;
+      return <CreatureDetail d={d} lang={lang} modId={modId} cacheDir={cacheDir} modCache={modCache} t={t} onNavigate={onNavigate} compact={compact} getEntry={getEntry} />;
     case "heroes":
-      return <HeroDetail d={d} lang={lang} t={t} modId={modId} cacheDir={cacheDir} modCache={modCache} onNavigate={onNavigate} compact={compact} />;
+      return <HeroDetail d={d} lang={lang} t={t} modId={modId} cacheDir={cacheDir} modCache={modCache} onNavigate={onNavigate} compact={compact} getEntry={getEntry} />;
     case "factions":
-      return <FactionDetail d={d} lang={lang} t={t} modId={modId} cacheDir={cacheDir} modCache={modCache} onNavigate={onNavigate} />;
+      return <FactionDetail d={d} lang={lang} t={t} modId={modId} cacheDir={cacheDir} modCache={modCache} onNavigate={onNavigate} getEntry={getEntry} />;
     case "artifacts":
-      return <ArtifactDetail d={d} lang={lang} t={t} modId={modId} cacheDir={cacheDir} modCache={modCache} onNavigate={onNavigate} compact={compact} />;
+      return <ArtifactDetail d={d} lang={lang} t={t} modId={modId} cacheDir={cacheDir} modCache={modCache} onNavigate={onNavigate} compact={compact} getEntry={getEntry} />;
     case "spells":
       return <SpellDetail d={d} lang={lang} t={t} modId={modId} cacheDir={cacheDir} resources={modCache?.resources as ResourceInfo[] | undefined} compact={compact} />;
     case "skills":

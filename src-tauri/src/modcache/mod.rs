@@ -44,7 +44,10 @@ pub(crate) fn assets_enabled() -> bool {
 /// 供 `list_installed_mods`（**mods / realms 页面**）复用——此前这两处只能拿到
 /// VCMI `mod.json` 的**英文原文**（见 `src/lib/tauri.ts` 的 InstalledMod.desc 注释），
 /// 现在可按界面语言显示中文名/描述。缓存缺失时返回 None（不影响既有字段）。
-pub(crate) fn cached_mod_meta(cache_root: &std::path::Path, mod_id: &str) -> Option<serde_json::Value> {
+pub(crate) fn cached_mod_meta(
+    cache_root: &std::path::Path,
+    mod_id: &str,
+) -> Option<serde_json::Value> {
     if cache_root.as_os_str().is_empty() || mod_id.is_empty() {
         return None;
     }
@@ -89,7 +92,10 @@ fn cache_dir_index(cache_root: &std::path::Path) -> std::collections::HashMap<St
 }
 
 /// 按 modId（大小写无关）解析出缓存目录的磁盘名。
-fn resolve_cache_dir(idx: &std::collections::HashMap<String, String>, mod_id: &str) -> Option<String> {
+fn resolve_cache_dir(
+    idx: &std::collections::HashMap<String, String>,
+    mod_id: &str,
+) -> Option<String> {
     let key = sanitize_id(mod_id).to_lowercase();
     idx.get(&key).cloned()
 }
@@ -105,7 +111,9 @@ pub(crate) fn cached_mod_metas(cache_root: &std::path::Path, mod_ids: &[String])
     let idx = cache_dir_index(cache_root);
     let mut metas = serde_json::Map::new();
     for mid in mod_ids {
-        let Some(dir) = resolve_cache_dir(&idx, mid) else { continue };
+        let Some(dir) = resolve_cache_dir(&idx, mid) else {
+            continue;
+        };
         let Ok(text) = std::fs::read_to_string(cache_root.join(dir).join("cache.json")) else {
             continue;
         };
@@ -130,7 +138,9 @@ pub(crate) fn cached_town_cards(cache_root: &std::path::Path, mod_ids: &[String]
     let h3_i18n = h3_core_data_dir().and_then(|d| load_h3_core_i18n(&d));
     let mut cards: Vec<Value> = Vec::new();
     for mid in mod_ids {
-        let Some(dir) = resolve_cache_dir(&idx, mid) else { continue };
+        let Some(dir) = resolve_cache_dir(&idx, mid) else {
+            continue;
+        };
         let Ok(text) = std::fs::read_to_string(cache_root.join(dir).join("cache.json")) else {
             continue;
         };
@@ -194,10 +204,30 @@ pub(crate) fn set_assets_enabled(v: bool) {
     WIKI_ASSETS_ENABLED.with(|c| c.set(v))
 }
 
-/// 将 mod_id 清洗为安全的缓存文件名
+/// 将 mod_id 清洗为安全的缓存目录名。
+///
+/// ⚠️ 对**合法 modId 是恒等变换** —— 这是刻意的，理由见下。
+///
+/// VCMI 的 modId **就是磁盘目录路径**（`lib/modding/ModManager.cpp:44-59`：遍历 `MODS/`
+/// 取子目录名、`to_lower_copy` 归一、子模组用 `.` 连接），因此 modId 必然是一个合法目录名，
+/// **不可能**含 `\ / : * ? " < > |`。所以保留「字母数字 + `_` `-` `.` + 空格」之后，
+/// 替换分支实际上永不触发，缓存目录名与 modId 保持**双射**（可由目录名反推 modId，
+/// 跨模组引用 `<modId>:<id>` 也能直接落盘定位）。
+///
+/// 历史教训：此前只保留 `_-.`、把**空格替换成 `_`**，实测 572 个模组里 50 个中招
+/// （`29- Jadelake-town` → `29-_Jadelake-town`、`66expfixmod.New Pavilion` →
+/// `66expfixmod.New_Pavilion`、`Forgotten Field---sw` → `Forgotten_Field---sw`）。
+/// 后果有二：① 双射被破坏，无法从缓存目录反推 modId；② 与 `a b` / `a_b`、`a,b` / `a.b`
+/// 这类真实存在的不同 modId 存在**撞名**隐患（当前侥幸为 0 组，但规则本身不安全）。
 pub(crate) fn sanitize_id(id: &str) -> String {
     id.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' || c == '.' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || matches!(c, '_' | '-' | '.' | ' ') {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 

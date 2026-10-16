@@ -1,72 +1,58 @@
 mod commands;
 mod infra;
+mod modcache;
 mod realms;
 mod repository;
 mod runtime;
 mod state;
 mod updater;
 mod vcmi;
-mod modcache;
 
 use tauri::Manager;
 
 use state::AppPaths;
 
 use commands::{
-    build_all_mod_cache, cancel_cache_build, close_window, minimize_window,
-    toggle_maximize_window, detect_edition,
-    clear_mod_validation, gamedata_health_check, import_game_files, install_local_mod, preview_mod_zip,
-    detect_vcmi_paths, generate_town_preview, get_compile_info, get_dirs,
-    build_mods_cache_batch, cache_build_progress, wiki_cache_state,
-    build_realm_cache_urgent, cancel_realm_cache_build, check_realm_assets, realm_cache_build_progress,
-    get_mods_cache_dir, get_primary_monitor, list_monitors, is_debug, launch_editor, launch_game, launch_native_launcher,
-    list_resolutions, open_in_explorer, read_launcher_config, read_mod_settings, read_mod_cache,
-    read_vcmi_settings, read_cache_index, scan_mods, set_launcher_pref,
-    set_ai_hd_enhance,
-    set_ai_model,
-    list_ai_models,
-    verify_ai_model,
-    set_hd_enhance,
-    set_town_preview,
-    set_realm_mod_auto_check,
-    set_realm_publish_target,
-    set_network_proxy,
-    set_network_mirror_rules,
-    set_hd_edition_use,
-    set_hd_edition_scale,
-    hd_edition_status,
-    list_installed_mods, read_mod_metas, read_town_cards,
-    read_showcase_slides, ensure_showcase_audio,
-    suggest_user_data_dir, get_runtime_info, write_launcher_config, write_mod_settings,
-    patch_preset_lang_mods, log_frontend, set_ui_lang, set_vcmi_language,
-    write_vcmi_settings,
-    read_def_bytes,
-    runtime_status, runtime_install, runtime_cancel, runtime_uninstall,
-};
-use realms::{
-    activate_realm, check_realm_id, create_realm, deactivate_realm, delete_realm, export_realm,
-    cancel_realm_export, preview_realm_publish,
-    get_active_realm,
-    check_realm_mod_conflicts, check_realm_mods_ready, get_intro_state, import_realm,
-    import_realm_asset, is_vcmi_running, kill_vcmi, list_realms, list_vcmi_processes,
-    list_vcmi_game_processes, mark_intro_played,
-    get_bgm_muted, set_bgm_muted,
-    realm_config_dir, realm_dir, realm_self_check, realm_self_heal, set_realm_maps_blocked,
-    update_realm, rename_realm, list_realm_maps, upload_realm_map, delete_realm_map,
-    native_maps_status, write_realm_presets, repair_game_maps,
-    import_realm_maps_dir, move_realm_map, apply_realm_maps_valve, set_realm_map_filter, realm_mod_ops,
-    list_realm_mods, realm_mod_ref, realm_mod_unref, realm_mod_bundle, realm_mod_delete,
-    realm_mod_import, ensure_realm_lang_visible,
-};
-use repository::{
-    cancel_realm_download, ensure_realm_covers, fetch_realm_index, get_realm_repositories,
-    install_remote_realm, add_realm_repository, remove_realm_repository, test_realm_repository,
-    fetch_mod_index, install_mod_from_repo, cancel_mod_download, auto_check_repos_enabled,
-    list_mod_ledgers, delete_mod,
-};
-use commands::{
     apply_launcher_update, cancel_launcher_update, check_launcher_update, download_launcher_update,
     set_update_manifest_url, set_update_pref,
+};
+use commands::{
+    build_all_mod_cache, build_mods_cache_batch, build_realm_cache_urgent, cache_build_progress,
+    cancel_cache_build, cancel_realm_cache_build, check_realm_assets, clear_mod_validation,
+    close_window, detect_edition, detect_vcmi_paths, ensure_showcase_audio, gamedata_health_check,
+    generate_town_preview, get_compile_info, get_dirs, get_mods_cache_dir, get_primary_monitor,
+    get_runtime_info, hd_edition_status, import_game_files, install_local_mod, is_debug,
+    launch_editor, launch_game, launch_native_launcher, list_ai_models, list_installed_mods,
+    list_monitors, list_resolutions, log_frontend, minimize_window, open_in_explorer,
+    patch_preset_lang_mods, preview_mod_zip, read_cache_index, read_def_bytes,
+    read_launcher_config, read_mod_cache, read_mod_metas, read_mod_settings, read_showcase_slides,
+    release_wiki_caches,
+    read_town_cards, read_vcmi_settings, realm_cache_build_progress, runtime_cancel,
+    runtime_install, runtime_status, runtime_uninstall, scan_mods, set_ai_hd_enhance, set_ai_model,
+    set_hd_edition_scale, set_hd_edition_use, set_hd_enhance, set_launcher_pref,
+    set_network_mirror_rules, set_network_proxy, set_realm_mod_auto_check,
+    set_realm_publish_target, set_town_preview, set_ui_lang, set_vcmi_language,
+    suggest_user_data_dir, toggle_maximize_window, verify_ai_model, wiki_cache_state,
+    write_launcher_config, write_mod_settings, write_vcmi_settings,
+};
+use realms::{
+    activate_realm, apply_realm_maps_valve, cancel_realm_export, check_realm_id,
+    check_realm_mod_conflicts, check_realm_mods_ready, create_realm, deactivate_realm,
+    delete_realm, delete_realm_map, ensure_realm_lang_visible, export_realm, get_active_realm,
+    get_bgm_muted, get_intro_state, import_realm, import_realm_asset, import_realm_maps_dir,
+    is_vcmi_running, kill_vcmi, list_realm_maps, list_realm_mods, list_realms,
+    list_vcmi_game_processes, list_vcmi_processes, mark_intro_played, move_realm_map,
+    native_maps_status, preview_realm_publish, realm_config_dir, realm_dir, realm_mod_bundle,
+    realm_mod_delete, realm_mod_import, realm_mod_ops, realm_mod_ref, realm_mod_unref,
+    realm_self_check, realm_self_heal, rename_realm, repair_game_maps, set_bgm_muted,
+    set_realm_map_filter, set_realm_maps_blocked, update_realm, upload_realm_map,
+    write_realm_presets,
+};
+use repository::{
+    add_realm_repository, auto_check_repos_enabled, cancel_mod_download, cancel_realm_download,
+    delete_mod, ensure_realm_covers, fetch_mod_index, fetch_realm_index, get_realm_repositories,
+    install_mod_from_repo, install_remote_realm, list_mod_ledgers, remove_realm_repository,
+    test_realm_repository,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -197,6 +183,7 @@ pub fn run() {
             check_realm_assets,
             generate_town_preview,
             build_mods_cache_batch,
+            release_wiki_caches,
             cache_build_progress,
             wiki_cache_state,
             build_all_mod_cache,

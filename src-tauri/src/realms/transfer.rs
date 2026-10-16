@@ -3,34 +3,40 @@
 //! 导入的错误串格式（`{code,msg?,realmId?,realmName?}`，含 `conflict:` 前缀分支）是
 //! **前端契约**（见设计文档 §7.1），保持逐字不变。
 
-use crate::infra::berror::be_err;
-use super::base::{REALM_PRESET_ID, ensure_realm_dirs, now_date, read_config};
+use super::base::{ensure_realm_dirs, now_date, read_config, REALM_PRESET_ID};
 use super::maps::sync_realm_maps_meta;
 use super::meta::{get_realm, realm_id_exists, remove_realm_dir_safely, write_realm_meta};
 use super::presets::write_realm_preset;
+use crate::infra::berror::be_err;
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, State};
 use zip::write::FileOptions;
 use zip::ZipArchive;
 use zip::ZipWriter;
 
-use crate::state::AppPaths;
 use crate::infra::links::is_link;
+use crate::state::AppPaths;
 use crate::vcmi::paths::VcmiPaths;
 use crate::vcmi::scan::scan_user_mods_dir;
 
 /// 递归收集目录内文件，写入 `out: (相对包内路径, 绝对路径)`。
 /// 跳过目录联接（借用模组 / 地图阀门不随包分发，设计 §7.1「借用模组不打包」）。
-pub(crate) fn collect_dir(dir: &Path, prefix: &str, out: &mut Vec<(String, PathBuf)>) -> Result<(), String> {
-    for entry in fs::read_dir(dir).map_err(|e| be_err("realm_dir_read_failed", &format!("{}", e)))? {
+pub(crate) fn collect_dir(
+    dir: &Path,
+    prefix: &str,
+    out: &mut Vec<(String, PathBuf)>,
+) -> Result<(), String> {
+    for entry in
+        fs::read_dir(dir).map_err(|e| be_err("realm_dir_read_failed", &format!("{}", e)))?
+    {
         let entry = entry.map_err(|e| be_err("realm_dir_read_failed", &format!("{}", e)))?;
         let name = entry.file_name().to_string_lossy().to_string();
         let path = entry.path();
@@ -49,15 +55,23 @@ pub(crate) fn collect_dir(dir: &Path, prefix: &str, out: &mut Vec<(String, PathB
 
 /// 收集领域快照需要打包的文件：仅 `vcmi/{Mods,Maps,config}` 与 `assets/`；
 /// 排除 `cache`/`logs`/`Saves`、`.introPlayedAt`、`.bgmMuted`、`.prevActivePreset`、`lock` 等用户态点文件。
-pub(crate) fn collect_realm_files(root: &Path, out: &mut Vec<(String, PathBuf)>) -> Result<(), String> {
+pub(crate) fn collect_realm_files(
+    root: &Path,
+    out: &mut Vec<(String, PathBuf)>,
+) -> Result<(), String> {
     let allowed_vcmi = ["Mods", "Maps", "config"];
-    for entry in fs::read_dir(root).map_err(|e| be_err("realm_realm_dir_read_failed", &format!("{}", e)))? {
+    for entry in
+        fs::read_dir(root).map_err(|e| be_err("realm_realm_dir_read_failed", &format!("{}", e)))?
+    {
         let entry = entry.map_err(|e| be_err("realm_realm_dir_read_failed", &format!("{}", e)))?;
         let name = entry.file_name().to_string_lossy().to_string();
         let path = entry.path();
         if name == "vcmi" && path.is_dir() {
-            for sub in fs::read_dir(&path).map_err(|e| be_err("realm_realm_dir_read_failed", &format!("{}", e)))? {
-                let sub = sub.map_err(|e| be_err("realm_realm_dir_read_failed", &format!("{}", e)))?;
+            for sub in fs::read_dir(&path)
+                .map_err(|e| be_err("realm_realm_dir_read_failed", &format!("{}", e)))?
+            {
+                let sub =
+                    sub.map_err(|e| be_err("realm_realm_dir_read_failed", &format!("{}", e)))?;
                 let sname = sub.file_name().to_string_lossy().to_string();
                 if !allowed_vcmi.contains(&sname.as_str()) {
                     continue;
@@ -154,7 +168,11 @@ fn sanitize_lang_packs_in_presets(
         for x in arr {
             let s = match x {
                 Value::String(s) => s.clone(),
-                obj => obj.get("id").and_then(|i| i.as_str()).unwrap_or_default().to_string(),
+                obj => obj
+                    .get("id")
+                    .and_then(|i| i.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
             };
             if !s.is_empty() {
                 declared.insert(s.to_ascii_lowercase());
@@ -185,7 +203,8 @@ fn sanitize_lang_packs_in_presets(
     let tmp = std::env::temp_dir().join(format!("fv-realm-export-{id}.modSettings.json"));
     let out = serde_json::to_string_pretty(&settings)
         .map_err(|e| be_err("realm_json_serialize_failed", &format!("{}", e)))?;
-    fs::write(&tmp, out).map_err(|e| be_err("realm_export_file_create_failed", &format!("{}", e)))?;
+    fs::write(&tmp, out)
+        .map_err(|e| be_err("realm_export_file_create_failed", &format!("{}", e)))?;
     files[idx].1 = tmp.clone();
     Ok(Some(tmp))
 }
@@ -285,11 +304,14 @@ fn write_zip_entries(
             return Ok(PackOutcome::Cancelled);
         }
         hasher.update(rel.as_bytes());
-        let mut src = fs::File::open(abs).map_err(|e| be_err("infra_file_read_failed", &format!("{}", e)))?;
+        let mut src =
+            fs::File::open(abs).map_err(|e| be_err("infra_file_read_failed", &format!("{}", e)))?;
         zip.start_file(rel.as_str(), zip_options(rel))
             .map_err(|e| be_err("realm_archive_write_failed", &format!("{}", e)))?;
         loop {
-            let n = src.read(&mut buf).map_err(|e| be_err("infra_file_read_failed", &format!("{}", e)))?;
+            let n = src
+                .read(&mut buf)
+                .map_err(|e| be_err("infra_file_read_failed", &format!("{}", e)))?;
             if n == 0 {
                 break;
             }
@@ -448,13 +470,14 @@ pub fn export_realm_impl(
     // 语言层剔除：预设里"由启动器运行期注入"的语言包 id 不得随包分发（那是导出方本机的语言选择）。
     // 必须在 checksum 之前完成替换——替换只改路径、不改相对路径，排序与校验和口径不受影响；
     // 临时文件由守护对象在成功/失败/取消任一路径下删除。
-    let _tmp_modsettings = TmpFileGuard(sanitize_lang_packs_in_presets(&id, &root, &realm, &mut files)?);
+    let _tmp_modsettings = TmpFileGuard(sanitize_lang_packs_in_presets(
+        &id, &root, &realm, &mut files,
+    )?);
 
     // 素材缓存：**必须在 checksum 之前加入**（导出/导入两侧都对全部条目求和，
     // 先算 checksum 再塞文件会导致导入校验失败）
     if include_showcase_cache.unwrap_or(false) {
-        if let (Some(mods), Some(cache_root)) =
-            (cache_mods.as_deref(), VcmiPaths::mods_cache_dir())
+        if let (Some(mods), Some(cache_root)) = (cache_mods.as_deref(), VcmiPaths::mods_cache_dir())
         {
             for mod_id in mods {
                 // 原版伪模组不打包：打包它们会白增约 58 MB（撑爆 100 MB 下载上限），
@@ -492,10 +515,12 @@ pub fn export_realm_impl(
     let dest_path = Path::new(&dest);
     if let Some(parent) = dest_path.parent() {
         if !parent.as_os_str().is_empty() {
-            fs::create_dir_all(parent).map_err(|e| be_err("realm_export_dir_create_failed", &format!("{}", e)))?;
+            fs::create_dir_all(parent)
+                .map_err(|e| be_err("realm_export_dir_create_failed", &format!("{}", e)))?;
         }
     }
-    let file = fs::File::create(dest_path).map_err(|e| be_err("realm_export_file_create_failed", &format!("{}", e)))?;
+    let file = fs::File::create(dest_path)
+        .map_err(|e| be_err("realm_export_file_create_failed", &format!("{}", e)))?;
     let mut zip = ZipWriter::new(file);
 
     // **单遍流式**打包（见 [`write_zip_entries`]）；取消则删掉半成品回到可重试态。
@@ -524,7 +549,8 @@ pub fn export_realm_impl(
 
     // ZIP 注释：包格式魔数，便于快速识别合法包（§7.1）
     zip.set_comment("vcmirealm");
-    zip.finish().map_err(|e| be_err("realm_archive_finalize_failed", &format!("{}", e)))?;
+    zip.finish()
+        .map_err(|e| be_err("realm_archive_finalize_failed", &format!("{}", e)))?;
 
     // 索引条目的 `sha256` = **整个 .vcmirealm 文件的 SHA-256**（与 `install_remote_realm` 的下载校验同源）；
     // 包内 `realm.json.checksum` = 条目内容校验和（与导入校验同源）。
@@ -538,12 +564,18 @@ pub fn export_realm_impl(
         .get("mods")
         .and_then(|m| m.get("borrowed"))
         .and_then(|b| b.as_array())
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect::<Vec<_>>())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_default();
     // 标签：「键存在即声明」（含空数组 = 显式清空）——realm.json 无 tags 键时不写键，
     // 合并层据此保留索引既有值（键缺失 = 未声明；见仓库索引规范 §9.2）。
     let tags: Option<Vec<String>> = realm.get("tags").and_then(|t| t.as_array()).map(|a| {
-        a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect::<Vec<_>>()
+        a.iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect::<Vec<_>>()
     });
     let version = realm
         .get("version")
@@ -632,8 +664,9 @@ pub fn export_realm_impl(
             let idx = json!({ "realms": { id.clone(): entry.clone() } });
             fs::write(
                 &frag,
-                serde_json::to_string_pretty(&idx)
-                    .map_err(|e| be_err("realm_index_fragment_serialize_failed", &format!("{}", e)))?,
+                serde_json::to_string_pretty(&idx).map_err(|e| {
+                    be_err("realm_index_fragment_serialize_failed", &format!("{}", e))
+                })?,
             )
             .map_err(|e| be_err("realm_index_fragment_write_failed", &format!("{}", e)))?;
             index_path = Some(frag);
@@ -692,10 +725,10 @@ fn version_change_warnings(prev: Option<&Value>, entry: &Value) -> Vec<Value> {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let same_version = p.get("version").and_then(|v| v.as_str())
-        == entry.get("version").and_then(|v| v.as_str());
-    let diff_sha = p.get("sha256").and_then(|v| v.as_str())
-        != entry.get("sha256").and_then(|v| v.as_str());
+    let same_version =
+        p.get("version").and_then(|v| v.as_str()) == entry.get("version").and_then(|v| v.as_str());
+    let diff_sha =
+        p.get("sha256").and_then(|v| v.as_str()) != entry.get("sha256").and_then(|v| v.as_str());
     if same_version && diff_sha {
         vec![warn("version-unchanged", &new_ver)]
     } else if !same_version && !diff_sha {
@@ -827,8 +860,12 @@ fn derive_url_base(existing: &Value) -> Option<String> {
         };
         let Some(idx) = d.find("/raw/") else { continue };
         let rest = &d[idx + 5..];
-        let Some(seg_end) = rest.find('/') else { continue };
-        *counts.entry(format!("{}/", &d[..idx + 5 + seg_end])).or_default() += 1;
+        let Some(seg_end) = rest.find('/') else {
+            continue;
+        };
+        *counts
+            .entry(format!("{}/", &d[..idx + 5 + seg_end]))
+            .or_default() += 1;
     }
     counts
         .into_iter()
@@ -933,7 +970,9 @@ fn normalize_remote_url(url: &str) -> Option<String> {
 /// 只服务 `init.defaultBranch` 这类单值键，不必实现完整 ini 解析。
 fn git_config_value(text: &str, key: &str) -> Option<String> {
     for line in text.lines() {
-        let Some((k, v)) = line.trim().split_once('=') else { continue };
+        let Some((k, v)) = line.trim().split_once('=') else {
+            continue;
+        };
         if k.trim().eq_ignore_ascii_case(key) {
             let v = v.trim().trim_matches('"');
             if !v.is_empty() {
@@ -1030,7 +1069,11 @@ fn plan_publish(
                 .unwrap_or_else(|| "png".to_string());
             (rel.to_string(), format!("cover.{ext}"))
         })
-        .filter(|(rel, _)| realm_root.join(rel.replace('/', std::path::MAIN_SEPARATOR_STR)).is_file())
+        .filter(|(rel, _)| {
+            realm_root
+                .join(rel.replace('/', std::path::MAIN_SEPARATOR_STR))
+                .is_file()
+        })
         .map(|(_, name)| name);
     PublishPlan {
         pkg_path: repo.join("realms").join(id).join(pkg_name),
@@ -1043,7 +1086,9 @@ fn plan_publish(
 /// 在索引顶层插入 `urlBase`，并保持「元信息在前、`realms` 在后」的可读顺序
 /// （仓库文件是人手工维护的，位置即文档）。已有该键则不动。
 fn insert_url_base(index: &mut Value, url_base: &str) {
-    let Some(map) = index.as_object_mut() else { return };
+    let Some(map) = index.as_object_mut() else {
+        return;
+    };
     if map.contains_key("urlBase") {
         return;
     }
@@ -1127,7 +1172,10 @@ pub fn preview_realm_publish(
         return Err(be_err("realm_publish_no_repo", ""));
     }
     if !repo.is_dir() {
-        return Err(be_err("realm_repo_dir_missing", &format!("{}", repo.display())));
+        return Err(be_err(
+            "realm_repo_dir_missing",
+            &format!("{}", repo.display()),
+        ));
     }
     let id = VcmiPaths::sanitize_realm_id(&realm_id);
     let realm = get_realm(&id)?;
@@ -1177,10 +1225,15 @@ pub fn preview_realm_publish(
         url_base.as_deref(),
         &existing,
     );
-    let download = plan
-        .url_base
-        .as_ref()
-        .map(|b| format!("{b}/realms/{id}/{}", plan.pkg_path.file_name().and_then(|s| s.to_str()).unwrap_or("")));
+    let download = plan.url_base.as_ref().map(|b| {
+        format!(
+            "{b}/realms/{id}/{}",
+            plan.pkg_path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+        )
+    });
     // 分片预估（设计 §7.3）：只做 metadata 遍历求字节数（**不读文件内容**），仍是快操作。
     // 0 = 预计不分包。实际片数以打包后为准（ZIP 压缩会改变最终体积），故弹窗仅作提示。
     let estimated_bytes = estimate_realm_bytes(&id);
@@ -1277,7 +1330,9 @@ pub(crate) fn merge_repo_index(
         if *key == "i18n" {
             // i18n 两级合并：语言级（其余语言 / 手工加译保留）+ 块内字段级（name / description /
             // tags 逐键，「没声明」的键保留旧值；块内 tags 数组含空即声明）。
-            let Some(new_map) = new.as_object() else { continue };
+            let Some(new_map) = new.as_object() else {
+                continue;
+            };
             let Some(old_map) = target.get("i18n").and_then(|v| v.as_object()).cloned() else {
                 target.insert((*key).to_string(), new.clone());
                 continue;
@@ -1380,7 +1435,8 @@ fn build_package_realm_json(realm: &Value, checksum: &str) -> Result<Vec<u8>, St
         obj.remove("origin");
         obj.insert("checksum".to_string(), json!(checksum));
     }
-    serde_json::to_vec_pretty(&realm_json).map_err(|e| be_err("realm_json_serialize_failed", &format!("{}", e)))
+    serde_json::to_vec_pretty(&realm_json)
+        .map_err(|e| be_err("realm_json_serialize_failed", &format!("{}", e)))
 }
 
 /// 直写本地领域仓库工作树（§7.3）：包副本 → 封面 → 合并 `index.json`。
@@ -1399,13 +1455,16 @@ fn publish_realm_to_repo(
 ) -> Result<(Value, Vec<Value>), String> {
     let mut warnings: Vec<Value> = Vec::new();
     if !repo.is_dir() {
-        return Err(be_err("realm_repo_dir_missing", &format!("{}", repo.display())));
+        return Err(be_err(
+            "realm_repo_dir_missing",
+            &format!("{}", repo.display()),
+        ));
     }
     let index_file = repo.join("index.json");
     // 既有索引：存在但解析失败 → **中止**（绝不把坏数据覆盖掉）；不存在 → 新建
     let existing = if index_file.is_file() {
-        let text =
-            fs::read_to_string(&index_file).map_err(|e| be_err("realm_repo_index_read_failed", &format!("{}", e)))?;
+        let text = fs::read_to_string(&index_file)
+            .map_err(|e| be_err("realm_repo_index_read_failed", &format!("{}", e)))?;
         crate::infra::json::parse_json_lenient(&text)
             .map_err(|_| be_err("realm_repo_index_parse_abort", ""))?
     } else {
@@ -1423,7 +1482,8 @@ fn publish_realm_to_repo(
 
     // 1) 发布形状（与 `preview_realm_publish` 同源，保证弹窗预览与实际写入一致）
     let dir = repo.join("realms").join(id);
-    fs::create_dir_all(&dir).map_err(|e| be_err("realm_repo_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&dir)
+        .map_err(|e| be_err("realm_repo_dir_create_failed", &format!("{}", e)))?;
     let pkg_name = dest
         .file_name()
         .map(|s| s.to_string_lossy().into_owned())
@@ -1432,7 +1492,8 @@ fn publish_realm_to_repo(
     let pkg_path = plan.pkg_path.clone();
     // 导出路径本就在仓库内时就是它本身（零额外复制）；不在则复制一份并告警
     if !same_path(dest, &pkg_path) {
-        fs::copy(dest, &pkg_path).map_err(|e| be_err("realm_repo_pack_copy_failed", &format!("{}", e)))?;
+        fs::copy(dest, &pkg_path)
+            .map_err(|e| be_err("realm_repo_pack_copy_failed", &format!("{}", e)))?;
         warnings.push(warn("copied-into-repo", &pkg_path.display().to_string()));
     }
 
@@ -1515,7 +1576,8 @@ fn publish_realm_to_repo(
         let src = realm_root.join(rel.replace('/', std::path::MAIN_SEPARATOR_STR));
         if src.is_file() {
             let dst = dir.join(cover_name);
-            fs::copy(&src, &dst).map_err(|e| be_err("realm_cover_copy_failed", &format!("{}", e)))?;
+            fs::copy(&src, &dst)
+                .map_err(|e| be_err("realm_cover_copy_failed", &format!("{}", e)))?;
             if let Some(b) = &plan.url_base {
                 entry["cover"] = json!(format!("{b}/realms/{id}/{cover_name}"));
             }
@@ -1545,12 +1607,20 @@ fn publish_realm_to_repo(
         .get("mods")
         .and_then(|m| m.get("bundled"))
         .and_then(|b| b.as_array())
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_default();
     if !bundled.is_empty() {
         warnings.push(warn("bundled", &bundled.join("、")));
     }
-    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if id.is_empty()
+        || !id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         warnings.push(warn("bad-id", id));
     }
     let prev = existing.get("realms").and_then(|r| r.get(id));
@@ -1587,9 +1657,15 @@ fn publish_realm_to_repo(
             insert_url_base(&mut merged, &format!("{b}/"));
         }
     }
-    fs::write(&index_file, format!("{}\n", serde_json::to_string_pretty(&merged)
-        .map_err(|e| be_err("realm_repo_index_serialize_failed", &format!("{}", e)))?))
-        .map_err(|e| be_err("realm_repo_index_write_failed", &format!("{}", e)))?;
+    fs::write(
+        &index_file,
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&merged)
+                .map_err(|e| be_err("realm_repo_index_serialize_failed", &format!("{}", e)))?
+        ),
+    )
+    .map_err(|e| be_err("realm_repo_index_write_failed", &format!("{}", e)))?;
 
     Ok((
         json!({
@@ -1648,7 +1724,8 @@ pub(crate) fn normalize_zip_path(name: &str) -> Option<String> {
     }
     // `showcase-cache/`：领域快照附带的**素材缓存**（可选），解包目标不是领域目录而是全局缓存根，
     // 由导入循环分流处理（见 `import_realm` 第二遍）。
-    if rel.starts_with("vcmi/") || rel.starts_with("assets/") || rel.starts_with("showcase-cache/") {
+    if rel.starts_with("vcmi/") || rel.starts_with("assets/") || rel.starts_with("showcase-cache/")
+    {
         Some(rel.to_string())
     } else {
         None // 其它顶层项（cache/logs/Saves 等）不导入
@@ -1685,7 +1762,11 @@ pub(crate) fn resolve_realm_i18n_field(realm: &Value, field: &str) -> Option<Str
     let i18n = realm.get("i18n").and_then(|v| v.as_object())?;
     let ui_lang_val = read_config().and_then(|c| c.ui.lang);
     let ui_lang = ui_lang_val.as_deref().unwrap_or("english");
-    let fallback = if ui_lang == "tchinese" { "chinese" } else { "english" };
+    let fallback = if ui_lang == "tchinese" {
+        "chinese"
+    } else {
+        "english"
+    };
     let mut order: Vec<&str> = vec![ui_lang, fallback, "english"];
     for (l, _) in i18n {
         if l.as_str() != ui_lang && l.as_str() != fallback {
@@ -1726,14 +1807,18 @@ pub fn import_realm_impl(
     path: String,
     conflict: String,
 ) -> Result<Value, String> {
-    let file = fs::File::open(&path).map_err(|e| be_err("realm_file_open_failed", &format!("{}", e)))?;
+    let file =
+        fs::File::open(&path).map_err(|e| be_err("realm_file_open_failed", &format!("{}", e)))?;
     let mut archive =
         ZipArchive::new(file).map_err(|_| import_err("corrupt", "领域文件不是有效的压缩包"))?;
 
     // 包格式识别：ZIP 注释须为 `vcmirealm`（导出时写入的包格式魔数），用于快速识别合法包
     let comment = String::from_utf8_lossy(archive.comment());
     if comment.trim() != "vcmirealm" {
-        return Err(import_err("corrupt", "领域文件已损坏（不是有效的 .vcmirealm 包）"));
+        return Err(import_err(
+            "corrupt",
+            "领域文件已损坏（不是有效的 .vcmirealm 包）",
+        ));
     }
 
     // 第一遍：读取 realm.json + 收集非 realm.json 的文件条目（index, rel）
@@ -1782,9 +1867,7 @@ pub fn import_realm_impl(
         match conflict.as_str() {
             "overwrite" => id.clone(),
             "rename" => unique_realm_id(&id),
-            _ => {
-                return Err(conflict_err(&id, &name_display))
-            }
+            _ => return Err(conflict_err(&id, &name_display)),
         }
     } else {
         id.clone()
@@ -1830,7 +1913,8 @@ pub fn import_realm_impl(
         }
         let dest = root.join(rel.replace('/', std::path::MAIN_SEPARATOR_STR));
         if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).map_err(|e| be_err("cmd_mkdir_failed", &format!("{}", e)))?;
+            fs::create_dir_all(parent)
+                .map_err(|e| be_err("cmd_mkdir_failed", &format!("{}", e)))?;
         }
         fs::write(&dest, &buf).map_err(|e| be_err("realm_file_write_failed", &format!("{}", e)))?;
     }
@@ -1946,14 +2030,14 @@ pub fn import_realm_impl(
 #[cfg(test)]
 mod tests {
     use super::{
-        PackOutcome, URL_SOURCE_DECLARED, URL_SOURCE_ENTRIES, URL_SOURCE_GIT,
         build_package_realm_json, derive_repo_url_base, derive_url_base, downgrade_error,
         insert_url_base, is_core_mod_id, is_precompressed, merge_repo_index, normalize_remote_url,
         parse_git_branch, parse_git_remote_url, part_name, prune_stale_parts,
         publish_realm_to_repo, resolve_gitdir, split_realm_package, version_change_warnings,
-        write_zip_entries, DERIVED_INDEX_FIELDS, REALM_PART_MAX_BYTES,
+        write_zip_entries, PackOutcome, DERIVED_INDEX_FIELDS, REALM_PART_MAX_BYTES,
+        URL_SOURCE_DECLARED, URL_SOURCE_ENTRIES, URL_SOURCE_GIT,
     };
-    use serde_json::{Value, json};
+    use serde_json::{json, Value};
     use sha2::{Digest, Sha256};
     use zip::ZipWriter;
 
@@ -2001,9 +2085,15 @@ mod tests {
         assert_eq!(merged["realms"]["other"]["version"], json!("9.9.9"));
         assert_eq!(merged["updatedAt"], json!("2026-09-28"));
         // 单包发布：既有条目若残留分片必须被清掉（否则新启动器会走分片分支而文件已不在）
-        assert!(demo.get("parts").is_none(), "单包发布应清除残留 parts：{demo}");
+        assert!(
+            demo.get("parts").is_none(),
+            "单包发布应清除残留 parts：{demo}"
+        );
         for k in ["version", "sha256", "size"] {
-            assert!(changed.iter().any(|c| c == k), "changed 应含 {k}，实际 {changed:?}");
+            assert!(
+                changed.iter().any(|c| c == k),
+                "changed 应含 {k}，实际 {changed:?}"
+            );
         }
         assert!(!changed.iter().any(|c| c == "gameEdition"));
     }
@@ -2031,7 +2121,12 @@ mod tests {
         let want_sha = crate::infra::hash::sha256_file(&src).unwrap();
 
         let parts = split_realm_package(&src, REALM_PART_MAX_BYTES).unwrap();
-        assert_eq!(parts.len(), 3, "2 整片 + 1 尾片：{:?}", parts.iter().map(|p| p.size).collect::<Vec<_>>());
+        assert_eq!(
+            parts.len(),
+            3,
+            "2 整片 + 1 尾片：{:?}",
+            parts.iter().map(|p| p.size).collect::<Vec<_>>()
+        );
         assert_eq!(parts[0].size as usize, part);
         assert_eq!(parts[2].size as usize, 1234);
         assert_eq!(parts.iter().map(|p| p.size).sum::<u64>(), blob.len() as u64);
@@ -2126,7 +2221,10 @@ mod tests {
         // `download` 是被删除的一侧 → 计入变更；`parts` 属「新增字段」，按既有语义
         // （`merge_is_idempotent_and_absent_keys_do_not_erase_existing`）新增不算变化
         assert!(c1.iter().any(|c| c == "download"), "删除应计入变更：{c1:?}");
-        assert!(!c1.iter().any(|c| c == "parts"), "新增 parts 不计变化：{c1:?}");
+        assert!(
+            !c1.iter().any(|c| c == "parts"),
+            "新增 parts 不计变化：{c1:?}"
+        );
 
         // 分片 → 单包：`parts` 必须消失（否则旧启动器会报「请升级」而实际早已回退）
         let single = json!({
@@ -2159,7 +2257,10 @@ mod tests {
         assert!(changed1.is_empty(), "仅新增字段不算变化：{changed1:?}");
         assert!(changed2.is_empty());
         // 本次没算出 cover → 既有条目的封面不能被抹掉
-        assert_eq!(once["realms"]["demo"]["cover"], json!("https://x/cover.webp"));
+        assert_eq!(
+            once["realms"]["demo"]["cover"],
+            json!("https://x/cover.webp")
+        );
     }
 
     #[test]
@@ -2181,11 +2282,19 @@ mod tests {
         });
         let (merged, changed) = merge_repo_index(&existing, "demo", &entry, "2026-09-30");
         let demo = &merged["realms"]["demo"];
-        assert_eq!(demo["tags"], json!(["剧情", "高清"]), "缺键的 tags 不得清掉既有标签");
+        assert_eq!(
+            demo["tags"],
+            json!(["剧情", "高清"]),
+            "缺键的 tags 不得清掉既有标签"
+        );
         assert_eq!(demo["author"], json!("原作者"));
         assert_eq!(demo["description"], json!("手工描述"));
         assert_eq!(demo["requiresMods"], json!(["m1"]));
-        assert_eq!(demo["customNote"], json!("维护者自定义备注"), "自定义字段必须原样保留");
+        assert_eq!(
+            demo["customNote"],
+            json!("维护者自定义备注"),
+            "自定义字段必须原样保留"
+        );
         for k in ["tags", "author", "description", "requiresMods"] {
             assert!(!changed.iter().any(|c| c == k), "未声明不算变化：{k}");
         }
@@ -2237,7 +2346,11 @@ mod tests {
         let en = &merged["realms"]["demo"]["i18n"]["english"];
         assert_eq!(en["name"], json!("VCMI2"), "块内声明的字段照常覆盖");
         assert_eq!(en["description"], json!("desc"), "块内空值不动旧值");
-        assert_eq!(en["tags"], json!(["IntroText"]), "块内缺键（未声明）的 tags 必须保留");
+        assert_eq!(
+            en["tags"],
+            json!(["IntroText"]),
+            "块内缺键（未声明）的 tags 必须保留"
+        );
         assert!(changed.iter().any(|c| c == "i18n"));
         // 二次合并幂等
         let (again, changed2) = merge_repo_index(&merged, "demo", &entry, "2026-09-30");
@@ -2264,8 +2377,15 @@ mod tests {
         let (merged, changed) = merge_repo_index(&existing, "demo", &entry, "2026-09-30");
         let demo = &merged["realms"]["demo"];
         assert_eq!(demo["tags"], json!([]), "顶层空数组 = 显式清空");
-        assert_eq!(demo["i18n"]["english"]["tags"], json!([]), "块内空数组 = 显式清空");
-        assert!(changed.iter().any(|c| c == "tags"), "显式清空要计入变更：{changed:?}");
+        assert_eq!(
+            demo["i18n"]["english"]["tags"],
+            json!([]),
+            "块内空数组 = 显式清空"
+        );
+        assert!(
+            changed.iter().any(|c| c == "tags"),
+            "显式清空要计入变更：{changed:?}"
+        );
         assert!(changed.iter().any(|c| c == "i18n"));
         // 二次合并幂等且不再报变化
         let (again, changed2) = merge_repo_index(&merged, "demo", &entry, "2026-09-30");
@@ -2299,7 +2419,14 @@ mod tests {
     #[test]
     fn derived_fields_cover_the_publishable_set() {
         // 防手抖：新增可推导字段时必须同步这张表，否则合并会漏覆盖
-        for k in ["sha256", "size", "download", "cover", "i18n", "requiresMods"] {
+        for k in [
+            "sha256",
+            "size",
+            "download",
+            "cover",
+            "i18n",
+            "requiresMods",
+        ] {
             assert!(DERIVED_INDEX_FIELDS.contains(&k), "缺少 {k}");
         }
     }
@@ -2332,7 +2459,7 @@ mod tests {
         assert!(is_precompressed("assets/intro.mp4"));
         assert!(is_precompressed("vcmi/Maps/demo.h3m"));
         assert!(is_precompressed("data/HEROES3.LOD")); // 扩展名大小写不敏感
-        // 文本类仍走 Deflate
+                                                       // 文本类仍走 Deflate
         assert!(!is_precompressed("vcmi/Mods/demo/mod.json"));
         assert!(!is_precompressed("realm.json"));
     }
@@ -2357,14 +2484,18 @@ mod tests {
         fs::write(dir.join("assets/cover.webp"), &blob).unwrap();
 
         let mut files: Vec<(String, PathBuf)> = vec![
-            ("assets/cover.webp".to_string(), dir.join("assets/cover.webp")),
+            (
+                "assets/cover.webp".to_string(),
+                dir.join("assets/cover.webp"),
+            ),
             ("mod.json".to_string(), dir.join("mod.json")),
         ];
         files.sort_by(|a, b| a.0.cmp(&b.0));
 
         let zip_path = dir.join("out.vcmirealm");
         let mut zw = ZipWriter::new(fs::File::create(&zip_path).unwrap());
-        let checksum = match write_zip_entries(&mut zw, "round-trip-test", &files, |_, _, _, _| {}) {
+        let checksum = match write_zip_entries(&mut zw, "round-trip-test", &files, |_, _, _, _| {})
+        {
             Ok(PackOutcome::Done { checksum }) => checksum,
             Ok(PackOutcome::Cancelled) => panic!("不该被取消"),
             Err(e) => panic!("打包失败：{e}"),
@@ -2386,7 +2517,11 @@ mod tests {
             let mut f = ar.by_name(rel).unwrap();
             let mut buf = Vec::new();
             f.read_to_end(&mut buf).unwrap();
-            let want = if rel.ends_with(".webp") { &blob } else { &small };
+            let want = if rel.ends_with(".webp") {
+                &blob
+            } else {
+                &small
+            };
             assert_eq!(&buf, want, "{rel} 内容应与源文件一致");
             hasher.update(rel.as_bytes());
             hasher.update(&buf);
@@ -2399,38 +2534,51 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-        /// 降级发布阻断（§7.3）：结构化错误带 from/to；同版 / 升版 / 新条目 / 无版本基准一律放行。
-        #[test]
-        fn downgrade_is_blocked_with_structured_error() {
-            let existing = json!({ "realms": { "demo": { "version": "1.2.0" } } });
-            let err = downgrade_error(&existing, "demo", "1.0.0").expect("应阻断降级");
-            let v: Value = serde_json::from_str(&err).unwrap();
-            assert_eq!(v["code"], json!("version_downgrade"));
-            assert_eq!(v["from"], json!("1.2.0"));
-            assert_eq!(v["to"], json!("1.0.0"));
-            assert!(downgrade_error(&existing, "demo", "1.2.0").is_none());
-            assert!(downgrade_error(&existing, "demo", "1.3.0").is_none());
-            assert!(downgrade_error(&existing, "newbie", "0.1.0").is_none());
-            // 既有条目没有 version（手工条目）→ 无比较基准，放行（宁缺勿错）
-            let no_ver = json!({ "realms": { "demo": { "download": "https://x/y" } } });
-            assert!(downgrade_error(&no_ver, "demo", "1.0.0").is_none());
-        }
+    /// 降级发布阻断（§7.3）：结构化错误带 from/to；同版 / 升版 / 新条目 / 无版本基准一律放行。
+    #[test]
+    fn downgrade_is_blocked_with_structured_error() {
+        let existing = json!({ "realms": { "demo": { "version": "1.2.0" } } });
+        let err = downgrade_error(&existing, "demo", "1.0.0").expect("应阻断降级");
+        let v: Value = serde_json::from_str(&err).unwrap();
+        assert_eq!(v["code"], json!("version_downgrade"));
+        assert_eq!(v["from"], json!("1.2.0"));
+        assert_eq!(v["to"], json!("1.0.0"));
+        assert!(downgrade_error(&existing, "demo", "1.2.0").is_none());
+        assert!(downgrade_error(&existing, "demo", "1.3.0").is_none());
+        assert!(downgrade_error(&existing, "newbie", "0.1.0").is_none());
+        // 既有条目没有 version（手工条目）→ 无比较基准，放行（宁缺勿错）
+        let no_ver = json!({ "realms": { "demo": { "download": "https://x/y" } } });
+        assert!(downgrade_error(&no_ver, "demo", "1.0.0").is_none());
+    }
 
-        /// 版本变更三态自检：同版包变 / 升版包同各一条告警；正常升级与完全重复静默。
-        #[test]
-        fn version_change_warnings_cover_the_three_states() {
-            let prev = json!({ "version": "1.0.0", "sha256": "aa" });
-            let w = version_change_warnings(Some(&prev), &json!({ "version": "1.0.0", "sha256": "bb" }));
-            assert_eq!(w.len(), 1);
-            assert_eq!(w[0]["code"], json!("version-unchanged"));
-            let w = version_change_warnings(Some(&prev), &json!({ "version": "1.1.0", "sha256": "aa" }));
-            assert_eq!(w.len(), 1);
-            assert_eq!(w[0]["code"], json!("pkg-unchanged"));
-            // 正常升级 / 完全重复 / 新条目 → 静默
-            assert!(version_change_warnings(Some(&prev), &json!({ "version": "1.1.0", "sha256": "bb" })).is_empty());
-            assert!(version_change_warnings(Some(&prev), &json!({ "version": "1.0.0", "sha256": "aa" })).is_empty());
-            assert!(version_change_warnings(None, &json!({ "version": "1.0.0", "sha256": "aa" })).is_empty());
-        }
+    /// 版本变更三态自检：同版包变 / 升版包同各一条告警；正常升级与完全重复静默。
+    #[test]
+    fn version_change_warnings_cover_the_three_states() {
+        let prev = json!({ "version": "1.0.0", "sha256": "aa" });
+        let w =
+            version_change_warnings(Some(&prev), &json!({ "version": "1.0.0", "sha256": "bb" }));
+        assert_eq!(w.len(), 1);
+        assert_eq!(w[0]["code"], json!("version-unchanged"));
+        let w =
+            version_change_warnings(Some(&prev), &json!({ "version": "1.1.0", "sha256": "aa" }));
+        assert_eq!(w.len(), 1);
+        assert_eq!(w[0]["code"], json!("pkg-unchanged"));
+        // 正常升级 / 完全重复 / 新条目 → 静默
+        assert!(version_change_warnings(
+            Some(&prev),
+            &json!({ "version": "1.1.0", "sha256": "bb" })
+        )
+        .is_empty());
+        assert!(version_change_warnings(
+            Some(&prev),
+            &json!({ "version": "1.0.0", "sha256": "aa" })
+        )
+        .is_empty());
+        assert!(
+            version_change_warnings(None, &json!({ "version": "1.0.0", "sha256": "aa" }))
+                .is_empty()
+        );
+    }
 
     /// 直写仓库工作树的端到端回归（临时目录，不碰真仓库）：
     /// 包与封面落地 / URL 从既有条目推导 / 手工字段保留 / 二次发布幂等。
@@ -2483,11 +2631,19 @@ mod tests {
         };
 
         let (info, warnings) = run();
-        assert!(repo.join("realms/demo/demo.vcmirealm").is_file(), "包应落进仓库");
-        assert!(repo.join("realms/demo/cover.webp").is_file(), "封面应落进仓库");
+        assert!(
+            repo.join("realms/demo/demo.vcmirealm").is_file(),
+            "包应落进仓库"
+        );
+        assert!(
+            repo.join("realms/demo/cover.webp").is_file(),
+            "封面应落进仓库"
+        );
         assert_eq!(info["entryState"], json!("updated"));
         assert!(
-            warnings.iter().any(|w| w["code"] == json!("copied-into-repo")),
+            warnings
+                .iter()
+                .any(|w| w["code"] == json!("copied-into-repo")),
             "仓库外导出应告警：{warnings:?}"
         );
         assert!(
@@ -2496,7 +2652,10 @@ mod tests {
         );
 
         let written = fs::read_to_string(repo.join("index.json")).unwrap();
-        assert!(written.ends_with("\n"), "写盘应带末尾换行（与发布脚本同构）");
+        assert!(
+            written.ends_with("\n"),
+            "写盘应带末尾换行（与发布脚本同构）"
+        );
         let idx: Value = serde_json::from_str(&written).unwrap();
         let demo = &idx["realms"]["demo"];
         assert_eq!(
@@ -2511,15 +2670,29 @@ mod tests {
         assert_eq!(demo["sha256"], json!("abc123"));
         // 手工字段与别的条目都不能被抹掉
         assert_eq!(demo["gameEdition"], json!("enhanced"));
-        assert_eq!(demo["tags"], json!(["manual"]), "缺键的 tags 不得清掉索引里手工维护的标签");
-        assert_eq!(idx["realms"]["other"]["download"].as_str().unwrap().contains("/raw/master/"), true);
+        assert_eq!(
+            demo["tags"],
+            json!(["manual"]),
+            "缺键的 tags 不得清掉索引里手工维护的标签"
+        );
+        assert_eq!(
+            idx["realms"]["other"]["download"]
+                .as_str()
+                .unwrap()
+                .contains("/raw/master/"),
+            true
+        );
         assert_eq!(idx["schemaVersion"], json!(1));
         assert!(idx["updatedAt"].as_str().unwrap().len() >= 10);
 
         // 二次发布：内容未变 → 不应再报任何字段变化（幂等），条目动作应为 unchanged
         let (again, _) = run();
         assert_eq!(again["changedFields"], json!([]), "重复发布应幂等：{again}");
-        assert_eq!(again["entryState"], json!("unchanged"), "重复发布应识别「无变化」：{again}");
+        assert_eq!(
+            again["entryState"],
+            json!("unchanged"),
+            "重复发布应识别「无变化」：{again}"
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -2529,14 +2702,26 @@ mod tests {
             ("https://github.com/o/r.git", "https://github.com/o/r"),
             ("https://gitee.com/o/r/", "https://gitee.com/o/r"),
             ("git@github.com:o/r.git", "https://github.com/o/r"),
-            ("ssh://git@gitlab.example.com/g/o/r.git", "https://gitlab.example.com/g/o/r"),
+            (
+                "ssh://git@gitlab.example.com/g/o/r.git",
+                "https://gitlab.example.com/g/o/r",
+            ),
             ("git://github.com/o/r", "https://github.com/o/r"),
             ("https://github.com:443/o/r", "https://github.com/o/r"),
         ] {
-            assert_eq!(normalize_remote_url(input).as_deref(), Some(want), "输入 {input}");
+            assert_eq!(
+                normalize_remote_url(input).as_deref(),
+                Some(want),
+                "输入 {input}"
+            );
         }
         // 认不出就别硬猜（退给下一级兜底）：本地镜像、非标准端口、file 协议均不接受
-        for bad in ["", "C:/local/mirror.git", "ssh://git@host:7999/o/r.git", "file:///srv/git/r.git"] {
+        for bad in [
+            "",
+            "C:/local/mirror.git",
+            "ssh://git@host:7999/o/r.git",
+            "file:///srv/git/r.git",
+        ] {
             assert!(normalize_remote_url(bad).is_none(), "不该接受 {bad}");
         }
     }
@@ -2549,7 +2734,10 @@ mod tests {
             "[remote \"origin\"]\n\turl = git@gitee.com:me/mine.git\n",
             "[branch \"master\"]\n\tremote = origin\n",
         );
-        assert_eq!(parse_git_remote_url(config).as_deref(), Some("https://gitee.com/me/mine"));
+        assert_eq!(
+            parse_git_remote_url(config).as_deref(),
+            Some("https://gitee.com/me/mine")
+        );
         // 没有 origin 段 → None（拿别的 remote 凑一凑，地址必然错）
         assert!(parse_git_remote_url("[remote \"upstream\"]\n\turl = https://x/y/z.git").is_none());
     }
@@ -2562,8 +2750,15 @@ mod tests {
         fs::write(dir.join("HEAD"), "ref: refs/heads/feature/season-2\n").unwrap();
         assert_eq!(parse_git_branch(&dir, ""), "feature/season-2");
         // detached HEAD（裸 SHA）→ 退 init.defaultBranch，再退 master
-        fs::write(dir.join("HEAD"), "8b1a3f0c9d2e4a5b6c7d8e9f0a1b2c3d4e5f6a7b\n").unwrap();
-        assert_eq!(parse_git_branch(&dir, "[init]\n\tdefaultBranch = main\n"), "main");
+        fs::write(
+            dir.join("HEAD"),
+            "8b1a3f0c9d2e4a5b6c7d8e9f0a1b2c3d4e5f6a7b\n",
+        )
+        .unwrap();
+        assert_eq!(
+            parse_git_branch(&dir, "[init]\n\tdefaultBranch = main\n"),
+            "main"
+        );
         assert_eq!(parse_git_branch(&dir, ""), "master");
         let _ = fs::remove_dir_all(&dir);
     }
@@ -2590,25 +2785,36 @@ mod tests {
         let dir = sandbox("url-priority");
         let git = dir.join(".git");
         fs::create_dir_all(&git).unwrap();
-        fs::write(git.join("config"), "[remote \"origin\"]\n\turl = git@github.com:o/r.git\n").unwrap();
+        fs::write(
+            git.join("config"),
+            "[remote \"origin\"]\n\turl = git@github.com:o/r.git\n",
+        )
+        .unwrap();
         fs::write(git.join("HEAD"), "ref: refs/heads/main\n").unwrap();
-        let entries = || {
-            json!({ "realms": { "x": { "download": "https://gitee.com/o/r/raw/master/realms/x/x.vcmirealm" } } })
-        };
+        let entries = || json!({ "realms": { "x": { "download": "https://gitee.com/o/r/raw/master/realms/x/x.vcmirealm" } } });
 
         // S1 声明最优先（即使 git 与条目都推得出别的值）
         let declared = json!({ "urlBase": "https://cdn.example.com/realms/", "realms": {} });
         let (b, src) = derive_repo_url_base(&dir, &declared).unwrap();
-        assert_eq!((b.as_str(), src), ("https://cdn.example.com/realms", URL_SOURCE_DECLARED));
+        assert_eq!(
+            (b.as_str(), src),
+            ("https://cdn.example.com/realms", URL_SOURCE_DECLARED)
+        );
 
         // 无声明 → git 优先于条目（新仓库首次发布也该拿到正确地址，而不是跟着旧条目的值走）
         let (b, src) = derive_repo_url_base(&dir, &entries()).unwrap();
-        assert_eq!((b.as_str(), src), ("https://github.com/o/r/raw/main", URL_SOURCE_GIT));
+        assert_eq!(
+            (b.as_str(), src),
+            ("https://github.com/o/r/raw/main", URL_SOURCE_GIT)
+        );
 
         // 无 .git → 退条目；三者皆无 → None（由调用方告警）
         let plain = sandbox("url-priority-plain");
         let (b, src) = derive_repo_url_base(&plain, &entries()).unwrap();
-        assert_eq!((b.as_str(), src), ("https://gitee.com/o/r/raw/master", URL_SOURCE_ENTRIES));
+        assert_eq!(
+            (b.as_str(), src),
+            ("https://gitee.com/o/r/raw/master", URL_SOURCE_ENTRIES)
+        );
         assert!(derive_repo_url_base(&plain, &json!({ "realms": {} })).is_none());
         let _ = fs::remove_dir_all(&dir);
         let _ = fs::remove_dir_all(&plain);
@@ -2627,7 +2833,11 @@ mod tests {
         )
         .unwrap();
         fs::write(repo.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
-        fs::write(repo.join("index.json"), "{\n  \"schemaVersion\": 1,\n  \"realms\": {}\n}\n").unwrap();
+        fs::write(
+            repo.join("index.json"),
+            "{\n  \"schemaVersion\": 1,\n  \"realms\": {}\n}\n",
+        )
+        .unwrap();
         let pkg = dir.join("demo.vcmirealm");
         fs::write(&pkg, b"bytes").unwrap();
         let realm = json!({ "id": "demo", "version": "1.0.0" });
@@ -2655,7 +2865,12 @@ mod tests {
         let idx: Value =
             serde_json::from_str(&fs::read_to_string(repo.join("index.json")).unwrap()).unwrap();
         assert_eq!(idx["urlBase"], json!("https://github.com/o/r/raw/main/"));
-        let keys: Vec<&str> = idx.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+        let keys: Vec<&str> = idx
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(|k| k.as_str())
+            .collect();
         // `updatedAt` 由 merge 写入，排在末尾；关键是 `urlBase` 得夹在元信息区、`realms` 之前
         assert_eq!(keys, ["schemaVersion", "urlBase", "realms", "updatedAt"]);
 
@@ -2681,7 +2896,12 @@ mod tests {
     fn url_base_insertion_keeps_order_and_existing_value() {
         let mut idx = json!({ "schemaVersion": 1, "realms": { "a": {} }, "updatedAt": "x" });
         insert_url_base(&mut idx, "https://h/o/r/raw/main/");
-        let keys: Vec<&str> = idx.as_object().unwrap().keys().map(|k| k.as_str()).collect();
+        let keys: Vec<&str> = idx
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(|k| k.as_str())
+            .collect();
         assert_eq!(keys, ["schemaVersion", "urlBase", "realms", "updatedAt"]);
         // 已有则不覆盖（仓库作者的声明优先于启动器的推导）
         insert_url_base(&mut idx, "https://other/");

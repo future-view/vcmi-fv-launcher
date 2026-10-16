@@ -5,7 +5,6 @@
 //!
 //! 依赖方向：可依赖 `infra` 与 `vcmi`（见 `docs/architecture/backend.zh-CN.md` §4.1）。
 
-
 use serde_json::{json, Value};
 
 use crate::vcmi::h3core::I18nMap;
@@ -15,15 +14,35 @@ use crate::vcmi::h3core::I18nMap;
 /// 原实现在**每个 mod** 里把整张核心表合并进该 mod 的 i18n map，380 个 mod 即 380 次全表合并
 /// （外加 380 次全量解析），是构建 CPU 的主要来源之一。
 /// 改为全局持有一次、按 key 两级查询：核心表零克隆，只在命中时克隆该 key 的少量语言条目。
-pub(crate) static CORE_I18N_FOR_BUILD: std::sync::OnceLock<std::sync::Arc<I18nMap>> = std::sync::OnceLock::new();
+pub(crate) static CORE_I18N_FOR_BUILD: std::sync::OnceLock<
+    std::sync::Mutex<Option<std::sync::Arc<I18nMap>>>,
+> = std::sync::OnceLock::new();
 
 /// 设置核心翻译表（幂等：仅首次生效，构建期内 game_dir 不变）。
 pub(crate) fn set_core_i18n(m: std::sync::Arc<I18nMap>) {
-    let _ = CORE_I18N_FOR_BUILD.set(m);
+    let slot = CORE_I18N_FOR_BUILD.get_or_init(|| std::sync::Mutex::new(None));
+    if let Ok(mut g) = slot.lock() {
+        if g.is_none() {
+            *g = Some(m);
+        }
+    }
 }
 
-pub(crate) fn core_i18n() -> Option<&'static I18nMap> {
-    CORE_I18N_FOR_BUILD.get().map(|a| a.as_ref())
+pub(crate) fn core_i18n() -> Option<std::sync::Arc<I18nMap>> {
+    let slot = CORE_I18N_FOR_BUILD.get()?;
+    slot.lock().ok()?.clone()
+}
+
+/// 释放核心翻译表（构建全部结束后调用；见 [`crate::infra::cache_gc`]）。
+///
+/// 整张 `Mods/vcmi` 合并表（18 个 h3-core JSON）在 `OnceLock` 里常驻到进程退出；
+/// 改为可置空后，构建结束即可归还，下次构建按需重建。
+pub(crate) fn release_caches() {
+    if let Some(slot) = CORE_I18N_FOR_BUILD.get() {
+        if let Ok(mut g) = slot.lock() {
+            *g = None;
+        }
+    }
 }
 
 /// VCMI 翻译键的 mod 作用域归一化。
@@ -66,7 +85,7 @@ pub(crate) fn i18n_get_multi(
     i18n: &I18nMap,
     key: &str,
 ) -> Option<std::collections::HashMap<String, String>> {
-    let core = core_i18n().and_then(|c| lookup(c, key));
+    let core = core_i18n().and_then(|c| lookup(c.as_ref(), key).cloned());
     let own = lookup(i18n, key);
     match (core, own) {
         (None, None) => None,
@@ -93,7 +112,10 @@ pub(crate) fn ability_text_from_bonus_type(
     val: i64,
     // 子类型实体的多语言名（语言 → 名称），用于 ${subtype.creature} / ${subtype.spell}
     sub_names: Option<&std::collections::HashMap<String, String>>,
-) -> Option<(std::collections::HashMap<String, String>, std::collections::HashMap<String, String>)> {
+) -> Option<(
+    std::collections::HashMap<String, String>,
+    std::collections::HashMap<String, String>,
+)> {
     // 核心翻译文件里的 key 带 mod 作用域前缀（`core.bonus.<TYPE>.description`）
     let raw = i18n_get_multi(i18n, &format!("bonus.{}.description", btype))
         .or_else(|| i18n_get_multi(i18n, &format!("core.bonus.{}.description", btype)))?;
@@ -160,10 +182,7 @@ pub(crate) fn build_name_object(
     }
     // auto 兜底：chinese -> english（不取任意第三方语言原文）
     if !m.contains_key("auto") {
-        let auto = m
-            .get("chinese")
-            .or_else(|| m.get("english"))
-            .cloned();
+        let auto = m.get("chinese").or_else(|| m.get("english")).cloned();
         if let Some(a) = auto {
             m.insert("auto".to_string(), a);
         }

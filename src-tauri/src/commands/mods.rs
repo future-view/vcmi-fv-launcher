@@ -35,9 +35,13 @@ pub async fn scan_mods(state: State<'_, AppPaths>) -> Result<Value, String> {
 /// `scan_mods` 的同步实现（在阻塞线程池执行）。
 fn scan_mods_blocking(game_mods_dir: PathBuf, user_mods_dir: PathBuf) -> Result<Value, String> {
     fn collect_ids(mods: &[Value]) -> Vec<String> {
-        mods
-            .iter()
-            .map(|m| m.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string())
+        mods.iter()
+            .map(|m| {
+                m.get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string()
+            })
             .collect()
     }
 
@@ -54,7 +58,11 @@ fn scan_mods_blocking(game_mods_dir: PathBuf, user_mods_dir: PathBuf) -> Result<
     let user_ids: std::collections::HashSet<String> = collect_ids(&user_mods).into_iter().collect();
     let mut merged = user_mods;
     for m in game_mods {
-        let id = m.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let id = m
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         if !id.is_empty() && !user_ids.contains(&id) {
             merged.push(m);
         }
@@ -74,13 +82,18 @@ pub async fn list_installed_mods(state: State<'_, AppPaths>) -> Result<Value, St
         let paths = state.0.lock().expect("paths lock poisoned");
         (paths.game_mods_dir(), paths.user_mods_dir())
     };
-    tauri::async_runtime::spawn_blocking(move || list_installed_mods_blocking(game_mods_dir, user_mods_dir))
-        .await
-        .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?
+    tauri::async_runtime::spawn_blocking(move || {
+        list_installed_mods_blocking(game_mods_dir, user_mods_dir)
+    })
+    .await
+    .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?
 }
 
 /// `list_installed_mods` 的同步实现（在阻塞线程池执行）。
-fn list_installed_mods_blocking(game_mods_dir: PathBuf, user_mods_dir: PathBuf) -> Result<Value, String> {
+fn list_installed_mods_blocking(
+    game_mods_dir: PathBuf,
+    user_mods_dir: PathBuf,
+) -> Result<Value, String> {
     let game_mods = scan_user_mods_dir(&game_mods_dir);
     let user_mods = scan_user_mods_dir(&user_mods_dir);
 
@@ -99,8 +112,8 @@ fn list_installed_mods_blocking(game_mods_dir: PathBuf, user_mods_dir: PathBuf) 
     // 此前 mods / realms 页面只能拿到 VCMI `mod.json` 的英文原文（见 InstalledMod.desc 注释），
     // 现在附 `meta`（多语言 name/description + author/version/modType/depends），
     // 前端可按界面语言显示；缓存未构建时该项缺失（不影响既有字段与行为）。
-    let cache_root =
-        VcmiPaths::mods_cache_dir().unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
+    let cache_root = VcmiPaths::mods_cache_dir()
+        .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
     for item in out.iter_mut() {
         let id = item
             .get("id")

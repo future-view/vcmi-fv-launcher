@@ -677,11 +677,21 @@ export async function pickDirectory(title: string): Promise<string | null> {
   return path ? String(path) : null;
 }
 
-/** 轮询批量构建进度（事件兜底：busy 时每 400ms 拉取一次） */
-export async function fetchWikiBuildProgress(): Promise<{ done: number; total: number } | null> {
+/**
+ * 轮询批量构建进度（事件兜底：busy 时每 400ms 拉取一次）。
+ *
+ * `prepDone`/`prepTotal` = 准备阶段（成本估算）进度，与 `done`/`total` 分开记账
+ * （两者计数域同为 `0..mods.len()`，混用会让进度条"冲满后归零"）。
+ */
+export async function fetchWikiBuildProgress(): Promise<{
+  done: number;
+  total: number;
+  prepDone: number;
+  prepTotal: number;
+} | null> {
   if (!isTauri()) return null;
   try {
-    return await invoke<{ done: number; total: number }>("cache_build_progress");
+    return await invoke("cache_build_progress");
   } catch {
     return null;
   }
@@ -858,7 +868,7 @@ export interface HdBuildOptions {
 export async function buildModsWikiBatch(
   gameDir: string,
   mods: { modId: string; modPath: string }[],
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: (done: number, total: number, prep?: boolean) => void,
   throttle: 0 | 1 | 2 = 0,
   phase: 0 | 1 | 2 = 2,
   /** 高清素材生成选项（缺省 = 不生成）。只在素材阶段（phase 1/2）生效 */
@@ -875,9 +885,14 @@ export async function buildModsWikiBatch(
   if (onProgress) {
     try {
       const { listen } = await import("@tauri-apps/api/event");
-      const un = await listen<{ done: number; total: number }>("wiki-build-progress", (e) => {
-        onProgress(e.payload.done, e.payload.total);
-      });
+      // `prep=true` = 准备阶段（排序前的 mod 成本估算，UI 的"扫描模组目录"行）。
+      // 冷缓存下它是分钟级且发生在第一个 mod 之前，不透传就会表现为"0% 静止一分钟"。
+      const un = await listen<{ done: number; total: number; prep?: boolean }>(
+        "wiki-build-progress",
+        (e) => {
+          onProgress(e.payload.done, e.payload.total, e.payload.prep === true);
+        },
+      );
       try {
         return await invoke("build_mods_cache_batch", { gameDir, mods, throttle, phase, ...hdArgs });
       } finally {
@@ -936,6 +951,25 @@ export async function buildRealmBundledWiki(
     await buildModsWikiBatch(cfg?.gameDir ?? "", bundledMods);
   } catch {
     /* 缓存构建失败不影响导入结果，静默处理 */
+  }
+}
+
+/**
+ * 释放**整轮缓存构建**留在后端进程里的加速缓存，让内存回落。
+ *
+ * 时机很关键：一轮构建是「阶段一 → 阶段二（城镇批 / 其余批）→ 阶段三（高清）」共 3~5 次
+ * 独立的 `build_mods_cache_batch`，后端单看一批无法判断"后面还有没有"，所以**批间不能清**
+ * （清了下一批要重新扫一遍目录/解析一遍配置）。只有前端知道整轮是否结束，故由本函数收尾。
+ *
+ * 只清可重建的派生缓存（目录索引 / 配置解析结果 / 编码产物 / 翻译表 / 去重集合），
+ * 不影响已落盘的任何产物；构建前调用也无害（幂等）。
+ */
+export async function releaseWikiCaches(): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    await invoke("release_wiki_caches");
+  } catch {
+    // 命令不可用（旧后端）时忽略：不释放只是内存不回落，不影响功能
   }
 }
 
@@ -1723,7 +1757,18 @@ export async function repairGameMaps(action: string): Promise<LaunchResult> {
 
 /** 已安装模组列表（供领域借用 / 整合选择，设计 §3.4）。返回 { mods: {id,name}[] } */
 export interface InstalledMod {
+  /** VCMI modId：磁盘目录名**小写**归一（与 VCMI 主键同形态） */
   id: string;
+  /**
+   * 磁盘目录原名（保留大小写、可能含空格）。
+   *
+   * ⚠️ 磁盘定位必须用它，**不要用 `id`** —— `id` 是小写归一后的 VCMI modId，
+   * 在大小写敏感的文件系统（Linux/macOS）上 `join(id)` 找不到目录。
+   * 缺省（旧后端）时只能以 `id` 兜底。
+   */
+  diskName?: string;
+  /** 模组目录绝对路径（后端扫描回传；子模组的 `<父>/Mods/<子>` 布局靠它才准） */
+  modPath?: string;
   name: string;
   /** 模组描述（mod.json 的 `description`，英文原文）。领域信息页等非 wiki 场景曾用此字段 */
   desc?: string;

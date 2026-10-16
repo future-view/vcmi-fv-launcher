@@ -59,7 +59,11 @@ impl Survey {
 
 /// 遍历缓存根，按体积档统计 webp 数量（**不解码**，故只判体积不判边长）
 fn survey_cache() -> Survey {
-    let mut s = Survey { tiny: 0, mid: 0, big: 0 };
+    let mut s = Survey {
+        tiny: 0,
+        mid: 0,
+        big: 0,
+    };
     let root = sample_root();
     let Ok(mods) = fs::read_dir(&root) else {
         return s;
@@ -157,8 +161,16 @@ fn alpha_stats(rgba: &[u8]) -> (usize, f64, f64) {
     }
     (
         semi,
-        if semi > 0 { semi_l / semi as f64 } else { f64::NAN },
-        if opq > 0 { opq_l / opq as f64 } else { f64::NAN },
+        if semi > 0 {
+            semi_l / semi as f64
+        } else {
+            f64::NAN
+        },
+        if opq > 0 {
+            opq_l / opq as f64
+        } else {
+            f64::NAN
+        },
     )
 }
 
@@ -173,7 +185,10 @@ fn alpha_stats(rgba: &[u8]) -> (usize, f64, f64) {
 fn hd_generate_idempotent() {
     use crate::modcache::hd::{generate_for_mod, HdOptions};
 
-    let src_dir = sample_root().join("core.castle").join("images").join("creature");
+    let src_dir = sample_root()
+        .join("core.castle")
+        .join("images")
+        .join("creature");
     let mut files = Vec::new();
     collect_webp(&src_dir, &mut files);
     files.sort();
@@ -282,7 +297,7 @@ fn hd_generate_idempotent() {
 #[test]
 #[ignore]
 fn hd_ai_preview() {
-    use crate::infra::upscale::{upscaler_by_id, upscale_with};
+    use crate::infra::upscale::{upscale_with, upscaler_by_id};
     use ort::session::Session;
     use ort::value::Value;
     use std::time::Instant;
@@ -460,8 +475,8 @@ fn hd_ai_preview() {
                 out_rgba[i * 4 + c] = v.round() as u8;
             }
         }
-        if let Some((a_up, _, _)) = upscaler_by_id("lanczos3")
-            .and_then(|u| upscale_with(u, rgba.as_raw(), w, h, 4))
+        if let Some((a_up, _, _)) =
+            upscaler_by_id("lanczos3").and_then(|u| upscale_with(u, rgba.as_raw(), w, h, 4))
         {
             for i in 0..on.min(a_up.len() / 4) {
                 out_rgba[i * 4 + 3] = a_up[i * 4 + 3];
@@ -718,7 +733,10 @@ fn hd_rate_survey() {
             top3.join("  ")
         );
     }
-    println!("{:<14} {:>7}  （跳过 = 源图已够大，不生成变体）", "合计", total);
+    println!(
+        "{:<14} {:>7}  （跳过 = 源图已够大，不生成变体）",
+        "合计", total
+    );
 }
 
 /// **小图放大验收**（肉眼逐张对比）：对指定素材按「每种倍率 × 每种编码策略」生成到
@@ -752,7 +770,10 @@ fn hd_preview() {
     //   ③ 内置代表集（按 sub 各取 1 张）。
     let root = sample_root();
     let list_file = PathBuf::from("../target/hd-preview-samples.txt");
-    let env = if std::env::var("HD_PREVIEW").map(|s| !s.trim().is_empty()).unwrap_or(false) {
+    let env = if std::env::var("HD_PREVIEW")
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false)
+    {
         std::env::var("HD_PREVIEW").unwrap_or_default()
     } else if list_file.is_file() {
         fs::read_to_string(&list_file)
@@ -848,7 +869,8 @@ fn hd_preview() {
             usm: 0.0, // 同上：关锐化，保持与历史产物可比
             ai_mix: 1.0,
         };
-        let (algo, pixel_like) = crate::modcache::hd::pick_upscaler(rgba.as_raw(), w, h, &opt, 4, "");
+        let (algo, pixel_like) =
+            crate::modcache::hd::pick_upscaler(rgba.as_raw(), w, h, &opt, 4, "");
         println!(
             "{:<26} {:>9} {:>4}%  {:<14} 目标框 {:<9}{}",
             name,
@@ -856,7 +878,11 @@ fn hd_preview() {
             pct,
             algo.id(),
             target,
-            if pixel_like { " [像素画·无损]" } else { "" }
+            if pixel_like {
+                " [像素画·无损]"
+            } else {
+                ""
+            }
         );
     }
     if samples.is_empty() {
@@ -1080,11 +1106,7 @@ fn hd_variant_quality_bench() {
             print!(" {:>12}", format!("{} {pct:>3}%", enc.len() / 1024));
             // 只对首个样本落全部档位，避免刷爆磁盘（其余样本体积已足够判断）
             if samples.first().map(|(n, _)| n.as_str()) == Some(name.as_str()) {
-                let dst = out_root.join(format!(
-                    "{}_q{}.webp",
-                    name.replace('/', "_"),
-                    *q as u32
-                ));
+                let dst = out_root.join(format!("{}_q{}.webp", name.replace('/', "_"), *q as u32));
                 let _ = fs::write(dst, &enc);
             }
         }
@@ -1157,7 +1179,11 @@ fn hd_quality_bench() {
     println!("\n=== 质量指标汇总（全部样本 × 2x/3x 平均）===");
     println!("{:<12} {:>10} {:>12}", "算法", "平均锐度比", "平均PSNR");
     let mut rows: Vec<_> = agg.iter().collect();
-    rows.sort_by(|a, b| b.1 .0.partial_cmp(&a.1 .0).unwrap_or(std::cmp::Ordering::Equal));
+    rows.sort_by(|a, b| {
+        b.1 .0
+            .partial_cmp(&a.1 .0)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     for (id, (rg, cnt, rp)) in rows {
         if *cnt == 0 {
             continue;
@@ -1351,8 +1377,11 @@ fn hd_upscale_bench() {
     let _ = fs::remove_dir_all(&out);
 
     // (算法, 倍率) → 桶 → (总耗时ms, 总字节, 张数)
-    let mut table: Vec<(&'static str, u32, HashMap<&'static str, (u128, usize, usize)>)> =
-        Vec::new();
+    let mut table: Vec<(
+        &'static str,
+        u32,
+        HashMap<&'static str, (u128, usize, usize)>,
+    )> = Vec::new();
 
     for u in all_upscalers() {
         for factor in FACTORS {
@@ -1392,11 +1421,7 @@ fn hd_upscale_bench() {
         keys.sort();
         for b in keys {
             let (ms, bytes, cnt) = per_bucket[b];
-            let avg = if cnt > 0 {
-                ms as f64 / cnt as f64
-            } else {
-                0.0
-            };
+            let avg = if cnt > 0 { ms as f64 / cnt as f64 } else { 0.0 };
             println!(
                 "{:<12} {:<5} {:<10} {:>9} {:>9.1} {:>10}",
                 algo,
@@ -1439,5 +1464,9 @@ fn hd_upscale_bench() {
             est_ms / 1000.0 / par as f64
         );
     }
-    println!("\n（eco 并行按 cpus/8 = {} 估算；产物已写到 {}）", par, out.display());
+    println!(
+        "\n（eco 并行按 cpus/8 = {} 估算；产物已写到 {}）",
+        par,
+        out.display()
+    );
 }

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { LangDict } from "@/i18n/types";
 import { imgCandidates } from "@/lib/hd";
-import type { WikiEntry, WikiLinkTarget } from "@/lib/modcache";
+import type { WikiCategory, WikiEntry, WikiLinkTarget } from "@/lib/modcache";
 import { fullImgUrl, pickName } from "@/lib/modcache";
 import { getVcmiLanguageSnapshot } from "@/lib/vcmiLanguage";
 import { HdIcon } from "@/shared/HdIcon";
@@ -85,6 +85,78 @@ export interface DetailProps {
   onNavigate?: (target: WikiLinkTarget) => void;
   // compact=true 用于右键弹窗：去掉顶部大图 banner，由各子组件按 VCMI 弹窗布局自渲染标题
   compact?: boolean;
+  /**
+   * **跨模组**按 (类目, id) 查条目（升级链 / 组件等跨 mod 引用需要）。
+   *
+   * 详情组件手上的 `modCache` 只是「当前条目所属模组」的那一份缓存，而 VCMI 的升级链
+   * 常指向**别的模组**里的生物（实测 8,011 条引用里 301 条跨模组：mod 生物升级 core
+   * 生物最典型，如 `tears-of-ashan` 的 `bowman` → `core.castle` 的 `marksman`）。
+   * 没有它时这些条目只能显示裸 id、且没有图标。
+   *
+   * 可选：调用方没有全局索引时（如领域信息页只装了城镇）缺省即退化为"只查本 mod"，
+   * 与改动前一致，不会更差。
+   */
+  getEntry?: (category: WikiCategory, id: string) => WikiEntry | undefined;
+}
+
+/** `makeRefResolver` 的解析结果 */
+export interface RelatedRef {
+  /** 命中记录：本 mod 表里的原始对象，或全局条目的 `data`；未命中为 undefined */
+  record?: Record<string, unknown>;
+  /** 显示名（已按 lang 取词；取不到回退 id） */
+  name: string;
+  /** 图片路径（本 mod 记录的 image / 全局条目的 image）；取不到 undefined */
+  image?: string;
+  /** 命中所在 mod —— 跳转/弹窗必须用它，否则会落到本 mod 的同名空位 */
+  modId: string;
+  /** 全局索引命中时的条目（弹窗需要 `data` + `modId`） */
+  entry?: WikiEntry;
+}
+
+/**
+ * 构造「按 id 解析关联条目」的函数：**本 mod 缓存表优先 → 全类目索引兜底**。
+ *
+ * 为什么需要兜底：`modCache` 只是**当前条目所属模组**那一份缓存，而关联引用常跨模组 ——
+ * 实测该发行版 259 条宝物组件引用里 **123 条（47%）只存在于 core**（mod 的组合宝物引用
+ * 原版组件），英雄初始部队 7,397 个单位里 126 个（战争机器 `ballista` / `firstAidTent` /
+ * `catapult`）同样只在 core。没有兜底时这些行只能显示裸 id 且没有图标（组件行还会因为
+ * 拿不到 `warMachine` 而把战争机器错分到"初始部队"里）。
+ *
+ * 调用方缺省不传 `getEntry`（如领域信息页只装了城镇）时自动退化为"只查本 mod"，
+ * 与改动前一致，不会更差。
+ */
+export function makeRefResolver(opts: {
+  category: WikiCategory;
+  /** 当前条目所属 mod（本地命中即它） */
+  modId: string;
+  lang: string;
+  modCache?: Record<string, unknown>;
+  getEntry?: (category: WikiCategory, id: string) => WikiEntry | undefined;
+}): (id: string) => RelatedRef {
+  const local = (opts.modCache?.[opts.category] as Record<string, unknown>[] | undefined) ?? [];
+  const byId = new Map(local.map((x) => [String(x.id ?? ""), x]));
+  return (id: string): RelatedRef => {
+    const hit = byId.get(id);
+    if (hit) {
+      return {
+        record: hit,
+        name: pickName((hit.name as Record<string, string>) ?? {}, opts.lang) || id,
+        image: (hit.image as string | undefined) || undefined,
+        modId: opts.modId,
+      };
+    }
+    const entry = opts.getEntry?.(opts.category, id);
+    if (entry) {
+      return {
+        record: entry.data as Record<string, unknown>,
+        name: pickName(entry.name, opts.lang) || id,
+        image: entry.image || undefined,
+        modId: entry.modId,
+        entry,
+      };
+    }
+    return { name: id, modId: opts.modId };
+  };
 }
 
 // 信息窗标题栏（对齐 VCMI CInfoWindow：图标 + 名称 + 副标题/类型徽标）

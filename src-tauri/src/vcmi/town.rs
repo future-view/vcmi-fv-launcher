@@ -14,7 +14,9 @@ use std::sync::Mutex;
 use serde_json::{json, Value};
 
 use crate::infra::cache::{cfg_cache_get, fingerprint_of};
-use crate::infra::json::{collect_json_files, parse_vcmi_json, read_vcmi_json, read_vcmi_json_bytes};
+use crate::infra::json::{
+    collect_json_files, parse_vcmi_json, read_vcmi_json, read_vcmi_json_bytes,
+};
 use crate::vcmi::gamedata::push_config_object;
 use crate::vcmi::h3core::{h3_building_cost, CORE_FACTIONS};
 use crate::vcmi::paths::VcmiPaths;
@@ -53,14 +55,17 @@ pub(crate) struct TownConfig {
     pub(crate) buildings_raw: HashMap<String, Value>,
 }
 
-pub(crate) static BUILDING_ID_CACHE: std::sync::OnceLock<Mutex<Vec<(String, std::sync::Arc<HashMap<String, i64>>)>>> =
-    std::sync::OnceLock::new();
+pub(crate) static BUILDING_ID_CACHE: std::sync::OnceLock<
+    Mutex<Vec<(String, std::sync::Arc<HashMap<String, i64>>)>>,
+> = std::sync::OnceLock::new();
 
 /// 建筑 bid 标准表（候选路径见 building_id_candidates）。
 pub(crate) fn cached_building_id_library(game_dir: &Path) -> std::sync::Arc<HashMap<String, i64>> {
     let cands = building_id_candidates(game_dir);
     let key = format!("bid:{}", fingerprint_of(&cands));
-    cfg_cache_get(&BUILDING_ID_CACHE, key, || read_building_id_library(game_dir))
+    cfg_cache_get(&BUILDING_ID_CACHE, key, || {
+        read_building_id_library(game_dir)
+    })
 }
 
 /// VCMI 标准建筑表 `config/buildingsLibrary.json`：建筑标识 → 数字 bid。
@@ -113,7 +118,11 @@ pub(crate) fn apply_building_id_library(configs: &mut [TownConfig], lib: &HashMa
     }
     for cfg in configs.iter_mut() {
         for d in cfg.buildings_detail.iter_mut() {
-            let ident = d.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
+            let ident = d
+                .get("id")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
             if ident.is_empty() {
                 continue;
             }
@@ -224,7 +233,9 @@ pub(crate) fn read_town_configs(mod_path: &Path) -> Vec<TownConfig> {
                     dst.buildings_raw = cfg.buildings_raw;
                 } else {
                     for (k, v) in &cfg.buildings_raw {
-                        dst.buildings_raw.entry(k.clone()).or_insert_with(|| v.clone());
+                        dst.buildings_raw
+                            .entry(k.clone())
+                            .or_insert_with(|| v.clone());
                     }
                 }
                 if dst.alignment.is_empty() {
@@ -252,7 +263,9 @@ pub(crate) fn read_town_configs(mod_path: &Path) -> Vec<TownConfig> {
                     dst.building_animations = cfg.building_animations;
                 } else {
                     for (k, v) in &cfg.building_animations {
-                        dst.building_animations.entry(k.clone()).or_insert_with(|| v.clone());
+                        dst.building_animations
+                            .entry(k.clone())
+                            .or_insert_with(|| v.clone());
                     }
                 }
             }
@@ -294,7 +307,14 @@ pub(crate) fn is_town_config_path(name: &str) -> bool {
     /// 幕布图只剩裸底图。与 `structures`、`building`/`buildings`、`spell`/`spells` 等
     /// 单复数变体一并纳入，避免这类老 mod 漏读。
     const TOWN_SUB_STEMS: &[&str] = &[
-        "building", "buildings", "structure", "structures", "puzzle", "siege", "spell", "spells",
+        "building",
+        "buildings",
+        "structure",
+        "structures",
+        "puzzle",
+        "siege",
+        "spell",
+        "spells",
     ];
 
     let n = name.replace('\\', "/");
@@ -308,7 +328,12 @@ pub(crate) fn is_town_config_path(name: &str) -> bool {
     };
     let stem = base.trim_end_matches(".json");
     // 图形 / 精灵定义目录：其中也有 `<x>/town/townhall.json` 这类同名结构，但不是城镇配置。
-    if segs.iter().any(|s| matches!(*s, "sprites" | "sprite" | "townbuilding" | "sequences" | "images")) {
+    if segs.iter().any(|s| {
+        matches!(
+            *s,
+            "sprites" | "sprite" | "townbuilding" | "sequences" | "images"
+        )
+    }) {
         return false;
     }
     // 阵营定义文件（不论所在目录层级）：config/<faction>/faction.json、townPavilion/faction.json。
@@ -377,7 +402,14 @@ pub(crate) fn is_town_config_path_in(name: &str, idx: &DirFileIndex) -> bool {
     // （实测 xanadu 顶层为 `core:creatureGeneratorCommon`），采入会产出 `core:*` 伪 faction；
     // 城镇招募建筑数据由 `buildings.json` 承载（家园验证：buildings.json 已含全部建筑）。
     const VARIANT_STEMS: &[&str] = &[
-        "building", "buildings", "structure", "structures", "puzzle", "siege", "spell", "spells",
+        "building",
+        "buildings",
+        "structure",
+        "structures",
+        "puzzle",
+        "siege",
+        "spell",
+        "spells",
     ];
     let n = name.replace('\\', "/");
     let lower = n.to_lowercase();
@@ -392,7 +424,12 @@ pub(crate) fn is_town_config_path_in(name: &str, idx: &DirFileIndex) -> bool {
     if !VARIANT_STEMS.contains(&stem) {
         return false;
     }
-    if segs.iter().any(|s| matches!(*s, "sprites" | "sprite" | "townbuilding" | "sequences" | "images")) {
+    if segs.iter().any(|s| {
+        matches!(
+            *s,
+            "sprites" | "sprite" | "townbuilding" | "sequences" | "images"
+        )
+    }) {
         return false;
     }
     // 目录上下文：同目录存在 faction.json / town 子目录
@@ -400,7 +437,8 @@ pub(crate) fn is_town_config_path_in(name: &str, idx: &DirFileIndex) -> bool {
     idx.get(&dir)
         .map(|set| {
             set.iter().any(|s| {
-                matches!(s.as_str(), "faction" | "factions" | "town" | "towns") || s.starts_with("town")
+                matches!(s.as_str(), "faction" | "factions" | "town" | "towns")
+                    || s.starts_with("town")
             })
         })
         .unwrap_or(false)
@@ -448,9 +486,17 @@ pub(crate) fn read_game_root_factions(game_dir: &Path) -> Vec<TownConfig> {
     if let Ok(entries) = fs::read_dir(&dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_file() && path.extension().map(|s| s.eq_ignore_ascii_case("json")).unwrap_or(false) {
+            if path.is_file()
+                && path
+                    .extension()
+                    .map(|s| s.eq_ignore_ascii_case("json"))
+                    .unwrap_or(false)
+            {
                 let cfg = parse_town_config_file(&path);
-                if cfg.faction_id.is_empty() || cfg.faction_id == "neutral" || cfg.faction_id == "random" {
+                if cfg.faction_id.is_empty()
+                    || cfg.faction_id == "neutral"
+                    || cfg.faction_id == "random"
+                {
                     continue;
                 }
                 configs.push(cfg);
@@ -613,21 +659,25 @@ pub(crate) fn build_town_config(v: &Value) -> TownConfig {
                 }
             }
             // 建筑图标原始路径（字符串形式，如 "path/x.def"）
-            let bimg = v.get("image")
+            let bimg = v
+                .get("image")
                 .or_else(|| v.get("graphics").and_then(|g| g.get("image")))
                 .or_else(|| v.get("icon"))
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string());
             // 建筑图标（DEF 动画形式，如 {animation:".../x.def", group, index}）——城镇界面小图通常来自 town-screen 的 DEF 帧
-            let banim = v.get("animation")
+            let banim = v
+                .get("animation")
                 .or_else(|| v.get("graphics").and_then(|g| g.get("animation")))
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string());
-            let bgroup = v.get("group")
+            let bgroup = v
+                .get("group")
                 .or_else(|| v.get("graphics").and_then(|g| g.get("group")))
                 .and_then(|x| x.as_u64())
                 .unwrap_or(0);
-            let bindex = v.get("index")
+            let bindex = v
+                .get("index")
                 .or_else(|| v.get("graphics").and_then(|g| g.get("index")))
                 .and_then(|x| x.as_u64())
                 .unwrap_or(0);
@@ -659,6 +709,16 @@ pub(crate) fn build_town_config(v: &Value) -> TownConfig {
                     .and_then(value_to_resource),
                 "cost": cost,
                 "creatures": bc,
+                // 被本建筑升级的基础建筑 id（VCMI: `upgrades`）。
+                // 客户端把「升级建筑」与「被升级建筑」视为**同一底座**绘制
+                // （CBuilding::getBase() 沿 upgrade 链走到链尾；CCastleBuildings::
+                // recreate 用 groups[building->getBase()] 分组），故建筑图标在
+                // 本建筑四通道全失败时应回退到 base 的（见 data/town.rs）。
+                "upgrades": v
+                    .get("upgrades")
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .to_string(),
                 "image": bimg,
                 "animation": banim,
                 "group": bgroup,
@@ -693,8 +753,18 @@ pub(crate) fn build_town_config(v: &Value) -> TownConfig {
     let mut structures: HashMap<String, Value> = HashMap::new();
     let mut add_structures = |obj: &serde_json::Map<String, Value>| {
         for (k, v) in obj {
-            if v.get("animation").and_then(|a| a.as_str()).map(|s| !s.is_empty()).unwrap_or(false) {
-                building_animations.insert(k.clone(), v.get("animation").and_then(|a| a.as_str()).unwrap().to_string());
+            if v.get("animation")
+                .and_then(|a| a.as_str())
+                .map(|s| !s.is_empty())
+                .unwrap_or(false)
+            {
+                building_animations.insert(
+                    k.clone(),
+                    v.get("animation")
+                        .and_then(|a| a.as_str())
+                        .unwrap()
+                        .to_string(),
+                );
                 structures.entry(k.clone()).or_insert_with(|| v.clone());
             }
         }
@@ -786,6 +856,8 @@ mod tests {
         // 非城镇目录下的 structure.json 不应误识别（防幽灵条目）
         assert!(!is_town_config_path("config/other/structure.json"));
         // sprites 目录下的同名结构定义不应误识别
-        assert!(!is_town_config_path("sprites/celestial/town/structure.json"));
+        assert!(!is_town_config_path(
+            "sprites/celestial/town/structure.json"
+        ));
     }
 }

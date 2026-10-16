@@ -14,13 +14,16 @@
 //! - `health`：游戏数据完整性体检（lod 条目 / 核心 mod / 资源容器，只读）。
 //! - `hd_edition`：官方 HD 版素材 mod（`hd-edition`）的 `.pak` 探测 / 注入 / 按名取图（真高清来源）。
 //! - `setup`：用户配置播种（官方启动器首次运行向导状态 `launcher.setupCompleted`）。
+//! - `bonus`：bonus type 的图标表（`bonuses.json` 的 `graphics` 段，百科能力图标来源）。
+//! - `spell_icons`：法术自身的 `graphics.iconImmune`（`SPELL_IMMUNITY` 能力的图标来源）。
 
+pub mod bonus;
 pub mod config;
-pub mod i18n;
-pub mod gamedata;
 pub mod game_import;
+pub mod gamedata;
 pub mod h3core;
 pub mod health;
+pub mod i18n;
 pub mod mod_install;
 // HD 高清素材来源（`.pak`）：接线期间部分接口尚未被提取链路调用，先放宽 dead_code。
 #[allow(dead_code)]
@@ -29,5 +32,6 @@ pub mod paths;
 pub mod resource;
 pub mod scan;
 pub mod setup;
+pub mod spell_icons;
 pub mod town;
 pub mod version;

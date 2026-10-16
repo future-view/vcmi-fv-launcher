@@ -8,17 +8,18 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::State;
 
-use crate::state::AppPaths;
-use crate::vcmi::paths::VcmiPaths;
-use crate::vcmi::resource::{set_wiki_mod_paths, set_wiki_user_data_dir};
-use crate::vcmi::scan::cached_mod_paths;
 use crate::modcache::batch::{
-    BatchWikiMod, BuildSlot, REALM_BUILD_CANCEL, REALM_BUILD_DONE, REALM_BUILD_TOTAL,
-    WIKI_BUILD_CANCEL, WIKI_BUILD_DONE, WIKI_BUILD_TOTAL,
+    BatchWikiMod, BuildProgress, BuildSlot, REALM_BUILD_CANCEL, REALM_BUILD_DONE,
+    REALM_BUILD_PREP_DONE, REALM_BUILD_PREP_TOTAL, REALM_BUILD_TOTAL, WIKI_BUILD_CANCEL,
+    WIKI_BUILD_DONE, WIKI_BUILD_PREP_DONE, WIKI_BUILD_PREP_TOTAL, WIKI_BUILD_TOTAL,
 };
 use crate::modcache::build::{probe_mod_cache, ModCacheState};
 use crate::modcache::index::{build_all_wiki_inner, read_mod_wiki_inner};
 use crate::modcache::preview::generate_town_preview_inner;
+use crate::state::AppPaths;
+use crate::vcmi::paths::VcmiPaths;
+use crate::vcmi::resource::{set_wiki_mod_paths, set_wiki_user_data_dir};
+use crate::vcmi::scan::cached_mod_paths;
 
 /// 读取单个城镇 mod 的 Wiki 缓存 JSON（命中缓存时不再解析原始 mod）。
 ///
@@ -27,8 +28,8 @@ use crate::modcache::preview::generate_town_preview_inner;
 #[tauri::command]
 pub async fn read_mod_cache(_state: State<'_, AppPaths>, mod_id: String) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
-        let cache_root =
-            VcmiPaths::mods_cache_dir().unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
+        let cache_root = VcmiPaths::mods_cache_dir()
+            .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
         Ok(read_mod_wiki_inner(&cache_root, &mod_id))
     })
     .await
@@ -43,10 +44,13 @@ pub async fn read_mod_cache(_state: State<'_, AppPaths>, mod_id: String) -> Resu
 ///
 /// 参数名 `ids` 为前端契约（改名会导致 `invoke` 静默 404，见 `check:invoke-parity`）。
 #[tauri::command]
-pub async fn read_mod_metas(_state: State<'_, AppPaths>, ids: Vec<String>) -> Result<Value, String> {
+pub async fn read_mod_metas(
+    _state: State<'_, AppPaths>,
+    ids: Vec<String>,
+) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
-        let cache_root =
-            VcmiPaths::mods_cache_dir().unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
+        let cache_root = VcmiPaths::mods_cache_dir()
+            .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
         Ok(crate::modcache::cached_mod_metas(&cache_root, &ids))
     })
     .await
@@ -58,10 +62,13 @@ pub async fn read_mod_metas(_state: State<'_, AppPaths>, ids: Vec<String>) -> Re
 /// 领域信息页的城镇网格只需要这 5 个字段；若沿用 `read_mod_cache` 读整份 `cache.json`，
 /// 本例 86 个城镇合计 31 MB。一次 IPC 取回数十 KB 后，前端无需再做视口懒加载。
 #[tauri::command]
-pub async fn read_town_cards(_state: State<'_, AppPaths>, ids: Vec<String>) -> Result<Value, String> {
+pub async fn read_town_cards(
+    _state: State<'_, AppPaths>,
+    ids: Vec<String>,
+) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
-        let cache_root =
-            VcmiPaths::mods_cache_dir().unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
+        let cache_root = VcmiPaths::mods_cache_dir()
+            .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
         Ok(crate::modcache::cached_town_cards(&cache_root, &ids))
     })
     .await
@@ -86,7 +93,8 @@ pub(crate) struct ShowcaseEntry {
 /// 用于解析阵营音乐磁盘路径 / zip 条目；缺失时仅返回磁盘已落地音乐。
 #[tauri::command]
 pub fn read_showcase_slides(entries: Vec<ShowcaseEntry>) -> Result<Value, String> {
-    let cache_root = VcmiPaths::mods_cache_dir().unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
+    let cache_root = VcmiPaths::mods_cache_dir()
+        .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
     let game_dir = VcmiPaths::detect().game_dir;
     // 转成内部 Value 形态（避免 `Vec<Value>` 命令入参触发 Rust 2024 never-type 兼容性硬错误）
     let vals: Vec<Value> = entries
@@ -100,17 +108,25 @@ pub fn read_showcase_slides(entries: Vec<ShowcaseEntry>) -> Result<Value, String
         })
         .collect();
     Ok(crate::modcache::showcase::read_showcase_slides_inner(
-        &cache_root, &game_dir, &vals,
+        &cache_root,
+        &game_dir,
+        &vals,
     ))
 }
 
 /// zip 内阵营音乐单条目抽取落盘，返回绝对路径（见设计 §8.1 / §4.5.3）。
 /// 前端在进入某 slide 且 `musicZip` 非空时调用，落盘后再用返回路径播放。
 #[tauri::command]
-pub fn ensure_showcase_audio(mod_path: String, mod_id: String, rel: String) -> Result<Value, String> {
-    let cache_root = VcmiPaths::mods_cache_dir().unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
+pub fn ensure_showcase_audio(
+    mod_path: String,
+    mod_id: String,
+    rel: String,
+) -> Result<Value, String> {
+    let cache_root = VcmiPaths::mods_cache_dir()
+        .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
     let mp = PathBuf::from(&mod_path);
-    let path = crate::modcache::showcase::ensure_showcase_audio_inner(&cache_root, &mod_id, &mp, &rel);
+    let path =
+        crate::modcache::showcase::ensure_showcase_audio_inner(&cache_root, &mod_id, &mp, &rel);
     Ok(json!({ "ok": true, "path": path }))
 }
 
@@ -121,17 +137,28 @@ pub fn generate_town_preview(
     mod_id: String,
     faction_id: String,
 ) -> Result<Value, String> {
-    let cache_root = VcmiPaths::mods_cache_dir().unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
-    Ok(generate_town_preview_inner(&cache_root, &mod_id, &faction_id))
+    let cache_root = VcmiPaths::mods_cache_dir()
+        .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
+    Ok(generate_town_preview_inner(
+        &cache_root,
+        &mod_id,
+        &faction_id,
+    ))
 }
 
 /// 读取批量构建进度（前端 busy 时 400ms 轮询）
+///
+/// `prepDone`/`prepTotal` 是**准备阶段**（排序前的 mod 成本估算）的独立进度，
+/// UI 上对应"扫描模组目录"那一行。与 `done`/`total` 分开：两者计数域同为
+/// `0..mods.len()`，混用会让进度条"冲满后归零"（见 `batch::WIKI_BUILD_PREP_DONE`）。
 #[tauri::command]
 pub fn cache_build_progress() -> Value {
     use std::sync::atomic::Ordering::Relaxed;
     json!({
         "done": WIKI_BUILD_DONE.load(Relaxed),
         "total": WIKI_BUILD_TOTAL.load(Relaxed),
+        "prepDone": WIKI_BUILD_PREP_DONE.load(Relaxed),
+        "prepTotal": WIKI_BUILD_PREP_TOTAL.load(Relaxed),
     })
 }
 
@@ -148,12 +175,18 @@ pub fn cancel_cache_build() -> Result<(), String> {
 ///
 /// 刻意与 `cache_build_progress` 分离：后者是启动后的**全局**后台构建，
 /// 两者可能并存，共用一组计数器会让进度条互相覆盖。
+///
+/// `prepDone`/`prepTotal` 语义同 `cache_build_progress`，但**领域进度页不消费**——
+/// 加急队列的 mod 数很少，准备阶段一瞬而过，透传只会让进度条先冲满再归零
+/// （命令层已把 `BuildProgress::Prep` 事件过滤掉，见 `build_realm_cache_urgent`）。
 #[tauri::command]
 pub fn realm_cache_build_progress() -> Value {
     use std::sync::atomic::Ordering::Relaxed;
     json!({
         "done": REALM_BUILD_DONE.load(Relaxed),
         "total": REALM_BUILD_TOTAL.load(Relaxed),
+        "prepDone": REALM_BUILD_PREP_DONE.load(Relaxed),
+        "prepTotal": REALM_BUILD_PREP_TOTAL.load(Relaxed),
     })
 }
 
@@ -190,9 +223,17 @@ pub async fn build_realm_cache_urgent(
     REALM_BUILD_CANCEL.store(false, std::sync::atomic::Ordering::Relaxed);
     tauri::async_runtime::spawn_blocking(move || {
         // HD 素材来源的注入在 batch 入口统一做（见 `build_mods_cache_batch_inner_hd`）
-        let on_progress = |done: usize, total: usize| {
+        let on_progress = |stage: BuildProgress, done: usize, total: usize| {
             use tauri::Emitter;
-            let _ = app.emit("realm-cache-build-progress", json!({ "done": done, "total": total }));
+            // 领域进度页只显示**构建**进度：准备阶段（成本估算）刻意不透传 ——
+            // 加急队列的 mod 数很少，prep 一瞬而过，透传只会让进度条先冲满再归零。
+            if stage == BuildProgress::Prep {
+                return;
+            }
+            let _ = app.emit(
+                "realm-cache-build-progress",
+                json!({ "done": done, "total": total }),
+            );
         };
         crate::modcache::batch::build_mods_cache_batch_inner_hd(
             Some(&on_progress),
@@ -276,10 +317,7 @@ pub fn check_realm_assets(ids: Vec<String>) -> Value {
 /// 三者皆"空 / 就绪"时，前端**不置 busy、不弹蒙层**，直接用现有 `index.json` 渲染
 /// （见 `src/lib/modcache/status.ts::ensureWikiCacheBuilt`）—— 这是"每次启动都弹重建进度条"的修复点。
 #[tauri::command]
-pub async fn wiki_cache_state(
-    game_dir: String,
-    mods: Vec<BatchWikiMod>,
-) -> Result<Value, String> {
+pub async fn wiki_cache_state(game_dir: String, mods: Vec<BatchWikiMod>) -> Result<Value, String> {
     let cache_root = VcmiPaths::mods_cache_dir()
         .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
     tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
@@ -298,7 +336,11 @@ pub async fn wiki_cache_state(
             fs::read_to_string(&p)
                 .ok()
                 .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-                .and_then(|v| v.get("mods").and_then(|m| m.as_array()).map(|a| !a.is_empty()))
+                .and_then(|v| {
+                    v.get("mods")
+                        .and_then(|m| m.as_array())
+                        .map(|a| !a.is_empty())
+                })
                 .unwrap_or(false)
         };
         let gd = Path::new(&game_dir);
@@ -357,7 +399,8 @@ pub async fn build_mods_cache_batch(
     // 开启后插画档优先走 Real-ESRGAN 超分（仅 4x），失败静默回退 Lanczos3。
     hd_ai: Option<bool>,
 ) -> Result<Value, String> {
-    let cache_root = VcmiPaths::mods_cache_dir().unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
+    let cache_root = VcmiPaths::mods_cache_dir()
+        .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
     // 高清选项（`hd_rate < 2` → None：完全不进高清分支）
     let hd = crate::modcache::hd::HdOptions::new(hd_rate, hd_phys, hd_upscaler, hd_ai);
     // 重活放后台阻塞线程池：rayon 占满 CPU 时若在主线程执行会卡死前端 IPC/渲染
@@ -365,10 +408,15 @@ pub async fn build_mods_cache_batch(
     WIKI_BUILD_CANCEL.store(false, std::sync::atomic::Ordering::Relaxed);
     tauri::async_runtime::spawn_blocking(move || {
         // HD 素材来源的注入在 `batch::build_mods_cache_batch_inner_hd` 入口统一做（覆盖所有调用者）
-        // 进度事件：wiki 层只接回调（不依赖 tauri），事件推送由命令层负责
-        let on_progress = |done: usize, total: usize| {
+        // 进度事件：wiki 层只接回调（不依赖 tauri），事件推送由命令层负责。
+        // `prep`（准备阶段 = 排序前的成本估算）与构建进度同通道下发，靠 payload 的
+        // `prep` 字段区分 —— 前端据此驱动"扫描模组目录"那一行（见 status.ts 的 applyPrep）。
+        let on_progress = |stage: BuildProgress, done: usize, total: usize| {
             use tauri::Emitter;
-            let _ = app.emit("wiki-build-progress", json!({ "done": done, "total": total }));
+            let _ = app.emit(
+                "wiki-build-progress",
+                json!({ "done": done, "total": total, "prep": stage == BuildProgress::Prep }),
+            );
         };
         crate::modcache::batch::build_mods_cache_batch_inner_hd(
             Some(&on_progress),
@@ -383,6 +431,20 @@ pub async fn build_mods_cache_batch(
     })
     .await
     .map_err(|e| be_err("cmd_wiki_batch_build_failed", &format!("{}", e)))?
+}
+
+/// 释放**整轮缓存构建**留下的进程级缓存（构建结束后内存回落）。
+///
+/// 由前端在 `ensureWikiCacheBuilt` 走完全部阶段后调用一次 —— 只有前端知道"整轮
+/// 是否真的结束了"（阶段一/二/三是 3~5 次独立的 `wiki_batch_build`，后端单看一批
+/// 无法区分"还有下一批"与"全部完成"；批间清空会白付一次全量扫描）。
+///
+/// 只清**可重建的派生缓存**（目录索引 / 解析结果 / 编码产物 / 去重集合），
+/// 不影响任何已落盘产物，也不影响下次构建的正确性。
+#[tauri::command]
+pub fn release_wiki_caches() -> Result<Value, String> {
+    crate::infra::cache_gc::release_build_caches();
+    Ok(json!({ "ok": true }))
 }
 
 /// 批量构建多个城镇 mod 的 Wiki 缓存，并汇总生成 `mods/index.json` 索引。
@@ -406,14 +468,26 @@ pub async fn build_all_mod_cache(mods: Value) -> Result<Value, String> {
 #[tauri::command]
 pub async fn read_cache_index(_state: State<'_, AppPaths>) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
-        let cache_root =
-            VcmiPaths::mods_cache_dir().unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
+        let cache_root = VcmiPaths::mods_cache_dir()
+            .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
         let p = cache_root.join("index.json");
         if !p.is_file() {
             return Ok(json!({ "ok": false, "error": "notcached" }));
         }
-        let text = fs::read_to_string(&p).map_err(|e| be_err("cmd_read_failed", &format!("{}", e)))?;
-        let v = serde_json::from_str::<Value>(&text).map_err(|e| be_err("cmd_parse_failed", &format!("{}", e)))?;
+        let text =
+            fs::read_to_string(&p).map_err(|e| be_err("cmd_read_failed", &format!("{}", e)))?;
+        let mut v = serde_json::from_str::<Value>(&text)
+            .map_err(|e| be_err("cmd_parse_failed", &format!("{}", e)))?;
+        // 丢掉旧 modId 口径留下的重复条目（见 `dedup_index_mods`）：否则城镇/英雄/建筑
+        // 这类不做跨 mod 去重的类目会把同一个 mod 列两遍。只在读侧归一，不动磁盘文件。
+        let dropped = crate::modcache::index::dedup_index_mods(&mut v);
+        if dropped > 0 {
+            tracing::info!(
+                target: "wiki",
+                "index.json 归一：丢弃 {} 条重复 modId 条目（旧口径大小写留下的幽灵条目）",
+                dropped
+            );
+        }
         Ok(json!({ "ok": true, "data": v }))
     })
     .await
@@ -424,8 +498,8 @@ pub async fn read_cache_index(_state: State<'_, AppPaths>) -> Result<Value, Stri
 #[tauri::command]
 pub async fn get_mods_cache_dir(_state: State<'_, AppPaths>) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
-        let cache_root =
-            VcmiPaths::mods_cache_dir().unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
+        let cache_root = VcmiPaths::mods_cache_dir()
+            .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
         let _ = fs::create_dir_all(&cache_root);
         Ok(json!({ "ok": true, "cacheDir": cache_root.to_string_lossy() }))
     })

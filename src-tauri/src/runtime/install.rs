@@ -109,7 +109,8 @@ fn install_inner(id: &str, progress: impl Fn(u64, u64)) -> Result<(), String> {
 
     let extract = tmp.join(format!("{id}_extract"));
     let _ = fs::remove_dir_all(&extract);
-    fs::create_dir_all(&extract).map_err(|e| be_err("rt_extract_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&extract)
+        .map_err(|e| be_err("rt_extract_dir_create_failed", &format!("{}", e)))?;
 
     extract_whitelisted(&zip_path, d, &extract)?;
 
@@ -139,7 +140,8 @@ pub fn uninstall(id: &str) -> Result<(), String> {
     let r = (|| {
         let dest = dir_of(id).ok_or_else(|| be_err("common_component_dir_unknown", ""))?;
         if dest.exists() {
-            fs::remove_dir_all(&dest).map_err(|e| be_err("rt_component_dir_delete_failed", &format!("{}", e)))?;
+            fs::remove_dir_all(&dest)
+                .map_err(|e| be_err("rt_component_dir_delete_failed", &format!("{}", e)))?;
         }
         Ok(())
     })();
@@ -155,24 +157,25 @@ fn tmp_root() -> Result<PathBuf, String> {
     Ok(d)
 }
 
-fn download(
-    url: &str,
-    dest: &Path,
-    progress: &impl Fn(u64, u64),
-    id: &str,
-) -> Result<(), String> {
+fn download(url: &str, dest: &Path, progress: &impl Fn(u64, u64), id: &str) -> Result<(), String> {
     if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent).map_err(|e| be_err("repo_download_dir_create_failed", &format!("{}", e)))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| be_err("repo_download_dir_create_failed", &format!("{}", e)))?;
     }
-    let (resp, _egress) = get_send(url).map_err(|e| be_err("repo_download_failed", &format!("{}", e)))?;
+    let (resp, _egress) =
+        get_send(url).map_err(|e| be_err("repo_download_failed", &format!("{}", e)))?;
     let status = resp.status().as_u16();
     if !(200..300).contains(&status) {
-        return Err(be_err("repo_download_server_returned", &format!("{}", status)));
+        return Err(be_err(
+            "repo_download_server_returned",
+            &format!("{}", status),
+        ));
     }
     let total = resp.content_length().unwrap_or(0);
 
     let mut reader = resp;
-    let mut file = fs::File::create(dest).map_err(|e| be_err("rt_file_create_failed", &format!("{}", e)))?;
+    let mut file =
+        fs::File::create(dest).map_err(|e| be_err("rt_file_create_failed", &format!("{}", e)))?;
     let mut buf = vec![0u8; 64 * 1024];
     let mut received: u64 = 0;
     let mut last_emit = Instant::now();
@@ -181,13 +184,18 @@ fn download(
         if is_cancelled(id) {
             return Err(be_err("runtime_install_cancelled", ""));
         }
-        let n = reader.read(&mut buf).map_err(|e| be_err("repo_download_interrupted", &format!("{}", e)))?;
+        let n = reader
+            .read(&mut buf)
+            .map_err(|e| be_err("repo_download_interrupted", &format!("{}", e)))?;
         if n == 0 {
             break;
         }
         received += n as u64;
         if received > PACKAGE_MAX_BYTES {
-            return Err(be_err("rt_pack_too_large", &format!("{}", PACKAGE_MAX_BYTES / 1024 / 1024)));
+            return Err(be_err(
+                "rt_pack_too_large",
+                &format!("{}", PACKAGE_MAX_BYTES / 1024 / 1024),
+            ));
         }
         file.write_all(&buf[..n])
             .map_err(|e| be_err("realm_file_write_failed", &format!("{}", e)))?;
@@ -205,7 +213,8 @@ fn download(
 /// ⚠️ 安全性：目标路径固定为 `<out>/<白名单文件名>`，**不使用压缩包内的目录结构**，
 /// 因此 `../`、绝对路径、盘符等 zip slip 手法在这里全部无效。
 fn extract_whitelisted(zip_path: &Path, d: &ComponentDef, out: &Path) -> Result<(), String> {
-    let file = fs::File::open(zip_path).map_err(|e| be_err("rt_pack_open_failed", &format!("{}", e)))?;
+    let file =
+        fs::File::open(zip_path).map_err(|e| be_err("rt_pack_open_failed", &format!("{}", e)))?;
     let mut archive =
         zip::ZipArchive::new(file).map_err(|e| be_err("rt_pack_invalid_zip", &format!("{}", e)))?;
 
@@ -217,14 +226,11 @@ fn extract_whitelisted(zip_path: &Path, d: &ComponentDef, out: &Path) -> Result<
             continue;
         }
         let name = entry.name().to_string();
-        let base = name
-            .rsplit(['/', '\\'])
-            .next()
-            .unwrap_or(&name)
-            .to_string();
+        let base = name.rsplit(['/', '\\']).next().unwrap_or(&name).to_string();
         // 非清单文件（README、无关的 dll…）跳过，不落盘。
         // 白名单 = 必需文件 + 随包模型（模型要在包里，否则上面的逐文件校验会判失败）
-        if !d.files
+        if !d
+            .files
             .iter()
             .chain(d.models.iter())
             .any(|f| f.name == base.as_str())
@@ -243,14 +249,16 @@ fn extract_whitelisted(zip_path: &Path, d: &ComponentDef, out: &Path) -> Result<
 /// 原子替换目录：旧目录先改名为 `.old`，新目录 rename 到位成功后才删除备份；失败则还原。
 fn replace_dir(src: &Path, dest: &Path) -> Result<(), String> {
     if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent).map_err(|e| be_err("rt_component_dir_create_failed", &format!("{}", e)))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| be_err("rt_component_dir_create_failed", &format!("{}", e)))?;
     }
     let backup = PathBuf::from(format!("{}.old", dest.display()));
     let has_old = dest.exists();
 
     if has_old {
         let _ = fs::remove_dir_all(&backup);
-        fs::rename(dest, &backup).map_err(|e| be_err("rt_old_component_backup_failed", &format!("{}", e)))?;
+        fs::rename(dest, &backup)
+            .map_err(|e| be_err("rt_old_component_backup_failed", &format!("{}", e)))?;
     }
     match fs::rename(src, dest) {
         Ok(()) => {

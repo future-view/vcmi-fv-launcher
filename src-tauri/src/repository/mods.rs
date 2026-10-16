@@ -11,8 +11,8 @@
 //! 与领域仓库（`index.rs`/`download.rs`）同构：ETag + TTL 缓存 + 多源合并 + 取消 + 进度事件；
 //! 但缓存目录独立（`cache/modIndex`），条目结构是官方 `availableMods` 而非 `realms`。
 
-use crate::infra::berror::be_err;
 use super::*;
+use crate::infra::berror::be_err;
 
 use serde_json::{json, Value};
 use std::fs;
@@ -66,10 +66,7 @@ pub(crate) fn cmp_mod_versions(a: &str, b: &str) -> std::cmp::Ordering {
 #[allow(dead_code)]
 pub(crate) fn is_mod_update(current: &str, latest: &str) -> bool {
     let (c, l) = (current.trim(), latest.trim());
-    !c.is_empty()
-        && !l.is_empty()
-        && c != l
-        && cmp_mod_versions(c, l) == std::cmp::Ordering::Less
+    !c.is_empty() && !l.is_empty() && c != l && cmp_mod_versions(c, l) == std::cmp::Ordering::Less
 }
 
 /* ----------------------------- 仓库源与缓存 ----------------------------- */
@@ -84,8 +81,7 @@ fn mod_downloads_dir() -> Option<PathBuf> {
 
 /// P6（包缓存复用）：下载过的模组 zip 缓存目录——全局与领域安装共用（替代 C8「校验即删」）。
 fn mod_packages_dir() -> Option<PathBuf> {
-    VcmiPaths::launcher_data_dir()
-        .map(|d| d.join("cache").join("modPackages"))
+    VcmiPaths::launcher_data_dir().map(|d| d.join("cache").join("modPackages"))
 }
 
 /// 包缓存总容量上限（2GB）：超限按 mtime 从旧到新淘汰（当前包除外）。
@@ -110,7 +106,9 @@ fn pkg_file_name(mod_id: &str, url: &str) -> String {
 
 /// 安装成功后的包缓存清理：①同 mod 旧版本包（同前缀不同文件）直删；②总容量超限按 LRU mtime 淘汰。
 fn prune_mod_packages(keep: &Path) {
-    let Some(dir) = mod_packages_dir() else { return };
+    let Some(dir) = mod_packages_dir() else {
+        return;
+    };
     let Ok(rd) = fs::read_dir(&dir) else { return };
     let keep_name = keep
         .file_name()
@@ -228,7 +226,10 @@ pub(crate) fn load_mod_cache(url: &str) -> Option<ModIndexCache> {
         return None;
     }
     Some(ModIndexCache {
-        etag: v.get("etag").and_then(|x| x.as_str()).map(|s| s.to_string()),
+        etag: v
+            .get("etag")
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string()),
         fetched_at: v.get("fetchedAt").and_then(|x| x.as_u64()).unwrap_or(0),
         index: v.get("index").cloned().unwrap_or(Value::Null),
     })
@@ -357,8 +358,7 @@ struct CachedModVersion {
 const MOD_VERSION_CACHE_V: u8 = 4;
 
 fn mod_versions_cache_path() -> Option<PathBuf> {
-    VcmiPaths::launcher_data_dir()
-        .map(|d| d.join("cache").join("modVersions.json"))
+    VcmiPaths::launcher_data_dir().map(|d| d.join("cache").join("modVersions.json"))
 }
 
 fn load_mod_version_cache() -> std::collections::HashMap<String, CachedModVersion> {
@@ -859,7 +859,11 @@ fn full_index_fetch(
                     match serde_json::from_slice::<Value>(&bytes) {
                         Ok(raw) => {
                             let index = coerce_mod_index(raw);
-                            if index.get("availableMods").and_then(|v| v.as_object()).is_some() {
+                            if index
+                                .get("availableMods")
+                                .and_then(|v| v.as_object())
+                                .is_some()
+                            {
                                 save_mod_cache(url, new_etag.as_deref(), &index);
                                 index_changed = true; // A2：索引真变（供补全层续期/清理决策）
                                 (index, crate::infra::time::now_secs(), None)
@@ -867,11 +871,17 @@ fn full_index_fetch(
                                 (
                                     Value::Null,
                                     0u64,
-                                    Some(format!("索引缺少 availableMods 字段（不是模组仓库索引）：{url}")),
+                                    Some(format!(
+                                        "索引缺少 availableMods 字段（不是模组仓库索引）：{url}"
+                                    )),
                                 )
                             }
                         }
-                        Err(_) => (Value::Null, 0u64, Some(format!("索引 JSON 解析失败：{url}"))),
+                        Err(_) => (
+                            Value::Null,
+                            0u64,
+                            Some(format!("索引 JSON 解析失败：{url}")),
+                        ),
                     }
                 }
                 Err(e) => match cached {
@@ -928,7 +938,10 @@ fn full_index_fetch(
 
     let mods: Vec<Value> = merged.into_values().collect();
     let error = if any_ok { None } else { last_error };
-    Ok((json!({ "mods": mods, "sources": sources, "error": error }), index_changed))
+    Ok((
+        json!({ "mods": mods, "sources": sources, "error": error }),
+        index_changed,
+    ))
 }
 
 /// T1 定案：机制与官方一致（消费 `launcher.autoCheckRepositories`），但 **FV 默认关**——
@@ -1017,8 +1030,8 @@ pub async fn delete_mod(state: State<'_, AppPaths>, path: String) -> Result<(), 
         (paths.user_mods_dir(), paths.game_dir.join("Mods"))
     };
     tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
-        let target =
-            fs::canonicalize(&path).map_err(|e| be_err("repo_mod_dir_not_found", &format!("{}", e)))?;
+        let target = fs::canonicalize(&path)
+            .map_err(|e| be_err("repo_mod_dir_not_found", &format!("{}", e)))?;
         if !target.is_dir() {
             return Err(be_err("repo_mod_delete_not_dir", ""));
         }
@@ -1034,7 +1047,8 @@ pub async fn delete_mod(state: State<'_, AppPaths>, path: String) -> Result<(), 
             .file_name()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
-        fs::remove_dir_all(&target).map_err(|e| be_err("repo_delete_failed", &format!("{} {}", name, e)))?;
+        fs::remove_dir_all(&target)
+            .map_err(|e| be_err("repo_delete_failed", &format!("{} {}", name, e)))?;
         tracing::info!(target: "mods", "模组管理页物理删除：{}", target.display());
         Ok(())
     })
@@ -1113,9 +1127,8 @@ fn install_mod_from_repo_blocking(
         }
         None
     })();
-    let (repo_url, entry) = located.ok_or_else(|| {
-        "尚未加载模组索引，请先在模组页点击「检查更新」或刷新仓库".to_string()
-    })?;
+    let (repo_url, entry) = located
+        .ok_or_else(|| "尚未加载模组索引，请先在模组页点击「检查更新」或刷新仓库".to_string())?;
     let download = entry
         .get("download")
         .and_then(|v| v.as_str())
@@ -1125,7 +1138,8 @@ fn install_mod_from_repo_blocking(
     // P6（包缓存复用）：先查 cache/modPackages，命中即免下载（全局与领域安装共用）；
     // 未命中则下载→校验→**入包缓存**（替代 C8「校验即删」），安装直接以包文件为源。
     let pkg_dir = mod_packages_dir().ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
-    fs::create_dir_all(&pkg_dir).map_err(|e| be_err("repo_pack_cache_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(&pkg_dir)
+        .map_err(|e| be_err("repo_pack_cache_dir_create_failed", &format!("{}", e)))?;
     let pkg = pkg_dir.join(pkg_file_name(&module, download));
     let expected_sha = entry
         .get("fv")
@@ -1160,7 +1174,8 @@ fn install_mod_from_repo_blocking(
     }
     if !from_cache {
         let dir = mod_downloads_dir().ok_or_else(|| be_err("common_data_dir_unknown", ""))?;
-        fs::create_dir_all(&dir).map_err(|e| be_err("repo_download_dir_create_failed", &format!("{}", e)))?;
+        fs::create_dir_all(&dir)
+            .map_err(|e| be_err("repo_download_dir_create_failed", &format!("{}", e)))?;
         let tmp = dir.join(format!("{module}.zip"));
         let _ = fs::remove_file(&tmp);
         via_label = match download_mod_to_file(&app, &module, download, &tmp) {
@@ -1209,7 +1224,10 @@ fn install_mod_from_repo_blocking(
     }
     let entry_name = entry.get("name").and_then(|v| v.as_str()).unwrap_or("");
     if !entry_name.is_empty() && !info.name.is_empty() && entry_name != info.name {
-        warn.push(format!("包内名称（{}）与索引（{entry_name}）不一致", info.name));
+        warn.push(format!(
+            "包内名称（{}）与索引（{entry_name}）不一致",
+            info.name
+        ));
     }
 
     // N12：实际经镜像下载且无 sha256 强校验 → 明确告警（**指名具体镜像域名**，§3.2.6 精化；包缓存命中不重复告警）
@@ -1278,21 +1296,28 @@ fn download_mod_to_file(
     url: &str,
     dest: &Path,
 ) -> Result<Egress, String> {
-    let (resp, egress) = get_send(url).map_err(|e| be_err("repo_download_failed", &format!("{}", e)))?;
+    let (resp, egress) =
+        get_send(url).map_err(|e| be_err("repo_download_failed", &format!("{}", e)))?;
     let status = resp.status().as_u16();
     if !(200..300).contains(&status) {
-        return Err(be_err("repo_download_server_returned", &format!("{}", status)));
+        return Err(be_err(
+            "repo_download_server_returned",
+            &format!("{}", status),
+        ));
     }
     let total = resp.content_length().unwrap_or(0);
 
     let mut reader = resp;
-    let mut file = fs::File::create(dest).map_err(|e| be_err("repo_temp_file_create_failed", &format!("{}", e)))?;
+    let mut file = fs::File::create(dest)
+        .map_err(|e| be_err("repo_temp_file_create_failed", &format!("{}", e)))?;
     let mut buf = vec![0u8; 64 * 1024];
     let mut received: u64 = 0;
     let mut last_emit = Instant::now();
 
     loop {
-        let n = reader.read(&mut buf).map_err(|e| be_err("repo_download_interrupted", &format!("{}", e)))?;
+        let n = reader
+            .read(&mut buf)
+            .map_err(|e| be_err("repo_download_interrupted", &format!("{}", e)))?;
         if n == 0 {
             break;
         }
@@ -1300,7 +1325,10 @@ fn download_mod_to_file(
         if received > MOD_PACKAGE_MAX_BYTES {
             drop(file);
             let _ = fs::remove_file(dest);
-            return Err(be_err("repo_mod_pack_too_large", &format!("{}", MOD_PACKAGE_MAX_BYTES / 1024 / 1024)));
+            return Err(be_err(
+                "repo_mod_pack_too_large",
+                &format!("{}", MOD_PACKAGE_MAX_BYTES / 1024 / 1024),
+            ));
         }
         file.write_all(&buf[..n])
             .map_err(|e| be_err("repo_temp_file_write_failed", &format!("{}", e)))?;
@@ -1334,8 +1362,14 @@ mod tests {
     #[test]
     fn pkg_file_name_sanitize() {
         // modId 非法字符替换为 '*'；URL 取 key 前 16 位（版本变化 URL 变 → 文件名变 → 老版本可识别）
-        let n1 = pkg_file_name("vcmi-extras", "https://github.com/x/y/releases/download/1/a.zip");
-        let n2 = pkg_file_name("vcmi-extras", "https://github.com/x/y/releases/download/2/a.zip");
+        let n1 = pkg_file_name(
+            "vcmi-extras",
+            "https://github.com/x/y/releases/download/1/a.zip",
+        );
+        let n2 = pkg_file_name(
+            "vcmi-extras",
+            "https://github.com/x/y/releases/download/2/a.zip",
+        );
         assert!(n1.starts_with("vcmi-extras__"));
         assert!(n1.ends_with(".zip"));
         assert_ne!(n1, n2);
@@ -1366,7 +1400,10 @@ mod tests {
         assert_eq!(meta.mod_type, "Graphical");
         assert_eq!(meta.version, "3.9.4");
         // 无 modType 声明时走启发式：id 含 translation → Translation
-        let heur = parse_mod_json_meta("belarusian-translation", br#"{"name":"Belarusian","description":""}"#);
+        let heur = parse_mod_json_meta(
+            "belarusian-translation",
+            br#"{"name":"Belarusian","description":""}"#,
+        );
         assert_eq!(heur.mod_type, "Translation");
     }
 
@@ -1403,11 +1440,16 @@ mod tests {
             "other": {"download": "https://…/y.zip"}
         });
         let wrapped = coerce_mod_index(archive);
-        let mods = wrapped.get("availableMods").and_then(|v| v.as_object()).unwrap();
+        let mods = wrapped
+            .get("availableMods")
+            .and_then(|v| v.as_object())
+            .unwrap();
         assert_eq!(mods.len(), 2);
         // 非索引结构（realm 索引/空对象）不乱包
         let realms = json!({"realms": {"a": {}}});
-        assert!(coerce_mod_index(realms.clone()).get("availableMods").is_none());
+        assert!(coerce_mod_index(realms.clone())
+            .get("availableMods")
+            .is_none());
         assert!(coerce_mod_index(json!({})).get("availableMods").is_none());
     }
 
@@ -1422,7 +1464,13 @@ mod tests {
         assert!(!is_mod_update("1.7.4", ""));
         assert!(!is_mod_update("", "1.0"));
         // 非数字段起按 0 处理（与前端 parseVcmiVersion 口径一致）
-        assert_eq!(cmp_mod_versions("1.7.4-beta", "1.7.5"), std::cmp::Ordering::Less);
-        assert_eq!(cmp_mod_versions("v2.0", "1.9.9"), std::cmp::Ordering::Greater);
+        assert_eq!(
+            cmp_mod_versions("1.7.4-beta", "1.7.5"),
+            std::cmp::Ordering::Less
+        );
+        assert_eq!(
+            cmp_mod_versions("v2.0", "1.9.9"),
+            std::cmp::Ordering::Greater
+        );
     }
 }

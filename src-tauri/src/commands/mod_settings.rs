@@ -29,7 +29,10 @@ static MOD_SETTINGS_LOCK: Mutex<()> = Mutex::new(());
 /// ⚠️ `async` + `spawn_blocking`：文件读取与解析下沉阻塞线程池；路径解析留在命令壳内
 /// 同步完成（需读受管状态，且不得跨 `.await` 持锁）。
 #[tauri::command]
-pub async fn read_mod_settings(state: State<'_, AppPaths>, config_dir: Option<String>) -> Result<Value, String> {
+pub async fn read_mod_settings(
+    state: State<'_, AppPaths>,
+    config_dir: Option<String>,
+) -> Result<Value, String> {
     let p = match &config_dir {
         Some(dir) => PathBuf::from(dir).join("modSettings.json"),
         None => {
@@ -48,9 +51,11 @@ pub async fn read_mod_settings(state: State<'_, AppPaths>, config_dir: Option<St
         if !p.is_file() {
             return Ok(json!({}));
         }
-        let text = fs::read_to_string(&p).map_err(|e| be_err("cmd_read_failed", &format!("{}", e)))?;
+        let text =
+            fs::read_to_string(&p).map_err(|e| be_err("cmd_read_failed", &format!("{}", e)))?;
         // 宽容解析（JSON5 子集）：modSettings.json 可能被手工 / 外部工具编辑（注释、尾逗号）
-        crate::infra::json::parse_json_lenient(&text).map_err(|e| be_err("cmd_json_parse_failed", &format!("{}", e)))
+        crate::infra::json::parse_json_lenient(&text)
+            .map_err(|e| be_err("cmd_json_parse_failed", &format!("{}", e)))
     })
     .await
     .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?
@@ -91,7 +96,8 @@ pub fn write_mod_settings(state: State<AppPaths>, mut data: Value) -> Result<(),
             }
         }
     }
-    let text = serde_json::to_string_pretty(&data).map_err(|e| be_err("cmd_serialize_failed", &format!("{}", e)))?;
+    let text = serde_json::to_string_pretty(&data)
+        .map_err(|e| be_err("cmd_serialize_failed", &format!("{}", e)))?;
     fs::write(&p, text).map_err(|e| be_err("cmd_write_failed", &format!("{}", e)))
 }
 
@@ -143,90 +149,99 @@ pub async fn patch_preset_lang_mods(
     };
 
     tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
-    let _guard = MOD_SETTINGS_LOCK.lock().expect("mod settings lock poisoned");
-    // 仅在文件不存在时用最小结构；**解析失败必须报错**——
-    // 回退成空对象再覆写会清空玩家预设。
-    let mut settings: Value = if p.is_file() {
-        let text = fs::read_to_string(&p).map_err(|e| be_err("cmd_modsettings_read_failed", &format!("{}", e)))?;
-        // 宽容解析（JSON5 子集）；解析失败即报错，绝不降级为空对象覆写
-        crate::infra::json::parse_json_lenient(&text)
-            .map_err(|e| be_err("cmd_modsettings_json_parse_failed", &format!("{}", e)))?
-    } else {
-        json!({})
-    };
-    if settings.get("presets").is_none() {
-        settings["presets"] = json!({});
-    }
+        let _guard = MOD_SETTINGS_LOCK
+            .lock()
+            .expect("mod settings lock poisoned");
+        // 仅在文件不存在时用最小结构；**解析失败必须报错**——
+        // 回退成空对象再覆写会清空玩家预设。
+        let mut settings: Value = if p.is_file() {
+            let text = fs::read_to_string(&p)
+                .map_err(|e| be_err("cmd_modsettings_read_failed", &format!("{}", e)))?;
+            // 宽容解析（JSON5 子集）；解析失败即报错，绝不降级为空对象覆写
+            crate::infra::json::parse_json_lenient(&text)
+                .map_err(|e| be_err("cmd_modsettings_json_parse_failed", &format!("{}", e)))?
+        } else {
+            json!({})
+        };
+        if settings.get("presets").is_none() {
+            settings["presets"] = json!({});
+        }
 
-    {
-        let presets = settings
-            .get_mut("presets")
-            .and_then(|v| v.as_object_mut())
-            .ok_or_else(|| be_err("mod_settings_presets_corrupt", ""))?;
-        if !presets.contains_key(&preset_id) {
-            presets.insert(preset_id.clone(), json!({ "mods": [], "settings": {} }));
-        }
-        let entry = presets
-            .get_mut(&preset_id)
-            .ok_or_else(|| be_err("mod_settings_preset_write_failed", ""))?;
-        if entry.get("mods").is_none() {
-            entry["mods"] = json!([]);
-        }
-        let mods = entry
-            .get_mut("mods")
-            .and_then(|v| v.as_array_mut())
-            .ok_or_else(|| be_err("mod_settings_preset_mods_corrupt", ""))?;
-        // 先移除其它语言的模组，再加入当前语言的模组（去重、保持原有顺序）
-        mods.retain(|v| v.as_str().map(|s| !remove.iter().any(|r| r == s)).unwrap_or(true));
-        for a in &add {
-            if !mods.iter().any(|v| v.as_str() == Some(a.as_str())) {
-                mods.push(json!(a));
+        {
+            let presets = settings
+                .get_mut("presets")
+                .and_then(|v| v.as_object_mut())
+                .ok_or_else(|| be_err("mod_settings_presets_corrupt", ""))?;
+            if !presets.contains_key(&preset_id) {
+                presets.insert(preset_id.clone(), json!({ "mods": [], "settings": {} }));
+            }
+            let entry = presets
+                .get_mut(&preset_id)
+                .ok_or_else(|| be_err("mod_settings_preset_write_failed", ""))?;
+            if entry.get("mods").is_none() {
+                entry["mods"] = json!([]);
+            }
+            let mods = entry
+                .get_mut("mods")
+                .and_then(|v| v.as_array_mut())
+                .ok_or_else(|| be_err("mod_settings_preset_mods_corrupt", ""))?;
+            // 先移除其它语言的模组，再加入当前语言的模组（去重、保持原有顺序）
+            mods.retain(|v| {
+                v.as_str()
+                    .map(|s| !remove.iter().any(|r| r == s))
+                    .unwrap_or(true)
+            });
+            for a in &add {
+                if !mods.iter().any(|v| v.as_str() == Some(a.as_str())) {
+                    mods.push(json!(a));
+                }
+            }
+            // 与 write_realm_presets 一致：预设必须含内置模组 vcmi，否则 VCMI 缺内置字体无法启动
+            if !mods.iter().any(|v| v.as_str() == Some("vcmi")) {
+                mods.insert(0, json!("vcmi"));
             }
         }
-        // 与 write_realm_presets 一致：预设必须含内置模组 vcmi，否则 VCMI 缺内置字体无法启动
-        if !mods.iter().any(|v| v.as_str() == Some("vcmi")) {
-            mods.insert(0, json!("vcmi"));
-        }
-    }
 
-    // 与既有写盘命令一致：确保语言无关的 mods.required 仍在每个预设中，避免本命令把它写丢。
-    if let Some(cfg) = VcmiPaths::read_launcher_config() {
-        let req = &cfg.mods.required;
-        if !req.is_empty() {
-            if let Some(presets) = settings.get_mut("presets").and_then(|v| v.as_object_mut()) {
-                for (_k, v) in presets.iter_mut() {
-                    if let Some(m) = v.get_mut("mods").and_then(|x| x.as_array_mut()) {
-                        for r in req {
-                            if !m.iter().any(|e| e.as_str() == Some(r.as_str())) {
-                                m.push(json!(r));
+        // 与既有写盘命令一致：确保语言无关的 mods.required 仍在每个预设中，避免本命令把它写丢。
+        if let Some(cfg) = VcmiPaths::read_launcher_config() {
+            let req = &cfg.mods.required;
+            if !req.is_empty() {
+                if let Some(presets) = settings.get_mut("presets").and_then(|v| v.as_object_mut()) {
+                    for (_k, v) in presets.iter_mut() {
+                        if let Some(m) = v.get_mut("mods").and_then(|x| x.as_array_mut()) {
+                            for r in req {
+                                if !m.iter().any(|e| e.as_str() == Some(r.as_str())) {
+                                    m.push(json!(r));
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
 
-    // 存在性检查：仅用于「告知使用者」，不阻断写入（目录来自命令壳快照 `mods_dirs`）。
-    let mut missing: Vec<String> = Vec::new();
-    if !add.is_empty() {
-        for a in &add {
-            if !mods_dirs.iter().any(|d| d.join(a).is_dir()) {
-                missing.push(a.clone());
+        // 存在性检查：仅用于「告知使用者」，不阻断写入（目录来自命令壳快照 `mods_dirs`）。
+        let mut missing: Vec<String> = Vec::new();
+        if !add.is_empty() {
+            for a in &add {
+                if !mods_dirs.iter().any(|d| d.join(a).is_dir()) {
+                    missing.push(a.clone());
+                }
             }
         }
-    }
 
-    if p.exists() {
-        let backup = p.with_extension("json.backup");
-        let _ = fs::copy(&p, &backup);
-    }
-    if let Some(parent) = p.parent() {
-        fs::create_dir_all(parent).map_err(|e| be_err("cmd_mkdir_failed", &format!("{}", e)))?;
-    }
-    let text = serde_json::to_string_pretty(&settings).map_err(|e| be_err("cmd_serialize_failed", &format!("{}", e)))?;
-    fs::write(&p, text).map_err(|e| be_err("cmd_write_failed", &format!("{}", e)))?;
-    Ok(json!({ "missing": missing }))
+        if p.exists() {
+            let backup = p.with_extension("json.backup");
+            let _ = fs::copy(&p, &backup);
+        }
+        if let Some(parent) = p.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| be_err("cmd_mkdir_failed", &format!("{}", e)))?;
+        }
+        let text = serde_json::to_string_pretty(&settings)
+            .map_err(|e| be_err("cmd_serialize_failed", &format!("{}", e)))?;
+        fs::write(&p, text).map_err(|e| be_err("cmd_write_failed", &format!("{}", e)))?;
+        Ok(json!({ "missing": missing }))
     })
     .await
     .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?
@@ -267,47 +282,51 @@ pub async fn clear_mod_validation(
         }
     };
     tauri::async_runtime::spawn_blocking(move || -> Result<usize, String> {
-    let _guard = MOD_SETTINGS_LOCK.lock().expect("mod settings lock poisoned");
-    if !p.is_file() {
-        return Ok(0);
-    }
-    let text = fs::read_to_string(&p).map_err(|e| be_err("cmd_modsettings_read_failed", &format!("{}", e)))?;
-    // 解析失败即报错：**绝不**把坏文件覆盖成空对象
-    let mut settings: Value = crate::infra::json::parse_json_lenient(&text)
-        .map_err(|e| be_err("cmd_modsettings_json_parse_failed", &format!("{}", e)))?;
-    let targets: Vec<String> = mod_ids
-        .iter()
-        .map(|s| s.trim().to_lowercase())
-        .filter(|s| !s.is_empty())
-        .collect();
-
-    let removed = {
-        let validated = settings
-            .get_mut("validatedMods")
-            .and_then(|v| v.as_object_mut());
-        match validated {
-            Some(map) => {
-                let before = map.len();
-                map.retain(|k, _| {
-                    let key = k.trim().to_lowercase();
-                    !targets
-                        .iter()
-                        .any(|t| key == *t || key.starts_with(&format!("{t}.")))
-                });
-                before - map.len()
-            }
-            None => 0,
+        let _guard = MOD_SETTINGS_LOCK
+            .lock()
+            .expect("mod settings lock poisoned");
+        if !p.is_file() {
+            return Ok(0);
         }
-    };
-    if removed == 0 {
-        return Ok(0);
-    }
+        let text = fs::read_to_string(&p)
+            .map_err(|e| be_err("cmd_modsettings_read_failed", &format!("{}", e)))?;
+        // 解析失败即报错：**绝不**把坏文件覆盖成空对象
+        let mut settings: Value = crate::infra::json::parse_json_lenient(&text)
+            .map_err(|e| be_err("cmd_modsettings_json_parse_failed", &format!("{}", e)))?;
+        let targets: Vec<String> = mod_ids
+            .iter()
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| !s.is_empty())
+            .collect();
 
-    let backup = p.with_extension("json.backup");
-    let _ = fs::copy(&p, &backup);
-    let out = serde_json::to_string_pretty(&settings).map_err(|e| be_err("cmd_serialize_failed", &format!("{}", e)))?;
-    fs::write(&p, out).map_err(|e| be_err("cmd_write_failed", &format!("{}", e)))?;
-    Ok(removed)
+        let removed = {
+            let validated = settings
+                .get_mut("validatedMods")
+                .and_then(|v| v.as_object_mut());
+            match validated {
+                Some(map) => {
+                    let before = map.len();
+                    map.retain(|k, _| {
+                        let key = k.trim().to_lowercase();
+                        !targets
+                            .iter()
+                            .any(|t| key == *t || key.starts_with(&format!("{t}.")))
+                    });
+                    before - map.len()
+                }
+                None => 0,
+            }
+        };
+        if removed == 0 {
+            return Ok(0);
+        }
+
+        let backup = p.with_extension("json.backup");
+        let _ = fs::copy(&p, &backup);
+        let out = serde_json::to_string_pretty(&settings)
+            .map_err(|e| be_err("cmd_serialize_failed", &format!("{}", e)))?;
+        fs::write(&p, out).map_err(|e| be_err("cmd_write_failed", &format!("{}", e)))?;
+        Ok(removed)
     })
     .await
     .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?

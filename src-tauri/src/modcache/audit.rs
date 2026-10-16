@@ -157,8 +157,9 @@ fn audit_town_gaps(raw_cfgs: &Map<String, Value>, factions: &[Value]) -> Vec<Val
             continue;
         }
         // 1) 声明了建筑但提取为 0（家园：`config/Abode/buildings.json` 曾整批漏读）
-        let declared = count_declared(t.get("buildings"))
-            .max(count_declared(t.get("town").and_then(|x| x.get("buildings"))));
+        let declared = count_declared(t.get("buildings")).max(count_declared(
+            t.get("town").and_then(|x| x.get("buildings")),
+        ));
         let extracted = buildings_of(fid).map(|a| a.len()).unwrap_or(0);
         if declared > 0 && extracted == 0 {
             gaps.push(json!({

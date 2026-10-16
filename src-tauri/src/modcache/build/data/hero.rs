@@ -7,16 +7,18 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
-use crate::vcmi::gamedata::SPELL_ID_TABLE;
-use crate::vcmi::h3core::{h3_hero_stats, I18nMap};
-use crate::vcmi::h3core::h3_hero_class_stats;
-use crate::vcmi::town::{read_game_root_configs, TownConfig};
 use crate::modcache::assets::{
-    extract_game_def_frame_and_save, extract_icon_and_save,
-    extract_portrait_frame_mod, resolve_specialty_icon_mod,
+    extract_game_def_frame_and_save, extract_icon_and_save, extract_portrait_frame_mod,
+    resolve_specialty_icon_mod,
 };
 use crate::modcache::collect::collect_config_jsons_merged;
-use crate::modcache::i18n::{i18n_get_multi, i18n_mod_scope, name_obj_en_zhcn, name_obj_with_inline};
+use crate::modcache::i18n::{
+    i18n_get_multi, i18n_mod_scope, name_obj_en_zhcn, name_obj_with_inline,
+};
+use crate::vcmi::gamedata::SPELL_ID_TABLE;
+use crate::vcmi::h3core::h3_hero_class_stats;
+use crate::vcmi::h3core::{h3_hero_stats, I18nMap};
+use crate::vcmi::town::{read_game_root_configs, TownConfig};
 
 pub(crate) fn build_heroes(
     p: &Path,
@@ -34,8 +36,10 @@ pub(crate) fn build_heroes(
     // heroClass affinity（might/magic）：wiki 英雄表按此划分两个表（对齐 VCMI addHeroesTable）；
     // 同时记录 class → faction，用于推导英雄阵营（alignment 带色副标题）。
     // 数据源用归一 rawConfigs（HuaXia 等职业配置在 config/<mod>/classes/，无标准 heroClasses 目录）
-    let mut hero_class_affinity: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-    let mut hero_class_faction: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut hero_class_affinity: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    let mut hero_class_faction: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
     // classId → (attack, defense, spellPower, knowledge)
     let mut hero_class_prim: std::collections::HashMap<String, (i64, i64, i64, i64)> =
         std::collections::HashMap::new();
@@ -57,7 +61,11 @@ pub(crate) fn build_heroes(
     for (cid, co) in raw_cfgs
         .get("heroClasses")
         .and_then(|h| h.as_object())
-        .map(|o| o.iter().map(|(k, v)| (k.clone(), v.clone())).collect::<Vec<_>>())
+        .map(|o| {
+            o.iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_default()
     {
         if let Some(a) = co.get("affinity").and_then(|x| x.as_str()) {
@@ -86,7 +94,9 @@ pub(crate) fn build_heroes(
                 (
                     gp("attack").unwrap_or(base.0),
                     gp("defence").or_else(|| gp("defense")).unwrap_or(base.1),
-                    gp("spellpower").or_else(|| gp("spellPower")).unwrap_or(base.2),
+                    gp("spellpower")
+                        .or_else(|| gp("spellPower"))
+                        .unwrap_or(base.2),
                     gp("knowledge").unwrap_or(base.3),
                 ),
             );
@@ -116,22 +126,41 @@ pub(crate) fn build_heroes(
         }
     }
     for (id, obj) in hero_jsons {
+        // `heroes/` 目录里混进来的**职业定义**不是英雄：实测 `moonspire` / `10-blazers--town`
+        // 把职业文件放在 `heroes/` 下（只在 mod.json 的 `heroClasses` 键里声明）。不剔除就会得到
+        // "无头像、无职业、特长只有一个 ✦"的幽灵行 —— 而 VCMI 百科城镇页本就跳过
+        // `heroClass` 为空的英雄（`WikiTownContent.cpp:455`）。它们的职业数据已由
+        // `collect` 归入 `heroClasses` 桶，供上方 class 表解析（这才是截图里
+        // "MOONPRIEST // GROVEKEEPER" 这种回落 id 的根因）。
+        if crate::modcache::collect::looks_like_hero_class(&obj) {
+            continue;
+        }
         // 图标索引（VCMI: iconIndex，注册 UN32/UN44、PortraitsSmall 帧号）
         let image_index = obj
             .get("iconIndex")
             .and_then(|v| v.as_i64())
             .or_else(|| obj.get("index").and_then(|v| v.as_i64()))
             .unwrap_or(-1);
-        let img = extract_icon_and_save(&p, game_dir, cache_root, mod_id, "hero", &id, obj.get("images").and_then(|g| g.get("large")).and_then(|v| v.as_str()))
-            // 原版 H3 英雄不在 JSON 中声明 images.large（VCMI 运行期按 imageIndex 从 PortraitsLarge 推算头像）。
-            // 归位到 core.<faction>/images/hero/<id>.webp（中性归入 core/images/hero/），
-            // 与第三方 town mod 的 images/hero/<id>.webp 一致；不再引用全局 _shared/portraitsLarge。
-            .or_else(|| {
-                if image_index < 0 {
-                    return None;
-                }
-                extract_portrait_frame_mod(game_dir, cache_root, mod_id, &id, image_index)
-            });
+        let img = extract_icon_and_save(
+            &p,
+            game_dir,
+            cache_root,
+            mod_id,
+            "hero",
+            &id,
+            obj.get("images")
+                .and_then(|g| g.get("large"))
+                .and_then(|v| v.as_str()),
+        )
+        // 原版 H3 英雄不在 JSON 中声明 images.large（VCMI 运行期按 imageIndex 从 PortraitsLarge 推算头像）。
+        // 归位到 core.<faction>/images/hero/<id>.webp（中性归入 core/images/hero/），
+        // 与第三方 town mod 的 images/hero/<id>.webp 一致；不再引用全局 _shared/portraitsLarge。
+        .or_else(|| {
+            if image_index < 0 {
+                return None;
+            }
+            extract_portrait_frame_mod(game_dir, cache_root, mod_id, &id, image_index)
+        });
         let scope = i18n_mod_scope(mod_id);
         // 内嵌文本回退来源：标准写法在 `texts.name` / `texts.biography`；
         // 部分中文 mod 直接写顶层 `name` / `biography`（实测 old-chinese-mods 系列，
@@ -144,12 +173,31 @@ pub(crate) fn build_heroes(
             .get("texts")
             .and_then(|t| t.get("biography"))
             .or_else(|| obj.get("biography"));
-        let name_obj = name_obj_with_inline(&i18n, &format!("hero.{}.{}.name", scope, id), inline_name, &id);
-        let bio_obj = name_obj_with_inline(&i18n, &format!("hero.{}.{}.biography", scope, id), inline_bio, "");
+        let name_obj = name_obj_with_inline(
+            &i18n,
+            &format!("hero.{}.{}.name", scope, id),
+            inline_name,
+            &id,
+        );
+        let bio_obj = name_obj_with_inline(
+            &i18n,
+            &format!("hero.{}.{}.biography", scope, id),
+            inline_bio,
+            "",
+        );
         // VCMI 文本键：hero.<mod>.<id>.specialty.name / description / tooltip
-        let spec_obj = name_obj_en_zhcn(&i18n, &format!("hero.{}.{}.specialty.name", scope, id), "");
-        let spec_desc_obj = name_obj_en_zhcn(&i18n, &format!("hero.{}.{}.specialty.description", scope, id), "");
-        let spec_tooltip_obj = name_obj_en_zhcn(&i18n, &format!("hero.{}.{}.specialty.tooltip", scope, id), "");
+        let spec_obj =
+            name_obj_en_zhcn(&i18n, &format!("hero.{}.{}.specialty.name", scope, id), "");
+        let spec_desc_obj = name_obj_en_zhcn(
+            &i18n,
+            &format!("hero.{}.{}.specialty.description", scope, id),
+            "",
+        );
+        let spec_tooltip_obj = name_obj_en_zhcn(
+            &i18n,
+            &format!("hero.{}.{}.specialty.tooltip", scope, id),
+            "",
+        );
         // 特长附加能力文本（schema `hero.json`：`specialty.bonuses.<key>.name/description`，
         // 实测 22+ 配置，如 `specialty.bonuses.heroAssist6.description`）——
         // 信息保真：进缓存供未来展示/检索，此前完全未读。
@@ -203,18 +251,52 @@ pub(crate) fn build_heroes(
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| if is_core { "default".to_string() } else { String::new() });
+            .unwrap_or_else(|| {
+                if is_core {
+                    "default".to_string()
+                } else {
+                    String::new()
+                }
+            });
         let spec_small_raw = obj
             .get("images")
             .and_then(|g| g.get("specialtySmall"))
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| if is_core { "default".to_string() } else { String::new() });
-        let specialty_icon = resolve_specialty_icon_mod(&p, game_dir, cache_root, mod_id, &id, &spec_large_raw, image_index, false);
-        let specialty_icon_small = resolve_specialty_icon_mod(&p, game_dir, cache_root, mod_id, &id, &spec_small_raw, image_index, true);
+            .unwrap_or_else(|| {
+                if is_core {
+                    "default".to_string()
+                } else {
+                    String::new()
+                }
+            });
+        let specialty_icon = resolve_specialty_icon_mod(
+            &p,
+            game_dir,
+            cache_root,
+            mod_id,
+            &id,
+            &spec_large_raw,
+            image_index,
+            false,
+        );
+        let specialty_icon_small = resolve_specialty_icon_mod(
+            &p,
+            game_dir,
+            cache_root,
+            mod_id,
+            &id,
+            &spec_small_raw,
+            image_index,
+            true,
+        );
         let gen = obj.get("general").and_then(|g| g.as_object());
-        let class_id = obj.get("class").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let class_id = obj
+            .get("class")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         // 职业名：原版按 config/heroClasses.json 的 index 命中 h3-core 中文名；
         // 第三方 mod 直接用 class_id 在自己的翻译 / 配置里查。
         let hero_class_key = if scope == "core" {
@@ -265,7 +347,11 @@ pub(crate) fn build_heroes(
         let spells_list: Vec<String> = obj
             .get("spellbook")
             .and_then(|s| s.as_array())
-            .map(|a| a.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
             .unwrap_or_default();
         let have_spellbook = obj.get("spellbook").map(|v| !v.is_null()).unwrap_or(false);
         // 初始法术详情：identifier → index（SPELL_ID_TABLE，仅用于图标帧号），
@@ -312,7 +398,11 @@ pub(crate) fn build_heroes(
             if hit {
                 core
             } else {
-                name_obj_en_zhcn(&i18n, &format!("skill.{}.{}.name", i18n_mod_scope(mod_id), sid), sid)
+                name_obj_en_zhcn(
+                    &i18n,
+                    &format!("skill.{}.{}.name", i18n_mod_scope(mod_id), sid),
+                    sid,
+                )
             }
         };
         // 技能各等级描述（h3-core 的 basic / advanced / expert）
@@ -338,7 +428,11 @@ pub(crate) fn build_heroes(
         {
             for s in arr {
                 if let Some(o) = s.as_object() {
-                    let sid = o.get("skill").and_then(|x| x.as_str()).unwrap_or("").to_string();
+                    let sid = o
+                        .get("skill")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or("")
+                        .to_string();
                     // VCMI CHeroHandler.cpp:112：level 为字符串（none/basic/advanced/expert，
                     // 见 StringConstants.h:49），缺失或无效则**跳过该技能**（find 失败 ⇒ 不入列表）
                     let lvl = match o.get("level") {
@@ -352,7 +446,9 @@ pub(crate) fn build_heroes(
                         Some(Value::Number(n)) => n.as_i64().filter(|v| (0..=3).contains(v)),
                         _ => None,
                     };
-                    let Some(lvl) = lvl else { continue; };
+                    let Some(lvl) = lvl else {
+                        continue;
+                    };
                     if !sid.is_empty() {
                         // 技能图标：VCMI WikiWindow.cpp:652 —— SECSK32 帧 = index*3+3（原版技能）
                         let sk_icon = skill_index_map.get(&sid).and_then(|ix| {

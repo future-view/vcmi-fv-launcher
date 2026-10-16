@@ -91,7 +91,9 @@ fn skip_mod_ids(archive: &mut zip::ZipArchive<fs::File>) -> HashSet<String> {
     let user_mods = VcmiPaths::mods_cache_dir();
     let mut skip = HashSet::new();
     for i in 0..archive.len() {
-        let Ok(mut e) = archive.by_index(i) else { continue };
+        let Ok(mut e) = archive.by_index(i) else {
+            continue;
+        };
         let rel = e.name().replace('\\', "/");
         let rel = rel.trim_start_matches("./").to_string();
         let Some(rest) = rel.strip_prefix(".vcmi-fv-launcher/mods/") else {
@@ -148,11 +150,13 @@ fn mod_id_in_skip(rel: &str, skip: &HashSet<String>) -> bool {
 /// `dest` 由调用方给出（生产走 [`staged_dir`]；单测用临时目录）。
 pub(crate) fn extract_zip(zip_path: &Path, dest: &Path) -> Result<Vec<String>, String> {
     let _ = fs::remove_dir_all(dest);
-    fs::create_dir_all(dest).map_err(|e| be_err("rt_extract_dir_create_failed", &format!("{}", e)))?;
+    fs::create_dir_all(dest)
+        .map_err(|e| be_err("rt_extract_dir_create_failed", &format!("{}", e)))?;
 
-    let file = fs::File::open(zip_path).map_err(|e| be_err("upd_pack_open_failed", &format!("{}", e)))?;
-    let mut archive =
-        zip::ZipArchive::new(file).map_err(|e| be_err("upd_pack_invalid_zip", &format!("{}", e)))?;
+    let file =
+        fs::File::open(zip_path).map_err(|e| be_err("upd_pack_open_failed", &format!("{}", e)))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| be_err("upd_pack_invalid_zip", &format!("{}", e)))?;
 
     // 模组缓存：整目录跳过（见 [`skip_mod_ids`]）—— 不落盘无效缓存、也不覆盖用户已有缓存
     let skip = skip_mod_ids(&mut archive);
@@ -185,8 +189,10 @@ pub(crate) fn extract_zip(zip_path: &Path, dest: &Path) -> Result<Vec<String>, S
         if let Some(p) = target.parent() {
             fs::create_dir_all(p).map_err(|e| be_err("cmd_mkdir_failed", &format!("{}", e)))?;
         }
-        let mut of = fs::File::create(&target).map_err(|e| be_err("rt_write_failed", &format!("{} {}", rel, e)))?;
-        std::io::copy(&mut e, &mut of).map_err(|e| be_err("rt_extract_failed", &format!("{} {}", rel, e)))?;
+        let mut of = fs::File::create(&target)
+            .map_err(|e| be_err("rt_write_failed", &format!("{} {}", rel, e)))?;
+        std::io::copy(&mut e, &mut of)
+            .map_err(|e| be_err("rt_extract_failed", &format!("{} {}", rel, e)))?;
         out.push(rel);
     }
     // 允许**纯配置更新包**（不含 exe）：只要求非空，避免"空包"这种无意义更新。
@@ -227,7 +233,11 @@ pub(crate) fn staged_ready(entry: &ManifestEntry) -> bool {
 ///
 /// 幂等：`Downloaded` 且暂存仍在时直接复用（重开弹窗 / 重试不重复下载）。
 pub fn download_and_verify(progress: impl Fn(u64, u64)) -> Result<PathBuf, String> {
-    let entry = { target().clone().ok_or_else(|| be_err("updater_no_checked_update", ""))? };
+    let entry = {
+        target()
+            .clone()
+            .ok_or_else(|| be_err("updater_no_checked_update", ""))?
+    };
     let dest = staged_path(&entry)?;
     // 已有完整暂存（sha256 匹配）→ 直接复用并补做解压准备；跨进程重启同样适用
     if ensure_staged(&entry, &dest) {
@@ -288,9 +298,12 @@ fn prepare(entry: &ManifestEntry, dest: &Path) -> Result<(), String> {
 /// 单 exe 形态的暂存不允许是 zip（按魔数判定，不依赖扩展名）
 fn guard_exe_not_zip(path: &Path) -> Result<(), String> {
     use std::io::Read;
-    let mut f = fs::File::open(path).map_err(|e| be_err("upd_pack_read_failed", &format!("{}", e)))?;
+    let mut f =
+        fs::File::open(path).map_err(|e| be_err("upd_pack_read_failed", &format!("{}", e)))?;
     let mut magic = [0u8; 4];
-    let n = f.read(&mut magic).map_err(|e| be_err("upd_pack_read_failed", &format!("{}", e)))?;
+    let n = f
+        .read(&mut magic)
+        .map_err(|e| be_err("upd_pack_read_failed", &format!("{}", e)))?;
     if n == 4 && &magic == b"PK\x03\x04" {
         return Err(be_err("updater_pack_is_zip", ""));
     }
@@ -302,15 +315,20 @@ fn download_inner(
     dest: &Path,
     progress: &impl Fn(u64, u64),
 ) -> Result<(), String> {
-    let (resp, _egress) = get_send(&entry.download).map_err(|e| be_err("repo_download_failed", &format!("{}", e)))?;
+    let (resp, _egress) =
+        get_send(&entry.download).map_err(|e| be_err("repo_download_failed", &format!("{}", e)))?;
     let status = resp.status().as_u16();
     if !(200..300).contains(&status) {
-        return Err(be_err("repo_download_server_returned", &format!("{}", status)));
+        return Err(be_err(
+            "repo_download_server_returned",
+            &format!("{}", status),
+        ));
     }
     let total = resp.content_length().unwrap_or(entry.size.unwrap_or(0));
 
     let mut reader = resp;
-    let mut file = fs::File::create(dest).map_err(|e| be_err("upd_staging_file_create_failed", &format!("{}", e)))?;
+    let mut file = fs::File::create(dest)
+        .map_err(|e| be_err("upd_staging_file_create_failed", &format!("{}", e)))?;
     let mut buf = vec![0u8; 64 * 1024];
     let mut received: u64 = 0;
     let mut last_emit = Instant::now();
@@ -319,13 +337,18 @@ fn download_inner(
         if is_cancelled() {
             return Err(UPDATE_DOWNLOAD_CANCELLED.to_string());
         }
-        let n = reader.read(&mut buf).map_err(|e| be_err("repo_download_interrupted", &format!("{}", e)))?;
+        let n = reader
+            .read(&mut buf)
+            .map_err(|e| be_err("repo_download_interrupted", &format!("{}", e)))?;
         if n == 0 {
             break;
         }
         received += n as u64;
         if received > UPDATE_MAX_BYTES {
-            return Err(be_err("upd_pack_too_large", &format!("{}", UPDATE_MAX_BYTES / 1024 / 1024)));
+            return Err(be_err(
+                "upd_pack_too_large",
+                &format!("{}", UPDATE_MAX_BYTES / 1024 / 1024),
+            ));
         }
         if total > 0 && received > total {
             return Err(be_err("updater_dl_oversize", ""));
@@ -396,7 +419,10 @@ mod tests {
                 (".vcmi-fv-launcher/runtime/ai/onnxruntime.dll", b"DLL"),
                 (".vcmi-fv-launcher/runtime/ai/model.onnx", b"MODEL"),
                 (".vcmi-fv-launcher/realms/newrealm/realm.json", b"REALM"),
-                (".vcmi-fv-launcher/mods/some-mod/cache.json", cache.as_bytes()),
+                (
+                    ".vcmi-fv-launcher/mods/some-mod/cache.json",
+                    cache.as_bytes(),
+                ),
                 (".vcmi-fv-launcher/launcher.patch.json", b"{}"),
                 (".vcmi-fv-launcher/launcher.delete.json", b"{\"paths\":[]}"),
             ],
@@ -404,10 +430,18 @@ mod tests {
         let out = d.join("out");
         let files = extract_zip(&z, &out).unwrap();
         assert_eq!(files.len(), 7, "实际解出：{files:?}");
-        assert!(out.join(".vcmi-fv-launcher/runtime/ai/onnxruntime.dll").is_file());
-        assert!(out.join(".vcmi-fv-launcher/runtime/ai/model.onnx").is_file());
-        assert!(out.join(".vcmi-fv-launcher/realms/newrealm/realm.json").is_file());
-        assert!(out.join(".vcmi-fv-launcher/mods/some-mod/cache.json").is_file());
+        assert!(out
+            .join(".vcmi-fv-launcher/runtime/ai/onnxruntime.dll")
+            .is_file());
+        assert!(out
+            .join(".vcmi-fv-launcher/runtime/ai/model.onnx")
+            .is_file());
+        assert!(out
+            .join(".vcmi-fv-launcher/realms/newrealm/realm.json")
+            .is_file());
+        assert!(out
+            .join(".vcmi-fv-launcher/mods/some-mod/cache.json")
+            .is_file());
         assert!(staged_has_exe_from(&out));
         let _ = fs::remove_dir_all(&d);
     }
@@ -428,7 +462,11 @@ mod tests {
         );
         let out = d.join("out");
         let files = extract_zip(&z, &out).unwrap();
-        assert_eq!(files, vec![staged_binary_name().to_string()], "过期缓存应整目录跳过");
+        assert_eq!(
+            files,
+            vec![staged_binary_name().to_string()],
+            "过期缓存应整目录跳过"
+        );
         assert!(!out.join(".vcmi-fv-launcher/mods/stale").exists());
         let _ = fs::remove_dir_all(&d);
     }
@@ -535,7 +573,10 @@ mod tests {
         let out = tmp_dir("real");
         let files = extract_zip(Path::new(&p), &out).unwrap();
         println!("解出 {} 个文件：{files:?}", files.len());
-        assert!(files.iter().any(|f| f == staged_binary_name()), "必须含主程序");
+        assert!(
+            files.iter().any(|f| f == staged_binary_name()),
+            "必须含主程序"
+        );
         assert!(out.join(staged_binary_name()).is_file());
         let _ = fs::remove_dir_all(out.parent().unwrap_or(&out));
     }
