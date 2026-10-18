@@ -901,11 +901,20 @@ export interface LangDict {
     h3Missing: string;
     h3MissingHint: string;
     h3RoeOnly: string;
+    h3AbOnly: string;
+    h3HdEdition: string;
+    /** 版本不支持的通用说明（"只接受 SoD/Complete"），与具体模态文案成对出现 */
+    h3VersionHint: string;
+    h3DemoReady: string;
+    /** 复制源目录里连 `.lod` 都没有（选错目录） */
+    h3SourceEmpty: string;
     h3DataDir: string;
     h3DataDirHint: string;
     h3Target: string;
     h3Copy: string;
     h3Copying: string;
+    h3CopyingMp3: string;
+    h3CopyingMaps: string;
     h3Redetect: string;
     h3FoundIn: string;
     h3Candidates: string;
@@ -927,11 +936,15 @@ export interface LangDict {
     hdInstallHint: string;
     hdInstallPlaceholder: string;
     hdInstalled: string;
+    /** 第 ③ 步：检测到（或本次装好）高清版素材时的一行结论 */
+    hdReady: string;
     chrInstall: string;
     chrInstallHint: string;
     chrInstallPlaceholder: string;
     /** 成功：已生成 `Mods/chronicles` 模组 */
     chrInstalled: string;
+    /** 第 ③ 步：检测到（或本次装好）历代记时的一行结论 */
+    chrReady: string;
     /** 失败：提示核对安装包（内建解包，不再涉及外部工具） */
     chrInstallFailed: string;
     optTarget: string;

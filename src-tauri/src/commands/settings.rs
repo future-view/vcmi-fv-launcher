@@ -229,6 +229,10 @@ pub async fn write_launcher_config(
             let extra_root = user_dir.clone();
             let (from_root, from_data) = crate::vcmi::h3data::resolve_source(&from)
                 .ok_or_else(|| be_err("setup_h3_data_dir_invalid", &from.to_string_lossy()))?;
+            // 版本闸门：RoE-only / AB-only / HD Edition 搬过去 VCMI 也起不来
+            // （`EntryPoint.cpp:329-332` 对 ROE 数据直接 fatal）。必须在**复制之前**拒绝，
+            // 否则会白搬几百 MB 并污染游戏目录。前端也做同样预检，这里是防绕过的双保险。
+            crate::vcmi::h3data::ensure_supported_source(&from)?;
             if !to
                 .file_name()
                 .map(|n| n.eq_ignore_ascii_case("Data"))
@@ -257,6 +261,7 @@ pub async fn write_launcher_config(
                     let _ = emitter.emit(
                         "user-data-copy-progress",
                         json!({
+                            "stage": "data",
                             "doneFiles": f,
                             "doneBytes": b,
                             "totalFiles": tf,
@@ -273,10 +278,12 @@ pub async fn write_launcher_config(
                     &extra_root,
                     copy_mp3,
                     copy_maps,
-                    |f, b, tf, tb| {
+                    // 阶段名小写（`mp3` / `maps`）：前端据此换标题，避免两段进度看起来一模一样
+                    |stage, f, b, tf, tb| {
                         let _ = emitter2.emit(
                             "user-data-copy-progress",
                             json!({
+                                "stage": stage.to_ascii_lowercase(),
                                 "doneFiles": f,
                                 "doneBytes": b,
                                 "totalFiles": tf,

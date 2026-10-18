@@ -11,7 +11,7 @@
 //! | 配置 | `.json` | 用户配置目录（同名走冲突策略；重启启动器生效） |
 //! | 压缩包 | `.zip` 自动分类 | `mod.json`→模组；含地图→地图包；含 `.vsgm1`→存档包；否则按模组尝试 |
 //! | 历代记 | `.exe` | 内建 Inno 解包（零外部 CLI）→ 生成官方 `Mods/chronicles*` 结构 |
-//! | HD 素材 | 目录（含 `HOMM3 2.0.exe`）**或该 exe 本体** | 生成 `<userDataDir>/Mods/hd-edition`（对齐官方产物结构） |
+//! | HD 素材 | 目录（含 `HOMM3 2.0.exe`）**或该 exe 本体** | 生成 `<userDataDir>/Mods/hd-edition`（对齐官方产物结构）。exe 本体入口只经**主界面导入弹层**（文件对话框）；首启向导第 ③ 步只给"目录"入口（原生对话框不能混选文件与目录，见 `docs/features/setup-wizard.zh-CN.md` §4.2） |
 //! | 普通目录 | 递归收集受支持文件（`.h3m .vmap .h3c .vcmp .vsgm1 .json .zip`） | 按类型分流，**保留相对子目录结构**（不支持项计入忽略） |
 //!
 //! zip 分类复刻官方 `classifyZipArchive`（`:1036-1064`）：**mod.json > 地图 > 存档 > 兜底模组**；

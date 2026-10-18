@@ -60,7 +60,7 @@
 | `wiki-build-progress` | 全局百科构建 | 进度推送（每 8 个 / 最后一个），前端另有 400ms 轮询兜底 |
 | `realm-cache-build-progress` | 领域加急构建 | 独立通道，避免与全局构建互相覆盖 |
 | `realm-export-progress` | 领域导出 | 打包进度 |
-| `user-data-copy-progress` | 首启用户数据迁移 | `{doneFiles, doneBytes, totalFiles, totalBytes}`，后端 200ms 节流 + 末帧 |
+| `user-data-copy-progress` | 首启用户数据迁移 + 原版数据复制 | `{stage?, doneFiles, doneBytes, totalFiles, totalBytes}`，后端 200ms 节流 + 末帧；`stage` 仅原版数据复制带（`data` / `mp3` / `maps`，两段各有独立分母，前端据此换标题） |
 | `runtime-install-progress` | 外挂组件安装 | 每 200ms |
 | 更新下载进度 | 自更新 | 流式写盘进度 |
 
@@ -72,7 +72,7 @@
 |---|---|
 | `launcher.json` 三层格式 | 磁盘 = 分组 snake_case；`read_launcher_config` 出参 = 手写 camelCase；`write_launcher_config` 入参 = camelCase。任一层被"顺手统一"→ 用户配置丢失 |
 | `write_launcher_config` 扩展入参 | `redirectUserData` / `copyFrom` / `copyOnly` / `cancelCopy` / `copyH3Data` / `h3DataFrom` / `h3DataTo` 均为**可选**（旧调用不传 = 原行为）；`copyOnly` 只迁移用户数据、不写配置，出参 `{saved, copied, cancelled, files, bytes, h3Files, h3Bytes}`；`copyH3Data` 从外部数据目录复制 `.lod` 到 `h3DataTo`（必须是 `…/Data`）。语义与执行顺序见 [首启向导](../features/setup-wizard.zh-CN.md) §4 |
-| `gamedata_health_check` 入参 | 可选 `game_dir` / `user_data_dir`（首启向导对"尚未保存的目录"体检）；不传 = 完全沿用已保存配置。返回加 `h3Data`（原版数据闸门，官方口径）与 `dataInstallCandidates`（注册表安装候选） |
+| `gamedata_health_check` 入参 | 可选 `game_dir` / `user_data_dir`（首启向导对"尚未保存的目录"体检）；不传 = 完全沿用已保存配置。返回加 `h3Data`（原版数据闸门，官方口径）与 `dataInstallCandidates`（注册表安装候选）。**必须 async + `spawn_blocking`**：LOD 头读取与 `reg query` ×4 是磁盘/进程 IO，同步命令占主线程会拖住文件夹选择框（2026-10-18 实测首次点「选择」卡数秒） |
 | `check_launcher_update` 扩展入参 | `probe`（`Option<bool>`）：`Some(true)` 只做清单可达性探测，不触碰更新状态机，结果在 `UpdateInfo::probe`；`force` 语义不变 |
 | `get_dirs` | 固定 6 个 key |
 | realms 结构化错误 | `{code, msg?, realmId?, realmName?}` 字符串 |

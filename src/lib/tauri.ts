@@ -464,6 +464,12 @@ export async function cancelUserDataCopy(): Promise<void> {
 
 /** 用户数据迁移进度（事件 `user-data-copy-progress`） */
 export interface UserDataCopyProgress {
+  /**
+   * 当前复制阶段（旧后端不推 → 省略，按通用文案显示）：
+   * - `data`：原版 `Data` 下的 `.lod` / `.snd` / `.vid`
+   * - `mp3`：音轨；`maps`：地图（两段各有独立分母，标题必须区分）
+   */
+  stage?: "data" | "mp3" | "maps";
   doneFiles: number;
   doneBytes: number;
   totalFiles: number;
@@ -1315,14 +1321,47 @@ export interface GamedataHealth {
   items: HealthItem[];
   /** 原版 H3 数据闸门（后端 `vcmi::h3data::H3DataStatus`，官方口径） */
   h3Data?: H3DataStatus;
+  /** 可选内容（hd-edition / chronicles）是否**已存在**：向导第 ③ 步据此显示「已就绪」 */
+  optionalMods?: OptionalModsStatus;
   /** 注册表里发现的本机原版安装路径（Windows；用于预填数据目录） */
   dataInstallCandidates?: string[];
 }
+
+/** 可选内容检测结果（游戏目录 / 用户数据目录两处 Mods 任一命中即为 true） */
+export interface OptionalModsStatus {
+  /** `Mods/hd-edition` 里有可用 pak */
+  hdEdition: boolean;
+  /** `Mods/chronicles/mod.json` 存在 */
+  chronicles: boolean;
+  /** `Mods/chronicles_<n>` 子模组数量（0~8） */
+  chroniclesChapters: number;
+}
+
+/**
+ * 数据模态（VCMI `GameLibrary::GameDataMode` 口径）。
+ *
+ * 只有 `complete`（SoD/Complete 哨兵 `TENTCOLR.TXT`）与 `demo` 能启动；
+ * `abOnly` / `hdEdition` / `roeOnly` 在运行期都会被判成 ROE 而 fatal，
+ * 保留它们只为给出"该装什么"的准确提示（AB 无独立安装态）。
+ */
+export type H3DataKind =
+  | "complete"
+  | "demo"
+  | "abOnly"
+  | "hdEdition"
+  | "roeOnly"
+  | "empty";
 
 /** 原版 H3 数据状态（官方口径，见后端 `vcmi::h3data`） */
 export interface H3DataStatus {
   /** 向导闸门：ROE && (SOD || demo) && 运行期 fatal 项齐全 */
   found: boolean;
+  /** 数据模态：决定缺失/不支持的具体文案 */
+  kind: H3DataKind;
+  /** `Data/*.pak` 存在（HD Edition 标记） */
+  hdEdition: boolean;
+  /** `Data/H3ab*.lod` 存在（末日之刃数据层） */
+  abLods: boolean;
   roe: boolean;
   sod: boolean;
   demo: boolean;

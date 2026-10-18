@@ -16,6 +16,16 @@
 //! 本模块把两者合并成向导闸门：`found = ROE && (SOD || demo) && 运行期 fatal 项齐全` ——
 //! 比官方首启更严一点，换取"初始化通过 ⇒ 游戏一定能跑"，不在启动时才炸。
 //!
+//! # 版本口径（2026-10-18 核对 VCMI 源码）
+//!
+//! VCMI **不检测** 3.1 / 3.2 / 4.0 之类的小版本（这些只出现在 GOG 安装包文件名里，
+//! 见 `launcher/innoextract.cpp` 的校验表），只区分 4 种安装态（`GameLibrary.cpp:184-199`）：
+//! `SOD` / `ROE` / `DEMO_SOD` / `DEMO_ROE`，判据是 `DATA/TENTCOLR.TXT` 是否存在
+//! （`CGeneralTextHandler.cpp:20-23`）。**AB（末日之刃）没有独立安装态**——缺
+//! `TENTCOLR.TXT` 就被判成 ROE，于是 ROE-only / AB-only / HD Edition 数据在运行期
+//! 一律 fatal（`EntryPoint.cpp:329-332`）。故复制源必须先过 [`ensure_supported_source`]，
+//! 否则搬完也起不来（白搬几百 MB，还污染游戏目录）。
+//!
 //! # 资源解析必须按挂载表，不能只判文件存在
 //!
 //! `references/vcmi/config/filesystem.json`：`DATA/` 由 `H3ab_bmp.lod` / `h3abp_bm.lod` /
@@ -38,12 +48,57 @@ const DATA_LODS: [&str; 4] = ["H3ab_bmp.lod", "h3abp_bm.lod", "H3bitmap.lod", "H
 /// 挂到 `SPRITES/` 的 LOD 名（`config/filesystem.json:18-25`）。
 const SPRITES_LODS: [&str; 4] = ["H3ab_spr.lod", "h3abp_sp.lod", "H3sprite.lod", "H3psprit.lod"];
 
+/// 数据模态（对齐 VCMI `GameLibrary::GameDataMode` + 官方导入校验，取并集）。
+///
+/// VCMI 只认 `complete` / `demo`；其余三种都会被引擎拒绝或判成 ROE 后 fatal，
+/// 仅用于**给出可操作的拒绝原因**（"该装什么"），不是另一种可用状态。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum H3DataKind {
+    /// SoD / Complete：`DATA/TENTCOLR.TXT` 可达 —— 唯一支持的正式数据。
+    Complete,
+    /// demo 数据：`MAPS/H3DEMO.H3M` 可达（VCMI 放行 `DEMO_ROE` / `DEMO_SOD`）。
+    Demo,
+    /// 仅有《末日之刃》`H3ab*.lod` 层（无 SoD 文本表）—— 运行期被判 ROE ⇒ fatal。
+    AbOnly,
+    /// HD Edition：`Data/*.pak`（VCMI 明确不支持，见 `firstlaunch_moc.cpp:536-568`）。
+    HdEdition,
+    /// 仅《埃拉西亚的光复》：`GENRLTXT.TXT` 可达但无 SoD 哨兵。
+    RoeOnly,
+    /// 没有任何可识别的原版数据。
+    Empty,
+}
+
+impl H3DataKind {
+    /// 能否作为复制源 / 通过闸门（与 VCMI 运行期口径一致）。
+    pub fn supported(self) -> bool {
+        matches!(self, Self::Complete | Self::Demo)
+    }
+
+    /// 结构化错误码（前端 `beErr` 词典键）；受支持时返回空串。
+    pub fn error_code(self) -> &'static str {
+        match self {
+            Self::Complete | Self::Demo => "",
+            Self::AbOnly => "h3_data_ab_only",
+            Self::HdEdition => "h3_data_hd_edition",
+            Self::RoeOnly => "h3_data_roe_only",
+            Self::Empty => "h3_data_empty",
+        }
+    }
+}
+
 /// 数据状态（首启向导第 3 步的唯一判据；同时进体检响应供主界面复用）。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct H3DataStatus {
     /// 向导闸门：`ROE && (SOD || demo) && 运行期 fatal 项齐全`。
     pub found: bool,
+    /// 数据模态（决定"缺什么 / 该装什么"的文案，见 [`H3DataKind`]）。
+    pub kind: H3DataKind,
+    /// `Data/*.pak` 存在（HD Edition 标记；VCMI 不挂载 `.pak`，混进去也无效）。
+    pub hd_edition: bool,
+    /// `Data/H3ab*.lod` 存在（末日之刃数据层）。
+    pub ab_lods: bool,
     /// `DATA/GENRLTXT.TXT`（恢复帝国之战标记）
     pub roe: bool,
     /// `DATA/TENTCOLR.TXT`（末日之刃 / 历代记标记）
@@ -74,6 +129,10 @@ struct RootIndex {
     /// ⚠️ 不能用全局 roe 充当：全局标记会让 in_game / in_user 同时为真，
     /// 状态行"已就绪（游戏目录|用户数据目录）"随之失真（用户实测报过）。
     has_roe: bool,
+    /// `Data/H3ab*.lod`（末日之刃层）。AB 无独立安装态，仅用于给出准确拒绝文案。
+    ab_lods: bool,
+    /// `Data/*.pak`（HD Edition 标记；VCMI 不挂载 `.pak`，混进去也无效）。
+    has_pak: bool,
 }
 
 /// 大小写不敏感查找单层目录项。
@@ -103,16 +162,15 @@ fn children_with_ext_ci(dir: &Path, ext: &str) -> Vec<PathBuf> {
     out
 }
 
-/// 某挂载点的资源名集合：**散文件**（`<root>/<loose_subdir>`）+ **挂载表内 LOD 的条目名**。
+/// 某挂载点的资源名集合：**散文件**（`loose_dir`）+ **挂载表内 LOD 的条目名**（`lod_dir`）。
 ///
-/// ⚠️ LOD 一律从 `<root>/Data/` 读——`config/filesystem.json` 里 `DATA/` 与 `SPRITES/`
+/// ⚠️ LOD 一律从数据目录读——`config/filesystem.json` 里 `DATA/` 与 `SPRITES/`
 /// 两个挂载点的 lod 都指向 `Data/` 下的文件（`Data/H3sprite.lod` 挂的是 `SPRITES/`），
 /// 只有散文件目录不同（`Data` vs `Sprites`）。此前按挂载点找 LOD 会把 sprite 包漏掉。
-fn mounted_names(root: &Path, loose_subdir: &str, lods: &[&str]) -> Vec<String> {
+fn mounted_names_at(loose_dir: &Path, lod_dir: &Path, lods: &[&str]) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
-    let dir = root.join(loose_subdir);
-    if dir.is_dir() {
-        if let Ok(rd) = fs::read_dir(&dir) {
+    if loose_dir.is_dir() {
+        if let Ok(rd) = fs::read_dir(loose_dir) {
             for e in rd.flatten() {
                 if e.path().is_file() {
                     names.push(e.file_name().to_string_lossy().to_string());
@@ -120,7 +178,7 @@ fn mounted_names(root: &Path, loose_subdir: &str, lods: &[&str]) -> Vec<String> 
             }
         }
     }
-    for lod in children_with_ext_ci(&root.join("Data"), ".lod") {
+    for lod in children_with_ext_ci(lod_dir, ".lod") {
         let fname = lod
             .file_name()
             .map(|s| s.to_string_lossy().to_string())
@@ -135,17 +193,58 @@ fn mounted_names(root: &Path, loose_subdir: &str, lods: &[&str]) -> Vec<String> 
     names
 }
 
+/// 资源根 → 数据目录：`<root>/Data` 存在就用它，否则 root 本身即数据目录。
+///
+/// `resolve_source` 允许用户直接选 `Data` 目录本身或散装 `.lod` 的目录；
+/// 体检对这三种选法都要给出同一结论（否则复制前的源校验会误判成"没有数据"）。
+fn data_dir_of(root: &Path) -> PathBuf {
+    let d = root.join("Data");
+    if d.is_dir() {
+        d
+    } else {
+        root.to_path_buf()
+    }
+}
+
 fn index_root(root: &Path, kind: &'static str) -> RootIndex {
-    let data = mounted_names(root, "Data", &DATA_LODS);
-    let sprites = mounted_names(root, "Sprites", &SPRITES_LODS);
-    let maps = mounted_names(root, "Maps", &[]);
+    let data_dir = data_dir_of(root);
+    let data = mounted_names_at(&data_dir, &data_dir, &DATA_LODS);
+    let sprites = mounted_names_at(&root.join("Sprites"), &data_dir, &SPRITES_LODS);
+    let maps = mounted_names_at(&root.join("Maps"), &data_dir, &[]);
     let has_roe = data.iter().any(|n| n.eq_ignore_ascii_case("GENRLTXT.TXT"));
+    let ab_lods = children_with_ext_ci(&data_dir, ".lod").iter().any(|p| {
+        p.file_name()
+            .map(|n| n.to_string_lossy().to_ascii_lowercase().starts_with("h3ab"))
+            .unwrap_or(false)
+    });
+    let has_pak = !children_with_ext_ci(&data_dir, ".pak").is_empty();
     RootIndex {
         kind,
         has_roe,
+        ab_lods,
+        has_pak,
         data,
         sprites,
         maps,
+    }
+}
+
+/// 模态判定（顺序即优先级）：SoD 哨兵 > demo > AB 层 > HD > RoE > 空。
+///
+/// `ab_lods` / `hd_edition` 只影响**拒绝文案**：两者都不满足 VCMI 的启动条件。
+fn classify(roe: bool, sod: bool, demo: bool, ab_lods: bool, hd_edition: bool) -> H3DataKind {
+    if sod {
+        H3DataKind::Complete
+    } else if demo {
+        H3DataKind::Demo
+    } else if ab_lods {
+        H3DataKind::AbOnly
+    } else if hd_edition {
+        H3DataKind::HdEdition
+    } else if roe {
+        H3DataKind::RoeOnly
+    } else {
+        H3DataKind::Empty
     }
 }
 
@@ -170,6 +269,10 @@ pub fn detect(game_dir: &Path, user_data_dir: &Path) -> H3DataStatus {
     let help_txt = has(&|r| &r.data, "HELP.TXT");
     let players_pal = has(&|r| &r.data, "PLAYERS.PAL");
     let default_def = has(&|r| &r.sprites, "DEFAULT.DEF");
+    // 版本模态（只用于"拒绝时说清该装什么"，不参与 found 判定）
+    let ab_lods = roots.iter().any(|r| r.ab_lods);
+    let hd_edition = roots.iter().any(|r| r.has_pak);
+    let kind = classify(roe, sod, demo, ab_lods, hd_edition);
 
     // 缺失映射到"用户能操作的文件"：bitmap 包缺 → GENRLTXT / HELP / PLAYERS 全无源
     let mut missing: Vec<String> = Vec::new();
@@ -186,6 +289,9 @@ pub fn detect(game_dir: &Path, user_data_dir: &Path) -> H3DataStatus {
 
     H3DataStatus {
         found: roe && (sod || demo) && help_txt && players_pal && default_def,
+        kind,
+        hd_edition,
+        ab_lods,
         roe,
         sod,
         demo,
@@ -208,19 +314,59 @@ pub fn resolve_source(picked: &Path) -> Option<(PathBuf, PathBuf)> {
             return Some((picked.to_path_buf(), data));
         }
     }
-    if children_with_ext_ci(picked, ".lod").is_empty() {
-        return None;
-    }
-    // 选的就是 Data 目录本身：源根取其父目录（Mp3/Maps 的兄弟位置）
+    // 选的就是 Data 目录本身：源根取其父目录（Mp3/Maps 的兄弟位置）。
+    // 不看内容就接受——HD Edition 的 Data 里只有 `.pak`，也要能被 `ensure_supported_source`
+    // 识别并给出"HD 不支持"，而不是笼统报"该目录不含原版数据"。
     let is_data_dir = picked
         .file_name()
         .map(|n| n.eq_ignore_ascii_case("Data"))
         .unwrap_or(false);
     if is_data_dir {
         let parent = picked.parent()?;
-        Some((parent.to_path_buf(), picked.to_path_buf()))
+        return Some((parent.to_path_buf(), picked.to_path_buf()));
+    }
+    // 散装目录：有 `.lod` 或 `.pak`（HD）才算候选；具体模态交给 `inspect_source`。
+    if children_with_ext_ci(picked, ".lod").is_empty()
+        && children_with_ext_ci(picked, ".pak").is_empty()
+    {
+        return None;
+    }
+    Some((picked.to_path_buf(), picked.to_path_buf()))
+}
+
+/// 复制源体检：返回源数据的模态（`None` = 连数据目录都认不出）。
+///
+/// 只看**源目录本身**，不掺入当前游戏目录 / 用户数据目录：
+/// `resolve_source` 已把三种选法（游戏根 / `Data` / 散装目录）归一成同一个根。
+pub fn inspect_source(from: &Path) -> Option<H3DataKind> {
+    let (root, _data) = resolve_source(from)?;
+    let idx = index_root(&root, "source");
+    let demo = !idx
+        .data
+        .iter()
+        .any(|n| n.eq_ignore_ascii_case("TENTCOLR.TXT"))
+        && idx.maps.iter().any(|n| n.eq_ignore_ascii_case("H3DEMO.H3M"));
+    Some(classify(
+        idx.has_roe,
+        idx.data.iter().any(|n| n.eq_ignore_ascii_case("TENTCOLR.TXT")),
+        demo,
+        idx.ab_lods,
+        idx.has_pak,
+    ))
+}
+
+/// 复制前闸门：只有 SoD / Complete（或 demo）数据才允许搬。
+///
+/// Why：RoE-only / AB-only / HD Edition 搬过去 VCMI 也起不来
+/// （`EntryPoint.cpp:329-332` 对 `GameDataMode::ROE` 直接 fatal），
+/// 先搬几百 MB 再报"缺文件"既浪费又污染游戏目录，且提示会误导成"文件损坏"。
+pub fn ensure_supported_source(from: &Path) -> Result<H3DataKind, String> {
+    let kind = inspect_source(from)
+        .ok_or_else(|| be_err("setup_h3_data_dir_invalid", &from.to_string_lossy()))?;
+    if kind.supported() {
+        Ok(kind)
     } else {
-        Some((picked.to_path_buf(), picked.to_path_buf()))
+        Err(be_err(kind.error_code(), ""))
     }
 }
 
@@ -284,12 +430,15 @@ pub fn copy_data_files(
 /// - `Maps`：用户地图目录。**VCMI 不会自建 `Mods` / `Maps`**（只自建
 ///   `userDataPath/cache/config/logs/Saves`），故无论是否复制都要保证目录存在；
 /// - 只复制**文件**（不递归子目录），已存在则跳过，不覆盖。
+///
+/// 回调首个参数是**当前阶段**（`"Mp3"` / `"Maps"`）：两段各自有独立分母，前端据此换标题
+/// （"正在复制音轨…" / "正在复制地图…"），否则会出现两次一模一样的「正在复制数据文件」。
 pub fn copy_extra(
     from_root: &Path,
     to_user_dir: &Path,
     mp3: bool,
     maps: bool,
-    mut on_progress: impl FnMut(u64, u64, u64, u64),
+    mut on_progress: impl FnMut(&str, u64, u64, u64, u64),
 ) -> Result<(u64, u64), String> {
     let mut files = 0u64;
     let mut bytes = 0u64;
@@ -319,14 +468,14 @@ pub fn copy_extra(
             let target = dst.join(fname);
             if target.exists() {
                 files += 1;
-                on_progress(files, bytes, total_files, total_bytes);
+                on_progress(name, files, bytes, total_files, total_bytes);
                 continue;
             }
             fs::copy(f, &target)
                 .map_err(|e| be_err("infra_file_copy_failed", &format!("{}", e)))?;
             files += 1;
             bytes += fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
-            on_progress(files, bytes, total_files, total_bytes);
+            on_progress(name, files, bytes, total_files, total_bytes);
         }
     }
     Ok((files, bytes))
@@ -464,6 +613,54 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
+    /// 数据模态：HD（`.pak`）/ AB（`H3ab*.lod`）/ 空目录，三种都必须被复制前闸门拒绝。
+    ///
+    /// 口径依据：`EntryPoint.cpp:329-332`（ROE 含 HD Edition 直接 fatal）、
+    /// `GameLibrary.cpp:184-199`（AB 无独立安装态，缺 `TENTCOLR.TXT` 即判 ROE）。
+    #[test]
+    fn inspect_source_classifies_and_rejects_unsupported() {
+        let base = std::env::temp_dir().join("vcmi-fv-h3data-kind-test");
+        let _ = fs::remove_dir_all(&base);
+
+        // HD Edition：`Data/*.pak`，没有 `.lod`
+        let hd = base.join("hd");
+        fs::create_dir_all(hd.join("Data")).expect("mkdir");
+        fs::write(hd.join("Data").join("h3ab_bmp.pak"), b"x").expect("write");
+        assert_eq!(inspect_source(&hd), Some(H3DataKind::HdEdition));
+        assert!(ensure_supported_source(&hd).is_err(), "HD 数据不得复制");
+        // 直接选 `Data` 目录本身也必须识别（不能报成"无关目录"）
+        assert_eq!(inspect_source(&hd.join("Data")), Some(H3DataKind::HdEdition));
+
+        // 末日之刃：只有 `H3ab*.lod`，没有 `TENTCOLR.TXT`（fake lod 解不出条目 = 缺 SoD 层）
+        let ab = base.join("ab");
+        fs::create_dir_all(ab.join("Data")).expect("mkdir");
+        fs::write(ab.join("Data").join("H3ab_bmp.lod"), b"x").expect("write");
+        assert_eq!(inspect_source(&ab), Some(H3DataKind::AbOnly));
+        assert_eq!(
+            ensure_supported_source(&ab).unwrap_err(),
+            be_err("h3_data_ab_only", "")
+        );
+
+        // 空数据目录：不放行（提示用户选错目录，而不是"缺文件"）
+        let empty = base.join("empty");
+        fs::create_dir_all(empty.join("Data")).expect("mkdir");
+        fs::write(empty.join("Data").join("readme.txt"), b"x").expect("write");
+        assert_eq!(inspect_source(&empty), Some(H3DataKind::Empty));
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// 真实完整安装（`references/Heroes3-EN`）应判为 `complete` 且允许复制。
+    #[test]
+    fn inspect_source_reference_install_is_complete() {
+        let Some(base) = reference_install() else {
+            eprintln!("跳过：仓库未携带 references/Heroes3-EN");
+            return;
+        };
+        assert_eq!(inspect_source(&base), Some(H3DataKind::Complete));
+        assert_eq!(ensure_supported_source(&base), Ok(H3DataKind::Complete));
+    }
+
     /// `copy_extra`：Mp3 / Maps 复制 + **目录始终创建**（VCMI 不自建 Maps）。
     #[test]
     fn copy_extra_creates_dirs_even_when_disabled() {
@@ -477,14 +674,14 @@ mod tests {
         fs::write(src_root.join("Maps").join("m.h3m"), b"1234").expect("write");
 
         // 都不复制：目录仍必须建（VCMI 只自建 cache/config/logs/Saves）
-        let (f, b) = copy_extra(&src_root, &dst_user, false, false, |_, _, _, _| {}).expect("copy");
+        let (f, b) = copy_extra(&src_root, &dst_user, false, false, |_, _, _, _, _| {}).expect("copy");
         assert_eq!((f, b), (0, 0));
         assert!(dst_user.join("Mp3").is_dir(), "Mp3 目录应被创建");
         assert!(dst_user.join("Maps").is_dir(), "Maps 目录应被创建");
         assert!(!dst_user.join("Mp3").join("a.mp3").exists(), "未勾选不应复制文件");
 
         // 勾选 Maps：只搬 Maps
-        let (f2, b2) = copy_extra(&src_root, &dst_user, false, true, |_, _, _, _| {}).expect("copy2");
+        let (f2, b2) = copy_extra(&src_root, &dst_user, false, true, |_, _, _, _, _| {}).expect("copy2");
         assert_eq!((f2, b2), (1, 4));
         assert!(dst_user.join("Maps").join("m.h3m").is_file());
         assert!(!dst_user.join("Mp3").join("a.mp3").exists(), "Mp3 未勾选仍不复制");

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useI18n, UI_LANG_OPTIONS } from "@/i18n";
 import { uiLangFeature } from "@/i18n/langs";
+import type { LangDict } from "@/i18n/types";
 import {
   cancelUserDataCopy,
   copyH3Data,
@@ -20,6 +21,7 @@ import {
   saveNetworkMirrorRules,
   suggestUserDataDir,
   writeLauncherConfig,
+  type H3DataKind,
   type H3DataStatus,
   type VcmiDirs,
 } from "@/lib/tauri";
@@ -42,6 +44,34 @@ export interface SetupWizardProps {
 }
 
 /**
+ * 不支持的数据模态 → 用户可读原因（VCMI 只接受《死亡阴影》/《完全版》或 demo）。
+ *
+ * Why 单独抽出来：状态行与「点击复制时的预检」必须说同一句话，
+ * 否则两处文案会漂移（此前把 AB 写成"需要末日之刃"，用户会照着去装一个同样跑不起来的版本）。
+ */
+function h3UnsupportedText(kind: H3DataKind | null | undefined, t: LangDict): string | null {
+  switch (kind) {
+    case "hdEdition":
+      return t.setup.h3HdEdition;
+    case "abOnly":
+      return t.setup.h3AbOnly;
+    case "roeOnly":
+      return t.setup.h3RoeOnly;
+    default:
+      return null;
+  }
+}
+
+/**
+ * 复制源专用：把"选错目录（没有 `.lod`/`.pak`）"也算作阻断原因。
+ * 目标目录的 `empty` 不能套这句话（那是"未检测到数据文件"，语义不同）。
+ */
+function h3SourceBlockText(kind: H3DataKind | null | undefined, t: LangDict): string | null {
+  if (kind === "empty") return t.setup.h3SourceEmpty;
+  return h3UnsupportedText(kind, t);
+}
+
+/**
  * 固定四步向导（步骤条恒定四项，**没有时隐时现的步骤**）：
  * ① 游戏目录与界面语言 → ② 用户数据目录（含既有数据同步）→
  * ③ 游戏数据文件（检测 + 导入，硬闸门）→ ④ 汇总确认（派生信息 + 保存）。
@@ -57,6 +87,8 @@ type SyncState = "idle" | "running" | "done";
 interface CopyProgressState {
   /** 已收到首帧进度；此前显示"正在准备复制…"（后端在整树预扫体量） */
   started: boolean;
+  /** 复制阶段：Data 文件 / 音轨 / 地图（各自独立分母，标题必须区分） */
+  stage?: "data" | "mp3" | "maps";
   doneFiles: number;
   doneBytes: number;
   totalFiles: number;
@@ -120,6 +152,13 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
   const [h3Probed, setH3Probed] = useState(false);
   const [h3DataDir, setH3DataDir] = useState("");
   const [h3Candidates, setH3Candidates] = useState<string[]>([]);
+  /**
+   * 复制**源**的数据模态（`null` = 未检/无法识别）。
+   * ⚠️ 与 `h3` 不同：`h3` 描述"当前游戏目录 + 用户数据目录"，
+   * 这里描述用户挑的那个待复制目录——版本不对时必须在复制前拦住。
+   */
+  const [h3SourceKind, setH3SourceKind] = useState<H3DataKind | null>(null);
+  const [h3SourceChecking, setH3SourceChecking] = useState(false);
   // 第 ③ 步复制范围：音轨默认带（官方同口径），地图可选（不复制也会自动建 Maps 目录）
   const [h3CopyMp3, setH3CopyMp3] = useState(true);
   const [h3CopyMaps, setH3CopyMaps] = useState(false);
@@ -137,7 +176,11 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
   const [chrInstallFile, setChrInstallFile] = useState("");
   const [chrInstallOn, setChrInstallOn] = useState(false);
   const [chrInstalled, setChrInstalled] = useState<boolean | null>(null);
-  const [installingExtra, setInstallingExtra] = useState(false);
+  /** 已在盘上（游戏目录 / 用户数据目录）存在的可选内容：显示「已就绪」并收起安装控件 */
+  const [hdPresent, setHdPresent] = useState(false);
+  const [chrPresent, setChrPresent] = useState(false);
+  /** 当前正在安装的可选内容项（`null`=空闲）：**按项显示**「安装中」，不再两项一起变**/
+  const [installingExtra, setInstallingExtra] = useState<"hd" | "chr" | null>(null);
   /**
    * 可选内容安装目标：默认**游戏目录**（领域共享；两项产物都在 `<目标>/Mods/`：
    * HD → `hd-edition`，历代记 → `chronicles` + 8 个篇章子模组）。
@@ -167,8 +210,12 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
   /** 原版数据闸门：**未确认即视为未通过**（缺 LOD 的后果是 VCMI 无法启动） */
   const h3Ready = h3Probed && !!h3?.found;
 
-  /** 第 ④ 步汇总里的「高清版素材」是否为已启用：本次装好，或探测到既有 hd-edition 且开关保持打开 */
-  const hdActive = hdInstalled === true || (hdDetected && hdEnable);
+  /** 可选内容是否已就绪：本次装好（`*Installed`）或盘上已存在（`*Present`，第 ③ 步体检得到） */
+  const hdReady = hdInstalled === true || hdPresent;
+  const chrReady = chrInstalled === true || chrPresent;
+
+  /** 第 ④ 步汇总里的「高清版素材」是否为已启用：已就绪，或探测到既有 hd-edition 且开关保持打开 */
+  const hdActive = hdReady || (hdDetected && hdEnable);
 
   useEffect(() => {
     detectVcmiPaths().then((d) => {
@@ -200,6 +247,7 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
     onUserDataCopyProgress((p) =>
       setProgress({
         started: true,
+        stage: p.stage,
         doneFiles: p.doneFiles,
         doneBytes: p.doneBytes,
         totalFiles: p.totalFiles,
@@ -264,6 +312,10 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
       setH3(st); // ⚠️ 必须回写状态：只置 h3Probed 会让面板永远显示空缺失清单（曾踩过）
       setH3Probed(!!st);
       setH3Candidates(health.dataInstallCandidates ?? []);
+      // 已有 hd-edition / chronicles ⇒ 显示「已就绪」，不再让用户重复安装
+      // （此前只看本次会话是否点过安装，已存在也显示空开关，用户实测反馈）
+      setHdPresent(health.optionalMods?.hdEdition === true);
+      setChrPresent(health.optionalMods?.chronicles === true);
       if (st && !st.found) {
         logWarn(
           "setup",
@@ -286,6 +338,38 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
       setH3Checking(false);
     }
   };
+
+  /**
+   * 复制**源**体检：只判用户挑的那个目录，不掺已保存的游戏/用户目录。
+   *
+   * 用户可能挑三种东西（游戏根 / `Data` / 散装 `.lod` 目录），后端 `resolve_source`
+   * 已做归一，这里传两次同一路径即可（两个根都指向它，`detect` 不会回退到保存的配置）。
+   */
+  const inspectH3Source = async (path: string): Promise<H3DataKind | null> => {
+    const p = path.trim();
+    if (!p) {
+      setH3SourceKind(null);
+      return null;
+    }
+    setH3SourceChecking(true);
+    try {
+      const health = await gamedataHealthCheck(p, p, false);
+      const kind = health?.h3Data?.kind ?? null;
+      setH3SourceKind(kind);
+      return kind;
+    } catch {
+      // 探测失败不阻断（后端复制时还有一次闸门），只是拿不到提前提示
+      setH3SourceKind(null);
+      return null;
+    } finally {
+      setH3SourceChecking(false);
+    }
+  };
+
+  // 源路径一改，旧的模态结论立即作废（避免"换了目录还显示上一个目录的报错"）
+  useEffect(() => {
+    setH3SourceKind(null);
+  }, [h3DataDir]);
 
   // 进入第 ③ 步 / 用户数据目录变化 / 同步结束 ⇒ 重探（②→③ 是唯一入口，判定根已定稿）
   useEffect(() => {
@@ -485,6 +569,15 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
     setError("");
     setProgress(IDLE_PROGRESS);
     try {
+      // 版本预检：RoE-only / AB-only / HD Edition 搬过去 VCMI 也起不来
+      // （运行期判 ROE → fatal），直接在源上拒绝，不白搬几百 MB。
+      // 后端 `copyH3Data` 内还有同一道闸门（防绕过）。
+      const kind = h3SourceKind ?? (await inspectH3Source(from));
+      const unsupported = h3SourceBlockText(kind, t);
+      if (unsupported) {
+        setError(unsupported);
+        return;
+      }
       // 第二参 = Mp3/Maps 的归属根：与 .lod 同一个 radio 目标
       await copyH3Data(gd, targetRoot, from, to, h3CopyMp3, h3CopyMaps);
       setProgress(IDLE_PROGRESS);
@@ -495,7 +588,13 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
     }
   };
 
-  /** 第 ③ 步：选择 HD 版安装目录（含 HOMM3 2.0.exe 的目录，或该 exe 本体） */
+  /**
+   * 第 ③ 步：选择 HD 版安装目录（必须包含 `HOMM3 2.0.exe`）。
+   *
+   * ⚠️ 只给**目录**一个入口：后端 `classify_input` 也认该 exe 本体，但原生对话框
+   * 无法在同一会话混选文件与目录，向导里再加一个按钮会挤占本就紧张的横向空间
+   * （俄/德语更长）。exe 本体入口只存在于主界面导入弹层（`shell/ImportFilesDialog`）。
+   */
   const handleChooseHdDir = async () => {
     const path = await pickDirectory(t.setup.hdInstall);
     if (!path) return;
@@ -527,7 +626,7 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
     // 命令参数名叫 userDataDir（历史命名），语义是"导入环境的用户数据根"。
     const targetRoot = (optTarget === "game" ? gameDir.trim() : userDataDir.trim()).trim();
     if (!targetRoot || !src.trim()) return { ok: false, msg: t.setup.error };
-    setInstallingExtra(true);
+    setInstallingExtra(kind);
     setError("");
     try {
       const report = await importGameFiles({
@@ -545,7 +644,7 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
     } catch (e: any) {
       return { ok: false, msg: backendErrorText(e) || t.setup.error };
     } finally {
-      setInstallingExtra(false);
+      setInstallingExtra(null);
     }
   };
 
@@ -572,6 +671,8 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
     if (!path) return;
     setH3DataDir(path);
     setError("");
+    // 选完立刻判版本：不对时用户当场就知道"该装什么"，而不是点了复制才被拒
+    void inspectH3Source(path);
   };
 
   // 第 ③ 步数据面板展开时：用注册表候选预填数据目录（用户可改）
@@ -586,6 +687,7 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
     progress.totalBytes > 0
       ? Math.min(100, Math.round((progress.doneBytes / progress.totalBytes) * 100))
       : 0;
+
 
   const stepLabels = [
     t.setup.gameDir,
@@ -766,6 +868,8 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
             h3DataDir={h3DataDir}
             setH3DataDir={setH3DataDir}
             h3Candidates={h3Candidates}
+            sourceKind={h3SourceKind}
+            sourceChecking={h3SourceChecking}
             copyMp3={h3CopyMp3}
             setCopyMp3={setH3CopyMp3}
             copyMaps={h3CopyMaps}
@@ -788,19 +892,21 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
             setHdInstallOn={setHdInstallOn}
             hdInstallDir={hdInstallDir}
             hdInstalled={hdInstalled}
+            hdReady={hdReady}
             onChooseHdDir={handleChooseHdDir}
             onInstallHd={() => void handleInstallHd()}
             chrInstallOn={chrInstallOn}
             setChrInstallOn={setChrInstallOn}
             chrInstallFile={chrInstallFile}
             chrInstalled={chrInstalled}
+            chrReady={chrReady}
             onChooseChrFile={handleChooseChrFile}
             onInstallChr={() => void handleInstallChr()}
             optTarget={optTarget}
             setOptTarget={setOptTarget}
             gameDir={gameDir.trim()}
             userDataDir={userDataDir.trim()}
-            disabled={installingExtra}
+            installing={installingExtra}
           />
           </>
         ) : (
@@ -840,7 +946,26 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
               </div>
             </div>
 
-            {/* 检测到既有 hd-edition：建议就地开关，随「保存并进入启动器」一起写入 */}
+            {/* 可选内容汇总：无论装不装，都显示高清版 / 历代记的当前选择 */}
+            <div className="mb-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-400">
+              <div className="mb-1 font-medium text-slate-300">{t.setup.optionalContent}</div>
+              {/* 只显示启用状态，不显示来源路径（路径长且无决策价值，用户实测反馈） */}
+              <div className="break-words">
+                {t.setup.hdInstall}:{" "}
+                <span className={hdActive ? "text-emerald-400" : "text-slate-500"}>
+                  {hdActive ? t.setup.optEnabled : t.setup.optDisabled}
+                </span>
+              </div>
+              <div className="break-words">
+                {t.setup.chrInstall}:{" "}
+                <span className={chrReady ? "text-emerald-400" : "text-slate-500"}>
+                  {chrReady ? t.setup.optEnabled : t.setup.optDisabled}
+                </span>
+              </div>
+            </div>
+
+            {/* ⚠️ 顺序：先「已定稿的信息」，再「可选建议」。建议类面板（HD 生成 / GitHub 镜像）
+                统一放最后，避免一进第 ④ 步就被两块彩色面板抢占视线（用户实测反馈）。 */}
             {hdDetected && (
               <div className="mb-3 rounded-xl border border-sky-800/60 bg-sky-950/30 p-3">
                 <div className="text-sm font-medium text-sky-300">{t.setup.hdDetected}</div>
@@ -854,7 +979,6 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
               </div>
             )}
 
-            {/* 清单不可达 → 建议开启 GitHub 镜像（仅部分界面语言展示） */}
             {netUnreachable && mirrorHintAllowed && (
               <div className="rounded-xl border border-amber-800/60 bg-amber-950/20 p-3">
                 <label className="flex items-start justify-between gap-3">
@@ -873,24 +997,6 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
                 </p>
               </div>
             )}
-
-            {/* 可选内容汇总：无论装不装，都显示高清版 / 历代记的当前选择 */}
-            <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-400">
-              <div className="mb-1 font-medium text-slate-300">{t.setup.optionalContent}</div>
-              {/* 只显示启用状态，不显示来源路径（路径长且无决策价值，用户实测反馈） */}
-              <div className="break-words">
-                {t.setup.hdInstall}:{" "}
-                <span className={hdActive ? "text-emerald-400" : "text-slate-500"}>
-                  {hdActive ? t.setup.optEnabled : t.setup.optDisabled}
-                </span>
-              </div>
-              <div className="break-words">
-                {t.setup.chrInstall}:{" "}
-                <span className={chrInstalled === true ? "text-emerald-400" : "text-slate-500"}>
-                  {chrInstalled === true ? t.setup.optEnabled : t.setup.optDisabled}
-                </span>
-              </div>
-            </div>
           </>
           )}
 
@@ -920,7 +1026,7 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
                   setStep((s) => (s - 1) as Step);
                 }}
                 // 安装进行中（HD 拷贝 / 历代记解包）临时锁导航：避免没处理完就切页
-                disabled={saving || syncing || installingExtra}
+                disabled={saving || syncing || installingExtra !== null}
                 className="border-slate-700 text-slate-300 hover:bg-slate-800"
               >
                 {t.setup.prev}
@@ -945,7 +1051,7 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
                 disabled={
                   saving ||
                   syncing ||
-                  installingExtra || // 安装进行中临时锁导航（同上）
+                  installingExtra !== null || // 安装进行中临时锁导航（同上）
                   (step === 1 && !gameDir.trim()) ||
                   (step === 2 && !userDataDir.trim()) ||
                   // ③ 是硬闸门：原版数据未确认（缺失 / 探测失败）时不能前进
@@ -973,30 +1079,35 @@ function OptionalContent({
   setHdInstallOn,
   hdInstallDir,
   hdInstalled,
+  hdReady,
   onChooseHdDir,
   onInstallHd,
   chrInstallOn,
   setChrInstallOn,
   chrInstallFile,
   chrInstalled,
+  chrReady,
   onChooseChrFile,
   onInstallChr,
   optTarget,
   setOptTarget,
   gameDir,
   userDataDir,
-  disabled,
+  installing,
 }: {
   hdInstallOn: boolean;
   setHdInstallOn: (v: boolean) => void;
   hdInstallDir: string;
   hdInstalled: boolean | null;
+  /** 已就绪（本次装好，或盘上已存在）：显示绿色结论，收起开关与安装控件 */
+  hdReady: boolean;
   onChooseHdDir: () => void | Promise<unknown>;
   onInstallHd: () => void | Promise<unknown>;
   chrInstallOn: boolean;
   setChrInstallOn: (v: boolean) => void;
   chrInstallFile: string;
   chrInstalled: boolean | null;
+  chrReady: boolean;
   onChooseChrFile: () => void | Promise<unknown>;
   onInstallChr: () => void | Promise<unknown>;
   /** 安装目标根：游戏目录（默认，领域共享）/ 用户数据目录 */
@@ -1004,146 +1115,157 @@ function OptionalContent({
   setOptTarget: (v: "game" | "user") => void;
   gameDir: string;
   userDataDir: string;
-  disabled?: boolean;
+  /**
+   * 正在安装的项（`null` = 空闲）。**只让对应按钮**显示「安装中…」：
+   * 早先只有一个 boolean，装历代记时已装好的高清素材按钮也会变成「安装中…」（用户实测反馈）。
+   */
+  installing: "hd" | "chr" | null;
 }) {
   const { t } = useI18n();
+  const busy = installing !== null;
   const targetRoot = optTarget === "game" ? gameDir : userDataDir;
+  const allReady = hdReady && chrReady;
   return (
     <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-      {/* 安装目标：默认游戏目录（领域共享）；用户数据目录随领域隔离，选中给警示 */}
-      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span className="text-xs text-slate-400">{t.setup.optTarget}</span>
-        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-300">
-          <input
-            type="radio"
-            name="opt-target"
-            checked={optTarget === "game"}
-            onChange={() => setOptTarget("game")}
-            disabled={disabled}
-            className="h-3.5 w-3.5 accent-sky-500"
-          />
-          {t.setup.h3TargetGame}
-        </label>
-        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-300">
-          <input
-            type="radio"
-            name="opt-target"
-            checked={optTarget === "user"}
-            onChange={() => setOptTarget("user")}
-            disabled={disabled}
-            className="h-3.5 w-3.5 accent-sky-500"
-          />
-          {t.setup.h3TargetUser}
-        </label>
-        <span className="min-w-0 break-words font-mono text-xs text-slate-500">
-          {targetRoot || "—"}
-        </span>
-      </div>
-      {optTarget === "user" && (
-        <p className="mb-2 break-words text-xs text-amber-400">{t.setup.h3TargetUserWarn}</p>
+      {/* 安装目标：默认游戏目录（领域共享）；用户数据目录随领域隔离，选中给警示。
+          两项都已就绪时这个选择没有意义，直接不渲染（用户实测反馈）。 */}
+      {!allReady && (
+        <>
+          <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="text-xs text-slate-400">{t.setup.optTarget}</span>
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-300">
+              <input
+                type="radio"
+                name="opt-target"
+                checked={optTarget === "game"}
+                onChange={() => setOptTarget("game")}
+                disabled={busy}
+                className="h-3.5 w-3.5 accent-sky-500"
+              />
+              {t.setup.h3TargetGame}
+            </label>
+            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-300">
+              <input
+                type="radio"
+                name="opt-target"
+                checked={optTarget === "user"}
+                onChange={() => setOptTarget("user")}
+                disabled={busy}
+                className="h-3.5 w-3.5 accent-sky-500"
+              />
+              {t.setup.h3TargetUser}
+            </label>
+            <span className="min-w-0 break-words font-mono text-xs text-slate-500">
+              {targetRoot || "—"}
+            </span>
+          </div>
+          {optTarget === "user" && (
+            <p className="mb-2 break-words text-xs text-amber-400">{t.setup.h3TargetUserWarn}</p>
+          )}
+        </>
       )}
 
-      <label className="flex items-start justify-between gap-3">
-        <span className="min-w-0 flex-1">
-          <span className="block break-words text-sm font-medium text-slate-300">
-            {t.setup.hdInstall}
-          </span>
-          {/* 已装好就不再占两行说明（下方有绿色「已安装」结论） */}
-          {hdInstallOn && hdInstalled !== true && (
-            <span className="mt-0.5 block break-words text-xs text-slate-500">
-              {t.setup.hdInstallHint}
+      {/* 已就绪（盘上已有或本次装好）⇒ 只留一行绿色结论，不再给开关与安装控件 */}
+      {hdReady ? (
+        <p className="break-words text-sm text-emerald-400">{t.setup.hdReady}</p>
+      ) : (
+        <>
+          <label className="flex items-start justify-between gap-3">
+            <span className="min-w-0 flex-1">
+              <span className="block break-words text-sm font-medium text-slate-300">
+                {t.setup.hdInstall}
+              </span>
+              {hdInstallOn && (
+                <span className="mt-0.5 block break-words text-xs text-slate-500">
+                  {t.setup.hdInstallHint}
+                </span>
+              )}
             </span>
+            <Switch checked={hdInstallOn} onCheckedChange={setHdInstallOn} disabled={busy} />
+          </label>
+          {hdInstallOn && (
+            <div className="mt-2 flex gap-2">
+              <Input
+                value={hdInstallDir}
+                readOnly
+                placeholder={t.setup.hdInstallPlaceholder}
+                disabled={busy}
+                className="min-w-0 flex-1 bg-slate-950/60 text-slate-200 placeholder:text-slate-600"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onChooseHdDir}
+                disabled={busy}
+                className="shrink-0 border-slate-700 text-slate-300 hover:bg-slate-800"
+              >
+                {t.setup.choose}
+              </Button>
+              <Button
+                type="button"
+                onClick={onInstallHd}
+                disabled={busy || !hdInstallDir.trim()}
+                className="shrink-0 bg-sky-600 text-white hover:bg-sky-500"
+              >
+                {installing === "hd" ? t.setup.installing : t.setup.install}
+              </Button>
+            </div>
           )}
-        </span>
-        <Switch
-          checked={hdInstallOn}
-          onCheckedChange={setHdInstallOn}
-          disabled={disabled}
-        />
-      </label>
-      {hdInstallOn && (
-        <div className="mt-2 flex gap-2">
-          <Input
-            value={hdInstallDir}
-            readOnly
-            placeholder={t.setup.hdInstallPlaceholder}
-            // 已安装 ⇒ 整行禁用，避免二次操作（用户实测反馈）
-            disabled={disabled || hdInstalled === true}
-            className="min-w-0 flex-1 bg-slate-950/60 text-slate-200 placeholder:text-slate-600"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onChooseHdDir}
-            disabled={disabled || hdInstalled === true}
-            className="shrink-0 border-slate-700 text-slate-300 hover:bg-slate-800"
-          >
-            {t.setup.choose}
-          </Button>
-          <Button
-            type="button"
-            onClick={onInstallHd}
-            disabled={disabled || hdInstalled === true || !hdInstallDir.trim()}
-            className="shrink-0 bg-sky-600 text-white hover:bg-sky-500"
-          >
-            {disabled ? t.setup.installing : t.setup.install}
-          </Button>
-        </div>
-      )}
-      {hdInstalled === true && (
-        <p className="mt-1 break-words text-xs text-emerald-400">{t.setup.hdInstalled}</p>
-      )}
-      {hdInstalled === false && (
-        <p className="mt-1 break-words text-xs text-red-400">{t.setup.installFailed}</p>
+          {hdInstalled === false && (
+            <p className="mt-1 break-words text-xs text-red-400">{t.setup.installFailed}</p>
+          )}
+        </>
       )}
 
-      <label className="mt-3 flex items-start justify-between gap-3">
-        <span className="min-w-0 flex-1">
-          <span className="block break-words text-sm font-medium text-slate-300">
-            {t.setup.chrInstall}
-          </span>
-          {/* 已装好就不再占两行说明（下方有绿色「已生成」结论） */}
-          {chrInstallOn && chrInstalled !== true && (
-            <span className="mt-0.5 block break-words text-xs text-slate-500">
-              {t.setup.chrInstallHint}
+      {chrReady ? (
+        <p className="mt-3 break-words text-sm text-emerald-400">{t.setup.chrReady}</p>
+      ) : (
+        <>
+          <label className="mt-3 flex items-start justify-between gap-3">
+            <span className="min-w-0 flex-1">
+              <span className="block break-words text-sm font-medium text-slate-300">
+                {t.setup.chrInstall}
+              </span>
+              {chrInstallOn && (
+                <span className="mt-0.5 block break-words text-xs text-slate-500">
+                  {t.setup.chrInstallHint}
+                </span>
+              )}
             </span>
+            <Switch checked={chrInstallOn} onCheckedChange={setChrInstallOn} disabled={busy} />
+          </label>
+          {chrInstallOn && (
+            <div className="mt-2 flex gap-2">
+              <Input
+                value={chrInstallFile}
+                readOnly
+                placeholder={t.setup.chrInstallPlaceholder}
+                disabled={busy}
+                className="min-w-0 flex-1 bg-slate-950/60 text-slate-200 placeholder:text-slate-600"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onChooseChrFile}
+                disabled={busy}
+                className="shrink-0 border-slate-700 text-slate-300 hover:bg-slate-800"
+              >
+                {t.setup.choose}
+              </Button>
+              <Button
+                type="button"
+                onClick={onInstallChr}
+                disabled={busy || !chrInstallFile.trim()}
+                className="shrink-0 bg-sky-600 text-white hover:bg-sky-500"
+              >
+                {installing === "chr" ? t.setup.installing : t.setup.install}
+              </Button>
+            </div>
           )}
-        </span>
-        <Switch checked={chrInstallOn} onCheckedChange={setChrInstallOn} disabled={disabled} />
-      </label>
-      {chrInstallOn && (
-        <div className="mt-2 flex gap-2">
-          <Input
-            value={chrInstallFile}
-            readOnly
-            placeholder={t.setup.chrInstallPlaceholder}
-            disabled={disabled || chrInstalled === true}
-            className="min-w-0 flex-1 bg-slate-950/60 text-slate-200 placeholder:text-slate-600"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onChooseChrFile}
-            disabled={disabled || chrInstalled === true}
-            className="shrink-0 border-slate-700 text-slate-300 hover:bg-slate-800"
-          >
-            {t.setup.choose}
-          </Button>
-          <Button
-            type="button"
-            onClick={onInstallChr}
-            disabled={disabled || chrInstalled === true || !chrInstallFile.trim()}
-            className="shrink-0 bg-sky-600 text-white hover:bg-sky-500"
-          >
-            {disabled ? t.setup.installing : t.setup.install}
-          </Button>
-        </div>
-      )}
-      {chrInstalled === true && (
-        <p className="mt-1 break-words text-xs text-emerald-400">{t.setup.chrInstalled}</p>
-      )}
-      {chrInstalled === false && (
-        <p className="mt-1 break-words text-xs text-amber-400">{t.setup.chrInstallFailed}</p>
+          {chrInstalled === false && (
+            <p className="mt-1 break-words text-xs text-amber-400">{t.setup.chrInstallFailed}</p>
+          )}
+        </>
       )}
     </div>
   );
@@ -1162,6 +1284,8 @@ function H3DataGate({
   h3DataDir,
   setH3DataDir,
   h3Candidates,
+  sourceKind,
+  sourceChecking,
   copyMp3,
   setCopyMp3,
   copyMaps,
@@ -1183,6 +1307,9 @@ function H3DataGate({
   h3DataDir: string;
   setH3DataDir: (v: string) => void;
   h3Candidates: string[];
+  /** 待复制**源**目录的数据模态（`null` = 未检/无法识别） */
+  sourceKind: H3DataKind | null;
+  sourceChecking: boolean;
   copyMp3: boolean;
   setCopyMp3: (v: boolean) => void;
   copyMaps: boolean;
@@ -1200,6 +1327,20 @@ function H3DataGate({
   progress: CopyProgressState;
 }) {
   const { t } = useI18n();
+  /** 目标（当前游戏/用户目录）与源（待复制目录）的不支持原因，文案同源 */
+  const unsupportedTarget = h3UnsupportedText(h3?.kind, t);
+  const unsupportedSource = h3SourceBlockText(sourceKind, t);
+
+  /**
+   * 进度标题：`copy_extra` 逐段搬 `Mp3` / `Maps`，每段各自有分母。
+   * 不区分阶段时用户会看到两次一模一样的「正在复制数据文件 xx%」（用户实测反馈）。
+   */
+  const copyStageLabel =
+    progress.stage === "mp3"
+      ? t.setup.h3CopyingMp3
+      : progress.stage === "maps"
+        ? t.setup.h3CopyingMaps
+        : t.setup.h3Copying;
 
   // 检测中（尚未有结果）：占位，不展开操作区
   if (h3Checking && !h3Probed) {
@@ -1211,12 +1352,14 @@ function H3DataGate({
     );
   }
 
-  // 就绪：一行绿色状态（说明命中在哪个根）
+  // 就绪：一行绿色状态（说明命中在哪个根）；demo 数据单独说明（VCMI 放行但功能受限）
   if (h3Probed && h3?.found) {
     return (
       <p className="break-words text-xs text-emerald-400">
         <span className="mr-1.5">●</span>
-        {t.setup.h3FoundIn.replace("{arg}", h3.inGame ? t.setup.gameDir : t.setup.userDataDir)}
+        {h3.kind === "demo"
+          ? t.setup.h3DemoReady
+          : t.setup.h3FoundIn.replace("{arg}", h3.inGame ? t.setup.gameDir : t.setup.userDataDir)}
       </p>
     );
   }
@@ -1249,11 +1392,13 @@ function H3DataGate({
     <div className="rounded-xl border border-amber-800/60 bg-amber-950/20 p-3">
       <p className="break-words text-xs text-amber-200">
         <span className="mr-1.5">●</span>
-        {h3?.roe && !h3.sod && !h3.demo
-          ? t.setup.h3RoeOnly
-          : t.setup.h3Missing.replace("{arg}", h3?.missing.join("、") || "—")}
+        {/* 版本不支持优先于"缺文件"：HD 只会缺 .lod、RoE/AB 根本不缺文件，报"缺文件"会误导 */}
+        {unsupportedTarget ??
+          t.setup.h3Missing.replace("{arg}", h3?.missing.join("、") || "—")}
       </p>
-      <p className="mt-1 break-words text-xs text-slate-400">{t.setup.h3MissingHint}</p>
+      <p className="mt-1 break-words text-xs text-slate-400">
+        {unsupportedTarget ? t.setup.h3VersionHint : t.setup.h3MissingHint}
+      </p>
 
       <div className="mt-2">
         <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -1278,6 +1423,13 @@ function H3DataGate({
             {t.setup.choose}
           </Button>
         </div>
+        {/* 源目录版本提示：选完立刻判（RoE/AB/HD 复制过去也起不来，禁止白搬） */}
+        {sourceChecking && (
+          <p className="mt-1 break-words text-xs text-slate-500">{t.setup.h3Checking}</p>
+        )}
+        {!sourceChecking && unsupportedSource && (
+          <p className="mt-1 break-words text-xs text-amber-300">{unsupportedSource}</p>
+        )}
         {/* 复制目标：默认游戏目录（领域共享）；用户数据目录仅在不适用领域隔离时选 */}
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
           <span className="text-xs text-slate-400">{t.setup.h3CopyTarget}</span>
@@ -1350,7 +1502,7 @@ function H3DataGate({
       {copying ? (
         <div className="mt-2">
           <div className="text-xs text-slate-200">
-            {t.setup.h3Copying.replace("{arg}", `${pct}%`)}
+            {copyStageLabel.replace("{arg}", `${pct}%`)}
           </div>
           <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded bg-slate-800">
             <div
@@ -1372,7 +1524,7 @@ function H3DataGate({
           <Button
             type="button"
             onClick={onCopy}
-            disabled={!h3DataDir.trim()}
+            disabled={!h3DataDir.trim() || sourceChecking || !!unsupportedSource}
             className="bg-sky-600 text-white hover:bg-sky-500"
           >
             {t.setup.h3Copy}

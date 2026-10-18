@@ -12,6 +12,10 @@
 
 **不做**：改动原图。所有高清产物都是**同目录的 `@Nx` 变体**，原图始终保留作回退。
 
+**边界（易被误解）**：这条链路只产出**启动器 WebView 用的图**（百科、阵营巡礼、模组列表/详情的城镇预览、
+领域编辑器展示图），游戏内渲染由 VCMI 自己读数据，**不受 `hd.enhance` / HD 素材影响**。
+因此向导与设置页的文案统一表述为「生成启动器高清图」，不再用「高清画面」这种会被读成游戏画面的说法。
+
 ## 2. 链路 A：HD Edition（真高清源）
 
 | 模块 | 职责 |
@@ -47,10 +51,11 @@
 
 **AI 四重生效条件**：总开关 ∧ AI 开关 ∧ model 非空 ∧ 模型在组件目录中存在；任一不满足回落 `Lanczos3 + USM`。
 
-**首启建议**：向导保存后调用 `hd_edition_status()`，在 `user_mods_dir` / `game_mods_dir` /
-`<game_dir>/Mods` 下命中 `hd-edition` 的 pak 时，提示并（用户确认后）同时写
-`hd.enhance = true` 与 `hd.edition_use = "auto"` —— 避免"装了 HD 版却用不上"。
-见 [首启向导](./setup-wizard.zh-CN.md) §6。
+**首启建议**：向导**第 ④ 步**（保存前）调用
+`hd_edition_status({ gameDir, userDataDir })`（可选目录覆盖，配置尚未落盘），在
+`<userData>/Mods` / `<gameDir>/Mods` 下命中 `hd-edition` 的 pak 时，就地显示开关；
+点「保存并进入启动器」后按开关写 `hd.enhance = true` 与 `hd.edition_use = "auto"`
+—— 避免"装了 HD 版却用不上"。见 [首启向导](./setup-wizard.zh-CN.md) §6。
 
 > ⚠️ 两个易混命令：`set_hd_enhance` 写 `hd.enhance`（放大总开关），`set_ai_hd_enhance` 写 `hd.ai.enhance`（AI 超分开关），另有 `set_ai_model`。
 
