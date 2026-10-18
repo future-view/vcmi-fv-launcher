@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use crate::modcache::assets::extract_icon_and_save;
 use crate::modcache::collect::collect_config_jsons_merged;
 use crate::modcache::i18n::{
-    i18n_get_multi, i18n_mod_scope, name_obj_multi_key, name_obj_with_inline,
+    i18n_get_multi, i18n_mod_scope, name_obj_multi_key, name_obj_with_inline, obj_from_lang_map,
 };
 use crate::vcmi::gamedata::SPELL_ID_TABLE;
 use crate::vcmi::h3core::I18nMap;
@@ -221,42 +221,40 @@ pub(crate) fn build_spells(
                 continue;
             }
             // 名称/等级/派系/各级描述统一取自 h3-core（`spell.core.<id>.*`）。
-            // **中英分列**：h3-core 文案表按语言分文件（english.spells.json / chinese.spells.json），
-            // 键的 map 同时含 chinese/english；此前只取单值（中文优先）写进两个语言键，
-            // 导致英文界面下原版法术名与分级描述显示中文。
-            let pair = |sub: &str| -> (String, String) {
-                let m = i18n_get_multi(&i18n, &format!("spell.core.{}.{}", identifier, sub));
-                let pick = |order: &[&str]| -> String {
-                    m.as_ref()
-                        .and_then(|x| order.iter().find_map(|k| x.get(*k)).cloned())
-                        .unwrap_or_default()
-                };
-                (
-                    pick(&["chinese", "auto", "english"]),
-                    pick(&["english", "auto", "chinese"]),
-                )
+            // **真实语言直落**：h3-core 文案表按语言分文件（english.spells.json /
+            // chinese.spells.json），键的 map 里有什么语言就写什么语言；缺中文不拿英文冒充，
+            // 前端 `pickName` 回退 english。此前"按语言取单值再写两个键"会让
+            // `chinese` 变成英文副本（数据失真）。
+            let text = |sub: &str| -> String {
+                i18n_get_multi(&i18n, &format!("spell.core.{}.{}", identifier, sub))
+                    .and_then(|m| m.get("chinese").or_else(|| m.get("english")).cloned())
+                    .unwrap_or_default()
             };
-            let (name_zh, name_en) = pair("name");
-            if name_zh.is_empty() && name_en.is_empty() {
+            let name_obj = obj_from_lang_map(
+                i18n_get_multi(&i18n, &format!("spell.core.{}.name", identifier)),
+                "",
+            );
+            if name_obj.as_object().map(|o| o.is_empty()).unwrap_or(true) {
                 continue;
             }
-            let level = pair("level").0.parse::<i64>().unwrap_or(1);
-            let schools: Vec<String> = pair("schools")
-                .0
+            let level = text("level").parse::<i64>().unwrap_or(1);
+            let schools: Vec<String> = text("schools")
                 .split(',')
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
                 .collect();
             // 分级描述改为多语言对象（与模组法术同形态；前端兼容字符串与对象两种形态）
-            let lv: Vec<(String, String)> = ["basic", "advanced", "expert"]
-                .iter()
-                .map(|sub| pair(sub))
-                .collect();
-            let auto = if name_zh.is_empty() {
-                name_en.clone()
-            } else {
-                name_zh.clone()
+            let level_obj = |sub: &str| {
+                obj_from_lang_map(
+                    i18n_get_multi(&i18n, &format!("spell.core.{}.{}", identifier, sub)),
+                    "",
+                )
             };
+            let lv = [
+                level_obj("basic"),
+                level_obj("advanced"),
+                level_obj("expert"),
+            ];
             // 原版派系多语言名（h3-core 的 `spellSchool.core.<id>.name`：气系/火系/土系/水系）
             let core_school_names: Vec<Value> = schools
                 .iter()
@@ -266,15 +264,15 @@ pub(crate) fn build_spells(
                 .collect();
             spells.push(json!({
                 "id": identifier,
-                "name": { "chinese": name_zh, "english": name_en, "auto": auto },
+                "name": name_obj,
                 "schools": schools,
                 "schoolNames": core_school_names,
                 "level": level,
                 "iconIndex": idx,
                 "levelDescriptions": {
-                    "basic": { "chinese": lv[0].0, "english": lv[0].1 },
-                    "advanced": { "chinese": lv[1].0, "english": lv[1].1 },
-                    "expert": { "chinese": lv[2].0, "english": lv[2].1 },
+                    "basic": lv[0],
+                    "advanced": lv[1],
+                    "expert": lv[2],
                 },
                 "image": format!("core/images/spellbon/{idx}.webp"),
                 "builtin": true,

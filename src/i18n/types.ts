@@ -653,7 +653,6 @@ export interface LangDict {
     modsSavedHint: string;
     hdFilterHint: string;
     chroniclesHint: string;
-    openNative: string;
     configRestartHint: string;
     /** 逐项状态徽标 */
     statusAdded: string;
@@ -889,6 +888,85 @@ export interface LangDict {
     missingClient: string;
     missingUserData: string;
     derived: string;
+    /** 自定义用户数据目录（隔离多个发行版） */
+    step: string;
+    next: string;
+    prev: string;
+    syncData: string;
+    syncSource: string;
+    syncDone: string;
+    /** 第 3 步：原版数据文件（硬闸门） */
+    h3Title: string;
+    h3Checking: string;
+    h3Missing: string;
+    h3MissingHint: string;
+    h3RoeOnly: string;
+    h3DataDir: string;
+    h3DataDirHint: string;
+    h3Target: string;
+    h3Copy: string;
+    h3Copying: string;
+    h3Redetect: string;
+    h3FoundIn: string;
+    h3Candidates: string;
+    h3Retry: string;
+    h3ProbeFailed: string;
+    h3GateHint: string;
+    step4Summary: string;
+    /** 复制范围说明（Data 下 .lod/.snd/.vid，含 VIDEO.VID） */
+    h3CopyScope: string;
+    h3CopyMp3: string;
+    h3CopyMaps: string;
+    h3CopyHint: string;
+    h3CopyTarget: string;
+    h3TargetGame: string;
+    h3TargetUser: string;
+    h3TargetUserWarn: string;
+    optionalContent: string;
+    hdInstall: string;
+    hdInstallHint: string;
+    hdInstallPlaceholder: string;
+    hdInstalled: string;
+    chrInstall: string;
+    chrInstallHint: string;
+    chrInstallPlaceholder: string;
+    /** 成功：已生成 `Mods/chronicles` 模组 */
+    chrInstalled: string;
+    /** 失败：提示核对安装包（内建解包，不再涉及外部工具） */
+    chrInstallFailed: string;
+    optTarget: string;
+    install: string;
+    installing: string;
+    installFailed: string;
+    optEnabled: string;
+    optDisabled: string;
+    optNone: string;
+    optInstallAfterSave: string;
+    syncNoNeed: string;
+    customUserData: string;
+    customUserDataHint: string;
+    customUserDataDir: string;
+    customUserDataDirHint: string;
+    copyFromSystem: string;
+    copyFromSystemHint: string;
+    copySourceMissing: string;
+    copyTargetExists: string;
+    copyPreparing: string;
+    copyProgress: string;
+    copyBytes: string;
+    copyFiles: string;
+    copyHintNoClose: string;
+    copySkip: string;
+    /** hd-edition 检测建议 */
+    hdDetected: string;
+    hdDetectedHint: string;
+    hdEnable: string;
+    hdSkip: string;
+    /** 清单不可达建议 */
+    netUnreachable: string;
+    netMirrorSuggest: string;
+    netMirrorEnable: string;
+    netMirrorNote: string;
   };
   help: {
     title: string;

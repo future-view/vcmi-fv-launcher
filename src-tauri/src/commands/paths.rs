@@ -24,11 +24,20 @@ use crate::vcmi::paths::VcmiPaths;
 ///
 /// ⚠️ `async` + `spawn_blocking`：`detect()` 含配置读取 / 目录探测 / 目录初始化（建目录、
 /// 可能改写 `dirs.json`），是启动路径上的重量级 IO，不得占用主线程。
+///
+/// 出参另含首启向导「自定义用户数据目录」所需的四个字段（**只读，无副作用**）：
+/// - `portableUserDataDir` / `portableUserDataDirExists`：启动器专属目录（exe 同目录 `userdata`）；
+/// - `systemUserDataDir` / `systemUserDataDirExists`：VCMI 官方默认目录（`文档\My Games\vcmi`），
+///   同时是「首次初始化时复制既有数据」的**源目录**。
 #[tauri::command]
 pub async fn detect_vcmi_paths(state: State<'_, AppPaths>) -> Result<Value, String> {
     let paths = tauri::async_runtime::spawn_blocking(VcmiPaths::detect)
         .await
         .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?;
+    let portable = VcmiPaths::portable_user_data_dir();
+    let portable_exists = portable.is_dir();
+    let system = crate::vcmi::paths::default_user_dir();
+    let system_exists = system.is_dir();
     let out = json!({
         "detected": paths.detected,
         "ready": paths.is_ready(),
@@ -41,6 +50,13 @@ pub async fn detect_vcmi_paths(state: State<'_, AppPaths>) -> Result<Value, Stri
         "userModsDir": paths.user_mods_dir(),
         "gameModsDir": paths.game_mods_dir(),
         "fromConfig": paths.from_config,
+        // 首启向导：解析出的用户目录是否存在（dirs.json 指向了别的目录时，它才是"既有数据"的复制源）
+        "userDirExists": paths.user_dir.is_dir(),
+        // 首启向导：自定义用户数据目录的两个候选及其存在性（复制源 / 默认目标）
+        "portableUserDataDir": portable,
+        "portableUserDataDirExists": portable_exists,
+        "systemUserDataDir": system,
+        "systemUserDataDirExists": system_exists,
     });
     {
         let mut guard = state.0.lock().expect("paths lock poisoned");

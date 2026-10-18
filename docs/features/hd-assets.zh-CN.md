@@ -47,6 +47,11 @@
 
 **AI 四重生效条件**：总开关 ∧ AI 开关 ∧ model 非空 ∧ 模型在组件目录中存在；任一不满足回落 `Lanczos3 + USM`。
 
+**首启建议**：向导保存后调用 `hd_edition_status()`，在 `user_mods_dir` / `game_mods_dir` /
+`<game_dir>/Mods` 下命中 `hd-edition` 的 pak 时，提示并（用户确认后）同时写
+`hd.enhance = true` 与 `hd.edition_use = "auto"` —— 避免"装了 HD 版却用不上"。
+见 [首启向导](./setup-wizard.zh-CN.md) §6。
+
 > ⚠️ 两个易混命令：`set_hd_enhance` 写 `hd.enhance`（放大总开关），`set_ai_hd_enhance` 写 `hd.ai.enhance`（AI 超分开关），另有 `set_ai_model`。
 
 ## 6. 变体落地（`modcache/hd.rs`）

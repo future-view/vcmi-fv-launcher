@@ -21,6 +21,8 @@
 //! - `upscale`：高清素材放大（**可插拔算法层**：xBRZ / 最近邻 / Lanczos3…）。
 //! - `window`：主窗口初始尺寸推导（窗口显示前定几何，消除启动可见跳变）。
 
+/// H3 的 `.vid` / `.snd` 归档条目表解析（历代记导入用，格式取自官方 `CArchiveLoader`）。
+pub mod archive;
 pub mod berror;
 pub mod cache;
 /// 构建期进程级缓存的统一释放入口（整轮构建结束时调用一次）。
@@ -28,6 +30,8 @@ pub mod cache_gc;
 pub mod def;
 /// 目录清单缓存：`Content/` 只递归一次，产物供资源索引与配置收集共用。
 pub mod dirscan;
+/// 目录复制（带进度 / 可取消）：首启「用户数据迁移」的通用底座。
+pub mod fs;
 // 高清放大算法层：`modcache::hd` 已在素材阶段实际调用
 // （`default_upscaler` / `upscaler_by_id` / `upscale_with`）。
 // 仍保留 allow 的原因：`all_upscalers` 与 `upscale_rgba(id,…)` 目前只被 `hd_bench`（选型对比）使用。

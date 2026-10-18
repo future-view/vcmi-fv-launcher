@@ -1,9 +1,14 @@
 use crate::infra::berror::be_err;
+use crate::infra::fs::{CopyOutcome, CopyProgress};
 use std::path::{Component, Path, PathBuf};
 
 use crate::vcmi::config::LauncherConfig;
 
 const DEFAULT_USER_DIR_NAME: &str = "vcmi";
+/// 首启向导「启动器专属用户数据目录」的目录名（位于 exe 同目录；见 `portable_user_data_dir`）。
+const PORTABLE_USER_DATA_DIR_NAME: &str = "userdata";
+/// 迁移暂存目录后缀：`<目标目录名>.fv-copy-tmp`（与目标同级，保证 rename 同盘瞬时）。
+const COPY_STAGING_SUFFIX: &str = ".fv-copy-tmp";
 const COMMON_INSTALL_PATHS: &[&str] = &[
     "C:\\Program Files\\VCMI",
     "C:\\Program Files (x86)\\VCMI",
@@ -62,6 +67,30 @@ pub fn normalize_abs(base: &Path, p: &Path) -> PathBuf {
         }
     }
     out
+}
+
+/// 迁移暂存目录：与目标**同级**，保证 rename 落在同一卷（跨卷 rename 会失败）。
+fn staging_dir_for(dst: &Path) -> PathBuf {
+    let name = dst
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| PORTABLE_USER_DATA_DIR_NAME.to_string());
+    let staged = format!("{name}{COPY_STAGING_SUFFIX}");
+    match dst.parent() {
+        Some(p) => p.join(staged),
+        None => PathBuf::from(staged),
+    }
+}
+
+/// 用户数据迁移结果（`migrate_user_data_dir`）。
+#[derive(Debug, Clone, Copy)]
+pub struct UserDataMigration {
+    /// 是否真的复制了（`false` = 目标已存在 / 源不存在 / 同一路径，静默跳过）。
+    pub copied: bool,
+    /// 是否因用户「跳过复制」中断。
+    pub cancelled: bool,
+    pub files: u64,
+    pub bytes: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -172,6 +201,100 @@ impl VcmiPaths {
     /// Wiki 数据源缓存根目录：exe 目录 / .vcmi-fv-launcher/mods
     pub fn mods_cache_dir() -> Option<PathBuf> {
         Self::launcher_data_dir().map(|d| d.join("mods"))
+    }
+
+    /// 「启动器专属用户数据目录」：**exe 同目录 / userdata**（首启向导的自定义目录默认值）。
+    ///
+    /// 动机：多个 VCMI 发行版共用 `Documents\My Games\vcmi` 会互相踩踏（预设 / Mods / 存档混杂），
+    /// 让启动器把用户数据收在自己旁边，便携包即可"整目录拷走"。
+    /// ⚠️ 该目录在**游戏目录内**也安全：VCMI 的初始加载器只把 `dataPaths()` 与
+    /// `userDataPath` 各自根下的 `MODS` / `CONFIG` / `DATA` 挂进虚拟命名空间
+    /// （`CResourceHandler::createInitial`，`references/vcmi/lib/filesystem/Filesystem.cpp:147-156`），
+    /// 不会递归扫到兄弟目录，因此不会把同一份模组挂两次。
+    pub fn portable_user_data_dir() -> PathBuf {
+        Self::exe_dir().join(PORTABLE_USER_DATA_DIR_NAME)
+    }
+
+    /// 迁移既有用户数据目录（首启一次性，**可选**）：`src` → `dst`。
+    ///
+    /// 三条不复制规则（与产品口径一致，全部静默跳过、不报错）：
+    /// 1. `dst` 已存在 —— 用户已有数据，绝不覆盖；
+    /// 2. `src` 不存在（全新安装，官方用户目录还没建）；
+    /// 3. `src` 与 `dst` 同一路径。
+    ///
+    /// ⚠️ **staging + rename 是刚需**：复制中途关掉启动器（进程退出 → 复制线程被强杀）
+    /// 时，目标目录绝不能留下半截内容 —— 否则 `dirs.json` 一旦指向它，VCMI 就会用残缺数据启动
+    /// （`modSettings.json` 缺失 = 预设全丢）。写盘顺序由调用方保证：**先迁移、后写配置**。
+    pub fn migrate_user_data_dir(
+        src: &Path,
+        dst: &Path,
+        on_progress: &mut dyn FnMut(CopyProgress),
+    ) -> Result<UserDataMigration, String> {
+        let skip = || {
+            Ok(UserDataMigration {
+                copied: false,
+                cancelled: false,
+                files: 0,
+                bytes: 0,
+            })
+        };
+        if dst.exists() || !src.is_dir() {
+            return skip();
+        }
+        let src_c = src.canonicalize().unwrap_or_else(|_| src.to_path_buf());
+        let dst_c = dst
+            .parent()
+            .and_then(|p| p.canonicalize().ok())
+            .unwrap_or_else(|| dst.to_path_buf());
+        if src_c == dst_c || dst_c.starts_with(&src_c) {
+            // 目标在源内部：复制会自我递归，直接拒绝
+            return Err(be_err("setup_userdata_invalid", &dst.to_string_lossy()));
+        }
+        let Some(parent) = dst.parent() else {
+            return Err(be_err("setup_userdata_invalid", &dst.to_string_lossy()));
+        };
+        std::fs::create_dir_all(parent)
+            .map_err(|e| be_err("cmd_mkdir_failed", &format!("{}", e)))?;
+
+        let staging = staging_dir_for(dst);
+        if staging.exists() {
+            // 上一次中断的残留（我们自己建的暂存目录，非联接，可安全递归删）
+            std::fs::remove_dir_all(&staging)
+                .map_err(|e| be_err("infra_stale_dir_clear_failed", &format!("{}", e)))?;
+        }
+        crate::infra::fs::reset_dir_copy();
+        let mut done = CopyProgress::default();
+        let outcome = crate::infra::fs::copy_dir_progress(src, &staging, &mut |p| {
+            done = p;
+            on_progress(p);
+        })?;
+        if outcome == CopyOutcome::Cancelled {
+            let _ = std::fs::remove_dir_all(&staging);
+            return Ok(UserDataMigration {
+                copied: false,
+                cancelled: true,
+                files: done.done_files,
+                bytes: done.done_bytes,
+            });
+        }
+        std::fs::rename(&staging, dst).map_err(|e| {
+            let _ = std::fs::remove_dir_all(&staging);
+            be_err("setup_userdata_move_failed", &format!("{}", e))
+        })?;
+        tracing::info!(
+            target: "paths",
+            "用户数据已迁移：{} → {}（{} 个文件 / {} 字节）",
+            src.display(),
+            dst.display(),
+            done.done_files,
+            done.done_bytes
+        );
+        Ok(UserDataMigration {
+            copied: true,
+            cancelled: false,
+            files: done.done_files,
+            bytes: done.done_bytes,
+        })
     }
 
     /// 领域隔离目录（设计 §3.1）：exe 目录 / .vcmi-fv-launcher/realms/<id>/vcmi
@@ -519,10 +642,13 @@ impl VcmiPaths {
     }
 
     /// 便携初始化：复刻 VCMI `IVCMIDirs::init()` 的幂等目录创建，并（可选）接管 `dirs.json`。
-    /// - 创建 `user_dir` 及 `cache/config/logs/Saves/Mods` 子目录（全部 `create_dir_all`，可重复调用）。
+    /// - 创建 `user_dir` 及 `cache/config/logs/Saves/Mods/Maps` 子目录（全部 `create_dir_all`，可重复调用）。
     /// - 当 `redirect_user_data` 为真且当前无激活领域时，把 `game_dir/config/dirs.json` 的
     ///   `userDataPath` 等 5 个 key 指向 `user_dir`，使 VCMI 使用独立用户目录，
     ///   避免与官方 `Documents/My Games/vcmi` 冲突。
+    ///
+    /// ⚠️ `Maps` 必须由启动器建：VCMI 只自建 `userDataPath/cache/config/logs/Saves`，
+    /// **不建 `Mods` / `Maps`**（见 `docs/reference/vcmi-dirs.zh-CN.md` 硬事实 7）。
     pub fn ensure_user_data_dir(
         paths: &VcmiPaths,
         active_realm: Option<&str>,
@@ -534,6 +660,7 @@ impl VcmiPaths {
             paths.user_dir.join("logs"),
             paths.user_dir.join("Saves"),
             paths.user_mods_dir(),
+            paths.user_maps_dir(),
         ] {
             std::fs::create_dir_all(&d)
                 .map_err(|e| be_err("vcmi_userdata_dir_create_failed", &format!("{}", e)))?;
@@ -628,7 +755,10 @@ impl VcmiPaths {
     }
 }
 
-fn default_user_dir() -> PathBuf {
+/// VCMI 官方默认用户数据目录：`文档\My Games\vcmi`。
+///
+/// 两个用途：dirs.json 未接管时的解析回退；首启向导「从既有目录复制」的**源目录**。
+pub fn default_user_dir() -> PathBuf {
     dirs::document_dir()
         .map(|d| d.join("My Games").join(DEFAULT_USER_DIR_NAME))
         .unwrap_or_else(|| {

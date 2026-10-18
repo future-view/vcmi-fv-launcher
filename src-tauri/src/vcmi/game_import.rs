@@ -10,7 +10,7 @@
 //! | 模组 | `.zip`（含 `mod.json`） | `<userDataDir>/Mods/<modId>`（装完由前端通知重扫 + 自动启用） |
 //! | 配置 | `.json` | 用户配置目录（同名走冲突策略；重启启动器生效） |
 //! | 压缩包 | `.zip` 自动分类 | `mod.json`→模组；含地图→地图包；含 `.vsgm1`→存档包；否则按模组尝试 |
-//! | 历代记 | `.exe` | 本期仅**识别**（Inno Setup 特征串）+ 引导，解包二期 |
+//! | 历代记 | `.exe` | 内建 Inno 解包（零外部 CLI）→ 生成官方 `Mods/chronicles*` 结构 |
 //! | HD 素材 | 目录（含 `HOMM3 2.0.exe`）**或该 exe 本体** | 生成 `<userDataDir>/Mods/hd-edition`（对齐官方产物结构） |
 //! | 普通目录 | 递归收集受支持文件（`.h3m .vmap .h3c .vcmp .vsgm1 .json .zip`） | 按类型分流，**保留相对子目录结构**（不支持项计入忽略） |
 //!
@@ -120,6 +120,11 @@ impl ZipKind {
 /// 导入目标目录组（业务层不持 `VcmiPaths`，便于单测用临时目录构造）。
 #[derive(Debug, Clone)]
 pub struct ImportEnv {
+    /// 用户数据目录根（`<userDataPath>`）：历代记解包出来的 `Data`/`Mp3`/`Maps` 落这里
+    /// （对齐官方首启 `copyHeroesData` 把 Maps/Data/Mp3 搬进 userDataPath 的口径）。
+    pub user_dir: PathBuf,
+    /// 游戏目录：历代记模组需要取内置核心模组的 `portraitsChronicles.json`
+    pub game_dir: PathBuf,
     pub maps_dir: PathBuf,
     pub saves_dir: PathBuf,
     pub mods_dir: PathBuf,
@@ -129,10 +134,25 @@ pub struct ImportEnv {
 impl ImportEnv {
     pub fn from_paths(p: &VcmiPaths) -> Self {
         Self {
+            user_dir: p.user_dir.clone(),
+            game_dir: p.game_dir.clone(),
             maps_dir: p.user_maps_dir(),
             saves_dir: p.saves_dir.clone(),
             mods_dir: p.user_mods_dir(),
             config_dir: p.user_config_dir.clone(),
+        }
+    }
+
+    /// 只按两个目录根构造（首启向导用：配置尚未落盘，没有 `VcmiPaths` 可用）。
+    /// 派生关系与 `VcmiPaths` 一致（`<userDir>/Maps`、`/Saves`、`/Mods`、`/config`）。
+    pub fn for_dirs(game_dir: PathBuf, user_dir: PathBuf) -> Self {
+        Self {
+            game_dir,
+            maps_dir: user_dir.join("Maps"),
+            saves_dir: user_dir.join("Saves"),
+            mods_dir: user_dir.join("Mods"),
+            config_dir: user_dir.join("config"),
+            user_dir,
         }
     }
 }
@@ -825,8 +845,10 @@ fn scan_hd(dir: &Path) -> HdScan {
 }
 
 fn write_mod_json(dir: &Path, v: serde_json::Value) -> Result<(), String> {
-    let text = serde_json::to_string(&v)
+    // 与 `chronicles::write_mod_json` 同款：可读格式，便于与官方产物对拍
+    let mut text = serde_json::to_string_pretty(&v)
         .map_err(|e| be_err("vcmi_mod_json_serialize_failed", &format!("{}", e)))?;
+    text.push('\n');
     fs::write(dir.join("mod.json"), text)
         .map_err(|e| be_err("vcmi_mod_json_write_failed", &format!("{}", e)))
 }
@@ -900,18 +922,8 @@ pub fn install_hd_edition(
     let code = language.as_ref().map(|(c, _)| c.clone());
     let full = language.as_ref().map(|(_, n)| n.clone());
 
-    // 父模组（官方 createModJson 的 nullopt 分支）
-    write_mod_json(
-        &target,
-        serde_json::json!({
-            "modType": "Graphical",
-            "name": "Heroes III HD Edition",
-            "description": "Extracted resources from official Heroes HD to make it usable on VCMI",
-            "author": "Ubisoft",
-            "version": "1.0",
-            "contact": "vcmi.eu",
-        }),
-    )?;
+    // 父模组（官方 createModJson 的 nullopt 分支）；文案见 `resources/mod-meta.json`
+    write_mod_json(&target, crate::vcmi::modmeta::hd_parent())?;
     files += 1;
 
     // content/data：spriteFlagsInfo.txt + flags/*（官方 :61-72）
@@ -949,17 +961,7 @@ pub fn install_hd_edition(
         let subdir = target.join("mods").join(format!("x{scale}"));
         fs::create_dir_all(subdir.join("content").join("data"))
             .map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
-        write_mod_json(
-            &subdir,
-            serde_json::json!({
-                "modType": "Graphical",
-                "name": format!("HD (x{scale})"),
-                "description": format!("Resources (x{scale})"),
-                "author": "Ubisoft",
-                "version": "1.0",
-                "contact": "vcmi.eu",
-            }),
-        )?;
+        write_mod_json(&subdir, crate::vcmi::modmeta::hd_scale(scale))?;
         files += 1;
         let dst = subdir.join("content").join("data");
         for (name, is_loc, pak_scale) in HD_PAKS {
@@ -991,15 +993,7 @@ pub fn install_hd_edition(
                     .map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
                 write_mod_json(
                     &subdir,
-                    serde_json::json!({
-                        "modType": "Translation",
-                        "name": format!("HD Localisation ({full}) (x{scale})"),
-                        "description": format!("Translated Resources (x{scale})"),
-                        "author": "Ubisoft",
-                        "version": "1.0",
-                        "contact": "vcmi.eu",
-                        "language": full,
-                    }),
+                    crate::vcmi::modmeta::hd_localization(&full, scale),
                 )?;
                 files += 1;
                 for name in loc_paks {
@@ -1398,8 +1392,7 @@ pub fn execute(
                 exec.reason = reason;
             }
             InputClass::Chronicles => {
-                // 识别 + 引导（解包二期）：不落盘，状态 unsupported（前端按 kind 渲染引导）
-                exec.status = "unsupported".to_string();
+                exec_chronicles(env, p, conflict, &mut exec);
             }
             InputClass::Unsupported => {
                 exec.status = "unsupported".to_string();
@@ -1441,6 +1434,132 @@ pub fn execute(
     }
 }
 
+/// 历代记（GOG 离线安装器 `.exe`）：**内建 Inno 解包**（零外部 CLI）+ 生成官方模组结构。
+///
+/// # 为什么不再依赖 innoextract CLI
+/// 官方启动器把 innoextract 作为 C++ 库编入（本仓库该子模块为空、无法移植），vcmibuilder
+/// 也要求 PATH 里存在 `innoextract`。现在 `vcmi/inno` 已自带只读探测 + 纯 Rust LZMA1 解码 +
+/// 5.2.x 设置头解析 + 数据块解包（`vcmi/inno/header.rs`），实测全量解包 675 MiB、MD5 全等，
+/// 因此用户不再需要安装任何外部程序。
+///
+/// 流程：
+/// 1. 校验 PE 内 Inno Setup 特征串（`inno_signature`）；
+/// 2. 内建解包到 `<用户数据目录>/tmp/chronicles-extract`（跳过 `{tmp}` 临时资源与需 exe filter
+///    的 PE 文件——历代记素材 `.lod/.h3c/.snd/.vid` 不受影响）；
+/// 3. 由 `vcmi/chronicles.rs` 生成 `<mods>/chronicles` + `chronicles_<n>` 官方结构；
+/// 4. 清理临时目录。
+fn exec_chronicles(env: &ImportEnv, src: &Path, conflict: Conflict, exec: &mut ExecItem) {
+    if !inno_signature(src) {
+        exec.status = "failed".to_string();
+        exec.reason = Some("不是 Inno Setup 安装器（未找到特征串，可能不是 GOG 离线包）".to_string());
+        return;
+    }
+    // ⚠️ **不需要 `.bin`**：官方启动器 `ChroniclesExtractor::installChronicles` 对单个 `.exe`
+    // 直接解包（`launcher/modManager/chroniclesextractor.cpp:246-299`），`.bin` 只在解包失败后
+    // 用于解释 hash 不匹配，故不做事前拦截（曾误加硬门槛，用户实测证伪）。
+    let tmp = env.user_dir.join("tmp").join("chronicles-extract");
+    let _ = fs::remove_dir_all(&tmp);
+    if let Err(e) = fs::create_dir_all(&tmp) {
+        exec.status = "failed".to_string();
+        exec.reason = Some(format!("创建临时解包目录失败：{e}"));
+        return;
+    }
+
+    let started = std::time::Instant::now();
+    let report = match crate::vcmi::inno::header::extract(
+        src,
+        &tmp,
+        &crate::vcmi::inno::header::ExtractOptions::default(),
+    ) {
+        Ok(rep) => rep,
+        Err(e) => {
+            let _ = fs::remove_dir_all(&tmp);
+            exec.status = "failed".to_string();
+            exec.reason = Some(format!("内建解包失败：{e}"));
+            return;
+        }
+    };
+    tracing::info!(
+        target: "mods",
+        "历代记内建解包：写出 {} 个文件（{:.0} MiB），跳过 {}，失败 {}，耗时 {:.1}s",
+        report.written,
+        report.bytes as f64 / 1048576.0,
+        report.skipped,
+        report.failed.len(),
+        started.elapsed().as_secs_f64()
+    );
+    for (name, why) in report.failed.iter().take(5) {
+        tracing::warn!(target: "mods", "历代记解包条目失败：{name}：{why}");
+    }
+    if !report.md5_mismatch.is_empty() {
+        tracing::warn!(
+            target: "mods",
+            "历代记解包：{} 个文件 MD5 与安装器记录不一致",
+            report.md5_mismatch.len()
+        );
+    }
+
+    let has_data = tmp.join("Data").is_dir() || !lod_files_in(&tmp).is_empty();
+    let result = if !has_data {
+        Err(if report.written == 0 {
+            "安装器里没有可解出的文件（可能不是完整的 GOG 历代记包）".to_string()
+        } else {
+            "解包内容里没有历代记数据（缺少 Data/*.lod）".to_string()
+        })
+    } else {
+        // 落盘形态是**官方模组结构**（不是把 Data/Mp3/Maps 拷进用户数据目录）：
+        // `<mods>/chronicles/`（Expansion 模组 + 战役地图格式声明 + Tarnum 头像表）
+        // + 每篇 `Mods/chronicles_<n>/content/{Data,Sprites,Video,Sounds,Maps/Chronicles}`。
+        // 详见 `vcmi/chronicles.rs` 与官方 `chroniclesextractor.cpp:90-244`。
+        crate::vcmi::chronicles::install(
+            &tmp,
+            &env.mods_dir,
+            &env.game_dir,
+            conflict == Conflict::Overwrite,
+        )
+    };
+    let _ = fs::remove_dir_all(&tmp);
+
+    match result {
+        Ok(out) => {
+            tracing::info!(
+                target: "mods",
+                "历代记模组已生成：{}（篇目 {}，{} 个文件）",
+                out.base_mod.display(),
+                out.chronicles.join(", "),
+                out.files
+            );
+            exec.status = "added".to_string();
+            exec.dest = Some(out.base_mod.to_string_lossy().into_owned());
+            if out.files == 0 {
+                exec.reason = Some("已生成模组但未解出素材文件（安装器内容可能不完整）".to_string());
+            }
+        }
+        Err(e) => {
+            exec.status = "failed".to_string();
+            exec.reason = Some(e);
+        }
+    }
+}
+
+/// 目录（含一级子目录）下的 `.lod` 文件：用于判断解包是否真的产出了游戏数据。
+fn lod_files_in(dir: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if let Ok(rd) = fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.is_file()
+                && p.extension()
+                    .map(|x| x.eq_ignore_ascii_case("lod"))
+                    .unwrap_or(false)
+            {
+                out.push(p);
+            }
+        }
+    }
+    out
+}
+
 fn exec_hd(
     env: &ImportEnv,
     src: &Path,
@@ -1476,7 +1595,7 @@ fn exec_hd(
             }
             mods_installed.push(ModInstalled {
                 mod_id: "hd-edition".to_string(),
-                name: "Heroes III HD Edition".to_string(),
+                name: crate::vcmi::modmeta::hd_name().to_string(),
                 version: "1.0".to_string(),
             });
         }
@@ -1657,6 +1776,8 @@ mod tests {
 
     fn env_at(root: &Path) -> ImportEnv {
         ImportEnv {
+            user_dir: root.to_path_buf(),
+            game_dir: root.join("game"),
             maps_dir: root.join("Maps"),
             saves_dir: root.join("Saves"),
             mods_dir: root.join("Mods"),
@@ -1875,6 +1996,119 @@ mod tests {
         assert_eq!(rep.items[3].dir.as_ref().unwrap().map_count, 0);
         assert_eq!(rep.summary.unsupported, 1);
         let _ = fs::remove_dir_all(&d);
+    }
+
+    /// 历代记「解包」这一支的可回归断言：非 Inno 包必须**明确失败**（而不是静默 unsupported）。
+    /// 真解包需要真实 GOG 安装器（数百 MB），单测只覆盖识别与失败分支；
+    /// 解包本体由 `vcmi::inno` 的 `#[ignore]` 用例配 `INNO_SAMPLE` 验证。
+    #[test]
+    fn chronicles_non_inno_exe_reports_failure() {
+        let d = tmp_dir("chronicles-non-inno");
+        let env = env_at(&d);
+        let exe = d.join("some-installer.exe");
+        fs::write(&exe, b"MZ...plain exe without inno marker...").unwrap();
+        let report = execute(&env, &[s(&exe)], Conflict::Overwrite, &BTreeMap::new());
+        assert_eq!(report.items.len(), 1);
+        assert_eq!(report.items[0].kind, "chronicles");
+        assert_eq!(report.items[0].status, "failed", "非 Inno 包应判失败并给出原因");
+        assert!(report.items[0].reason.is_some());
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    /// 真实 GOG 历代记离线包的**端到端**：内建解包 → 官方模组结构（数百 MB / 数十秒，默认跳过）。
+    ///
+    /// `CHRONICLES_SAMPLE=<setup_heroes_chronicles.exe> [CHRONICLES_GAME_DIR=<游戏目录>] \
+    ///  cargo test --lib chronicles_real -- --ignored --nocapture`
+    ///
+    /// `CHRONICLES_GAME_DIR` 用于取 `portraitsChronicles.json`（缺省时该步静默跳过，不影响断言）。
+    #[test]
+    #[ignore]
+    fn chronicles_real_installer_end_to_end() {
+        let Ok(sample) = std::env::var("CHRONICLES_SAMPLE") else {
+            eprintln!("跳过：未设置 CHRONICLES_SAMPLE");
+            return;
+        };
+        let d = tmp_dir("chronicles-real");
+        let mut env = env_at(&d);
+        if let Ok(g) = std::env::var("CHRONICLES_GAME_DIR") {
+            env.game_dir = PathBuf::from(g);
+        }
+
+        let started = std::time::Instant::now();
+        let report = execute(&env, &[sample], Conflict::Overwrite, &BTreeMap::new());
+        println!("execute 耗时 {:.1}s", started.elapsed().as_secs_f64());
+        println!(
+            "total={} added={} failed={} unsupported={}",
+            report.total, report.added, report.failed, report.unsupported
+        );
+        let it = &report.items[0];
+        println!("status={} dest={:?} reason={:?}", it.status, it.dest, it.reason);
+        assert_eq!(it.status, "added", "真实包应导入成功：{:?}", it.reason);
+        assert_eq!(
+            it.dest.as_deref().map(Path::new),
+            Some(env.mods_dir.join("chronicles").as_path()),
+            "dest 应是生成的模组目录（不是解包临时目录）"
+        );
+        // 临时解包目录跟随该导入环境（用户数据/目标根）落盘，结束后必须清掉
+        let tmp = env.user_dir.join("tmp").join("chronicles-extract");
+        assert!(!tmp.exists(), "临时解包目录应已清理：{}", tmp.display());
+
+        // 基础模组：Expansion + 战役地图格式声明
+        let base = env.mods_dir.join("chronicles");
+        let base_json = fs::read_to_string(base.join("mod.json")).expect("基础 mod.json");
+        assert!(base_json.contains("\"chronicles\""), "应声明 chronicles 地图格式");
+        assert!(base_json.contains("portraitTarnumBarbarian"), "应带 Tarnum 头像表");
+
+        // 8 篇子模组：mod.json + 素材 + 改名后的战役文件
+        let mut total = 0usize;
+        for no in 1..=8 {
+            let sub = base.join("Mods").join(format!("chronicles_{no}"));
+            assert!(sub.join("mod.json").is_file(), "缺少 chronicles_{no}/mod.json");
+            let maps = sub.join("content").join("Maps").join("Chronicles");
+            assert!(
+                maps.join(format!("Hc{no}_Main.h3c")).is_file(),
+                "缺少第 {no} 篇战役 Hc{no}_Main.h3c"
+            );
+            assert!(!maps.join("Main.h3c").exists(), "不应残留未改名的 Main.h3c");
+            let data = sub.join("content").join("Data").join(format!("chronicles_{no}"));
+            let n = count_files(&data);
+            println!(
+                "chronicles_{no}: Data {n} / Sprites {} / Video {} / Sounds {} / Maps {}",
+                count_files(&sub.join("content").join("Sprites").join(format!("chronicles_{no}"))),
+                count_files(&sub.join("content").join("Video").join(format!("chronicles_{no}"))),
+                count_files(&sub.join("content").join("Sounds").join(format!("chronicles_{no}"))),
+                count_files(&maps)
+            );
+            assert!(n > 0, "chronicles_{no} 的 Data 不应为空");
+            total += n;
+        }
+        println!("子模组 Data 合计 {total} 个文件");
+        // 片头：1 篇落 Intro.*，7/8 篇保留 Intro5/Intro6（官方映射）
+        for (no, intro) in [(1, "Intro"), (7, "Intro5"), (8, "Intro6")] {
+            let video = base
+                .join("Mods")
+                .join(format!("chronicles_{no}"))
+                .join("content")
+                .join("Video")
+                .join(format!("chronicles_{no}"));
+            let has = ["bik", "smk"].iter().any(|e| video.join(format!("{intro}.{e}")).is_file());
+            assert!(has, "第 {no} 篇缺少片头 {intro}.bik/smk");
+        }
+        // Tarnum 头像：从基础 bitmap.lod 抽进基础模组的 content/Data
+        let portraits = base.join("content").join("Data");
+        let has_tarnum = fs::read_dir(&portraits)
+            .map(|rd| {
+                rd.flatten().any(|e| {
+                    e.file_name().to_string_lossy().to_uppercase().starts_with("HPS137")
+                })
+            })
+            .unwrap_or(false);
+        assert!(has_tarnum, "基础模组 content/Data 里应有 Tarnum 头像 HPS137.*");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    fn count_files(dir: &Path) -> usize {
+        fs::read_dir(dir).map(|rd| rd.flatten().filter(|e| e.path().is_file()).count()).unwrap_or(0)
     }
 
     #[test]

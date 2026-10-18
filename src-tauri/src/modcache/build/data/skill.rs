@@ -9,7 +9,9 @@ use serde_json::{json, Value};
 
 use crate::modcache::assets::{extract_game_def_frame_and_save, extract_icon_and_save};
 use crate::modcache::collect::collect_config_jsons_merged;
-use crate::modcache::i18n::{i18n_get_multi, i18n_mod_scope, name_obj_with_inline};
+use crate::modcache::i18n::{
+    i18n_get_multi, i18n_mod_scope, name_obj_multi_key, name_obj_with_inline, obj_from_lang_map,
+};
 use crate::vcmi::h3core::I18nMap;
 
 pub(crate) fn build_skills(
@@ -80,49 +82,27 @@ pub(crate) fn build_skills(
         // 旧写法保留为回退，兼容个别写反的 mod。
         // 第三路：**配置内嵌** `basic/advanced/expert.description`（schema 允许；实测各 78 个配置，
         // 作者把描述直接写在技能配置里）——审计器（scripts/wiki-audit.mjs）发现。
-        let lvl_desc = |lvl: &str, lang: &str| -> String {
-            let hit = i18n_get_multi(
+        // 走多语言对象组装（两条 i18n 键 + 内嵌文本），缺中文就不写 `chinese`，
+        // 由前端 `pickName` 回退 english；不再按语言取单值再写两个键（那会伪造中文副本）。
+        let lvl_obj = |lvl: &str| -> Value {
+            name_obj_multi_key(
                 &i18n,
-                &format!("skill.{}.{}.description.{}", scope, id, lvl),
-            )
-            .or_else(|| {
-                i18n_get_multi(
-                    &i18n,
-                    &format!("skill.{}.{}.{}.description", scope, id, lvl),
-                )
-            });
-            let from_i18n = hit
-                .and_then(|m| {
-                    if lang == "chinese" {
-                        m.get("chinese")
-                            .cloned()
-                            .or_else(|| m.get("auto").cloned())
-                            .or_else(|| m.get("english").cloned())
-                            .or_else(|| m.values().next().cloned())
-                    } else {
-                        m.get("english")
-                            .cloned()
-                            .or_else(|| m.get("auto").cloned())
-                            .or_else(|| m.get("chinese").cloned())
-                            .or_else(|| m.values().next().cloned())
-                    }
-                })
-                .unwrap_or_default();
-            if !from_i18n.is_empty() {
-                return from_i18n;
-            }
-            crate::modcache::i18n::inline_text_for_lang(
+                &[
+                    format!("skill.{}.{}.description.{}", scope, id, lvl),
+                    // 旧写法（键序写反）兼容，个别 mod 仍是这种形态
+                    format!("skill.{}.{}.{}.description", scope, id, lvl),
+                ],
                 obj.get(lvl).and_then(|x| x.get("description")),
-                lang,
+                "",
             )
         };
         skills.push(json!({
             "id": id,
             "name": skill_name_obj,
             "levels": {
-                "basic": { "chinese": lvl_desc("basic", "chinese"), "english": lvl_desc("basic", "english") },
-                "advanced": { "chinese": lvl_desc("advanced", "chinese"), "english": lvl_desc("advanced", "english") },
-                "expert": { "chinese": lvl_desc("expert", "chinese"), "english": lvl_desc("expert", "english") },
+                "basic": lvl_obj("basic"),
+                "advanced": lvl_obj("advanced"),
+                "expert": lvl_obj("expert"),
             },
             "image": img,
         }));
@@ -147,29 +127,35 @@ pub(crate) fn build_skills(
             }
             // 名称/三级描述统一取自 h3-core（`skill.core.<id>.*`）；
             // index 仍用于 SECSK32 图标帧号（来自 JSON 配置，非文本）。
-            // **中英分列**：h3-core 文案表按语言分文件（english.skills.json / chinese.skills.json），
-            // 键的 map 同时含 chinese/english；此前只取单值（中文优先）写进两个语言键，
-            // 导致英文界面下原版技能名/描述显示中文。
-            let pair = |sub: &str| -> (String, String) {
-                let m = i18n_get_multi(&i18n, &format!("skill.core.{}.{}", sid, sub));
-                let pick = |order: &[&str]| -> String {
-                    m.as_ref()
-                        .and_then(|x| order.iter().find_map(|k| x.get(*k)).cloned())
-                        .unwrap_or_default()
-                };
-                (
-                    pick(&["chinese", "auto", "english"]),
-                    pick(&["english", "auto", "chinese"]),
-                )
-            };
-            let (name_zh, name_en) = pair("name");
-            if name_zh.is_empty() && name_en.is_empty() {
+            // **真实语言直落**：h3-core 文案表按语言分文件（english.skills.json /
+            // chinese.skills.json），表里有什么语言就写什么语言；缺中文不拿英文冒充，
+            // 前端 `pickName` 回退 english。
+            let name_obj = obj_from_lang_map(
+                i18n_get_multi(&i18n, &format!("skill.core.{}.name", sid)),
+                "",
+            );
+            if name_obj.as_object().map(|o| o.is_empty()).unwrap_or(true) {
                 continue;
             }
-            let lv: Vec<(String, String)> = ["basic", "advanced", "expert"]
-                .iter()
-                .map(|sub| pair(sub))
-                .collect();
+            let lvl_obj = |sub: &str| {
+                obj_from_lang_map(
+                    i18n_get_multi(&i18n, &format!("skill.core.{}.{}", sid, sub)),
+                    "",
+                )
+            };
+            let lv = [
+                lvl_obj("basic"),
+                lvl_obj("advanced"),
+                lvl_obj("expert"),
+            ];
+            // 纯字符串版（英雄页对非本 mod 技能的直接显示回退）：中英优先，不带语言键
+            let lv_text = |o: &Value| -> String {
+                o.get("chinese")
+                    .or_else(|| o.get("english"))
+                    .and_then(|x| x.as_str())
+                    .unwrap_or("")
+                    .to_string()
+            };
             let icon = extract_game_def_frame_and_save(
                 game_dir,
                 cache_root,
@@ -180,20 +166,15 @@ pub(crate) fn build_skills(
                 "secsk32",
                 sid,
             );
-            let auto = if name_zh.is_empty() {
-                name_en.clone()
-            } else {
-                name_zh.clone()
-            };
             skills.push(json!({
                 "id": sid,
-                "name": { "chinese": name_zh, "english": name_en, "auto": auto },
+                "name": name_obj,
                 "levels": {
-                    "basic": { "chinese": lv[0].0, "english": lv[0].1 },
-                    "advanced": { "chinese": lv[1].0, "english": lv[1].1 },
-                    "expert": { "chinese": lv[2].0, "english": lv[2].1 },
+                    "basic": lv[0],
+                    "advanced": lv[1],
+                    "expert": lv[2],
                 },
-                "levelDescriptions": [lv[0].0.clone(), lv[1].0.clone(), lv[2].0.clone()],
+                "levelDescriptions": [lv_text(&lv[0]), lv_text(&lv[1]), lv_text(&lv[2])],
                 "image": icon,
                 "builtin": true,
             }));

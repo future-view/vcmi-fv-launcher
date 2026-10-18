@@ -40,6 +40,21 @@
 
 默认**空**，不内置任何镜像。
 
+### 3.1 首启向导的「一键 GitHub 镜像」
+
+镜像域名会腐化（N10），因此**不内置任何默认规则**；但首启阶段新用户不知道该填什么，
+故在向导里提供**一个开关**：
+
+- 判据：`check_launcher_update(probe=true)` 的短超时直连探测（`infra::http::probe_url`，
+  **连接 5s / 总 8s、不走回退链**）失败，且清单地址属 GitHub 主机；
+- 开关 = 追加一条 prefix 规则：hosts = GitHub 全家桶 5 域，前缀默认
+  `https://v4.gh-proxy.org/`（常量与设置页预填同源：`src/lib/mirrorRules.ts`）；
+- 失败不影响正确性：镜像坏掉（403/429/5xx）由回退链推进到下一个出口，不会比不开更糟；
+- 展示受界面语言能力表 `UI_LANG_FEATURES.githubMirrorHint` 约束（**探测始终执行**，
+  只有建议卡片受控），新增语言必须在该表补一行。
+
+细节见 [首启向导](./setup-wizard.zh-CN.md) §5。
+
 ## 4. 哪些功能走网络
 
 启动器更新、领域仓库、模组仓库、外挂组件远程安装——全部经 `infra::http`。

@@ -25,7 +25,6 @@ import { useRealms } from "@/lib/realm/store";
 import {
   importGameFiles,
   isVcmiRunning,
-  launchNativeLauncher,
   openInExplorer,
   pickDirectory,
   pickOpenPaths,
@@ -887,7 +886,7 @@ export function ImportFilesDialog({
           {/* 固定：结果提示与打开目录（结果态） */}
           {phase === "done" && exec && (hasDoneHints || openDirs.length > 0) && (
             <div className="flex-none border-t border-slate-800/70 px-5 py-3">
-              {/* 结果提示：模组保存 / HD 滤镜 / 配置重启 / 历代记引导 */}
+              {/* 结果提示：模组保存 / HD 滤镜 / 配置重启 / 历代记模组已生成 */}
               <div className="space-y-1.5 text-[11px]">
                 {exec.modsInstalled.length > 0 && (
                   <div className="text-amber-300/90">{t.importFiles.modsSavedHint}</div>
@@ -895,16 +894,7 @@ export function ImportFilesDialog({
                 {hasHdDone && <div className="text-fuchsia-300/90">{t.importFiles.hdFilterHint}</div>}
                 {hasConfigDone && <div className="text-slate-400">{t.importFiles.configRestartHint}</div>}
                 {hasChronicles && (
-                  <div className="flex flex-wrap items-center gap-2 text-slate-400">
-                    <span>{t.importFiles.chroniclesHint}</span>
-                    <button
-                      type="button"
-                      onClick={() => void launchNativeLauncher()}
-                      className="rounded-md border border-slate-700/70 px-2 py-0.5 text-slate-300 transition-colors hover:border-slate-600 hover:text-slate-100"
-                    >
-                      {t.importFiles.openNative}
-                    </button>
-                  </div>
+                  <div className="text-slate-400">{t.importFiles.chroniclesHint}</div>
                 )}
               </div>
               {openDirs.length > 0 && (

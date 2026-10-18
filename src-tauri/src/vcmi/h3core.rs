@@ -642,6 +642,77 @@ pub(crate) fn cached_core_i18n(core_mod: &Path) -> std::sync::Arc<I18nMap> {
 mod tests {
     use super::*;
 
+    /// 手写源数据 `data/h3-core-src/factionDescriptions.json` 的守门测试。
+    ///
+    /// 该文件由 `scripts/gen-h3-core-texts.mjs` 按 id 合并进生成产物；
+    /// 脚本对**未知 id 静默忽略**、缺语言**静默退 `english`** —— 写错了不会有任何提示，
+    /// 只会在百科里"少一段描述"。这里把口子堵住：id 必须是原版 9 城镇之一，
+    /// `english` / `chinese` 都必须非空且不同（确认真的翻译过，而不是复制英文）。
+    ///
+    /// 语言键必须是 VCMI 语言标识（`english`/`chinese`，见 `lib/texts/Languages.h`
+    /// 与 `config/schemas/mod.json` 的 enum）；早期用 `en`/`zh` 短码，脚本按 `d[lang]`
+    /// 取不到、中文分支静默落成英文。
+    #[test]
+    fn faction_descriptions_src_covers_core_factions() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("h3-core-src")
+            .join("factionDescriptions.json");
+        let text = std::fs::read_to_string(&path).expect("缺少城镇描述源数据");
+        let v: Value = serde_json::from_str(&text).expect("factionDescriptions.json 不是合法 JSON");
+        let obj = v.as_object().expect("顶层应为对象（id → {english, chinese}）");
+
+        for (id, entry) in obj {
+            assert!(
+                CORE_FACTIONS.contains(&id.as_str()),
+                "未知阵营 id `{id}`（脚本会静默忽略，等于白写）"
+            );
+            let en = entry["english"].as_str().unwrap_or("").trim();
+            let zh = entry["chinese"].as_str().unwrap_or("").trim();
+            assert!(!en.is_empty(), "`{id}` 缺少 english 描述");
+            assert!(!zh.is_empty(), "`{id}` 缺少 chinese 描述");
+            assert_ne!(en, zh, "`{id}` 的 chinese 与 english 完全相同，疑似漏翻");
+        }
+        assert_eq!(
+            obj.len(),
+            CORE_FACTIONS.len(),
+            "9 个原版阵营应全覆盖（当前 {} 条）",
+            obj.len()
+        );
+    }
+
+    /// 生成产物必须与手写源数据一致。
+    ///
+    /// 堵住两类历史问题：
+    /// ① 源文件用短码 `en`/`zh` 而脚本按 `d[lang]`（`english`/`chinese`）取值 →
+    ///    中文产物静默变成英文；
+    /// ② 改了源数据却没重跑 `scripts/gen-h3-core-texts.mjs` → 产物与源脱节
+    ///    （实测 9 个城镇 en/zh 全部不一致）。
+    #[test]
+    fn faction_descriptions_generated_match_src() {
+        let data = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
+        let src_text = std::fs::read_to_string(
+            data.join("h3-core-src").join("factionDescriptions.json"),
+        )
+        .expect("缺少城镇描述源数据");
+        let src: Value = serde_json::from_str(&src_text).expect("源数据不是合法 JSON");
+
+        for lang in ["english", "chinese"] {
+            let gen_path = data.join("h3-core").join(format!("{lang}.factions.json"));
+            let gen_text = std::fs::read_to_string(&gen_path)
+                .unwrap_or_else(|e| panic!("缺少生成产物 {}: {e}", gen_path.display()));
+            let gen: Value = serde_json::from_str(&gen_text).expect("生成产物不是合法 JSON");
+            for (id, entry) in src.as_object().expect("源数据顶层应为对象") {
+                let want = entry[lang].as_str().unwrap_or("").trim();
+                let got = gen[id]["description"].as_str().unwrap_or("").trim();
+                assert_eq!(
+                    got, want,
+                    "`{lang}.factions.json` 的 `{id}` 描述与源数据不一致（改完源文件需重跑 gen-h3-core-texts.mjs）"
+                );
+            }
+        }
+    }
+
     #[test]
     fn hero_class_stats_has_core_values() {
         let stats = h3_hero_class_stats().expect("h3-core heroClasses.json should be available");

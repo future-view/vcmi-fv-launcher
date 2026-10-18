@@ -519,6 +519,19 @@ pub fn lookup_with_offset(name: &str) -> Option<(image::RgbaImage, u32, (i32, i3
 /// 返回：`{ found, dir, scales, enabled }` —— `enabled` 反映配置开关（`hd.edition_use != "off"`），
 /// `found` 反映磁盘上是否真的能在候选目录里定位到 pak。
 pub fn status_json() -> serde_json::Value {
+    status_json_impl(None, None)
+}
+
+/// 按**显式目录**探测（首启向导：`launcher.json` 尚未落盘，`read_launcher_config()` 为空，
+/// 但用户已经在第 ③ 步把素材装进了所选目标）。传空 = 退回已保存配置。
+pub fn status_json_at(game_dir: Option<&Path>, user_data_dir: Option<&Path>) -> serde_json::Value {
+    status_json_impl(game_dir, user_data_dir)
+}
+
+fn status_json_impl(
+    game_dir: Option<&Path>,
+    user_data_dir: Option<&Path>,
+) -> serde_json::Value {
     use serde_json::json;
     let cfg = crate::vcmi::paths::VcmiPaths::read_launcher_config();
     let enabled = cfg
@@ -532,12 +545,21 @@ pub fn status_json() -> serde_json::Value {
             _ => None,
         });
     let mut roots: Vec<PathBuf> = Vec::new();
-    if let Some(c) = &cfg {
-        roots.push(c.paths.user_mods_dir.clone());
-        if let Some(gm) = &c.paths.game_mods_dir {
-            roots.push(gm.clone());
+    match (game_dir, user_data_dir) {
+        (Some(g), Some(u)) => {
+            // 与已保存配置同口径：用户模组目录 + 游戏模组目录（两处都可能存在 hd-edition）
+            roots.push(u.join("Mods"));
+            roots.push(g.join("Mods"));
         }
-        roots.push(c.paths.game_dir.join("Mods"));
+        _ => {
+            if let Some(c) = &cfg {
+                roots.push(c.paths.user_mods_dir.clone());
+                if let Some(gm) = &c.paths.game_mods_dir {
+                    roots.push(gm.clone());
+                }
+                roots.push(c.paths.game_dir.join("Mods"));
+            }
+        }
     }
     match detect(&roots, scale) {
         Some(s) => json!({
@@ -633,6 +655,32 @@ fn candidate_keys(name: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 首启向导第 ④ 步口径：**显式目录**探测（此时 `launcher.json` 还没写），
+    /// 应命中游戏目录 `Mods/hd-edition`；不存在的目录不得误报。
+    /// `cargo test --lib status_json_at -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn status_json_at_uses_explicit_dirs() {
+        let root =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../references/Heroes3-VCMI");
+        if !root.is_dir() {
+            eprintln!("跳过：缺少 references/Heroes3-VCMI");
+            return;
+        }
+        let user = root.join("userdata");
+        let v = status_json_at(Some(root.as_path()), Some(user.as_path()));
+        println!("explicit dirs → {v}");
+        assert_eq!(v["found"], true, "游戏目录 Mods 下的 hd-edition 应被命中");
+        assert_eq!(
+            v["dir"].as_str().unwrap_or("").to_lowercase().contains("mods"),
+            true,
+            "命中路径应带 Mods 段"
+        );
+
+        let none = status_json_at(Some(Path::new("Z:/vcmi-fv-none")), Some(Path::new("Z:/vcmi-fv-none")));
+        assert_eq!(none["found"], false, "空目录不应误报");
+    }
 
     /// 真机冒烟：探测本机 hd-edition，并按名取到幕布 / 建筑图标 / 头像。
     ///

@@ -9,6 +9,7 @@ import { useState } from "react";
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
 
 import { useI18n } from "@/i18n";
+import { GITHUB_MIRROR_HOSTS as GITHUB_HOSTS } from "@/lib/mirrorRules";
 import type { MirrorRule } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { backendErrorText } from "@/lib/backendError";
@@ -16,14 +17,7 @@ import { backendErrorText } from "@/lib/backendError";
 /** 预览用真实样例（§3.2.3 例 1 / 例 2）：raw 与 release 双样例（D6） */
 const SAMPLE_RAW = "https://raw.githubusercontent.com/vcmi/vcmi-mods-repository/develop/vcmi-1.7.json";
 const SAMPLE_RELEASE = "https://github.com/herosix/wog/releases/download/v1.1.1/WOG.zip";
-/** 「预填 GitHub 全家桶」的 5 个域 */
-const GITHUB_HOSTS = [
-  "github.com",
-  "raw.githubusercontent.com",
-  "codeload.github.com",
-  "objects.githubusercontent.com",
-  "gist.githubusercontent.com",
-];
+// 「预填 GitHub 全家桶」的 5 个域见 `@/lib/mirrorRules`（与首启向导的一键镜像规则同源）。
 /** 占位符（与后端 `rewrite_url` 同一套） */
 const TOKENS = ["{owner}", "{repo}", "{ref}", "{path}", "{url}", "{host}"] as const;
 /** 规则条数上限（与后端 `set_network_mirror_rules` 同口径） */

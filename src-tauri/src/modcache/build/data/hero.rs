@@ -13,7 +13,7 @@ use crate::modcache::assets::{
 };
 use crate::modcache::collect::collect_config_jsons_merged;
 use crate::modcache::i18n::{
-    i18n_get_multi, i18n_mod_scope, name_obj_en_zhcn, name_obj_with_inline,
+    i18n_get_multi, i18n_mod_scope, name_obj_en_zhcn, name_obj_with_inline, obj_from_lang_map,
 };
 use crate::vcmi::gamedata::SPELL_ID_TABLE;
 use crate::vcmi::h3core::h3_hero_class_stats;
@@ -369,15 +369,17 @@ pub(crate) fn build_heroes(
                         .and_then(|m| m.get("chinese").or_else(|| m.get("english")).cloned())
                         .unwrap_or_default()
                 };
-                let name = {
-                    let n = text("name");
-                    if n.is_empty() { sid.clone() } else { n }
-                };
+                // 名称：真实语言直落（缺中文不写 `chinese`，前端 pickName 回退 english）；
+                // 完全没有文案时才用 id 兜底（只写 english）。
+                let name = obj_from_lang_map(
+                    i18n_get_multi(&i18n, &format!("spell.core.{}.name", sid)),
+                    sid,
+                );
                 let level = text("level").parse::<i64>().unwrap_or(1);
                 json!({
                     "id": sid,
                     "index": idx_opt.unwrap_or(-1),
-                    "name": { "chinese": name, "english": name, "auto": name },
+                    "name": name,
                     // 法术书图标 SPELLBON 帧 = 法术 index
                     "iconIndex": idx_opt.unwrap_or(-1),
                     "level": level,

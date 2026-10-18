@@ -145,6 +145,25 @@ fn encode_mod_path_for_cache(
 mod tests {
     use super::*;
 
+    /// 中立阵营名来自 `resources/core-labels.json`（`.rs` 里不写译文）；
+    /// 键必须是 VCMI 语言名，且至少中英都有真译文。
+    #[test]
+    fn neutral_faction_label_is_external_and_translated() {
+        let n = neutral_faction_name();
+        assert_eq!(n["english"], "Neutral");
+        assert_eq!(n["chinese"], "中立");
+        assert_ne!(n["english"], n["chinese"], "中文不应是英文副本");
+        for key in n.as_object().expect("应为对象").keys() {
+            assert!(
+                matches!(
+                    key.as_str(),
+                    "english" | "chinese" | "tchinese" | "japanese" | "german" | "polish"
+                ),
+                "非法语言键 `{key}`（应取 VCMI 语言全名）"
+            );
+        }
+    }
+
     #[test]
     fn encode_mod_path_schemes() {
         let game_dir = PathBuf::from("C:/game");
@@ -369,6 +388,23 @@ pub(crate) fn probe_mod_cache(
         }
     }
     need_data
+}
+
+/// 中立阵营显示名（多语言）：数据在 `resources/core-labels.json`，代码里不写译文。
+///
+/// 键沿用 VCMI 语言名（与 wiki 其它多语言字段同构）；缺译语言由前端 `pickName` 回退
+/// `english`，所以不需要（也不应该）在数据里伪造其它语言的英文副本。
+fn neutral_faction_name() -> Value {
+    static LABEL: OnceLock<Value> = OnceLock::new();
+    LABEL
+        .get_or_init(|| {
+            let raw = include_str!("../../../resources/core-labels.json");
+            let v: Value = serde_json::from_str(raw).expect("resources/core-labels.json 解析失败");
+            v.get("neutralFaction")
+                .cloned()
+                .expect("core-labels.json 缺少 neutralFaction")
+        })
+        .clone()
 }
 
 fn build_mod_wiki_phase_inner(
@@ -705,7 +741,7 @@ pub(crate) fn build_mod_wiki_once(
                 "cost": {},
                 "image": Value::Null,
                 "factionId": "neutral",
-                "factionName": { "chinese": "中立", "english": "Neutral" },
+                "factionName": neutral_faction_name(),
             }));
         }
     }

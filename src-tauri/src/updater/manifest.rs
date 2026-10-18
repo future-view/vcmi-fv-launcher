@@ -145,6 +145,106 @@ pub struct UpdateInfo {
     /// 它来自持久化的"待应用版本"（`state.json::pendingApplyVersion`），跨进程 / 跨会话恢复，
     /// **不受 7 天自动弹窗节流**——每次启动都应提示用户「点击重启并应用」，直到被应用或跳过。
     pub ready_to_apply: bool,
+    /// 首启向导的「清单可达性探测」结果（`check_launcher_update(probe=true)` 专用）。
+    ///
+    /// 常规检查（含启动静默检查）恒为 `None`：探测是**一次性建议**的输入，
+    /// 不该混进"有没有更新"的结果里。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub probe: Option<ManifestProbe>,
+}
+
+/// 清单地址可达性探测（首启向导用于判断是否建议开启 GitHub 镜像）。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestProbe {
+    /// 是否收到任何 HTTP 响应（404 也算通）。
+    pub ok: bool,
+    /// 该地址是否为 GitHub 主机（只有 GitHub 才建议开镜像）。
+    pub github: bool,
+    pub status: Option<u16>,
+    pub error: Option<String>,
+}
+
+/// 探测超时：**连接 5s / 总 8s**（远小于常规客户端的 12s/120s）。
+///
+/// 理由：探测只服务于"要不要给用户一个建议"，宁可偶发误判（弱网）也不让向导干等；
+/// 短超时带来的假阴性最多是"没提示"，用户仍可在设置页手工配置镜像。
+const PROBE_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const PROBE_TOTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
+
+/// `UpdateInfo` 的初始（"无更新、无错误"）形态。
+fn base_info() -> UpdateInfo {
+    UpdateInfo {
+        current_version: CURRENT_VERSION.to_string(),
+        latest_version: String::new(),
+        has_update: false,
+        forced: false,
+        critical: false,
+        size: None,
+        published_at: None,
+        notes_i18n: None,
+        state: "idle",
+        error: None,
+        cached: None,
+        configured: false,
+        kind: None,
+        update_mode: None,
+        download_url: None,
+        should_prompt: false,
+        ready_to_apply: false,
+        probe: None,
+    }
+}
+
+/// 后台任务异常（spawn_blocking 失败）时的兜底 `UpdateInfo`。
+pub fn error_info(err: &str) -> UpdateInfo {
+    let mut info = base_info();
+    info.state = "error";
+    info.error = Some(err.to_string());
+    info
+}
+
+/// 首启向导专用：只探测「清单地址连不连得上」，**不检查更新**。
+///
+/// 与 `check_update` 的三点差异（**刻意不同**）：
+/// - 不解析清单、不比较版本、**不触碰更新状态机**（不设 phase / 不落缓存 / 不改 `shouldPrompt`），
+///   否则向导阶段的一次网络探测会污染后续真正的更新提示；
+/// - 短超时直连（不走镜像 / 代理回退链 —— 探测的目的正是判断要不要开镜像）；
+/// - 未配置清单 / `{platform}` 无法解析 → 不产生任何网络行为（`configured=false`）。
+pub fn probe_manifest() -> UpdateInfo {
+    let mut info = base_info();
+    // ⚠️ 必须用**宽容读取**：首启阶段 launcher.json 只有发行版预置的 `update.manifest_url`
+    // 而没有 paths（正是向导弹出的原因），严格读取会判为 None → 探测被跳过、建议永不出
+    let cfg = VcmiPaths::read_launcher_config_lenient();
+    let url = cfg
+        .as_ref()
+        .and_then(|c| c.update.manifest_url.clone())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let Some(url) = url else {
+        return info;
+    };
+    let Some(url) = super::platform::resolve_manifest_url(&url) else {
+        return info;
+    };
+    info.configured = true;
+    let github = crate::infra::http::is_github_url(&url);
+    let p = crate::infra::http::probe_url(&url, PROBE_CONNECT_TIMEOUT, PROBE_TOTAL_TIMEOUT);
+    tracing::debug!(
+        target: "updater",
+        "清单可达性探测：url={} ok={} status={:?} github={}",
+        url,
+        p.ok,
+        p.status,
+        github
+    );
+    info.probe = Some(ManifestProbe {
+        ok: p.ok,
+        github,
+        status: p.status,
+        error: p.error,
+    });
+    info
 }
 
 /* ----------------------------- semver 比较 ----------------------------- */
@@ -351,45 +451,9 @@ pub fn check_update(force: bool) -> UpdateInfo {
         .map(|v| v != "1")
         .unwrap_or(true)
     {
-        return UpdateInfo {
-            current_version: CURRENT_VERSION.to_string(),
-            latest_version: String::new(),
-            has_update: false,
-            forced: false,
-            critical: false,
-            size: None,
-            published_at: None,
-            notes_i18n: None,
-            state: "idle",
-            error: None,
-            cached: None,
-            configured: false,
-            kind: None,
-            update_mode: None,
-            download_url: None,
-            should_prompt: false,
-            ready_to_apply: false,
-        };
+        return base_info();
     }
-    let mut info = UpdateInfo {
-        current_version: CURRENT_VERSION.to_string(),
-        latest_version: String::new(),
-        has_update: false,
-        forced: false,
-        critical: false,
-        size: None,
-        published_at: None,
-        notes_i18n: None,
-        state: "idle",
-        error: None,
-        cached: None,
-        configured: false,
-        kind: None,
-        update_mode: None,
-        download_url: None,
-        should_prompt: false,
-        ready_to_apply: false,
-    };
+    let mut info = base_info();
     let cfg = VcmiPaths::read_launcher_config();
     let url = cfg
         .as_ref()

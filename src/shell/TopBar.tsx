@@ -1,6 +1,6 @@
 import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
-import brandIcon from "@/assets/brand-icon.png";
+import { AppBrand } from "@/shared/AppBrand";
 import { WindowControls } from "@/shared/WindowControls";
 import { LanguageMenuButton } from "@/shared/LanguageMenuButton";
 
@@ -34,24 +34,13 @@ export function TopBar({
   const { t } = useI18n();
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex h-[60px] items-center justify-between border-b border-slate-800/70 bg-slate-950/85 px-5 backdrop-blur-xl select-none">
-      {/* 可拖拽区域（品牌 + 中部留白） */}
+      {/* 可拖拽区域（品牌 + 中部留白）；品牌块与首启标题栏共享（`AppBrand`） */}
       <div
         data-tauri-drag-region
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         className="flex h-full min-w-0 flex-1 cursor-move items-center gap-3"
       >
-        <div
-          className="h-[34px] w-[34px] overflow-hidden rounded-[10px] shadow-lg shadow-blue-600/30"
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <img
-            src={brandIcon}
-            alt="VCMI"
-            className="h-full w-full object-cover"
-            draggable={false}
-          />
-        </div>
-        <span className="text-lg font-bold tracking-wide">{t.app.brand}</span>
+        <AppBrand />
       </div>
 
       <nav

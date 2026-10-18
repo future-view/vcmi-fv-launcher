@@ -10,7 +10,7 @@
 use crate::infra::berror::be_err;
 use serde_json::{json, Value};
 use std::path::PathBuf;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::state::AppPaths;
 use crate::vcmi::config::{
@@ -89,8 +89,39 @@ fn read_launcher_config_blocking() -> Result<Value, String> {
 
 /// 保存 launcher.json 并刷新运行时的路径状态。
 /// 仅需要游戏目录与用户数据目录：config/mods 均按 VCMI 规则由用户目录推导。
+///
+/// 首启向导的两项扩展（**均为可选**，旧调用不传即无此行为）：
+/// - `redirectUserData: bool` —— 接管 `game_dir/config/dirs.json` 的 5 个 key 指向 `userDataDir`
+///   （持久化到 `paths.redirect_user_data`，后续启动由 `ensure_user_data_dir` 保持接管）；
+/// - `copyFrom: string` —— **在写任何配置之前**把该目录迁移到 `userDataDir`
+///   （目标已存在 / 源不存在则静默跳过；进度经事件 `user-data-copy-progress` 推送）；
+/// - `copyOnly: true` —— **只迁移、不写任何配置**（首启向导第 2 步「同步数据」/
+///   第 3 步「复制数据文件」）：结果随出参返回
+///   `{saved:false, copied, cancelled, files, bytes, h3Files, h3Bytes}`；
+///   保存按钮本身**不再隐式复制**（单一职责：同步是独立动作）；
+/// - `copyH3Data: true`（须与 `copyOnly` 同用）—— 从 `h3DataFrom`（`Data` 目录或含 `Data`
+///   的游戏根目录）复制 `.lod` / `.snd` / `.vid` 到 `h3DataTo`（必须是 `…/Data` 目标目录），
+///   不覆盖已存在文件（`.vid` 缺了 VCMI 会报「未检测到视频文件」）；
+/// - `cancelCopy: true` —— 只置「跳过复制」哨兵并立即返回（前端「跳过复制」按钮用，
+///   复用本命令而非新增命令，见 `docs/architecture/ipc.zh-CN.md` §1）。
+///
+/// ⚠️ **顺序是契约**：先迁移 → 再写 launcher.json → 最后接管 dirs.json。
+/// 迁移中途关掉启动器（进程退出）时配置尚未落盘 ⇒ 下次启动原样重入向导，零副作用；
+/// 反过来若先写配置，中断就会留下"dirs.json 指向半截目录"的残缺状态。
+///
+/// ⚠️ `async` + `spawn_blocking`：迁移可能是 GB 级复制，同步命令会冻结 WebView。
 #[tauri::command]
-pub fn write_launcher_config(state: State<AppPaths>, data: Value) -> Result<(), String> {
+pub async fn write_launcher_config(
+    app: AppHandle,
+    state: State<'_, AppPaths>,
+    data: Value,
+) -> Result<Value, String> {
+    // 0) 仅用于中断迁移：与真正的保存互斥（先于任何校验返回，无需 gameDir）
+    if data.get("cancelCopy").and_then(|v| v.as_bool()) == Some(true) {
+        crate::infra::fs::cancel_dir_copy();
+        tracing::info!(target: "paths", "用户数据迁移已请求取消");
+        return Ok(json!({ "saved": false }));
+    }
     let game_dir = data
         .get("gameDir")
         .and_then(|v| v.as_str())
@@ -108,6 +139,168 @@ pub fn write_launcher_config(state: State<AppPaths>, data: Value) -> Result<(), 
     // 允许用户数据目录尚不存在：首次进入后由启动器/VCMI 创建
     if user_data_dir.as_os_str().is_empty() {
         return Err(be_err("settings_missing_userdata", ""));
+    }
+    // 用户数据目录 = 游戏目录 → dirs.json 会被自己改写，且 VCMI 双重挂载彻底乱套
+    if user_data_dir == game_dir {
+        return Err(be_err(
+            "setup_userdata_invalid",
+            &user_data_dir.to_string_lossy(),
+        ));
+    }
+
+    // 1) 迁移既有用户数据 / 复制原版 H3 数据（可选）：必须在写盘之前完成，保证中断无副作用
+    let copy_only = data.get("copyOnly").and_then(|v| v.as_bool()) == Some(true);
+    let copy_h3 = data.get("copyH3Data").and_then(|v| v.as_bool()) == Some(true);
+    let copy_from = data
+        .get("copyFrom")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
+    let mut migrated = crate::vcmi::paths::UserDataMigration {
+        copied: false,
+        cancelled: false,
+        files: 0,
+        bytes: 0,
+    };
+    if let Some(src) = copy_from {
+        // 「目标已存在则不复制」由 migrate 内部判定；这里只排除"源不存在"这种无需开工的情况
+        if src.is_dir() && !user_data_dir.exists() {
+            let emitter = app.clone();
+            let dst = user_data_dir.clone();
+            let res = tauri::async_runtime::spawn_blocking(move || {
+                VcmiPaths::migrate_user_data_dir(&src, &dst, &mut |p| {
+                    let _ = emitter.emit(
+                        "user-data-copy-progress",
+                        json!({
+                            "doneFiles": p.done_files,
+                            "doneBytes": p.done_bytes,
+                            "totalFiles": p.total_files,
+                            "totalBytes": p.total_bytes,
+                        }),
+                    );
+                })
+            })
+            .await
+            .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))??;
+            if res.cancelled {
+                return Err(be_err("setup_copy_cancelled", ""));
+            }
+            migrated = res;
+            tracing::info!(
+                target: "paths",
+                "用户数据迁移结束：copied={} files={} bytes={}",
+                migrated.copied,
+                migrated.files,
+                migrated.bytes
+            );
+        }
+    }
+    // 1.5) 只迁移模式：立即返回，**不写 launcher.json / dirs.json**
+    //      （首启向导第 2 步「同步数据」/ 第 3 步「复制数据文件」；保存按钮不再隐式复制）
+    if copy_only {
+        // 第 3 步的 H3 数据复制：源目录（Data 或含 Data 的游戏根）→ 目标 Data 目录，
+        // 另可按需搬 Mp3 / Maps 到**用户数据目录**（官方首启同口径）
+        let mut h3_files = 0u64;
+        let mut h3_bytes = 0u64;
+        if copy_h3 {
+            let from = data
+                .get("h3DataFrom")
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+                .ok_or_else(|| be_err("setup_h3_data_dir_missing", ""))?;
+            let to = data
+                .get("h3DataTo")
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+                .ok_or_else(|| be_err("setup_h3_data_dir_missing", ""))?;
+            let user_dir = data
+                .get("h3UserDataDir")
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+                .ok_or_else(|| be_err("settings_missing_userdata", ""))?;
+            // ⚠️ Mp3 / Maps 与 .lod 同一个 radio 目标根（用户实测：恒落用户数据目录 ⇒ 已修）
+            let extra_root = user_dir.clone();
+            let (from_root, from_data) = crate::vcmi::h3data::resolve_source(&from)
+                .ok_or_else(|| be_err("setup_h3_data_dir_invalid", &from.to_string_lossy()))?;
+            if !to
+                .file_name()
+                .map(|n| n.eq_ignore_ascii_case("Data"))
+                .unwrap_or(false)
+            {
+                return Err(be_err(
+                    "setup_h3_data_dir_invalid",
+                    &to.to_string_lossy(),
+                ));
+            }
+            let copy_mp3 = data.get("h3CopyMp3").and_then(|v| v.as_bool()).unwrap_or(true);
+            let copy_maps = data.get("h3CopyMaps").and_then(|v| v.as_bool()).unwrap_or(false);
+            // 诊断日志：数据到底落在哪，一目了然（radio 归属争议时第一手证据）
+            tracing::info!(
+                target: "paths",
+                "原版数据复制：lod → {}；mp3/maps → {}（源 Data = {}）",
+                to.display(),
+                user_dir.display(),
+                from_data.display()
+            );
+            let emitter = app.clone();
+            let (files, bytes) = tauri::async_runtime::spawn_blocking(move || {
+                // ① .lod / .snd / .vid → <游戏目录>/Data（判定根之一，与用户数据目录无关）。
+                //    .snd/.vid 不可省：缺 VIDEO.VID 时 VCMI 会弹「未检测到视频文件」。
+                let (f, b) = crate::vcmi::h3data::copy_data_files(&from_data, &to, |f, b, tf, tb| {
+                    let _ = emitter.emit(
+                        "user-data-copy-progress",
+                        json!({
+                            "doneFiles": f,
+                            "doneBytes": b,
+                            "totalFiles": tf,
+                            "totalBytes": tb,
+                        }),
+                    );
+                })?;
+                // ② Mp3 / Maps → **与 .lod 同一个 radio 目标根**（VCMI 的 MUSIC / MAPS
+                //    挂载点同时挂游戏目录与用户数据目录，两处都可见）；
+                //    Maps 目录即使不复制也会创建（VCMI 不自建）
+                let emitter2 = emitter.clone();
+                let (f2, b2) = crate::vcmi::h3data::copy_extra(
+                    &from_root,
+                    &extra_root,
+                    copy_mp3,
+                    copy_maps,
+                    |f, b, tf, tb| {
+                        let _ = emitter2.emit(
+                            "user-data-copy-progress",
+                            json!({
+                                "doneFiles": f,
+                                "doneBytes": b,
+                                "totalFiles": tf,
+                                "totalBytes": tb,
+                            }),
+                        );
+                    },
+                )?;
+                Ok::<(u64, u64), String>((f + f2, b + b2))
+            })
+            .await
+            .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))??;
+            h3_files = files;
+            h3_bytes = bytes;
+        }
+        return Ok(json!({
+            "saved": false,
+            "copied": migrated.copied,
+            "cancelled": migrated.cancelled,
+            "files": migrated.files,
+            "bytes": migrated.bytes,
+            "h3Files": h3_files,
+            "h3Bytes": h3_bytes,
+        }));
     }
     let user_config_dir = data
         .get("userConfigDir")
@@ -140,8 +333,13 @@ pub fn write_launcher_config(state: State<AppPaths>, data: Value) -> Result<(), 
             user_config_dir,
             user_mods_dir,
             game_mods_dir: Some(game_mods_dir),
-            // 保留既有便携接管开关
-            redirect_user_data: inherit.map(|p| p.paths.redirect_user_data).unwrap_or(false),
+            // 接管开关：显式传入时以其为准（首启向导「使用启动器专属用户数据目录」），
+            // 否则沿用既有配置（便携包可预置）
+            redirect_user_data: data
+                .get("redirectUserData")
+                .and_then(|v| v.as_bool())
+                .or_else(|| inherit.map(|p| p.paths.redirect_user_data))
+                .unwrap_or(false),
         },
         ui: UiCfg {
             // 界面语言：优先取入参（初始化向导保存时一并写入），否则保留既有配置
@@ -270,13 +468,26 @@ pub fn write_launcher_config(state: State<AppPaths>, data: Value) -> Result<(), 
         let mut paths = state.0.lock().expect("paths lock poisoned");
         paths.update_from_config(&cfg);
         // 保存配置（初始化向导 / 目录设置）后立即按新的 game_dir / user_data_dir
-        // 完成目录初始化，不等后续 detect 才补；失败非致命（目录可能只读）。
+        // 完成目录初始化，不等后续 detect 才补。
+        //
+        // ⚠️ 请求了接管（自定义用户数据目录）时失败**必须上报**：dirs.json 没改成，
+        // VCMI 仍会用官方目录，界面显示的目录与实际生效的不一致 —— 属静默错配，不可吞。
+        // 未请求接管时保持"非致命"（目录可能只读，旧行为不变）。
         if let Err(e) = VcmiPaths::ensure_user_data_dir(&paths, cfg.realms.active.as_deref()) {
+            if cfg.paths.redirect_user_data {
+                return Err(e);
+            }
             tracing::warn!(target: "paths", "保存配置后目录初始化失败（可忽略）：{e}");
         }
     }
     tracing::info!(target: "config", "已保存 launcher.json");
-    Ok(())
+    Ok(json!({
+        "saved": true,
+        "copied": migrated.copied,
+        "cancelled": migrated.cancelled,
+        "files": migrated.files,
+        "bytes": migrated.bytes,
+    }))
 }
 
 /// 持久化启动器界面语言到 `launcher.json`。
@@ -541,8 +752,24 @@ pub fn set_network_mirror_rules(rules: Vec<crate::infra::http::MirrorRule>) -> R
     Ok(())
 }
 
-/// 探测 HD 素材（`hd-edition`）当前状态（设置页「HD 素材」卡片展示，**只读、不注入**）。
+/// 探测 HD 素材（`hd-edition`）当前状态（设置页卡片 + 首启向导第 ④ 步，**只读、不注入**）。
+///
+/// `gameDir` / `userDataDir` 为**可选覆盖**（同 `import_game_files`）：首启向导阶段
+/// `launcher.json` 还没写，必须能按用户刚选的目录探测；不传 = 沿用已保存配置。
 #[tauri::command]
-pub fn hd_edition_status() -> serde_json::Value {
-    crate::vcmi::hd_edition::status_json()
+pub fn hd_edition_status(
+    game_dir: Option<String>,
+    user_data_dir: Option<String>,
+) -> serde_json::Value {
+    let g = game_dir
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(std::path::Path::new);
+    let u = user_data_dir
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(std::path::Path::new);
+    crate::vcmi::hd_edition::status_json_at(g, u)
 }

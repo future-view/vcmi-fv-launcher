@@ -6,6 +6,7 @@ import { ModView } from "@/features/mods/ModView";
 import { SettingsView } from "@/features/settings/SettingsView";
 import { WikiView } from "@/features/wiki/WikiView";
 import { SetupWizard } from "@/features/setup/SetupWizard";
+import { InitTopBar } from "@/shell/InitTopBar";
 import { GameDataDrawer } from "@/shell/GameDataDrawer";
 import { HelpDrawer } from "@/shell/HelpDrawer";
 import { ImportFilesDialog } from "@/shell/ImportFilesDialog";
@@ -537,7 +538,10 @@ function AppContent() {
   // 避免未保存就执行扫描 Mods / 写 modSettings / 提取城镇图等磁盘副作用
   if (!ready) {
     return (
-      <>
+      <div className="flex h-screen flex-col bg-slate-950 text-slate-100">
+        {/* 首启标题栏：与主界面同一套视觉模板（品牌 + 窗口三键）。
+            不挂它的话窗口没有任何最小化/关闭入口，只能 Alt+F4 退出。 */}
+        <InitTopBar />
         {debug && (
           <div className="fixed left-0 right-0 top-[60px] z-[60] flex items-center justify-center gap-2 bg-amber-500/90 px-3 py-1 text-center text-[11px] font-medium text-black">
             <span>{t.app.debugMode}</span>
@@ -550,8 +554,10 @@ function AppContent() {
             </button>
           </div>
         )}
-        <SetupWizard onReady={handleWizardReady} />
-      </>
+        <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+          <SetupWizard onReady={handleWizardReady} />
+        </div>
+      </div>
     );
   }
 

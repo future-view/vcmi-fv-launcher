@@ -134,12 +134,22 @@ impl LodArchive {
     }
 }
 
-/// 只读取 lod 的**条目名集合**，不读整个文件、不建常规目录表。
+/// 条目名集合（**统一大写**，供大小写不敏感比对）。
+///
+/// 底层实现见 [`lod_entry_names_raw`]；落盘文件名要与官方一致时请用 raw 版本。
+pub fn lod_entry_names(path: &Path) -> Option<Vec<String>> {
+    lod_entry_names_raw(path).map(|v| v.into_iter().map(|s| s.to_uppercase()).collect())
+}
+
+/// 只读取 lod 的**条目名集合**（保留目录表里的原始大小写），不读整个文件、不建常规目录表。
 ///
 /// `parse_entries` 需要 `fs::read` 整个 lod（`H3bitmap.lod` 可达数百 MB）才能建表；
 /// 而目录表位于文件头部（`0x5c + count * 32`），**只问"有没有某个条目"时不必付这份代价**
 /// —— 资源体检一类只关心存在性的场景用本函数（几百 KB 级读取）。
-pub fn lod_entry_names(path: &Path) -> Option<Vec<String>> {
+///
+/// 官方解包（`CArchiveLoader::extractToFolder`）直接用条目名落盘，故历代记导入用它命名文件，
+/// 产物与官方逐字节一致（Windows 大小写不敏感，但便于与官方产物对拍）。
+pub fn lod_entry_names_raw(path: &Path) -> Option<Vec<String>> {
     use std::io::{Read, Seek, SeekFrom};
     let mut f = fs::File::open(path).ok()?;
     let mut header = [0u8; 0x5c];
@@ -156,7 +166,7 @@ pub fn lod_entry_names(path: &Path) -> Option<Vec<String>> {
         if end == 0 {
             continue;
         }
-        out.push(String::from_utf8_lossy(&chunk[..end]).to_uppercase());
+        out.push(String::from_utf8_lossy(&chunk[..end]).into_owned());
     }
     Some(out)
 }

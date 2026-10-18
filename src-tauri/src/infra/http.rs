@@ -159,6 +159,51 @@ pub fn is_github_url(url: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// 直连可达性探测结果。
+#[derive(Debug, Clone)]
+pub struct UrlProbe {
+    /// 是否收到**任何** HTTP 响应（404 也算通：那只是地址不对，网络没问题）。
+    pub ok: bool,
+    pub status: Option<u16>,
+    pub error: Option<String>,
+}
+
+/// 短超时**直连**探测：供首启向导判断「更新清单地址是否可达」。
+///
+/// 与常规请求的三点差异（**刻意不同**）：
+/// - **不走镜像 / 代理回退链**：探测的目的正是判断"要不要开镜像"，走回退链会自我循环；
+/// - **短超时**（连接 5s / 总 8s）：向导阶段不能让用户干等；且探测失败只是"给建议"，代价低；
+/// - 收到任何 HTTP 状态都算 `ok`（只有连接类失败才算不通）。
+pub fn probe_url(url: &str, connect_timeout: Duration, total_timeout: Duration) -> UrlProbe {
+    let client = match Client::builder()
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .timeout(total_timeout)
+        .connect_timeout(connect_timeout)
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            return UrlProbe {
+                ok: false,
+                status: None,
+                error: Some(e.to_string()),
+            }
+        }
+    };
+    match client.get(url).send() {
+        Ok(resp) => UrlProbe {
+            ok: true,
+            status: Some(resp.status().as_u16()),
+            error: None,
+        },
+        Err(e) => UrlProbe {
+            ok: false,
+            status: None,
+            error: Some(e.to_string()),
+        },
+    }
+}
+
 fn proxy_value() -> Option<String> {
     PROXY.read().ok().and_then(|g| g.clone())
 }

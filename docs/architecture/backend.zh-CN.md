@@ -14,7 +14,7 @@ commands ──► updater / runtime / repository / realms / modcache / vcmi ─
 |---|---|---|
 | `commands/` | IPC 壳 | 解包 state → 调下层 → `Result` 转换；按域分 `app` / `mods` / `mod_install` / `mod_settings` / `settings` / `vcmi_settings` / `paths` / `launch` / `cache` / `runtime` / `updater` / `gamedata` / `game_import` |
 | `infra/` | 设施 | 无业务语义的底层能力 |
-| `vcmi/` | 领域 | 游戏与模组侧知识：`paths`（目录识别）/ `config`（launcher.json）/ `scan` / `town` / `gamedata` / `h3core` / `i18n` / `resource`（三来源解析）/ `health` / `hd_edition` / `game_import` / `mod_install` / `setup` / `version` |
+| `vcmi/` | 领域 | 游戏与模组侧知识：`paths`（目录识别）/ `config`（launcher.json）/ `scan` / `town` / `gamedata` / `h3core` / `h3data`（原版数据闸门）/ `i18n` / `resource`（三来源解析）/ `health` / `hd_edition` / `game_import` / `mod_install` / `modmeta`（生成模组的 mod.json 文案表，外部 JSON + 编译期嵌入）/ `setup` / `version` |
 | `modcache/` | 领域 | 百科缓存构建（`build/` 按实体采集 + `assets` / `preview` / `hd` / `batch` / `index` 等） |
 | `realms/` | 领域 | 领域生命周期、隔离、地图、模组 |
 | `repository/` | 领域 | 远端索引抓取缓存与下载安装 |
@@ -39,6 +39,7 @@ commands ──► updater / runtime / repository / realms / modcache / vcmi ─
 | `hash` | SHA-256 / FNV |
 | `cache` | 文件指纹 + 进程内 LRU |
 | `links` | 联接 / 符号链接的安全创建与移除 |
+| `fs` | 目录复制（显式栈递归、进度回调节流、可取消）；首启用户数据迁移的底座（staging/rename 在 `vcmi::paths`） |
 | `logging` | tracing 初始化 + 按天轮转 |
 | `time` | UTC 日期与时间戳 |
 | `version` | 点分版本号比较 |

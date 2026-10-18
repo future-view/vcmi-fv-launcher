@@ -108,7 +108,8 @@ pub(crate) fn core_mod_display_name(
         return None;
     }
     let Some(faction) = faction else {
-        return Some(json!({ "chinese": ENGINE, "english": ENGINE }));
+        // 引擎名是语言中立的专名、不是译文：只落 `english`，其它语言由前端回退
+        return Some(json!({ "english": ENGINE }));
     };
     // 回退来源：随包 h3-core 文案表（只有 en/zh 两种语言）
     let h3_names: Option<serde_json::Map<String, Value>> = crate::vcmi::h3core::h3_core_data_dir()
@@ -129,9 +130,11 @@ pub(crate) fn core_mod_display_name(
         }
     }
     if names.is_empty() {
-        let fallback = format!("{ENGINE} · {faction}");
-        names.insert("chinese".to_string(), json!(fallback.clone()));
-        names.insert("english".to_string(), json!(fallback));
+        // 兜底是「引擎名 · factionId」，语言中立（不是中文/英文译文）→ 只落 english
+        names.insert(
+            "english".to_string(),
+            json!(format!("{ENGINE} · {faction}")),
+        );
     }
     Some(Value::Object(names))
 }
@@ -309,7 +312,8 @@ pub(crate) fn build_all_wiki_inner(mods: &Value, cache_root: &Path) -> Value {
         }
         // 多语言模组名：① 原版伪模组无 mod.json，名称由数据派生（见 `core_mod_display_name`）；
         // ② 其余优先取本 mod 缓存的 modMeta.name（与 mods/realms 页同源）；
-        // ③ 缺失时回退 m.name 单串（中英文同值），使 wiki 模组列表随界面语言切换。
+        // ③ 缺失时只写 `english`（前端 `pickName` 回退 english）——**不伪造 `chinese`**
+        //    副本：那等于把英文冒充成中文译文，也让"哪些语言真的有翻译"失真。
         let town_names = res.pointer("/factions/0/name").and_then(|x| x.as_object());
         let mod_name_val: Value = if let Some(core_name) = core_mod_display_name(&id, town_names) {
             core_name
@@ -320,7 +324,7 @@ pub(crate) fn build_all_wiki_inner(mods: &Value, cache_root: &Path) -> Value {
                 .and_then(|x| x.as_object());
             let fallback = || {
                 let s = m.get("name").and_then(|x| x.as_str()).unwrap_or("");
-                json!({ "chinese": s, "english": s })
+                json!({ "english": s })
             };
             if let Some(n) = meta_name {
                 if !n.is_empty() {

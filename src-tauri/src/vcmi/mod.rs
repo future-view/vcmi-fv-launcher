@@ -12,18 +12,29 @@
 //! - `h3core`：h3-core 文案表与原版（core）伪模组识别。
 //! - `game_import`：游戏文件导入（地图/战役/存档/模组/配置/历代记识别/HD 素材生成）。
 //! - `health`：游戏数据完整性体检（lod 条目 / 核心 mod / 资源容器，只读）。
+//! - `h3data`：原版 H3 数据闸门（官方口径检测 / 注册表定位 / 复制 `.lod`/`.snd`/`.vid` 补齐）。
+//! - `chronicles`：历代记导入（解包后生成官方同款 `Mods/chronicles` 模组）。
+//! - `modmeta`：生成模组的 `mod.json` 文案表（外部 JSON + 编译期嵌入，含 VCMI 语言块）。
 //! - `hd_edition`：官方 HD 版素材 mod（`hd-edition`）的 `.pak` 探测 / 注入 / 按名取图（真高清来源）。
 //! - `setup`：用户配置播种（官方启动器首次运行向导状态 `launcher.setupCompleted`）。
 //! - `bonus`：bonus type 的图标表（`bonuses.json` 的 `graphics` 段，百科能力图标来源）。
 //! - `spell_icons`：法术自身的 `graphics.iconImmune`（`SPELL_IMMUNITY` 能力的图标来源）。
+//! - `inno`：Inno Setup 安装器的只读格式探测（版本 / 头部位置 / 数据区 / 压缩算法）。
 
 pub mod bonus;
+/// 历代记（Chronicles）：按官方产物结构生成 Expansion 模组（`chroniclesextractor.cpp` 同款）。
+pub mod chronicles;
 pub mod config;
 pub mod game_import;
 pub mod gamedata;
 pub mod h3core;
+pub mod modmeta;
+/// 原版 H3 数据文件：检测（官方口径）/ 定位（注册表）/ 补齐（复制 .lod）。
+pub mod h3data;
 pub mod health;
 pub mod i18n;
+/// Inno Setup 安装器的**只读**探测（版本 / 头部位置 / 数据区起点 / 压缩算法）。
+pub mod inno;
 pub mod mod_install;
 // HD 高清素材来源（`.pak`）：接线期间部分接口尚未被提取链路调用，先放宽 dead_code。
 #[allow(dead_code)]

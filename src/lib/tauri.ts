@@ -173,6 +173,22 @@ export interface VcmiDirs {
   savesDir?: string;
   gameModsDir?: string;
   fromConfig?: boolean;
+  /**
+   * 启动器专属用户数据目录（exe 同目录 `userdata`）：首启向导「自定义用户数据目录」的默认值。
+   * 与 `systemUserDataDir` 一起由 `detect_vcmi_paths` 返回（**只读**，无任何磁盘副作用）。
+   */
+  portableUserDataDir?: string;
+  portableUserDataDirExists?: boolean;
+  /**
+   * 解析出的用户目录（`userDir`）是否已存在于磁盘。
+   *
+   * 它是「复制既有数据」的**首选源**：`dirs.json` 可能把用户目录指向别处
+   * （如增强版），此时官方默认目录里并没有真正的数据。
+   */
+  userDirExists?: boolean;
+  /** VCMI 官方默认用户数据目录（`文档\My Games\vcmi`）：无 `dirs.json` 时的复制源 */
+  systemUserDataDir?: string;
+  systemUserDataDirExists?: boolean;
 }
 
 export interface LauncherConfigData {
@@ -184,6 +200,32 @@ export interface LauncherConfigData {
   userModsDir?: string;
   /** 界面语言（VCMI 语言标识，如 chinese/english/russian/polish/german）。向导保存时一并写入，供便携包统一语言。 */
   uiLang?: string;
+  /**
+   * 是否接管 `game_dir/config/dirs.json` 的 5 个 key 指向 `userDataDir`
+   * （`paths.redirect_user_data`）。首启向导选「启动器专属用户数据目录」时传 `true`。
+   * 缺省（不传）= 沿用既有配置，旧调用行为不变。
+   */
+  redirectUserData?: boolean;
+  /**
+   * 保存前把该目录**迁移**到 `userDataDir`（目标已存在 / 源不存在则静默跳过）。
+   *
+   * ⚠️ 顺序由后端保证：迁移 → 写 launcher.json → 接管 dirs.json。
+   * 迁移中途关闭启动器不会留下任何已生效的配置（下次启动重入向导）。
+   *
+   * 现仅由「同步数据」按钮配合 {@link copyUserData}（`copyOnly`）触发：
+   * **保存按钮不再隐式复制**（单一职责，进度可见可跳过）。
+   */
+  copyFrom?: string | null;
+  /**
+   * `copyOnly: true` = **只迁移、不写任何配置**（向导第 2 步的「同步数据」按钮）。
+   * 复用 `write_launcher_config` 而非新增命令（后端：新增 Tauri 命令会触发 never-type 硬错误）。
+   */
+  copyOnly?: boolean;
+  /**
+   * 仅置「跳过复制」哨兵并立即返回（不校验 gameDir），供向导的「跳过复制」按钮使用。
+   * 复用 `write_launcher_config` 而非新增命令（后端：新增 Tauri 命令会触发 never-type 硬错误）。
+   */
+  cancelCopy?: boolean;
 }
 
 export function isTauri(): boolean {
@@ -386,6 +428,55 @@ export async function readLauncherConfig(): Promise<LauncherConfig | null> {
 export async function writeLauncherConfig(data: LauncherConfigData): Promise<void> {
   if (!isTauri()) throw new Error(feErr("frontend_not_tauri"));
   return invoke("write_launcher_config", { data });
+}
+
+/** 「同步数据」迁移结果（`write_launcher_config` 出参，见 commands/settings.rs） */
+export interface UserDataCopyResult {
+  /** 是否真的保存了配置（`copyOnly` 时为 false） */
+  saved: boolean;
+  copied: boolean;
+  cancelled: boolean;
+  files: number;
+  bytes: number;
+}
+
+/**
+ * 首启向导第 2 步的「同步数据」：**只迁移用户数据，不写任何配置**。
+ *
+ * 中断/关闭窗口 ⇒ 磁盘上没有任何已生效配置（staging 被丢弃），下次启动原样重入向导。
+ */
+export async function copyUserData(
+  gameDir: string,
+  from: string,
+  to: string,
+): Promise<UserDataCopyResult> {
+  const r = await invoke<UserDataCopyResult>("write_launcher_config", {
+    data: { gameDir, userDataDir: to, copyFrom: from, copyOnly: true },
+  });
+  return r;
+}
+
+/** 请求中断正在进行的用户数据迁移（「跳过复制」） */
+export async function cancelUserDataCopy(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke("write_launcher_config", { data: { cancelCopy: true } });
+}
+
+/** 用户数据迁移进度（事件 `user-data-copy-progress`） */
+export interface UserDataCopyProgress {
+  doneFiles: number;
+  doneBytes: number;
+  totalFiles: number;
+  totalBytes: number;
+}
+
+/** 订阅用户数据迁移进度，返回取消订阅函数（节流在后端，200ms 一帧 + 末帧） */
+export async function onUserDataCopyProgress(
+  cb: (p: UserDataCopyProgress) => void,
+): Promise<() => void> {
+  if (!isTauri()) return () => {};
+  const { listen } = await import("@tauri-apps/api/event");
+  return await listen<UserDataCopyProgress>("user-data-copy-progress", (e) => cb(e.payload));
 }
 
 /**
@@ -648,11 +739,22 @@ export interface HdEditionStatus {
   enabled: boolean;
 }
 
-/** 探测 HD 素材是否可用（只读；非 Tauri 环境返回 null） */
-export async function hdEditionStatus(): Promise<HdEditionStatus | null> {
+/**
+ * 探测 HD 素材是否可用（只读；非 Tauri 环境返回 null）。
+ *
+ * `opts` 为**可选目录覆盖**（首启向导：配置尚未落盘，需要按用户刚选的目录探测）；
+ * 不传 = 沿用已保存配置（设置页行为不变）。
+ */
+export async function hdEditionStatus(opts?: {
+  gameDir?: string;
+  userDataDir?: string;
+}): Promise<HdEditionStatus | null> {
   if (!isTauri()) return null;
   try {
-    return (await invoke("hd_edition_status")) as HdEditionStatus;
+    const args = opts
+      ? { gameDir: opts.gameDir?.trim() || null, userDataDir: opts.userDataDir?.trim() || null }
+      : undefined;
+    return (await invoke("hd_edition_status", args)) as HdEditionStatus;
   } catch {
     return null;
   }
@@ -674,6 +776,17 @@ export async function suggestUserDataDir(
 export async function pickDirectory(title: string): Promise<string | null> {
   if (!isTauri()) return null;
   const path = await openDialog({ directory: true, title });
+  return path ? String(path) : null;
+}
+
+/** 选择单个文件（可传扩展名过滤，如 `["exe"]`）；非 Tauri 环境返回 null */
+export async function pickFile(title: string, extensions?: string[]): Promise<string | null> {
+  if (!isTauri()) return null;
+  const path = await openDialog({
+    directory: false,
+    title,
+    filters: extensions && extensions.length > 0 ? [{ name: title, extensions }] : undefined,
+  });
   return path ? String(path) : null;
 }
 
@@ -1200,17 +1313,84 @@ export interface GamedataHealth {
   /** 实际检查的资源根（游戏目录 / 用户数据目录，两者 VCMI 都会挂载） */
   roots: string[];
   items: HealthItem[];
+  /** 原版 H3 数据闸门（后端 `vcmi::h3data::H3DataStatus`，官方口径） */
+  h3Data?: H3DataStatus;
+  /** 注册表里发现的本机原版安装路径（Windows；用于预填数据目录） */
+  dataInstallCandidates?: string[];
 }
 
-/** 游戏数据完整性体检（只读，不改动任何文件）。非 Tauri 环境返回 null */
-export async function gamedataHealthCheck(): Promise<GamedataHealth | null> {
+/** 原版 H3 数据状态（官方口径，见后端 `vcmi::h3data`） */
+export interface H3DataStatus {
+  /** 向导闸门：ROE && (SOD || demo) && 运行期 fatal 项齐全 */
+  found: boolean;
+  roe: boolean;
+  sod: boolean;
+  demo: boolean;
+  helpTxt: boolean;
+  playersPal: boolean;
+  defaultDef: boolean;
+  inGame: boolean;
+  inUser: boolean;
+  /** 用户可操作的缺失文件（H3Bitmap.lod / H3Sprite.lod） */
+  missing: string[];
+}
+
+/**
+ * 游戏数据完整性体检（只读，不改动任何文件）。非 Tauri 环境返回 null。
+ *
+ * `gameDir` / `userDataDir` 为**可选覆盖**（首启向导用：目录还没保存进 launcher.json）。
+ * 不传 = 沿用已保存配置（主界面「游戏数据」抽屉行为不变）。
+ * `withCandidates`：是否查注册表安装候选（`reg query` ×4，约百毫秒）；
+ * 向导常态探测传 `false`，确认缺失后再补一次 `true`。
+ */
+export async function gamedataHealthCheck(
+  gameDir?: string,
+  userDataDir?: string,
+  withCandidates = true,
+): Promise<GamedataHealth | null> {
   if (!isTauri()) return null;
   try {
-    return await invoke<GamedataHealth>("gamedata_health_check");
+    return await invoke<GamedataHealth>("gamedata_health_check", {
+      gameDir,
+      userDataDir,
+      withCandidates,
+    });
   } catch (e) {
     console.error("数据体检失败", e);
     return null;
   }
+}
+
+/**
+ * 首启向导第 3 步：从外部数据目录复制原版数据。
+ * - `.lod` / `.snd` / `.vid` → `<toDataDir>`（radio 目标的 Data，判定根之一）；
+ *   官方 `classifyTargetByExt` 同口径，`.snd`/`.vid` 缺了 VCMI 会弹「未检测到视频文件」；
+ * - `Mp3`（默认）/ `Maps`（可选）→ `<extraRoot>`（**与数据文件同一个 radio 目标根**；
+ *   VCMI 的 MUSIC / MAPS 挂载点；`Maps` 目录即使不复制也会被创建——VCMI 不自建它）。
+ * 复用 `write_launcher_config` 的 `copyOnly` 通道（不新增命令，见后端约束）。
+ */
+export async function copyH3Data(
+  gameDir: string,
+  extraRoot: string,
+  fromDir: string,
+  toDataDir: string,
+  copyMp3 = true,
+  copyMaps = false,
+): Promise<UserDataCopyResult> {
+  const r = await invoke<UserDataCopyResult>("write_launcher_config", {
+    data: {
+      gameDir,
+      userDataDir: toDataDir,
+      copyOnly: true,
+      copyH3Data: true,
+      h3DataFrom: fromDir,
+      h3DataTo: toDataDir,
+      h3UserDataDir: extraRoot,
+      h3CopyMp3: copyMp3,
+      h3CopyMaps: copyMaps,
+    },
+  });
+  return r;
 }
 
 /**
@@ -3122,6 +3302,13 @@ interface GameImportOpts {
   dryRun: boolean;
   /** zip 逐项改判（`path → mod|maps|saves`） */
   overrides?: Record<string, GameImportOverride>;
+  /**
+   * 可选覆盖目录（首启向导用：配置尚未保存，导入必须按用户选的目录落盘；
+   * 历代记还要从游戏目录取内置核心模组的 `portraitsChronicles.json`）。
+   * 不传 = 沿用已保存配置。
+   */
+  gameDir?: string;
+  userDataDir?: string;
 }
 
 /** 预检（不写盘）：分类 / 识别 / 冲突检查。 */
@@ -3137,6 +3324,8 @@ export async function importGameFiles(
     conflict: opts.conflict,
     dryRun: opts.dryRun,
     overrides: opts.overrides ?? null,
+    gameDir: opts.gameDir,
+    userDataDir: opts.userDataDir,
   });
 }
 
@@ -3198,6 +3387,21 @@ export interface UpdateInfo {
    * 直到被应用或跳过。
    */
   readyToApply: boolean;
+  /**
+   * 首启向导专用：「清单可达性探测」结果。
+   * 常规检查（含启动静默检查）恒为 `undefined`。
+   */
+  probe?: ManifestProbe;
+}
+
+/** 更新清单可达性探测结果（后端 `updater::manifest::ManifestProbe`） */
+export interface ManifestProbe {
+  /** 是否收到任何 HTTP 响应（404 也算通：只是地址不对） */
+  ok: boolean;
+  /** 清单地址是否为 GitHub 主机（只有 GitHub 才建议开镜像） */
+  github: boolean;
+  status?: number;
+  error?: string;
 }
 
 /** 下载进度（事件 `launcher-update-progress`） */
@@ -3218,17 +3422,35 @@ export function lastUpdateInfo(): UpdateInfo | null {
   return lastUpdateInfoCache;
 }
 
-/** 检查更新。`force=false` 为启动静默检查（失败静默返回 null）；`force=true` 手动检查（错误在 info.error） */
-export async function checkLauncherUpdate(force = false): Promise<UpdateInfo | null> {
+/**
+ * 检查更新。`force=false` 为启动静默检查（失败静默返回 null）；`force=true` 手动检查（错误在 info.error）。
+ *
+ * ⚠️ `probe=true` 是**另一条路径**（首启向导用）：只探测清单地址连不连得上，
+ * 不检查更新、不触碰更新状态机，结果在 `info.probe`；**不写入模块级缓存**
+ * （它不是一次"检查结果"，不能污染顶栏红点与更新弹窗）。
+ */
+export async function checkLauncherUpdate(force = false, probe = false): Promise<UpdateInfo | null> {
   if (!isTauri()) return null;
   try {
-    const info = await invoke<UpdateInfo>("check_launcher_update", { force });
-    lastUpdateInfoCache = info;
+    const info = await invoke<UpdateInfo>("check_launcher_update", { force, probe });
+    if (!probe) lastUpdateInfoCache = info;
     return info;
   } catch (e) {
     console.warn("检查更新失败", e);
     return null;
   }
+}
+
+/**
+ * 首启向导用：探测「更新清单地址是否可达」（连接 5s / 总 8s，**直连不回退**）。
+ *
+ * 返回 `null` = 探测没跑起来（命令失败 / 非 Tauri），调用方据此不显示任何网络建议。
+ * `configured=false`（未配置清单）也返回 `null`：没有清单就没有"要不要开镜像"的问题。
+ */
+export async function probeUpdateManifest(): Promise<ManifestProbe | null> {
+  const info = await checkLauncherUpdate(false, true);
+  if (!info || !info.configured) return null;
+  return info.probe ?? null;
 }
 
 /** 下载更新包（阻塞至完成 + sha256 校验）。失败返回 `{ok:false, error}`（取消时 error 为哨兵串） */

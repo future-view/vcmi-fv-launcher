@@ -698,10 +698,11 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
         let core_name =
             crate::modcache::index::core_mod_display_name(&m.mod_id, town_names.as_ref());
         // 多语言模组名：常规模组优先取 cache.json 的 modMeta.name（与 mods/realms 页同源）；
-        // 缺失时回退 extra.name 单串（中英文同值），使 wiki 模组列表随界面语言切换。
+        // 缺失时只写 `english`（前端 `pickName` 会回退 english）——**不伪造 `chinese`**
+        // 副本：那等于把英文冒充成中文译文，也让"哪些语言真的有翻译"失真。
         let mut mod_name = match &core_name {
             Some(n) => n.clone(),
-            None => json!({ "chinese": extra_name.clone(), "english": extra_name }),
+            None => json!({ "english": extra_name }),
         };
         let mut counts = serde_json::Map::new();
         let mut h3_missing = false;

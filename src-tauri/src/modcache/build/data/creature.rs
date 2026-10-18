@@ -12,8 +12,8 @@ use crate::infra::json::parse_vcmi_json;
 use crate::modcache::assets::{extract_game_def_frame_and_save_mod, extract_icon_and_save};
 use crate::modcache::collect::{accumulate_full_cost, collect_config_jsons};
 use crate::modcache::i18n::{
-    ability_text_from_bonus_type, i18n_get_multi, i18n_mod_scope, name_desc_maps_from_keys,
-    name_obj_multi_key, name_obj_with_inline,
+    ability_text_from_bonus_type, i18n_get_multi, i18n_mod_scope, lang_map_to_obj,
+    name_desc_maps_from_keys, name_obj_multi_key, name_obj_with_inline,
 };
 use crate::vcmi::h3core::I18nMap;
 
@@ -422,63 +422,17 @@ pub(crate) fn build_creatures(
                         sub_names.as_ref(),
                     ),
                 );
-                let bt_zh = bonus_text
-                    .as_ref()
-                    .and_then(|(n, _)| {
-                        n.get("chinese")
-                            .or_else(|| n.get("auto"))
-                            .or_else(|| n.get("english"))
-                            .or_else(|| n.values().next())
-                            .cloned()
-                    })
-                    .or_else(|| {
-                        i18n_get_multi(
-                            &i18n,
-                            &format!("creature.{}.{}.ability.{}", scope, id, bname),
-                        )
-                        .or_else(|| {
-                            i18n_get_multi(
-                                &i18n,
-                                &format!("creature.{}.{}.ability.{}", scope, id, i),
-                            )
-                        })
-                        .and_then(|m| {
-                            m.get("chinese")
-                                .cloned()
-                                .or_else(|| m.get("auto").cloned())
-                                .or_else(|| m.get("english").cloned())
-                                .or_else(|| m.values().next().cloned())
-                        })
-                    });
-                let bt_en = bonus_text
-                    .as_ref()
-                    .and_then(|(n, _)| {
-                        n.get("english")
-                            .or_else(|| n.get("auto"))
-                            .or_else(|| n.get("chinese"))
-                            .or_else(|| n.values().next())
-                            .cloned()
-                    })
-                    .or_else(|| {
-                        i18n_get_multi(
-                            &i18n,
-                            &format!("creature.{}.{}.ability.{}", scope, id, bname),
-                        )
-                        .or_else(|| {
-                            i18n_get_multi(
-                                &i18n,
-                                &format!("creature.{}.{}.ability.{}", scope, id, i),
-                            )
-                        })
-                        .and_then(|m| {
-                            m.get("english")
-                                .cloned()
-                                .or_else(|| m.get("auto").cloned())
-                                .or_else(|| m.get("chinese").cloned())
-                                .or_else(|| m.values().next().cloned())
-                        })
-                    })
-                    .or_else(|| bt_zh.clone());
+                // 该生物该能力的 i18n 表：bonus 文本整块缺失时的名称回退源
+                let ability_i18n = i18n_get_multi(
+                    &i18n,
+                    &format!("creature.{}.{}.ability.{}", scope, id, bname),
+                )
+                .or_else(|| {
+                    i18n_get_multi(
+                        &i18n,
+                        &format!("creature.{}.{}.ability.{}", scope, id, i),
+                    )
+                });
                 // ── 行文本：无文案的能力**整行不显示**（对齐 VCMI `WikiCreatureContent.cpp:298-307`）──
                 //
                 // VCMI 的行文本 = 内嵌 `description`（非空时）否则 `bonusToString(b, creature)`；
@@ -495,75 +449,64 @@ pub(crate) fn build_creatures(
                     .get("description")
                     .and_then(|x| x.as_str())
                     .filter(|s| !s.is_empty())
-                    // 内嵌 `description` 是**文本 id**（VCMI `JsonBonus.cpp` 语义），解析不到才用原文
+                    // 内嵌 `description` 是**文本 id**（VCMI `JsonBonus.cpp` 语义），解析不到才用原文。
+                    // 解析不到时语言未知 → 放 `auto`，不冒充 chinese/english 任一语言。
                     .map(|s| {
                         i18n_get_multi(&i18n, s).unwrap_or_else(|| {
-                            let mut m = std::collections::HashMap::new();
-                            m.insert("chinese".to_string(), s.to_string());
-                            m.insert("english".to_string(), s.to_string());
-                            m
+                            std::collections::HashMap::from([(
+                                "auto".to_string(),
+                                s.to_string(),
+                            )])
                         })
                     });
-                let inline_zh = inline_text.as_ref().and_then(|m| {
-                    m.get("chinese")
-                        .or_else(|| m.get("auto"))
-                        .or_else(|| m.get("english"))
-                        .or_else(|| m.values().next())
-                        .cloned()
-                });
-                let inline_en = inline_text.as_ref().and_then(|m| {
-                    m.get("english")
-                        .or_else(|| m.get("auto"))
-                        .or_else(|| m.get("chinese"))
-                        .or_else(|| m.values().next())
-                        .cloned()
-                });
-                let bt_zh = bt_zh.or_else(|| inline_zh.clone());
-                let bt_en = bt_en.or_else(|| inline_en.clone());
-                if bt_zh.is_none() && bt_en.is_none() {
+                // 名称语言表：bonus 文本 → 该生物该能力的 i18n → 内嵌描述原文
+                // （逐级整块回退；先剔空值，避免"有个空串就当命中"）
+                let non_empty = |m: HashMap<String, String>| -> HashMap<String, String> {
+                    m.into_iter()
+                        .filter(|(_, v)| !v.trim().is_empty())
+                        .collect()
+                };
+                let mut name_map = non_empty(
+                    bonus_text
+                        .as_ref()
+                        .map(|(n, _)| n.clone())
+                        .unwrap_or_default(),
+                );
+                if name_map.is_empty() {
+                    name_map = non_empty(ability_i18n.unwrap_or_default());
+                }
+                if name_map.is_empty() {
+                    name_map = non_empty(inline_text.clone().unwrap_or_default());
+                }
+                if name_map.is_empty() {
                     continue;
                 }
                 // VCMI `:306-307` 同款去重：`(type, subtype, text)` 相同只留第一行。
                 // 实测 ultraman 的生物把同一条 `SPELL_DAMAGE_REDUCTION / spellSchool.earth`
                 // 写了两遍 → 此前列表里出现两行完全相同的"魔法抗性"。
-                if !seen_abilities.insert((
-                    btype.to_string(),
-                    bsub.clone(),
-                    bt_zh.clone().unwrap_or_default(),
-                )) {
+                let name_key = name_map
+                    .get("chinese")
+                    .or_else(|| name_map.get("english"))
+                    .or_else(|| name_map.get("auto"))
+                    .or_else(|| name_map.values().next())
+                    .cloned()
+                    .unwrap_or_default();
+                if !seen_abilities.insert((btype.to_string(), bsub.clone(), name_key)) {
                     continue;
                 }
-                // 空值兜底：`name` 一律是字符串（前端 `pickName` 按字符串处理，别发 null 出去）
-                let name_zh = bt_zh.clone().or_else(|| bt_en.clone()).unwrap_or_default();
-                let name_en = bt_en.clone().or_else(|| bt_zh.clone()).unwrap_or_default();
-                // 能力描述（VCMI CStackWindow 能力卡第二行）：
-                // 内嵌 `description`（已按文本 id 解析）→ `bonus.<TYPE>` 的翻译描述 → 回退名称
-                let bonus_desc = bonus_text.as_ref().and_then(|(_, d)| {
-                    d.get("chinese")
-                        .or_else(|| d.get("auto"))
-                        .or_else(|| d.get("english"))
-                        .or_else(|| d.values().next())
-                        .cloned()
-                });
-                let bonus_desc_en = bonus_text.as_ref().and_then(|(_, d)| {
-                    d.get("english")
-                        .or_else(|| d.get("auto"))
-                        .or_else(|| d.get("chinese"))
-                        .or_else(|| d.values().next())
-                        .cloned()
-                });
-                let bdesc_zh = inline_zh
-                    .clone()
-                    .or(bonus_desc)
-                    .or_else(|| bt_zh.clone())
-                    .or_else(|| bt_en.clone())
+                // 描述语言表：bonus 描述 ← 内嵌 `description`（按语言覆盖）。
+                // 缺失由前端回落名称（`abDesc || abName`），不复制名称冒充描述。
+                let mut desc_map = bonus_text
+                    .as_ref()
+                    .map(|(_, d)| d.clone())
                     .unwrap_or_default();
-                let bdesc_en = inline_en
-                    .clone()
-                    .or(bonus_desc_en)
-                    .or_else(|| bt_en.clone())
-                    .or_else(|| bt_zh.clone())
-                    .unwrap_or_default();
+                if let Some(m) = &inline_text {
+                    for (k, v) in m {
+                        desc_map.insert(k.clone(), v.clone());
+                    }
+                }
+                let name = lang_map_to_obj(name_map);
+                let description = lang_map_to_obj(desc_map);
                 // 能力来源（CStackWindow::BonusesSection 图标框底部标签，如"技能"）
                 let bsource = b
                     .get("source")
@@ -642,8 +585,8 @@ pub(crate) fn build_creatures(
                     "type": btype,
                     "subtype": bsub,
                     "value": bval,
-                    "name": { "chinese": name_zh, "english": name_en },
-                    "description": { "chinese": bdesc_zh, "english": bdesc_en },
+                    "name": name,
+                    "description": description,
                     "icon": bicon,
                     // 能力来源（CStackWindow::BonusesSection 图标框底部标签）
                     "source": bsource,

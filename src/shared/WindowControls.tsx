@@ -130,7 +130,9 @@ export function WindowControls({
         type="button"
         onClick={closeWindow}
         title={t.common.close}
-        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-400"
+        // ⚠️ 不能省 `cursor-pointer`：标题栏整条是 `cursor-move`（拖拽区），
+        // 继承下来会让关闭按钮只有"移动"光标、没有手型（曾漏过一轮）
+        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-400"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
           <path d="M18 6 6 18M6 6l12 12" />

@@ -14,9 +14,27 @@ use crate::updater;
 
 /// 检查启动器更新。`force=false` 为启动静默检查（失败静默不回显）；
 /// `force=true` 为手动检查（失败填 `error` 供界面展示，忽略「跳过此版本」）。
+///
+/// `probe=Some(true)`：**只探测清单可达性**（首启向导用它判断是否建议开启 GitHub 镜像），
+/// 不解析清单、不比较版本、不触碰更新状态机；结果在 `UpdateInfo::probe`。
+/// 复用本命令扩参数而非新增命令 —— 本机 Rust 工具链对**新增** Tauri 命令会触发
+/// never-type 硬错误（见 `docs/architecture/ipc.zh-CN.md` §1）；旧调用不传 `probe`，行为不变。
+///
+/// ⚠️ `async` + `spawn_blocking`：清单拉取 / 探测都是网络 IO，同步命令会冻结 WebView
+/// （探测本身最长 8s，绝不能占主线程）。
 #[tauri::command]
-pub fn check_launcher_update(force: bool) -> updater::manifest::UpdateInfo {
-    updater::manifest::check_update(force)
+pub async fn check_launcher_update(
+    force: bool,
+    probe: Option<bool>,
+) -> updater::manifest::UpdateInfo {
+    if probe == Some(true) {
+        return tauri::async_runtime::spawn_blocking(updater::manifest::probe_manifest)
+            .await
+            .unwrap_or_else(|e| updater::manifest::error_info(&format!("{}", e)));
+    }
+    tauri::async_runtime::spawn_blocking(move || updater::manifest::check_update(force))
+        .await
+        .unwrap_or_else(|e| updater::manifest::error_info(&format!("{}", e)))
 }
 
 /// 下载更新包（**阻塞**至完成）并强制 sha256 校验。

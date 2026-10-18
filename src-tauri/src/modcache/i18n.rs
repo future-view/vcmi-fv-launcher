@@ -194,8 +194,8 @@ pub(crate) fn build_name_object(
     Value::Object(obj)
 }
 
-/// 从 VCMI 多语言字典取某 key 的 `{en, zh-CN}` 名称对象（兼容前端既有结构）。
-/// zh-CN 优先 chinese → auto → english → 原文 fallback；en 优先 english → 原文 fallback。
+/// 从 VCMI 多语言字典取某 key 的多语言名称对象（兼容前端既有结构）。
+/// `chinese` 只在**确有中文译文**时写入；`english` 另含展示兜底（见 [`build_text_obj`]）。
 pub(crate) fn name_obj_en_zhcn(
     i18n: &std::collections::HashMap<String, std::collections::HashMap<String, String>>,
     key: &str,
@@ -314,14 +314,12 @@ pub(crate) fn name_desc_maps_from_keys(
     Some((names, descs))
 }
 
-/// `{lang: text}` → 前端名称对象（补 chinese/english 兜底 + auto）。
+/// `{lang: text}` → 前端名称对象（真实语言键 + `english` 展示兜底 + auto）。
+///
+/// `chinese` 只来自真实的 `chinese` 条目：缺中文就**不写**该键（前端 `pickName`
+/// 回退 `english`），不拿 english/auto 冒充中文译文。
 pub(crate) fn lang_map_to_obj(mut m: std::collections::HashMap<String, String>) -> Value {
-    let zh = m
-        .get("chinese")
-        .cloned()
-        .or_else(|| m.get("auto").cloned())
-        .or_else(|| m.get("english").cloned())
-        .unwrap_or_default();
+    let zh = m.get("chinese").cloned().unwrap_or_default();
     let en = m
         .get("english")
         .cloned()
@@ -347,33 +345,31 @@ pub(crate) fn lang_map_to_obj(mut m: std::collections::HashMap<String, String>) 
     Value::Object(obj)
 }
 
-/// 从内嵌文本（字符串 / 多语言对象）按语言取单值，语言链与 [`build_text_obj`] 一致：
-/// `chinese` → chinese → auto → english；`english` → english → auto → **内嵌** chinese。
-pub(crate) fn inline_text_for_lang(v: Option<&Value>, lang: &str) -> String {
-    let chain: &[&str] = if lang == "chinese" {
-        &["chinese", "auto", "english"]
-    } else {
-        &["english", "auto", "chinese"]
-    };
-    match v {
-        Some(Value::String(s)) if !s.trim().is_empty() => s.clone(),
-        Some(Value::Object(o)) => chain
-            .iter()
-            .find_map(|k| o.get(*k).and_then(|x| x.as_str()))
-            .unwrap_or("")
-            .to_string(),
-        _ => String::new(),
+/// 语言表 → 多语言对象；**全空**时把 `fallback` 写进 `english`（不写 `chinese`）。
+///
+/// 用于原版 h3-core 文案（表里只有真实语言条目）：缺某语言就不写该键，
+/// 前端 `pickName` 回退 `english`。`fallback` 通常传实体 id，空串表示"没有就不写"。
+pub(crate) fn obj_from_lang_map(
+    m: Option<std::collections::HashMap<String, String>>,
+    fallback: &str,
+) -> Value {
+    let mut o = lang_map_to_obj(m.unwrap_or_default());
+    if o.as_object().map(|x| x.is_empty()).unwrap_or(true) && !fallback.is_empty() {
+        o = json!({ "english": fallback });
     }
+    o
 }
 
 /// 文本对象组装核心：i18n（翻译文件）→ 内嵌文本（配置原文）→ 最终兜底字符串。
 ///
-/// 语言策略：
-/// - `zh` = i18n.chinese → auto → english → 内嵌 zh → auto → en → fallback；
-/// - `en` = i18n.english → 内嵌 en → auto → zh → fallback。
+/// **语言键只写真实来源，不伪造译文**：
+/// - `chinese` 只取 i18n.chinese → 内嵌对象的 `.chinese`。缺中文就不写该键，
+///   由前端 `pickName` 按 VCMI 口径回退（当前语言 → 英文）；
+/// - `english` 额外承担**展示兜底**（i18n.en → 内嵌 en/auto/裸串/中文 → fallback），
+///   因为英文是 `pickName` 的最终回退语言，缺了就只能显示空白/id。
 ///
-/// 其中 `en` 对**翻译文件**不兜中文（避免英文环境整页中文、切语言不生效）；
-/// 对**内嵌文本**则允许兜中文（原文无语言属性，显示内容优于显示 id）。
+/// 不把英文（或 `auto`、兜底 id）填进 `chinese`：那会让"哪些语言真的有译文"失真，
+/// 也让后续翻译审计无法区分真译文与兜底。
 fn build_text_obj(
     m: Option<std::collections::HashMap<String, String>>,
     inline: Option<&Value>,
@@ -384,11 +380,13 @@ fn build_text_obj(
             .and_then(|x| order.iter().find_map(|k| x.get(*k)).cloned())
             .filter(|s| !s.is_empty())
     };
-    let inline_pick = |order: &[&str]| -> Option<String> {
+    // `allow_plain=false`：裸字符串语言未知（中文 mod 也常直接写中文），
+    // 不能当成中文译文；它只配进 `english` 作展示兜底。
+    let inline_pick = |order: &[&str], allow_plain: bool| -> Option<String> {
         match inline? {
             Value::String(s) => {
                 let t = s.trim();
-                if t.is_empty() {
+                if t.is_empty() || !allow_plain {
                     None
                 } else {
                     Some(s.clone())
@@ -402,23 +400,15 @@ fn build_text_obj(
             _ => None,
         }
     };
-    // 语言链**逐语言交错**：i18n 与内嵌文本各语言按优先级合并，
-    // 避免"翻译文件只有英文 → 中文界面拿不到 config/cache.json 里的中文"。
-    // zh：i18n.chinese → 内嵌.chinese → i18n.auto → 内嵌.auto → i18n.english → 内嵌.english → 兜底
-    let zh = pick(&["chinese"])
-        .or_else(|| inline_pick(&["chinese"]))
-        .or_else(|| pick(&["auto"]))
-        .or_else(|| inline_pick(&["auto"]))
-        .or_else(|| pick(&["english"]))
-        .or_else(|| inline_pick(&["english"]))
-        .unwrap_or_else(|| fallback.to_string());
+    // 中文：只有真实中文来源（i18n.chinese / 内嵌对象.chinese），缺了就留空。
+    let zh = pick(&["chinese"]).or_else(|| inline_pick(&["chinese"], false));
     // en：i18n.english → 内嵌.english → i18n.auto → 内嵌.auto → 内嵌.chinese → 兜底
     // （i18n.chinese 不兜：避免英文环境整页中文；内嵌文本是配置原文、无语言属性，可兜）
     let en = pick(&["english"])
-        .or_else(|| inline_pick(&["english"]))
+        .or_else(|| inline_pick(&["english"], true))
         .or_else(|| pick(&["auto"]))
-        .or_else(|| inline_pick(&["auto"]))
-        .or_else(|| inline_pick(&["chinese"]))
+        .or_else(|| inline_pick(&["auto"], true))
+        .or_else(|| inline_pick(&["chinese"], true))
         .unwrap_or_else(|| fallback.to_string());
     // 完整保留全部可用语言（russian/french/...），供前端任意内容语言回退
     let mut obj = serde_json::Map::new();
@@ -430,16 +420,80 @@ fn build_text_obj(
             obj.insert(k.clone(), json!(v));
         }
     }
-    if !zh.is_empty() {
-        obj.insert("chinese".to_string(), json!(zh));
+    if let Some(z) = zh.as_deref().filter(|s| !s.is_empty()) {
+        obj.insert("chinese".to_string(), json!(z));
     }
     if !en.is_empty() {
         obj.insert("english".to_string(), json!(en));
     }
     // auto：中文优先，其次英文（供内容语言为 auto 的场景）
-    let auto = if !zh.is_empty() { &zh } else { &en };
+    let auto = zh.as_deref().filter(|s| !s.is_empty()).unwrap_or(&en);
     if !auto.is_empty() {
         obj.insert("auto".to_string(), json!(auto));
     }
     Value::Object(obj)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn i18n_map(pairs: &[(&str, &str)]) -> HashMap<String, HashMap<String, String>> {
+        let mut m = HashMap::new();
+        m.insert(
+            "k".to_string(),
+            pairs
+                .iter()
+                .map(|(lang, text)| (lang.to_string(), text.to_string()))
+                .collect(),
+        );
+        m
+    }
+
+    /// 缺中文时**不写** `chinese`（前端 `pickName` 回退 english），不拿英文冒充中文。
+    #[test]
+    fn text_obj_does_not_fake_chinese() {
+        let v = name_obj_en_zhcn(&i18n_map(&[("english", "Sword")]), "k", "k");
+        assert!(v.get("chinese").is_none(), "不应伪造中文：{v}");
+        assert_eq!(v["english"], "Sword");
+        // 兜底值（常为实体 id）同样不能写进 chinese
+        let v = name_obj_en_zhcn(&i18n_map(&[]), "k", "k");
+        assert!(v.get("chinese").is_none(), "兜底值不应冒充中文：{v}");
+        assert_eq!(v["english"], "k");
+    }
+
+    /// 真有中文时两种语言各自保留，中文不是英文副本。
+    #[test]
+    fn text_obj_keeps_real_chinese() {
+        let v = name_obj_en_zhcn(
+            &i18n_map(&[("chinese", "长剑"), ("english", "Sword")]),
+            "k",
+            "k",
+        );
+        assert_eq!(v["chinese"], "长剑");
+        assert_eq!(v["english"], "Sword");
+        assert_eq!(v["auto"], "长剑");
+    }
+
+    /// 内嵌**裸字符串**语言未知（中文 mod 也常直接写中文）→ 只进 english 展示兜底；
+    /// 只有显式多语言对象的 `chinese` 才算真中文。
+    #[test]
+    fn inline_plain_string_is_not_chinese() {
+        let i18n = HashMap::new();
+        let v = name_obj_with_inline(&i18n, "k", Some(&json!("冰狼")), "k");
+        assert!(v.get("chinese").is_none(), "裸串不应冒充中文：{v}");
+        assert_eq!(v["english"], "冰狼");
+        let v = name_obj_with_inline(&i18n, "k", Some(&json!({ "chinese": "冰狼" })), "k");
+        assert_eq!(v["chinese"], "冰狼");
+    }
+
+    /// `lang_map_to_obj` 同口径：没有 chinese 条目就不写 chinese 键。
+    #[test]
+    fn lang_map_does_not_fake_chinese() {
+        let v = lang_map_to_obj(HashMap::from([("english".to_string(), "Sword".to_string())]));
+        assert!(v.get("chinese").is_none(), "不应伪造中文：{v}");
+        assert_eq!(v["english"], "Sword");
+        assert_eq!(v["auto"], "Sword");
+    }
 }

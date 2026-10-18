@@ -1,0 +1,63 @@
+{
+  "chronicles": {
+    "name": "Heroes Chronicles",
+    "description": "Heroes Chronicles",
+    "author": "New World Computing, 3DO",
+    "version": "1.0",
+    "contact": "vcmi.eu",
+    "chapterName": "%1 - %2",
+    "chapterDescription": "Heroes Chronicles %1 - %2",
+    "languages": {
+      "chinese": {
+        "name": "英雄无敌历代记"
+      },
+      "tchinese": {
+        "name": "英雄無敵歷代記"
+      },
+      "dutch": {
+        "name": "Heldenkronieken"
+      },
+      "filipino": {
+        "name": "Mga Kronika ng mga Bayani"
+      },
+      "french": {
+        "name": "Chroniques des héros"
+      },
+      "japanese": {
+        "name": "ヒーローズクロニクル"
+      },
+      "latvian": {
+        "name": "Varoņu hronikas"
+      },
+      "polish": {
+        "name": "Heroes Kroniki"
+      },
+      "portuguese": {
+        "name": "Crónicas dos Heróis"
+      },
+      "russian": {
+        "name": "Хроники Героев"
+      },
+      "serbian": {
+        "name": "Хронике хероја"
+      },
+      "swedish": {
+        "name": "Hjältarnas Krönikor"
+      },
+      "ukrainian": {
+        "name": "Хроніки Героїв"
+      }
+    }
+  },
+  "hd-edition": {
+    "name": "Heroes III HD Edition",
+    "description": "Extracted resources from official Heroes HD to make it usable on VCMI",
+    "author": "Ubisoft",
+    "version": "1.0",
+    "contact": "vcmi.eu",
+    "scaleName": "HD (x%1)",
+    "scaleDescription": "Resources (x%1)",
+    "locName": "HD Localisation (%1) (x%2)",
+    "locDescription": "Translated Resources (x%1)"
+  }
+}
