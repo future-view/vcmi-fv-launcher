@@ -1,6 +1,0 @@
-{
-  "air": { "index": 0, "name": "Air" },
-  "fire": { "index": 1, "name": "Fire" },
-  "earth": { "index": 2, "name": "Earth" },
-  "water": { "index": 3, "name": "Water" }
-}

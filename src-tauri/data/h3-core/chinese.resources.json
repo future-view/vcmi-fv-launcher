@@ -1,10 +1,23 @@
 {
-  "wood": { "index": 0, "name": "木材" },
-  "mercury": { "index": 1, "name": "水银" },
-  "ore": { "index": 2, "name": "矿石" },
-  "sulfur": { "index": 3, "name": "硫磺" },
-  "crystal": { "index": 4, "name": "水晶" },
-  "gems": { "index": 5, "name": "宝石" },
-  "gold": { "index": 6, "name": "黄金" },
-  "mitril": { "index": 7, "name": "秘银" }
+  "wood": {
+    "name": "木材"
+  },
+  "mercury": {
+    "name": "水银"
+  },
+  "ore": {
+    "name": "矿石"
+  },
+  "sulfur": {
+    "name": "硫磺"
+  },
+  "crystal": {
+    "name": "水晶"
+  },
+  "gems": {
+    "name": "宝石"
+  },
+  "gold": {
+    "name": "黄金"
+  }
 }

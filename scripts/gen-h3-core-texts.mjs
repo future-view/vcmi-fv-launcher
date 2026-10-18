@@ -1,6 +1,10 @@
 /**
  * 从任意 H3 游戏目录（各语言版本）提取原版文案，输出 JSON 到 src-tauri/data/h3-core/。
  *
+ * ⚠️ 本目录只放**能从 LOD 重放**的数据。不能重放的文本（城镇描述、法术派系译名、
+ * 中立阵营标签、HotA 扩展资源名）放在 `src-tauri/resources/h3-core-texts.json`，
+ * 由 Rust 加载期合并，不要写进这里。
+ *
  * 解析规则复刻 VCMI `lib/texts/CLegacyConfigParser.cpp` 与各 handler 的 `loadLegacyData()`：
  *   - 字段以 \t 分隔，行尾 \r\n（\r 终止字符串、\n 终止行）
  *   - " 包裹的字段可含 \t 与换行，"" 表示一个字面引号
@@ -8,17 +12,19 @@
  *   - 数字支持逗号小数点
  *
  * 用法：
- *   node scripts/gen-h3-core-texts.mjs --game C:/Games/Heroes3-EN [--lang en] [--encoding cp1252]
+ *   node scripts/gen-h3-core-texts.mjs --game C:/Games/Heroes3-EN --lang english --encoding cp1252
  *   node scripts/gen-h3-core-texts.mjs --game C:/Games/Heroes3-VCMI \
  *        --config C:/Games/Heroes3-VCMI/config --lang chinese --encoding gbk
  *
  * 参数：
  *   --game      H3 游戏目录（需含 Data/H3bitmap.lod），必需
  *   --config    VCMI config 目录（提供实体 id→index 映射）。缺省用 references/vcmi/config（标准 SOD）
- *   --lang      输出语言键（en / chinese / ...）。缺省按 --encoding 与目录名推断
+ *   --lang      输出语言键，必须是 VCMI 语言标识（english / chinese / ...）。缺省按 --encoding 与目录名推断
  *   --encoding  TXT 编码（gbk / cp1252 / utf8 / ...）。缺省自动探测
  *   --out       输出目录，默认 src-tauri/data/h3-core
  *   --only      只重生成指定类目（逗号分隔，如 arraytxt），不碰其它文件与 meta
+ *   --all-texts 纯导出模式：把 LOD 里**全部** *.TXT 原样导出（不写 data/h3-core）
+ *   --all-texts-out  导出目录，默认 references/h3-core-all/<lang>/
  */
 import fs from "fs";
 import path from "path";
@@ -70,9 +76,11 @@ const ONLY = args.only
         .filter(Boolean),
     )
   : null;
-// 人工撰写的原版城镇描述（来自百科，中英双语），由 h3-core 注入到 `faction.core.<id>.description`。
-// 独立于生成产物（`data/h3-core/<lang>.factions.json`）保存，保证重跑脚本不会覆盖。
-const DESC_PATH = path.resolve(REPO, "src-tauri", "data", "h3-core-src", "factionDescriptions.json");
+/** 纯导出模式：把 LOD 里全部 *.TXT 导出到 `--all-texts-out`，不写 data/h3-core。 */
+const ALL_TEXTS = args["all-texts"] === "true";
+const ALL_TEXTS_OUT = path.resolve(
+  args["all-texts-out"] || path.join(REPO, "references", "h3-core-all"),
+);
 const ENCODING = args.encoding || "auto";
 
 /* ------------------------------ LOD 读取 ------------------------------ */
@@ -125,8 +133,8 @@ class LodArchive {
   }
 }
 
-/** 按候选文件名在游戏的 lod 中查找（H3bitmap.lod 优先，回退 H3ab_bmp.lod） */
-function makeLodResolver(gameDir) {
+/** 打开游戏的 lod 档案（H3bitmap.lod 优先，回退 H3ab_bmp.lod）。 */
+function makeLodArchives(gameDir) {
   const archives = [];
   for (const name of ["H3bitmap.lod", "H3ab_bmp.lod"]) {
     const p = path.join(gameDir, "Data", name);
@@ -138,6 +146,12 @@ function makeLodResolver(gameDir) {
       }
     }
   }
+  return archives;
+}
+
+/** 按候选文件名在游戏的 lod 中查找（H3bitmap.lod 优先，回退 H3ab_bmp.lod） */
+function makeLodResolver(gameDir) {
+  const archives = makeLodArchives(gameDir);
   return (fileName) => {
     for (const arch of archives) {
       const buf = arch.read(fileName);
@@ -439,7 +453,7 @@ function extractCreatures(resolve, encoding, indexMap) {
 }
 
 /** 城镇：TOWNTYPE.TXT（名称）+ TOWNNAME.TXT（随机名） */
-function extractFactions(resolve, encoding, lang) {
+function extractFactions(resolve, encoding) {
   const raw = resolve("TOWNTYPE.TXT");
   if (!raw) return null;
   const ORDER = FACTION_ORDER;
@@ -476,22 +490,9 @@ function extractFactions(resolve, encoding, lang) {
     }
   }
 
-  // 人工撰写的原版城镇描述（来自百科，中英双语），注入为 `description`。
-  // 与 `resources`/`spellSchools` 的官方译名同理，走独立的 `factionDescriptions.json`，
-  // 由脚本按当前语言挑选 `en`/`zh` 写入，避免直接改生成产物被覆盖。
-  let descMap = {};
-  try {
-    descMap = JSON.parse(fs.readFileSync(DESC_PATH, "utf8"));
-  } catch {
-    console.warn(`  ! 未找到城镇描述表 ${DESC_PATH}，跳过 description`);
-  }
-  for (const id of Object.keys(out)) {
-    const d = descMap[id];
-    if (d && typeof d === "object") {
-      const text = d[lang] || d.en || "";
-      if (text) out[id].description = text;
-    }
-  }
+  // 城镇描述不在 LOD 里（TOWNTYPE.TXT 只有名字），属于人工补充文案：
+  // 由 `src-tauri/resources/h3-core-texts.json` 的 `factionDescriptions` 提供，
+  // 加载期合并到 `faction.core.<id>.description`，不再烘进生成产物。
   return out;
 }
 
@@ -720,40 +721,23 @@ function extractSkills(resolve, encoding, indexMap) {
   return out;
 }
 
-/** 资源名（H3 官方译名）：
- *  VCMI `config/resources.json` **不含 name 字段**（仅 index/price），翻译池也没有
- *  `resource.core.*.name`（实测 0 条），故中文/英文名按 H3 官方固定译名烘入 h3-core。 */
-const RESOURCE_NAMES = {
-  wood: { zh: "木材", en: "Wood" },
-  mercury: { zh: "水银", en: "Mercury" },
-  ore: { zh: "矿石", en: "Ore" },
-  sulfur: { zh: "硫磺", en: "Sulfur" },
-  crystal: { zh: "水晶", en: "Crystal" },
-  gems: { zh: "宝石", en: "Gems" },
-  gold: { zh: "黄金", en: "Gold" },
-  mitril: { zh: "秘银", en: "Mitril" },
-};
-
-/** 法术派系名（H3 官方译名）：
- *  `config/spellSchools.json` 的 name 只有英文原文，翻译池无 `spellSchool.core.*.name`（实测 0 条）。 */
-const SPELL_SCHOOL_NAMES = {
-  air: { zh: "气系", en: "Air" },
-  fire: { zh: "火系", en: "Fire" },
-  earth: { zh: "土系", en: "Earth" },
-  water: { zh: "水系", en: "Water" },
-};
-
-/** 由「官方译名表 + config 的 index 映射」生成 `{<id>: {index, name}}` */
-function namesFromTable(indexMap, table, lang, label) {
+/** 资源名：`RESTYPES.TXT`（行号 0-based = `config/resources.json` 的 index）。
+ *
+ *  H3 原版 7 种资源（Wood/Mercury/Ore/Sulfur/Crystal/Gems/Gold）就在这张表里；
+ *  增强版/HotA 的第 8 行（`Abandoned` / `秘银`）只有在 config 也声明了该资源时才会映射。
+ *  行内容为空或超出 index 范围时跳过——LOD 之外的扩展资源名由
+ *  `resources/h3-core-texts.json` 的 `resourceNames` 兜底（目前只有 `mitril`）。 */
+function extractResources(resolve, encoding, indexMap) {
+  const raw = resolve("RESTYPES.TXT");
+  if (!raw) return null;
+  const lines = decodeBuffer(raw, encoding).text.split(/\r?\n/);
   const out = {};
-  const isZh = lang === "chinese" || lang === "tchinese";
   for (const [index, id] of indexMap.entries()) {
-    const t = table[id];
-    const name = t ? (isZh ? t.zh : t.en) : id;
-    out[id] = { index, name };
+    const name = (lines[index] ?? "").trim();
+    if (name) out[id] = { name };
   }
   if (!Object.keys(out).length) {
-    console.warn(`  ! ${label}: 无 index 映射（跳过）`);
+    console.warn("  ! resources: RESTYPES.TXT 无可用行（跳过）");
     return null;
   }
   return out;
@@ -998,6 +982,78 @@ function inferLang(encoding, gameDir, resolvedEncoding) {
   return "english";
 }
 
+/**
+ * 全量文本导出（`--all-texts`）：把 LOD 里所有 `*.TXT` 按行导出为 JSON。
+ *
+ * 目的不是给启动器消费，而是留一份**可检索的参考语料**：
+ * 之后要判断"某个文本能不能提取"时，直接在 `references/h3-core-all/<lang>/` 里查，
+ * 不必再写一次性 LOD 解包脚本。
+ *
+ * 结构：
+ *   references/h3-core-all/<lang>/manifest.json   索引（条目、行数、编码）
+ *   references/h3-core-all/<lang>/<name>.json     { entry, encoding, lineCount, lines }
+ *
+ * 行内保留原始 `\t` 分隔（JSON 转义），只把 `\r\n`/`\n` 统一成逐行数组。
+ */
+function dumpAllTexts(gameDir, encoding, lang, outDir) {
+  const archives = makeLodArchives(gameDir);
+  if (!archives.length) {
+    console.error(`未在 ${path.join(gameDir, "Data")} 找到 H3bitmap.lod / H3ab_bmp.lod`);
+    process.exit(1);
+  }
+  const dir = path.join(outDir, lang);
+  fs.mkdirSync(dir, { recursive: true });
+
+  const manifest = {
+    lang,
+    encoding,
+    gameDir: path.basename(path.resolve(gameDir)),
+    generatedAt: new Date().toISOString(),
+    source: "所有 LOD *.TXT（全量参考语料，不被启动器消费）",
+    count: 0,
+    entries: [],
+  };
+  const seen = new Set();
+  for (const arch of archives) {
+    const names = [...arch.entries.keys()]
+      .filter((n) => n.endsWith(".TXT"))
+      .sort();
+    for (const name of names) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const raw = arch.read(name);
+      if (!raw) continue;
+      const decoded = decodeBuffer(raw, encoding);
+      const lines = decoded.text.split(/\r?\n/);
+      // 只去掉末尾换行造成的空行；表内空行/空字段保留
+      if (lines.length && lines[lines.length - 1] === "") lines.pop();
+      const file = `${name.toLowerCase().replace(/\.txt$/, "")}.json`;
+      fs.writeFileSync(
+        path.join(dir, file),
+        JSON.stringify(
+          { entry: name, encoding: decoded.encoding, lineCount: lines.length, lines },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+      manifest.entries.push({
+        entry: name,
+        file,
+        encoding: decoded.encoding,
+        lines: lines.length,
+      });
+    }
+  }
+  manifest.count = manifest.entries.length;
+  fs.writeFileSync(
+    path.join(dir, "manifest.json"),
+    JSON.stringify(manifest, null, 2),
+    "utf8",
+  );
+  console.log(`  + ${path.relative(REPO, dir)} (${manifest.count} 个 TXT)`);
+}
+
 function main() {
   if (!fs.existsSync(GAME_DIR)) {
     console.error(`游戏目录不存在: ${GAME_DIR}`);
@@ -1011,10 +1067,19 @@ function main() {
 
   // 先探测一次编码（用 CRTRAITS）
   const probe = decodeBuffer(resolve("CRTRAITS.TXT"), ENCODING);
-  const lang = inferLang(ENCODING, GAME_DIR, probe.encoding);
+  const lang = args.lang || inferLang(ENCODING, GAME_DIR, probe.encoding);
+  if (!/^[a-z]{3,}$/.test(lang)) {
+    console.error(`非法语言标识 \`${lang}\`：必须是 VCMI 语言全名（english / chinese / ...）`);
+    process.exit(1);
+  }
   console.log(`游戏目录: ${GAME_DIR}`);
   console.log(`config  : ${CONFIG_DIR}`);
   console.log(`编码    : ${probe.encoding}  语言: ${lang}`);
+
+  if (ALL_TEXTS) {
+    dumpAllTexts(GAME_DIR, probe.encoding, lang, ALL_TEXTS_OUT);
+    return;
+  }
 
   const indexMaps = {
     creatures: collectIndexMap(CONFIG_DIR, "creatures"),
@@ -1024,14 +1089,13 @@ function main() {
     terrains: collectIndexMapSingle(CONFIG_DIR, "terrains.json"),
     spells: collectIndexMap(CONFIG_DIR, "spells"),
     resources: collectIndexMapSingle(CONFIG_DIR, "resources.json"),
-    spellSchools: collectIndexMapSingle(CONFIG_DIR, "spellSchools.json"),
   };
 
   const encoding = probe.encoding;
   const creatureNameToId = buildCreatureNameToId(indexMaps.creatures);
   const datasets = {
     creatures: extractCreatures(resolve, encoding, indexMaps.creatures),
-    factions: extractFactions(resolve, encoding, lang),
+    factions: extractFactions(resolve, encoding),
     heroes: extractHeroes(resolve, encoding, indexMaps.heroes, creatureNameToId),
     heroClasses: extractHeroClasses(resolve, encoding),
     artifacts: extractArtifacts(resolve, encoding, indexMaps.artifacts),
@@ -1040,9 +1104,9 @@ function main() {
     terrains: extractTerrains(resolve, encoding, indexMaps.terrains),
     buildings: extractBuildings(resolve, encoding),
     buildingCosts: extractBuildingCosts(resolve, encoding),
-    // 资源名 / 法术派系名：LOD 与翻译池均无中文源，由官方译名表 + config index 生成
-    resources: namesFromTable(indexMaps.resources, RESOURCE_NAMES, lang, "resources"),
-    spellSchools: namesFromTable(indexMaps.spellSchools, SPELL_SCHOOL_NAMES, lang, "spellSchools"),
+    // 资源名：RESTYPES.TXT（LOD）+ config index 映射；法术派系名不在 LOD，
+    // 由 `resources/h3-core-texts.json` 的 `spellSchoolNames` 提供
+    resources: extractResources(resolve, encoding, indexMaps.resources),
     // 数组文案（四维主属性等的右键说明，见 `extractArrayTexts`）
     arraytxt: extractArrayTexts(resolve, encoding),
   };

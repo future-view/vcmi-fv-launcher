@@ -1,10 +1,23 @@
 {
-  "wood": { "index": 0, "name": "Wood" },
-  "mercury": { "index": 1, "name": "Mercury" },
-  "ore": { "index": 2, "name": "Ore" },
-  "sulfur": { "index": 3, "name": "Sulfur" },
-  "crystal": { "index": 4, "name": "Crystal" },
-  "gems": { "index": 5, "name": "Gems" },
-  "gold": { "index": 6, "name": "Gold" },
-  "mitril": { "index": 7, "name": "Mitril" }
+  "wood": {
+    "name": "Wood"
+  },
+  "mercury": {
+    "name": "Mercury"
+  },
+  "ore": {
+    "name": "Ore"
+  },
+  "sulfur": {
+    "name": "Sulfur"
+  },
+  "crystal": {
+    "name": "Crystal"
+  },
+  "gems": {
+    "name": "Gems"
+  },
+  "gold": {
+    "name": "Gold"
+  }
 }

@@ -18,8 +18,7 @@
       "Gateway",
       "Dunwall",
       "Kildare"
-    ],
-    "description": "The Castle is the bastion of the human Kingdom of Erathia, a just and orderly realm of Knights and Clerics. Its pikemen, griffins, and angels form a balanced army, and its Champions can resurrect the fallen on the battlefield."
+    ]
   },
   "rampart": {
     "name": "Rampart",
@@ -40,8 +39,7 @@
       "Green Falls",
       "Emerald Moor",
       "Wild Willow"
-    ],
-    "description": "Rampart is the enchanted woodland of the elven nation AvLee, a good-aligned town of Rangers and Druids. Centaurs, dendroids, and green dragons guard its mist-shrouded groves."
+    ]
   },
   "tower": {
     "name": "Tower",
@@ -62,8 +60,7 @@
       "Ayer",
       "Silverspire",
       "Manufactury"
-    ],
-    "description": "Tower is the astral city of Bracada, home to Wizards and Alchemists—neutral, but leaning toward good. Gremlins, golems, and titans bend the elemental spheres to their will."
+    ]
   },
   "inferno": {
     "name": "Inferno",
@@ -84,8 +81,7 @@
       "Styx",
       "Tartaros",
       "Blackburn"
-    ],
-    "description": "Inferno is the burning realm of Eeofol's demons, an evil domain of Demoniacs and Heretics. Imps, gogs, and devils pour from the underworld to ravage the surface world."
+    ]
   },
   "necropolis": {
     "name": "Necropolis",
@@ -106,8 +102,7 @@
       "Blight",
       "Shadow Keep",
       "Worm Warren"
-    ],
-    "description": "Necropolis is the cursed land of Deya, an evil-aligned town of Death Knights and Necromancers. Skeletons, vampires, and liches raise the dead to swell their endless legions."
+    ]
   },
   "dungeon": {
     "name": "Dungeon",
@@ -128,8 +123,7 @@
       "Darkburrow",
       "Lost Hold",
       "Coldshadow"
-    ],
-    "description": "Dungeon is the subterranean domain of the dark elves, an evil-aligned town of Overlords and Warlocks. Troglodytes, minotaurs, and black dragons lurk in its shadowed caverns."
+    ]
   },
   "stronghold": {
     "name": "Stronghold",
@@ -150,8 +144,7 @@
       "Strongglen",
       "Kruber",
       "Rovener"
-    ],
-    "description": "Stronghold is the rugged fortress of the barbarian tribes of Krewlod, a neutral town of Barbarians and Beastmasters. Goblins, wolf riders, and behemoths answer the call of the war drum."
+    ]
   },
   "fortress": {
     "name": "Fortress",
@@ -172,8 +165,7 @@
       "Marshwall",
       "Mossden",
       "Mudshire"
-    ],
-    "description": "Fortress is the steaming swamp home of the lizard folk of Tatalia, a neutral town of Beastmasters and Witches. Gnolls, lizard warriors, and hydras thrive amid its murky marshes."
+    ]
   },
   "conflux": {
     "name": "Conflux",
@@ -194,7 +186,6 @@
       "Ceald",
       "Igne",
       "Froisan"
-    ],
-    "description": "Conflux is the elemental sanctuary introduced in Armageddon's Blade, a neutral town of Planeswalkers and Elementalists. Air, earth, fire, and water elementals heed the call of magic itself."
+    ]
   }
 }

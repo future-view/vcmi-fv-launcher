@@ -1,7 +1,10 @@
 //! h3-core 文案表与原版（core）伪模组识别。
 //!
-//! - 文案表：`data/h3-core/{english,chinese}.<category>.json`（由 `scripts/gen-h3-core-texts.mjs`
-//!   生成并随启动器打包），转换为 VCMI i18n key 格式后供原版名称/描述解析。
+//! - **LOD 文案**：`data/h3-core/<lang>.<category>.json`（由 `scripts/gen-h3-core-texts.mjs`
+//!   从游戏 LOD 提取并随启动器打包）。本目录的约定是：**只放能从 LOD 重放的数据**。
+//! - **人工补充文案**：`resources/h3-core-texts.json`（编译期内嵌），只放 LOD / VCMI 翻译池
+//!   都没有的原版文本（城镇描述、中立阵营标签、法术派系译名、扩展资源名）。
+//!   两者合并后转换为 VCMI i18n key，供原版名称/描述解析。
 //! - `parse_core_mod`：按 modId 约定识别 `core`（父，全局数据）与 `core.<faction>`（子，城镇数据）。
 //!
 //! 依赖方向：只依赖 `infra`（见 `docs/architecture/backend.zh-CN.md` §4.1）。
@@ -77,9 +80,10 @@ pub(crate) fn h3_core_data_dir() -> Option<PathBuf> {
 /// h3-core 数据内容的**指纹**（用于缓存失效，仿 `schema_content_hash`）。
 ///
 /// 与 `resource::h3_data_key`（只表示原版 LOD 在不在）不同，本指纹覆盖
-/// `data/h3-core/*.json` 的**内容**（文件名 + 大小 + mtime 的哈希）。
-/// 改 h3-core 文案（如给原版城镇补 `description`）后**无需手动 bump
-/// `WIKI_CACHE_VERSION`** 即可触发静默重建——否则这类改动会"改了不生效"。
+/// `data/h3-core/*.json` 的**内容**（文件名 + 大小 + mtime）以及
+/// `resources/h3-core-texts.json` 的编译期内容。
+/// 改文案（LOD 产物或人工补充表）后**无需手动 bump `WIKI_CACHE_VERSION`**
+/// 即可触发静默重建——否则这类改动会"改了不生效"。
 pub(crate) fn h3_core_data_hash() -> String {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
@@ -98,6 +102,8 @@ pub(crate) fn h3_core_data_hash() -> String {
     }
     files.sort();
     let mut hasher = DefaultHasher::new();
+    // 人工补充表是编译期内嵌的，不在目录里，必须单独混入
+    CORE_TEXTS_JSON.hash(&mut hasher);
     for f in files {
         if let Ok(meta) = std::fs::metadata(&f) {
             f.file_name().hash(&mut hasher);
@@ -111,6 +117,23 @@ pub(crate) fn h3_core_data_hash() -> String {
     format!("{:016x}", hasher.finish())
 }
 
+/// 人工补充文案（编译期内嵌）：只放**不能从 LOD 重放**的原版文本。
+///
+/// 结构（每个 section 独立决定语言覆盖，键用 VCMI 语言标识）：
+/// - `factionDescriptions` → `faction.core.<id>.description`
+/// - `factionLabels` → `faction.core.<id>.name`（如 `neutral`）
+/// - `resourceNames` → `resource.core.<id>.name`（仅 LOD 之外的扩展资源，如 HotA `mitril`）
+/// - `spellSchoolNames` → `spellSchool.core.<id>.name`
+const CORE_TEXTS_JSON: &str = include_str!("../../resources/h3-core-texts.json");
+
+/// 解析后的补充文案表（进程内只解析一次）。
+pub(crate) fn core_texts() -> &'static Value {
+    static TEXTS: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
+    TEXTS.get_or_init(|| {
+        serde_json::from_str(CORE_TEXTS_JSON).expect("resources/h3-core-texts.json 解析失败")
+    })
+}
+
 pub(crate) fn str_field(v: &Value, key: &str) -> String {
     v.get(key)
         .and_then(|x| x.as_str())
@@ -118,8 +141,9 @@ pub(crate) fn str_field(v: &Value, key: &str) -> String {
         .to_string()
 }
 
-/// 读取 h3-core 文案表（english.*.json + chinese.*.json），转换为 VCMI i18n key 格式，
-/// 以便 build_mod_wiki_inner 在提取原版（mod_id="core"）时通过 core_i18n 命中名称。
+/// 读取 h3-core 文案表（`<lang>.<category>.json`，语言按目录内容发现），转换为
+/// VCMI i18n key 格式，以便 build_mod_wiki_inner 在提取原版（mod_id="core"）时命中名称；
+/// 随后合并 `resources/h3-core-texts.json` 的人工补充文案（只补缺失语言）。
 /// key 前缀与 build_mod_wiki_inner 内部 build_name_object 调用的格式一致。
 pub(crate) fn load_h3_core_i18n(dir: &Path) -> Option<I18nMap> {
     let read = |lang: &str, cat: &str| -> Value {
@@ -129,7 +153,9 @@ pub(crate) fn load_h3_core_i18n(dir: &Path) -> Option<I18nMap> {
             .and_then(|t| serde_json::from_str(&t).ok())
             .unwrap_or(Value::Null)
     };
-    let langs = ["english", "chinese"];
+    // 语言集合**由目录内容决定**（`<lang>.<category>.json`），不在代码里列举：
+    // 生成器多跑一种语言 = 自动多加载一种，无需改 Rust。
+    let langs = discover_langs(dir);
     let cats = [
         "creatures",
         "factions",
@@ -140,17 +166,15 @@ pub(crate) fn load_h3_core_i18n(dir: &Path) -> Option<I18nMap> {
         "skills",
         "terrains",
         "buildings",
-        // 资源名 / 法术派系名：VCMI 翻译池里没有对应键（实测 0 条），且 `config/resources.json`
-        // 不含 name 字段，故由 H3 官方译名烘入 h3-core（见 scripts/gen-h3-core-texts.mjs）
+        // 资源名：LOD 的 RESTYPES.TXT（行号 = config/resources.json 的 index）
         "resources",
-        "spellSchools",
         // 数组文案（ARRAYTXT.TXT）：四维主属性的右键说明等，VCMI 翻译池里同样没有
         "arraytxt",
     ];
     let empty = Value::Object(serde_json::Map::new());
     let mut out: I18nMap = std::collections::HashMap::new();
     for cat in cats {
-        for lang in langs {
+        for lang in &langs {
             let data = read(lang, cat);
             let map = match &data {
                 Value::Object(m) => m,
@@ -168,15 +192,11 @@ pub(crate) fn load_h3_core_i18n(dir: &Path) -> Option<I18nMap> {
                             str_field(val, "abilityText"),
                         ),
                     ],
-                    "factions" => vec![
-                        (format!("faction.core.{}.name", id), str_field(val, "name")),
-                        // 原版城镇描述：VCMI 自身 faction 定义无此字段，由 `gen-h3-core-texts.mjs`
-                        // 从 `data/h3-core-src/factionDescriptions.json`（百科，中英双语）烘入。
-                        (
-                            format!("faction.core.{}.description", id),
-                            str_field(val, "description"),
-                        ),
-                    ],
+                    // 原版城镇描述不在 LOD 里（TOWNTYPE.TXT 只有名字），
+                    // 由 `resources/h3-core-texts.json` 的 `factionDescriptions` 合并进来。
+                    "factions" => {
+                        vec![(format!("faction.core.{}.name", id), str_field(val, "name"))]
+                    }
                     "heroes" => {
                         let spec = val.get("specialty").unwrap_or(&empty);
                         vec![
@@ -213,11 +233,6 @@ pub(crate) fn load_h3_core_i18n(dir: &Path) -> Option<I18nMap> {
                     "resources" => {
                         vec![(format!("resource.core.{}.name", id), str_field(val, "name"))]
                     }
-                    // 法术派系名（气系/火系/…）：`spellSchool.core.<id>.name`
-                    "spellSchools" => vec![(
-                        format!("spellSchool.core.{}.name", id),
-                        str_field(val, "name"),
-                    )],
                     "artifacts" => vec![
                         (format!("artifact.core.{}.name", id), str_field(val, "name")),
                         (
@@ -324,18 +339,74 @@ pub(crate) fn load_h3_core_i18n(dir: &Path) -> Option<I18nMap> {
             }
         }
     }
-    if out.is_empty() {
-        return None;
-    }
     // **键统一小写**：VCMI 的翻译查找大小写不敏感（内部按小写存储/查询），
     // 而键里实体 id 的原始大小写与 mod 配置/查询键常有出入
     // （h3-core 的 `sn01BPoisonLeaf` vs 配置 id、`vampiresCowl` 等）。
     // 查询端 `wiki::i18n::lookup` 同样按小写回退——两端一致才能命中。
-    Some(
-        out.into_iter()
-            .map(|(k, v)| (k.to_lowercase(), v))
-            .collect(),
-    )
+    let mut out: I18nMap = out
+        .into_iter()
+        .map(|(k, v)| (k.to_lowercase(), v))
+        .collect();
+    merge_core_texts(&mut out);
+    if out.is_empty() {
+        return None;
+    }
+    Some(out)
+}
+
+/// 目录里的 `<lang>.<category>.json` 文件名 → 语言集合（排除 `meta.*`）。
+fn discover_langs(dir: &Path) -> Vec<String> {
+    let mut set = std::collections::BTreeSet::new();
+    if let Ok(rd) = fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            let Some((lang, _)) = name.split_once('.') else {
+                continue;
+            };
+            if lang == "meta" || !name.ends_with(".json") {
+                continue;
+            }
+            set.insert(lang.to_string());
+        }
+    }
+    set.into_iter().collect()
+}
+
+/// 把 `resources/h3-core-texts.json` 的补充文案合并进 i18n 表。
+///
+/// **只补缺失语言**（mod 翻译 / 未来上游译文优先），缺失的语言键不写副本。
+fn merge_core_texts(out: &mut I18nMap) {
+    let Some(root) = core_texts().as_object() else {
+        return;
+    };
+    for (section, prefix, suffix) in [
+        ("factionDescriptions", "faction.core.", ".description"),
+        ("factionLabels", "faction.core.", ".name"),
+        ("resourceNames", "resource.core.", ".name"),
+        ("spellSchoolNames", "spellSchool.core.", ".name"),
+    ] {
+        let Some(Value::Object(items)) = root.get(section) else {
+            continue;
+        };
+        for (id, langs) in items {
+            let Value::Object(langs) = langs else {
+                continue;
+            };
+            let entry = out
+                .entry(format!("{prefix}{id}{suffix}").to_lowercase())
+                .or_default();
+            for (lang, text) in langs {
+                let Some(t) = text
+                    .as_str()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                else {
+                    continue;
+                };
+                entry.entry(lang.clone()).or_insert_with(|| t.to_string());
+            }
+        }
+    }
 }
 
 /// 原版英雄**初始部队**表（`<lang>.heroes.json` 的 `army` 字段）。
@@ -642,72 +713,138 @@ pub(crate) fn cached_core_i18n(core_mod: &Path) -> std::sync::Arc<I18nMap> {
 mod tests {
     use super::*;
 
-    /// 手写源数据 `data/h3-core-src/factionDescriptions.json` 的守门测试。
-    ///
-    /// 该文件由 `scripts/gen-h3-core-texts.mjs` 按 id 合并进生成产物；
-    /// 脚本对**未知 id 静默忽略**、缺语言**静默退 `english`** —— 写错了不会有任何提示，
-    /// 只会在百科里"少一段描述"。这里把口子堵住：id 必须是原版 9 城镇之一，
-    /// `english` / `chinese` 都必须非空且不同（确认真的翻译过，而不是复制英文）。
-    ///
-    /// 语言键必须是 VCMI 语言标识（`english`/`chinese`，见 `lib/texts/Languages.h`
-    /// 与 `config/schemas/mod.json` 的 enum）；早期用 `en`/`zh` 短码，脚本按 `d[lang]`
-    /// 取不到、中文分支静默落成英文。
-    #[test]
-    fn faction_descriptions_src_covers_core_factions() {
-        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("h3-core-src")
-            .join("factionDescriptions.json");
-        let text = std::fs::read_to_string(&path).expect("缺少城镇描述源数据");
-        let v: Value = serde_json::from_str(&text).expect("factionDescriptions.json 不是合法 JSON");
-        let obj = v.as_object().expect("顶层应为对象（id → {english, chinese}）");
+    /// 启动器 UI 支持的语言（VCMI 语言标识）。补充表只允许这些键，
+    /// 防止 `en`/`zh` 短码混入。
+    const ALLOWED_LABEL_LANGS: &[&str] = &[
+        "english", "chinese", "tchinese", "japanese", "german", "polish",
+    ];
 
-        for (id, entry) in obj {
+    fn assert_lang_entries(section: &str, id: &str, entry: &Value) {
+        let langs = entry
+            .as_object()
+            .unwrap_or_else(|| panic!("`{section}.{id}` 应为语言对象"));
+        assert!(!langs.is_empty(), "`{section}.{id}` 没有任何语言");
+        for (lang, text) in langs {
             assert!(
-                CORE_FACTIONS.contains(&id.as_str()),
-                "未知阵营 id `{id}`（脚本会静默忽略，等于白写）"
+                ALLOWED_LABEL_LANGS.contains(&lang.as_str()),
+                "`{section}.{id}` 非法语言键 `{lang}`（应取 VCMI 语言标识）"
             );
-            let en = entry["english"].as_str().unwrap_or("").trim();
-            let zh = entry["chinese"].as_str().unwrap_or("").trim();
-            assert!(!en.is_empty(), "`{id}` 缺少 english 描述");
-            assert!(!zh.is_empty(), "`{id}` 缺少 chinese 描述");
-            assert_ne!(en, zh, "`{id}` 的 chinese 与 english 完全相同，疑似漏翻");
+            assert!(
+                text.as_str().map(|s| !s.trim().is_empty()).unwrap_or(false),
+                "`{section}.{id}.{lang}` 为空"
+            );
         }
-        assert_eq!(
-            obj.len(),
-            CORE_FACTIONS.len(),
-            "9 个原版阵营应全覆盖（当前 {} 条）",
-            obj.len()
-        );
+        // 不允许把英文抄成中文：两者同时存在时必须不同
+        if let (Some(en), Some(zh)) = (
+            langs.get("english").and_then(|v| v.as_str()),
+            langs.get("chinese").and_then(|v| v.as_str()),
+        ) {
+            assert_ne!(en.trim(), zh.trim(), "`{section}.{id}` 的中英文本相同，疑似漏翻");
+        }
     }
 
-    /// 生成产物必须与手写源数据一致。
+    /// 人工补充文案表的守门测试。
     ///
-    /// 堵住两类历史问题：
-    /// ① 源文件用短码 `en`/`zh` 而脚本按 `d[lang]`（`english`/`chinese`）取值 →
-    ///    中文产物静默变成英文；
-    /// ② 改了源数据却没重跑 `scripts/gen-h3-core-texts.mjs` → 产物与源脱节
-    ///    （实测 9 个城镇 en/zh 全部不一致）。
+    /// `resources/h3-core-texts.json` 只放**不能从 LOD 重放**的原版文本：
+    /// 城镇描述、中立阵营标签、LOD 之外的资源名、法术派系译名。
+    /// 键必须是 VCMI 语言标识；缺语言不补副本（前端 `pickName` 回退 english）。
     #[test]
-    fn faction_descriptions_generated_match_src() {
-        let data = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data");
-        let src_text = std::fs::read_to_string(
-            data.join("h3-core-src").join("factionDescriptions.json"),
-        )
-        .expect("缺少城镇描述源数据");
-        let src: Value = serde_json::from_str(&src_text).expect("源数据不是合法 JSON");
+    fn core_texts_are_valid_and_vcmi_keyed() {
+        let root = core_texts().as_object().expect("补充表顶层应为对象");
 
-        for lang in ["english", "chinese"] {
-            let gen_path = data.join("h3-core").join(format!("{lang}.factions.json"));
-            let gen_text = std::fs::read_to_string(&gen_path)
-                .unwrap_or_else(|e| panic!("缺少生成产物 {}: {e}", gen_path.display()));
-            let gen: Value = serde_json::from_str(&gen_text).expect("生成产物不是合法 JSON");
-            for (id, entry) in src.as_object().expect("源数据顶层应为对象") {
-                let want = entry[lang].as_str().unwrap_or("").trim();
-                let got = gen[id]["description"].as_str().unwrap_or("").trim();
-                assert_eq!(
-                    got, want,
-                    "`{lang}.factions.json` 的 `{id}` 描述与源数据不一致（改完源文件需重跑 gen-h3-core-texts.mjs）"
+        let factions = root
+            .get("factionDescriptions")
+            .and_then(|v| v.as_object())
+            .expect("缺少 factionDescriptions");
+        for (id, entry) in factions {
+            assert!(
+                CORE_FACTIONS.contains(&id.as_str()),
+                "未知阵营 id `{id}`"
+            );
+            assert_lang_entries("factionDescriptions", id, entry);
+        }
+        assert_eq!(
+            factions.len(),
+            CORE_FACTIONS.len(),
+            "9 个原版阵营应全覆盖（当前 {} 条）",
+            factions.len()
+        );
+
+        for (section, ids) in [
+            ("factionLabels", vec!["neutral"]),
+            ("spellSchoolNames", vec!["air", "fire", "earth", "water"]),
+        ] {
+            let map = root
+                .get(section)
+                .and_then(|v| v.as_object())
+                .unwrap_or_else(|| panic!("缺少 {section}"));
+            for id in ids {
+                let entry = map
+                    .get(id)
+                    .unwrap_or_else(|| panic!("{section} 缺少 `{id}`"));
+                assert_lang_entries(section, id, entry);
+            }
+        }
+
+        let resources = root
+            .get("resourceNames")
+            .and_then(|v| v.as_object())
+            .expect("缺少 resourceNames");
+        for (id, entry) in resources {
+            assert_lang_entries("resourceNames", id, entry);
+        }
+    }
+
+    /// 补充表必须在加载期合并进 i18n（锁住“数据在但没接线”）。
+    #[test]
+    fn core_texts_merge_into_i18n() {
+        let dir = h3_core_data_dir().expect("开发期应能定位 data/h3-core");
+        let i18n = load_h3_core_i18n(&dir).expect("h3-core i18n 应可加载");
+
+        let desc = i18n
+            .get("faction.core.castle.description")
+            .expect("城镇描述应来自补充表");
+        assert_eq!(desc.get("chinese").map(String::as_str), Some("人类王国埃拉西亚的堡垒，骑士与牧师在此守护正义而法度严明的国度。凭借复活法术与全阵营最高的士气，长枪兵、狮鹫与天使组成了安塔瑞亚最均衡的军队。"));
+        assert!(desc.contains_key("english"));
+
+        let neutral = i18n
+            .get("faction.core.neutral.name")
+            .expect("中立阵营标签应来自补充表");
+        assert_eq!(neutral.get("chinese").map(String::as_str), Some("中立"));
+        assert_eq!(neutral.get("english").map(String::as_str), Some("Neutral"));
+
+        // 加载器会把键统一小写（查询端 `wiki::i18n::lookup` 同样按小写回退）
+        let school = i18n
+            .get("spellschool.core.air.name")
+            .expect("法术派系名应来自补充表");
+        assert_eq!(school.get("chinese").map(String::as_str), Some("气系"));
+
+        // 官方 7 资源来自 LOD 的 RESTYPES.TXT；HotA 的 mitril 来自补充表
+        let wood = i18n
+            .get("resource.core.wood.name")
+            .expect("官方资源名应来自 LOD");
+        assert_eq!(wood.get("chinese").map(String::as_str), Some("木材"));
+        let mitril = i18n
+            .get("resource.core.mitril.name")
+            .expect("扩展资源名应来自补充表");
+        assert_eq!(mitril.get("chinese").map(String::as_str), Some("秘银"));
+    }
+
+    /// `data/h3-core` 的契约：只放 LOD 可重放数据。
+    /// 城镇描述属于人工文案，不得再出现在生成产物里。
+    #[test]
+    fn generated_factions_carry_only_lod_data() {
+        let dir = h3_core_data_dir().expect("开发期应能定位 data/h3-core");
+        for lang in discover_langs(&dir) {
+            let p = dir.join(format!("{lang}.factions.json"));
+            let Ok(text) = std::fs::read_to_string(&p) else {
+                continue;
+            };
+            let v: Value = serde_json::from_str(&text).expect("factions.json 不是合法 JSON");
+            for (id, entry) in v.as_object().expect("factions 顶层应为对象") {
+                assert!(
+                    entry.get("description").is_none(),
+                    "`{lang}.factions.json` 的 `{id}` 不应包含 description（人工文案在 resources/h3-core-texts.json）"
                 );
             }
         }

@@ -145,7 +145,7 @@ fn encode_mod_path_for_cache(
 mod tests {
     use super::*;
 
-    /// 中立阵营名来自 `resources/core-labels.json`（`.rs` 里不写译文）；
+    /// 中立阵营名来自 `resources/h3-core-texts.json`（`.rs` 里不写译文）；
     /// 键必须是 VCMI 语言名，且至少中英都有真译文。
     #[test]
     fn neutral_faction_label_is_external_and_translated() {
@@ -390,7 +390,7 @@ pub(crate) fn probe_mod_cache(
     need_data
 }
 
-/// 中立阵营显示名（多语言）：数据在 `resources/core-labels.json`，代码里不写译文。
+/// 中立阵营显示名（多语言）：数据在 `resources/h3-core-texts.json`，代码里不写译文。
 ///
 /// 键沿用 VCMI 语言名（与 wiki 其它多语言字段同构）；缺译语言由前端 `pickName` 回退
 /// `english`，所以不需要（也不应该）在数据里伪造其它语言的英文副本。
@@ -398,11 +398,11 @@ fn neutral_faction_name() -> Value {
     static LABEL: OnceLock<Value> = OnceLock::new();
     LABEL
         .get_or_init(|| {
-            let raw = include_str!("../../../resources/core-labels.json");
-            let v: Value = serde_json::from_str(raw).expect("resources/core-labels.json 解析失败");
-            v.get("neutralFaction")
+            crate::vcmi::h3core::core_texts()
+                .get("factionLabels")
+                .and_then(|v| v.get("neutral"))
                 .cloned()
-                .expect("core-labels.json 缺少 neutralFaction")
+                .expect("h3-core-texts.json 缺少 factionLabels.neutral")
         })
         .clone()
 }
