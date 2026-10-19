@@ -67,6 +67,7 @@ export const ru: LangDict = {
     skills: "Навыки",
     terrain: "Ландшафт",
     terrains: "Ландшафты",
+    glossary: "Глоссарий",
     terrainDetail: {
       moveCost: "Стоимость передвижения",
       nativeTowns: "Родные города",

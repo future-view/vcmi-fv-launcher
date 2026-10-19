@@ -55,6 +55,7 @@ export const en: LangDict = {
     skills: "Skills",
     terrain: "Terrain",
     terrains: "Terrains",
+    glossary: "Glossary",
     terrainDetail: {
       moveCost: "Movement Cost",
       nativeTowns: "Native Towns",

@@ -510,5 +510,6 @@ export const WIKI_FILTERS: Record<WikiCategory, WikiFilterSpec[]> = {
   skills: [],
   buildings: [factionFilter("factionId"), buildingDwelling],
   terrains: [],
+  glossary: [],
   mods: [modType],
 };

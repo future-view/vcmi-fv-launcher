@@ -13,6 +13,7 @@ import { SpellDetail } from "./SpellDetail";
 import { SkillDetail } from "./SkillDetail";
 import { ModDetail } from "./ModDetail";
 import { TerrainDetail } from "./TerrainDetail";
+import { GlossaryDetail } from "./GlossaryDetail";
 
 export function EntryDetail({
   entry,
@@ -46,6 +47,7 @@ export function EntryDetail({
     entry.category === "creatures" ||
     entry.category === "heroes" ||
     entry.category === "terrains" ||
+    entry.category === "glossary" ||
     entry.category === "buildings" ||
     entry.category === "mods";
 
@@ -126,6 +128,8 @@ function renderDetail(
       return <SkillDetail d={d} lang={lang} t={t} cacheDir={cacheDir} compact={compact} />;
     case "terrains":
       return <TerrainDetail d={d} lang={lang} t={t} cacheDir={cacheDir} compact={compact} />;
+    case "glossary":
+      return <GlossaryDetail d={d} lang={lang} t={t} compact={compact} />;
     case "mods":
       return (
         <ModDetail

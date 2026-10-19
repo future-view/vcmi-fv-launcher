@@ -108,6 +108,8 @@ export interface LangDict {
     skills: string;
     terrain: string;
     terrains: string;
+    /** VCMI 游戏内 Wiki 的 Glossary 分类 */
+    glossary: string;
     terrainDetail: {
       moveCost: string;
       nativeTowns: string;

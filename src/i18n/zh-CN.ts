@@ -53,6 +53,7 @@ export const zhCN: LangDict = {
     skills: "技能",
     terrain: "地形",
     terrains: "地形",
+    glossary: "词汇表",
     terrainDetail: {
       moveCost: "移动消耗",
       nativeTowns: "本土城镇",

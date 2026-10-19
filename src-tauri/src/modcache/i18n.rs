@@ -284,7 +284,7 @@ pub(crate) fn name_obj_en_zhcn(
     key: &str,
     fallback: &str,
 ) -> Value {
-    build_text_obj(i18n_get_multi(i18n, key), None, fallback)
+    build_text_obj(i18n_get_multi(i18n, key), None, fallback, false)
 }
 
 /// 同 [`name_obj_en_zhcn`]，但支持**配置内嵌文本**作为回退来源。
@@ -302,7 +302,14 @@ pub(crate) fn name_obj_with_inline(
     inline: Option<&Value>,
     fallback: &str,
 ) -> Value {
-    build_text_obj(i18n_get_multi(i18n, key), inline, fallback)
+    // 配置把 `name` 写成翻译 key 时，这个字符串**不是可展示文本**：
+    // 若翻译表命中（m 有值）却没有当前语言，绝不能把 key 本身当成英文原文
+    // （实测 Expansion 词汇表只带 chinese.json，英文界面曾显示
+    // `vcmi.wiki.glossary.proverb.name`）。
+    let inline_is_key = inline
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| s == key);
+    build_text_obj(i18n_get_multi(i18n, key), inline, fallback, inline_is_key)
 }
 
 /// 多键候选版：按顺序尝试多个 i18n 键（VCMI 存在前缀/别名写法差异，
@@ -315,7 +322,10 @@ pub(crate) fn name_obj_multi_key(
     fallback: &str,
 ) -> Value {
     let m = keys.iter().find_map(|k| i18n_get_multi(i18n, k));
-    build_text_obj(m, inline, fallback)
+    let inline_is_key = inline
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| keys.iter().any(|k| k.as_str() == s));
+    build_text_obj(m, inline, fallback, inline_is_key)
 }
 
 /// `RAISES_MORALE` → `raisesMorale`：VCMI 的 bonus 文本键用小驼峰
@@ -453,10 +463,14 @@ pub(crate) fn obj_from_lang_map(
 ///
 /// 不把英文（或 `auto`、兜底 id）填进 `chinese`：那会让"哪些语言真的有译文"失真，
 /// 也让后续翻译审计无法区分真译文与兜底。
+/// `inline_is_key` = `inline` 是否就是翻译 key（而非配置里的内嵌文本）。
+/// 为真且 `m` 命中时，绝不能把该字符串当英文/中文原文兜底 —— 否则
+/// "只提供中文翻译的 mod"在英文界面会显示整条 `xxx.yyy.name`。
 fn build_text_obj(
     m: Option<std::collections::HashMap<String, String>>,
     inline: Option<&Value>,
     fallback: &str,
+    inline_is_key: bool,
 ) -> Value {
     let pick = |order: &[&str]| -> Option<String> {
         m.as_ref()
@@ -469,7 +483,8 @@ fn build_text_obj(
         match inline? {
             Value::String(s) => {
                 let t = s.trim();
-                if t.is_empty() || !allow_plain {
+                // 已命中翻译表 + 该串本身就是 key → 它只是查找键，不是可展示文本
+                if t.is_empty() || !allow_plain || (inline_is_key && m.is_some()) {
                     None
                 } else {
                     Some(s.clone())

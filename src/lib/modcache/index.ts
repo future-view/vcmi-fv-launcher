@@ -15,6 +15,7 @@ export type WikiCategory =
   | "spells"
   | "skills"
   | "terrains"
+  | "glossary"
   | "mods";
 
 export interface WikiEntry {
@@ -126,6 +127,28 @@ export function pickName(name: Record<string, string> | undefined, lang: string)
   const l = contentLangKey(lang);
   for (const k of [l, "english"]) {
     const v = name[k];
+    if (v && v.trim().length > 0) return v;
+  }
+  return "";
+}
+
+/**
+ * 词汇表专用取词：当前语言 → 英文 → auto → 中文 → 任意可用语言。
+ *
+ * 其它类目坚持「当前语言 → 英文」（与 VCMI 一致，见 [`pickName`]），但 glossary
+ * 是跨 mod 的概念词条，实测常见形态是**只提供 `chinese.json`**（如 Expansion）。
+ * 严格按 VCMI 口径时英文界面只剩翻译 key / 实体 id，用户看到的是
+ * `vcmi.wiki.glossary.proverb.name`。词条没有实体标识语义，显示任一可用语言
+ * 远好于显示 key；这不是给缺中文的实体伪造语言键。
+ */
+export function pickNameAny(name: Record<string, string> | undefined, lang: string): string {
+  if (!name) return "";
+  const l = contentLangKey(lang);
+  for (const k of [l, "english", "auto", "chinese"]) {
+    const v = name[k];
+    if (v && v.trim().length > 0) return v;
+  }
+  for (const v of Object.values(name)) {
     if (v && v.trim().length > 0) return v;
   }
   return "";

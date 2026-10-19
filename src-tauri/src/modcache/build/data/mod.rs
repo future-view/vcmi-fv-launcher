@@ -2,6 +2,7 @@
 
 pub(crate) mod artifact;
 pub(crate) mod creature;
+pub(crate) mod glossary;
 pub(crate) mod hero;
 pub(crate) mod object;
 pub(crate) mod resource;

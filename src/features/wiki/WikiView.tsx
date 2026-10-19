@@ -15,6 +15,7 @@ import {
   loadWikiIndex,
   modIdKey,
   pickName,
+  pickNameAny,
   type WikiCategory,
   type WikiEntry,
   type WikiLinkTarget,
@@ -36,6 +37,7 @@ const CATEGORIES: { key: WikiCategory; label: (t: LangDict) => string }[] = [
   { key: "skills", label: (t) => t.wiki.skills },
   { key: "buildings", label: (t) => t.wiki.buildings },
   { key: "terrains", label: (t) => t.wiki.terrains },
+  { key: "glossary", label: (t) => t.wiki.glossary },
   { key: "mods", label: (t) => t.wiki.allMods },
 ];
 
@@ -49,8 +51,13 @@ const CATEGORIES: { key: WikiCategory; label: (t: LangDict) => string }[] = [
  */
 const MOD_CACHE_CAP = 24;
 
-/** 跨 mod **按 id 去重**的类目（覆盖规则见 `loadAllCategories` 内的 flag 说明）。 */
-const DEDUP_CATS: WikiCategory[] = ["spells", "skills", "artifacts", "creatures"];
+/**
+ * 跨 mod **按 id 去重**的类目（覆盖规则见 `loadAllCategories` 内的 flag 说明）。
+ *
+ * `glossary` 也走这条：VCMI 用 `assembleFromFiles` 把各 mod 的同名 key 合成一张全局表，
+ * 前端按 id 去重等价；mod 自定义条目覆盖 core 的同名条目。
+ */
+const DEDUP_CATS: WikiCategory[] = ["spells", "skills", "artifacts", "creatures", "glossary"];
 
 /** **逐 mod 直接入列**的类目（不去重，各自 mod 的条目都保留）。 */
 const DIRECT_CATS: WikiCategory[] = ["factions", "heroes", "buildings"];
@@ -311,11 +318,16 @@ export function WikiView() {
     [contentLang],
   );
   const sortByName = useCallback(
-    (a: WikiEntry, b: WikiEntry) =>
-      nameCollator.compare(
-        pickName(a.name, contentLang) || pickName(a.name, "english") || a.id,
-        pickName(b.name, contentLang) || pickName(b.name, "english") || b.id,
-      ),
+    (a: WikiEntry, b: WikiEntry) => {
+      // glossary 与列表显示同一口径（任意可用语言回退），否则英文界面排序键全空
+      const nameOf = (e: WikiEntry) =>
+        (e.category === "glossary"
+          ? pickNameAny(e.name, contentLang)
+          : pickName(e.name, contentLang)) ||
+        pickName(e.name, "english") ||
+        e.id;
+      return nameCollator.compare(nameOf(a), nameOf(b));
+    },
     [nameCollator, contentLang],
   );
 
@@ -378,6 +390,7 @@ export function WikiView() {
       skills: new Map(),
       artifacts: new Map(),
       creatures: new Map(),
+      glossary: new Map(),
     };
     // 逐 mod 直接入列的类目容器
     const directAcc: Record<string, WikiEntry[]> = {
@@ -1221,7 +1234,14 @@ export function WikiView() {
           ) : (
             visibleRows.map((row) => {
               const e = row.entry;
-              const name = pickName(e.name, contentLang) || pickName(e.name, "english") || e.id;
+              // 词汇表常见"只有中文翻译"的 mod：英文界面按任意可用语言回退，
+              // 否则会显示 `vcmi.wiki.glossary.proverb.name` 这类翻译 key。
+              const name =
+                (e.category === "glossary"
+                  ? pickNameAny(e.name, contentLang)
+                  : pickName(e.name, contentLang)) ||
+                pickName(e.name, "english") ||
+                e.id;
               // 副标题语义化（对齐 VCMI WikiListItem：英雄→职业、生物→等级、宝物→等级、法术→学派、Mod→类型、其余→来源 mod）
               const ed = e.data as Record<string, unknown>;
               let sub = "";
@@ -1247,6 +1267,9 @@ export function WikiView() {
                 // 地形：显示移动消耗（负数 = 不可通行）+ 本土城镇，代替无意义的来源 modId
                 const mc = Number(ed.moveCost ?? -1);
                 sub = mc < 0 ? t.wiki.terrainDetail.impassable : `${t.wiki.terrainDetail.moveCost} ${mc}%`;
+              } else if (e.category === "glossary") {
+                // VCMI 的 glossary 列表行只有名称，无副标题（`WikiWindow.cpp` 未填 subtitle）
+                sub = "";
               } else if (e.category === "mods") {
                 // 模组类型多语言（与 VCMI modType 枚举对齐，见 i18n typeLabels）
                 const rawType = String(ed.type ?? "");

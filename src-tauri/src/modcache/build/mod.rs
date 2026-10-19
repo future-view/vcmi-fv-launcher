@@ -842,6 +842,10 @@ pub(crate) fn build_mod_wiki_once(
             &mut factions,
         )
     });
+    // ---- 词汇表（VCMI 游戏内 Wiki 的 Glossary 分类，数据源 `config/wikiGlossary.json`）----
+    let glossary = crate::infra::metrics::scope("ent.glossary", || {
+        data::glossary::build_glossary(&p, &i18n)
+    });
     // ---- 资源类型（游戏级数据：金币/木材/水银/…，名称来自 h3-core 官方译名）----
     let resources = crate::infra::metrics::scope("ent.resources", || {
         data::resource::build_resources(game_dir, &i18n, mod_id)
@@ -926,6 +930,8 @@ pub(crate) fn build_mod_wiki_once(
         "objects": objects,
         // 地形（游戏级数据，VCMI WikiWindow.cpp:660-696）
         "terrains": terrains,
+        // 词汇表（VCMI WikiWindow 的 Glossary 分类，见 build/data/glossary.rs）
+        "glossary": glossary,
         // 预览合成失败的 faction（诊断用；成功者 preview 字段已内嵌）
         "failedPreviews": failed_previews,
     });

@@ -67,6 +67,7 @@ export const pl: LangDict = {
     skills: "Umiejętności",
     terrain: "Teren",
     terrains: "Tereny",
+    glossary: "Słownik",
     terrainDetail: {
       moveCost: "Koszt ruchu",
       nativeTowns: "Rodzime miasta",
