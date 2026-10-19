@@ -475,16 +475,41 @@ mod type_path_tests {
     }
 
     #[test]
-    fn 无类型目录时保留模组目录名容错() {
-        // 实测：`config/cherub/cherub.json`、`config/mapspells/accuracy.json` 这类真实实体
-        // 正是靠模组目录名容错才被采到；一刀切锚定会把它们整批弄丢。
-        let c = "d:/games/Mods/new-monsters-pack/Mods/kurek-creatures/Mods/cherub/content/config/cherub/cherub.json";
-        assert!(is_type_config_path(c, "creatures"));
-        let s = "d:/games/Mods/adventure-spells-pack/Mods/air-spells/content/config/mapspells/accuracy.json";
-        assert!(is_type_config_path(s, "spells"));
-        // 聚合文件 `<mod>/fusedartifacts.json`：文件名不是类型名，靠目录名容错命中
-        let f = "d:/games/Mods/fused-artifacts/content/config/fusedartifacts.json";
-        assert!(is_type_config_path(f, "artifacts"));
+    fn 认类型只看配置目录之后的路径() {
+        // 2026-10-19 修正：**不再把模组目录名当类型目录**。
+        //
+        // 旧实现扫整条绝对路径，于是 `Mods/hota/Mods/artifacts/.../artiSpells/fakeHornSpell.json`
+        // （mod 目录名恰好叫 artifacts，文件其实是**法术**）被采成宝物 —— 百科里多出一件
+        // "召唤夺心魔"：无价格、无槽位。类型只能由 `config` 段之后的目录/文件名决定。
+        assert!(!is_type_config_path(
+            "d:/g/Mods/hota/Mods/artifacts/Content/config/artiSpells/fakeHornSpell.json",
+            "artifacts"
+        ));
+        // 同理：mod 目录名含 "creatures" 不代表它的每个文件都是生物
+        assert!(!is_type_config_path(
+            "d:/games/Mods/new-monsters-pack/Mods/kurek-creatures/Mods/cherub/content/config/cherub/cherub.json",
+            "creatures"
+        ));
+        assert!(!is_type_config_path(
+            "d:/games/Mods/adventure-spells-pack/Mods/air-spells/content/config/mapspells/accuracy.json",
+            "spells"
+        ));
+        // 聚合文件：文件名不是类型名 → 目录扫描不采（这类 mod 靠 mod.json 的
+        // `"creatures": ["config/cherub/cherub.json"]` 清单装载，见 collect.rs 的
+        // `mod_json_type_files`）
+        assert!(!is_type_config_path(
+            "d:/g/Mods/fused-artifacts/content/config/fusedartifacts.json",
+            "artifacts"
+        ));
+        // 反向确认：`config` 之后的目录名仍然有效（含旧容错：分隔符后缀、单复数、大写）
+        assert!(is_type_config_path(
+            "d:/g/Mods/abode/content/config/abode-creatures/x.json",
+            "creatures"
+        ));
+        assert!(is_type_config_path(
+            "d:/games/Mods/new-monsters-pack/Mods/kurek-creatures/Mods/cherub/content/config/creatures/x.json",
+            "creatures"
+        ));
     }
 
     #[test]
