@@ -37,12 +37,44 @@ fn merge_pairs(
     }
 }
 
+/// 把 VCMI 的 `{名称}\n描述` 组合文本拆成 `(名称表, 描述表)`。
+///
+/// 这个格式在 bonus 文案里是标配（`core.bonus.*` / `creatures.*.bonus.*` 都是它），
+/// 不拆就会出现"名称带着花括号"或"描述重复一遍标题"。
+/// 只在该语言**没有名称**时用头部充名；描述去掉头部后为空则不留空串。
+fn split_header_text(
+    m: std::collections::HashMap<String, String>,
+) -> (std::collections::HashMap<String, String>, std::collections::HashMap<String, String>) {
+    let mut names = std::collections::HashMap::new();
+    let mut descs = std::collections::HashMap::new();
+    for (lang, text) in m {
+        if let Some(rest) = text.strip_prefix('{') {
+            if let Some((head, tail)) = rest.split_once('}') {
+                let head = head.trim();
+                let tail = tail.trim_start_matches('\n').trim();
+                if !head.is_empty() {
+                    names.insert(lang.clone(), head.to_string());
+                }
+                if !tail.is_empty() {
+                    descs.insert(lang, tail.to_string());
+                }
+                continue;
+            }
+        }
+        descs.insert(lang, text);
+    }
+    (names, descs)
+}
+
 /// 配置内嵌能力文本：`{"name": ..., "description": ...}`（字符串 / 多语言对象）
 /// → `(名称表, 描述表)`（语言 → 文本），与 `ability_text_from_bonus_type` 同形态可拼接。
 ///
 /// VCMI schema（`creature.json`）允许 ability 项自带 name/description（实测 122+ 配置，
 /// 如 `abilities.fearless.description`）——此前未读，能力描述缺一路来源。
-fn inline_ability_text(b: &Value) -> Option<(HashMap<String, String>, HashMap<String, String>)> {
+fn inline_ability_text(
+    i18n: &I18nMap,
+    b: &Value,
+) -> Option<(HashMap<String, String>, HashMap<String, String>)> {
     let pick = |v: Option<&Value>| -> HashMap<String, String> {
         let mut m = HashMap::new();
         match v {
@@ -62,13 +94,24 @@ fn inline_ability_text(b: &Value) -> Option<(HashMap<String, String>, HashMap<St
         }
         m
     };
-    let names = pick(b.get("name"));
-    let descs = pick(b.get("description"));
+    let mut names = pick(b.get("name"));
+    let mut descs = pick(b.get("description"));
     if names.is_empty() && descs.is_empty() {
-        None
-    } else {
-        Some((names, descs))
+        return None;
     }
+    // 内嵌文本可能是 `@key` 引用（VCMI JSON 文本引用语法，与 i18n 表同规则）：
+    // 实测 `config/creatures/inferno.json` 的
+    // `"description": "@creatures.core.devil.bonus.decreaseLuck"` ——
+    // 只在 `i18n_get_multi` 里解析覆盖不到配置内嵌这条路，百科里就会出现裸引用原文。
+    names = crate::modcache::i18n::resolve_text_refs(i18n, names);
+    descs = crate::modcache::i18n::resolve_text_refs(i18n, descs);
+    // 引用目标（bonus 描述）用的是 VCMI 的 `{名称}\n描述` 组合文本格式 → 拆开。
+    // 只在**该语言没有显式 name** 时用头部充名，不覆盖配置里写明的 name。
+    let (extra_names, split_descs) = split_header_text(descs);
+    for (lang, head) in extra_names {
+        names.entry(lang).or_insert(head);
+    }
+    Some((names, split_descs))
 }
 
 pub(crate) fn build_creatures(
@@ -110,6 +153,25 @@ pub(crate) fn build_creatures(
 
     let mut creatures = Vec::new();
     for (id, obj) in creature_jsons {
+        // **VCMI 可见性对齐**（2026-10-19 修正）：三类生物不进百科 ——
+        // ① `disabled: true`：显式停用（实测 `config/creatures/special.json` 的
+        //    `unused122/124/126/128`，名字就是 "NOT USED (1)…"），VCMI 加载时即跳过；
+        // ② `special: true`：非玩家生物，VCMI 的百科列表直接排除
+        //    （`WikiWindow.cpp:553-557`：`if(!creature->special || isWM)` 才入列，
+        //     即只放行"非 special"与战争机器）；
+        // ③ 只有 `stackExperience` / `bonuses` 之类**补丁字段**、没有 name/level/abilities
+        //    的条目：那是给别的生物打补丁的定义，不是独立生物（实测 Courtyard 的
+        //    `stackExp.json`：`cameraObscuraCreature`、`potionCartCreature` 全属性为 0）。
+        // 用户实测这三类在百科里是一排"无图/全 0"的噪音条目。
+        let disabled = obj.get("disabled").and_then(|v| v.as_bool()).unwrap_or(false);
+        let special = obj.get("special").and_then(|v| v.as_bool()).unwrap_or(false);
+        let is_patch_only = obj.get("name").is_none()
+            && obj.get("level").is_none()
+            && obj.get("abilities").is_none()
+            && obj.get("bonuses").is_none();
+        if disabled || special || is_patch_only {
+            continue;
+        }
         // 生物小图标（对齐 VCMI wiki：CPRSMALL 帧 iconIndex，带浅色底图非透明抠图）。
         // 优先级：mod 自定义 graphics.iconSmall → 游戏 CPRSMALL[iconIndex]（公共素材 _shared/cprsmall）→ 无
         // VCMI CCreatureHandler.cpp:585 —— 配置未显式写 iconIndex 时
@@ -406,7 +468,7 @@ pub(crate) fn build_creatures(
                 //   3) mod 翻译键 `creatures.<scope>.<id>.bonus.<bonusType 小驼峰>`（最高优先）
                 let bonus_text = merge_pairs(
                     ability_text_from_bonus_type(&i18n, btype, bval, sub_names.as_ref()),
-                    inline_ability_text(b),
+                    inline_ability_text(i18n, b),
                 );
                 let bonus_text = merge_pairs(
                     bonus_text,
@@ -445,20 +507,33 @@ pub(crate) fn build_creatures(
                 // `castearthquake2` …）：它从来不是 VCMI 的文案来源，只是作者为"多触发一条 bonus"
                 // 随手起的 key。回退到它 = 凭空多出"没图、没描述、名字是 camelCase"的垃圾行
                 // （用户实测 ultraman 的生物多出 casts / debuff1–6 / buff1–6 十余行）。
-                let inline_text = b
+                // 内嵌 `description` 是**文本 id**（VCMI `JsonBonus.cpp` 语义），解析不到才用原文。
+                // 解析不到时语言未知 → 放 `auto`，不冒充 chinese/english 任一语言。
+                //
+                // ⚠️ 该 id 可能是 `@key` **引用**形式（实测 `config/creatures/inferno.json` 的
+                // `decreaseLuck`：`"description": "@creatures.core.devil.bonus.decreaseLuck"`）。
+                // 带着 `@` 去查表必然落空 → 回退值变成裸引用原文，百科里显示
+                // `@creatures.core.devil.bonus.decr…`（用户实测 bug）。先剥再查。
+                // 查中后还要拆 `{名称}\n描述`：bonus 描述都是这个组合格式，不拆的话
+                // 名称会带着花括号、且与描述重复。
+                let (inline_name_text, inline_desc_text) = b
                     .get("description")
                     .and_then(|x| x.as_str())
                     .filter(|s| !s.is_empty())
-                    // 内嵌 `description` 是**文本 id**（VCMI `JsonBonus.cpp` 语义），解析不到才用原文。
-                    // 解析不到时语言未知 → 放 `auto`，不冒充 chinese/english 任一语言。
                     .map(|s| {
-                        i18n_get_multi(&i18n, s).unwrap_or_else(|| {
-                            std::collections::HashMap::from([(
-                                "auto".to_string(),
-                                s.to_string(),
-                            )])
-                        })
-                    });
+                        let key = s.trim().strip_prefix('@').unwrap_or(s).trim();
+                        match i18n_get_multi(&i18n, key) {
+                            Some(m) => split_header_text(m),
+                            None => (
+                                std::collections::HashMap::new(),
+                                std::collections::HashMap::from([(
+                                    "auto".to_string(),
+                                    s.to_string(),
+                                )]),
+                            ),
+                        }
+                    })
+                    .unwrap_or_default();
                 // 名称语言表：bonus 文本 → 该生物该能力的 i18n → 内嵌描述原文
                 // （逐级整块回退；先剔空值，避免"有个空串就当命中"）
                 let non_empty = |m: HashMap<String, String>| -> HashMap<String, String> {
@@ -476,7 +551,7 @@ pub(crate) fn build_creatures(
                     name_map = non_empty(ability_i18n.unwrap_or_default());
                 }
                 if name_map.is_empty() {
-                    name_map = non_empty(inline_text.clone().unwrap_or_default());
+                    name_map = non_empty(inline_name_text);
                 }
                 if name_map.is_empty() {
                     continue;
@@ -500,10 +575,8 @@ pub(crate) fn build_creatures(
                     .as_ref()
                     .map(|(_, d)| d.clone())
                     .unwrap_or_default();
-                if let Some(m) = &inline_text {
-                    for (k, v) in m {
-                        desc_map.insert(k.clone(), v.clone());
-                    }
+                for (k, v) in &inline_desc_text {
+                    desc_map.insert(k.clone(), v.clone());
                 }
                 let name = lang_map_to_obj(name_map);
                 let description = lang_map_to_obj(desc_map);
@@ -710,4 +783,44 @@ pub(crate) fn build_creatures(
     }
 
     creatures
+}
+
+#[cfg(test)]
+mod header_split_tests {
+    use super::split_header_text;
+
+    fn m(pairs: &[(&str, &str)]) -> std::collections::HashMap<String, String> {
+        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+    }
+
+    /// 实测形态：`creatures.core.devil.bonus.decreaseLuck` 的值
+    /// （英文 `{Reduces enemy luck}\nDevils and Archdevils reduce enemy luck by one`）
+    #[test]
+    fn 拆出名称与描述() {
+        let (n, d) = split_header_text(m(&[(
+            "english",
+            "{Reduces enemy luck}\nDevils and Archdevils reduce enemy luck by one",
+        )]));
+        assert_eq!(n.get("english").map(String::as_str), Some("Reduces enemy luck"));
+        assert_eq!(
+            d.get("english").map(String::as_str),
+            Some("Devils and Archdevils reduce enemy luck by one")
+        );
+    }
+
+    /// 无花括号的纯描述：整体进描述表，不产生名称
+    #[test]
+    fn 纯描述不造名称() {
+        let (n, d) = split_header_text(m(&[("english", "Flies over obstacles.")]));
+        assert!(n.is_empty());
+        assert_eq!(d.get("english").map(String::as_str), Some("Flies over obstacles."));
+    }
+
+    /// 只有头部、没有描述行：不留空串描述
+    #[test]
+    fn 仅有头部时不留空描述() {
+        let (n, d) = split_header_text(m(&[("chinese", "{减少敌人幸运}")]));
+        assert_eq!(n.get("chinese").map(String::as_str), Some("减少敌人幸运"));
+        assert!(d.is_empty());
+    }
 }

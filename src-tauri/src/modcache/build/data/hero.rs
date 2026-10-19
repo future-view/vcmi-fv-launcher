@@ -20,6 +20,28 @@ use crate::vcmi::h3core::h3_hero_class_stats;
 use crate::vcmi::h3core::{h3_hero_stats, I18nMap};
 use crate::vcmi::town::{read_game_root_configs, TownConfig};
 
+/// 把一个生物配置登记进别名表：id 自身 + `compatibilityIdentifiers`（字符串或数组）。
+///
+/// 兼容标识是 H3 时代的旧 id（`archer` 的 `lightCrossbowman`、`pikeman` 的
+/// `pikemanOld`…），英雄初始部队的 HOTRAITS 数据用的正是这批旧名 ——
+/// 实测索萨第 2 格的 `LightCrossbowman` 就是它，既不是 id 也不是显示名。
+fn insert_creature_alias(map: &mut HashMap<String, String>, id: &str, v: &Value) {
+    map.entry(id.to_lowercase()).or_insert_with(|| id.to_string());
+    match v.get("compatibilityIdentifiers") {
+        Some(Value::String(s)) => {
+            map.insert(s.to_lowercase(), id.to_string());
+        }
+        Some(Value::Array(arr)) => {
+            for a in arr {
+                if let Some(s) = a.as_str() {
+                    map.insert(s.to_lowercase(), id.to_string());
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 pub(crate) fn build_heroes(
     p: &Path,
     mod_id: &str,
@@ -50,6 +72,36 @@ pub(crate) fn build_heroes(
     // 原版英雄职业四维：HCTRAITS.TXT 已随 h3-core 烘入 heroClasses.json；
     // 用 heroClass index 做桥接，使 core 英雄在 VCMI 未声明 primarySkills 时仍有基础值。
     let h3_class_stats = h3_hero_class_stats();
+    // 生物 id 别名表（小写 → identifier）：供初始部队把 H3 显示名 / 兼容标识归一成 id。
+    // 三路来源，缺一不可（实测每条都漏过真实数据）：
+    //   ① 本 mod 归一 rawConfigs 的生物配置：`compatibilityIdentifiers`（如 archer 的
+    //      `["lightCrossbowman"]`）—— 索萨第 2 格的 `LightCrossbowman` 就属于这类，
+    //      它既不是 id 也不是显示名，只有兼容标识表能对上；
+    //   ② h3-core 的 name / plural（`Pixies` / `Air Elementals` 这类复数显示名）；
+    //   ③ id 自身小写（大小写不一致的写法）。
+    let mut creature_alias: HashMap<String, String> = HashMap::new();
+    // ① 第三方 mod 的生物配置（在 mod 自己的 Content/config 下，raw_cfgs 已归一）
+    if let Some(Value::Object(cs)) = raw_cfgs.get("creatures") {
+        for (id, v) in cs {
+            insert_creature_alias(&mut creature_alias, id, v);
+        }
+    }
+    // ② 原版（core / core.<faction>）的生物配置在**游戏根** `config/creatures/`，
+    //    不在 vcmi 模组的 Content/config 下（实测 `Mods/vcmi/Content/config` 只有
+    //    rmg / spells / tower*，根本没有 creatures 目录）—— 所以 core 英雄的
+    //    `compatibilityIdentifiers` 必须从这里读，raw_cfgs 里是空的。
+    //    只对 core 系做：第三方 mod 的生物走 ①，且全量读游戏根对 380 个 mod 是纯浪费。
+    if is_core {
+        for (id, v) in crate::vcmi::town::read_game_root_configs(game_dir, "creatures", core_faction) {
+            insert_creature_alias(&mut creature_alias, &id, &v);
+        }
+    }
+    // ③ h3-core 的 name / plural（`Pixies` / `Air Elementals` 这类复数显示名）
+    if let Some(m) = crate::vcmi::h3core::h3_creature_name_map() {
+        for (k, id) in m.iter() {
+            creature_alias.entry(k.clone()).or_insert_with(|| id.clone());
+        }
+    }
     for (cid, idx) in hero_class_index_map {
         if let Some(stats) = h3_class_stats
             .as_ref()
@@ -297,6 +349,22 @@ pub(crate) fn build_heroes(
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
+        // 只收「职业存在」的英雄：VCMI 的 CHeroHandler 解析 `class` 时找不到职业会整条丢弃，
+        // 而这在文件层面是合法的 JSON，所以我们的构建器此前照收不误。
+        // 实测 `bastille/.../heroes/S_sylphine.json` 声明 `"class": "elder"`，而该 mod 的
+        // classes/ 只有 campaignHeroes / pyroma / warlord —— 游戏内根本没有这个英雄
+        // （也不在堡垒的英雄表里），百科却把它列了出来。
+        // 判定口径：职业必须在「本 mod 的 heroClasses（含 classes/ 归一）」或
+        // 「游戏根 / vcmi 的职业索引」里。跨 mod 借用职业的极端情形会被一并丢掉（可接受）。
+        let class_known = !class_id.is_empty()
+            && (raw_cfgs
+                .get("heroClasses")
+                .and_then(|h| h.get(&class_id))
+                .is_some()
+                || hero_class_index_map.contains_key(&class_id));
+        if !class_known {
+            continue;
+        }
         // 职业名：原版按 config/heroClasses.json 的 index 命中 h3-core 中文名；
         // 第三方 mod 直接用 class_id 在自己的翻译 / 配置里查。
         let hero_class_key = if scope == "core" {
@@ -341,7 +409,25 @@ pub(crate) fn build_heroes(
                     .and_then(|a| a.as_array())
                     .cloned()
             })
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .into_iter()
+            // h3-core 的 HOTRAITS 用 H3 显示名 / 兼容标识（`LightCrossbowman` / `Pixies` /
+            // `Air Elementals`），不是 identifier —— 不归一就会在「初始部队」留下空格子
+            // （实测索萨第 2 格、帕里斯第 1/2/3 格）。口径见下方 `creature_alias`。
+            .map(|u| {
+                let Some(o) = u.as_object() else { return u };
+                let mut o = o.clone();
+                if let Some(c) = o.get("creature").and_then(|x| x.as_str()) {
+                    let key = c.trim().to_lowercase();
+                    if let Some(id) = creature_alias.get(&key) {
+                        if id != c {
+                            o.insert("creature".to_string(), json!(id));
+                        }
+                    }
+                }
+                Value::Object(o)
+            })
+            .collect::<Vec<Value>>();
         // 初始法术 + 魔法书（VCMI CHeroHandler.cpp:130-132）：
         // `spellbook` 存在即视为有魔法书（哪怕是空数组，0 个法术），其项为初始法术
         let spells_list: Vec<String> = obj

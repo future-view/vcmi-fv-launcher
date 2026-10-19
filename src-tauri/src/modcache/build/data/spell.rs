@@ -59,6 +59,24 @@ pub(crate) fn build_spells(
         if is_creature_ability || is_special {
             continue;
         }
+        // 另两类**根本不是一个法术条目**的配置（同样不该进百科）：
+        // ③ `hidden: true` —— 明确标注不展示的内部法术（实测 hota.Factory 的
+        //    `heatStrokeBonusType.json`：`{"hidden": true, "description": "not shown"}`）；
+        // ④ 缺 `school` / `level` / `name` 三要素的条目 —— 它们是**生物能力 / bonus 定义**，
+        //    只是被放进了 `spells/` 目录（实测同目录的 `castNoTurn.json`：只有 id/type/
+        //    parameters，是 CAST_SPELL 能力；`USED_HEATSTROKE_ABILITY` 同样如此）。
+        //    VCMI 按 `vcmi:spell` schema 装载这类条目会失败或不可见，百科自然也不会有。
+        let hidden = obj.get("hidden").and_then(|v| v.as_bool()).unwrap_or(false);
+        let has_school = obj
+            .get("school")
+            .and_then(|s| s.as_object())
+            .is_some_and(|m| !m.is_empty());
+        let has_level = obj.get("level").is_some();
+        let has_name = obj.get("name").is_some()
+            || obj.get("text").and_then(|t| t.get("name")).is_some();
+        if hidden || (!has_school && !has_level && !has_name) {
+            continue;
+        }
         let scope = i18n_mod_scope(mod_id);
         // 图标字段：**VCMI `spell.json` schema 的 graphics 全集**，按优先级取
         // （iconBook → iconScroll → iconEffect → iconImmune → iconScenarioBonus）。

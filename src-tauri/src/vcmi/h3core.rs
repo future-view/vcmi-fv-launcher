@@ -561,6 +561,76 @@ pub(crate) fn h3_building_cost(faction_id: &str, bid: &str) -> Option<Value> {
         .cloned()
 }
 
+/// H3 生物名 → VCMI identifier 的反查表（全部小写）。
+///
+/// 为什么需要：h3-core 的英雄初始部队（HOTRAITS）用的是 **H3 显示名**而不是 identifier ——
+/// 实测 `config` 里的 `LightCrossbowman`（大小写与 id `lightCrossbowman` 不同）、
+/// `Pixies` / `Air Elementals`（复数显示名）。直接用这些字符串查生物表必然落空，
+/// 于是百科的「初始部队」出现空格子（实测索萨第 2 格、帕里斯第 1/2/3 格）。
+///
+/// 表里同时收录：id 小写、`name` 小写、`plural` 小写、以及去掉空格后的 `name`/`plural`，
+/// 覆盖三类写法。
+pub(crate) static H3_CREATURE_NAME_CACHE: std::sync::OnceLock<
+    Mutex<Vec<(String, std::sync::Arc<HashMap<String, String>>)>>,
+> = std::sync::OnceLock::new();
+
+pub(crate) fn h3_creature_name_map() -> Option<std::sync::Arc<HashMap<String, String>>> {
+    let dir = h3_core_data_dir()?;
+    let key = dir.to_string_lossy().to_string();
+    let map = cfg_cache_get(&H3_CREATURE_NAME_CACHE, key, || {
+        let mut m: HashMap<String, String> = HashMap::new();
+        // 先英文（H3 原名基准），再用中文补空缺
+        for lang in ["english", "chinese"] {
+            let p = dir.join(format!("{lang}.creatures.json"));
+            let Ok(text) = fs::read_to_string(&p) else {
+                continue;
+            };
+            let Ok(Value::Object(obj)) = serde_json::from_str::<Value>(&text) else {
+                continue;
+            };
+            for (id, v) in obj {
+                m.entry(id.to_lowercase()).or_insert_with(|| id.clone());
+                for field in ["name", "plural"] {
+                    let Some(s) = v.get(field).and_then(|x| x.as_str()) else {
+                        continue;
+                    };
+                    if s.trim().is_empty() {
+                        continue;
+                    }
+                    m.entry(s.trim().to_lowercase()).or_insert_with(|| id.clone());
+                    m.entry(s.trim().to_lowercase().replace(' ', ""))
+                        .or_insert_with(|| id.clone());
+                }
+            }
+        }
+        m
+    });
+    if map.is_empty() {
+        None
+    } else {
+        Some(map)
+    }
+}
+
+/// 把 H3 生物名 / 大小写变体归一成 VCMI identifier；查不到原样返回。
+///
+/// ⚠️ 无直接调用点：英雄初始部队的归一走 `build/data/hero.rs` 里自建的别名表
+/// （那里额外收录了 `compatibilityIdentifiers`，比本函数更全）。保留它是为了其它
+/// 需要"显示名 → id"的场合不用重新挖数据。
+#[allow(dead_code)]
+pub(crate) fn normalize_creature_id(raw: &str) -> String {
+    let key = raw.trim().to_lowercase();
+    if key.is_empty() {
+        return raw.to_string();
+    }
+    if let Some(m) = h3_creature_name_map() {
+        if let Some(id) = m.get(&key).or_else(|| m.get(&key.replace(' ', ""))) {
+            return id.clone();
+        }
+    }
+    raw.to_string()
+}
+
 /// 原版生物**数值属性**表（`<lang>.creatures.json` 的 `stats` 字段）。
 ///
 /// 原版 `config/creatures/*.json` **不含** attack / defense / hitPoints / speed /
@@ -652,10 +722,14 @@ pub(crate) fn h3_artifact_meta() -> Option<std::sync::Arc<HashMap<String, Value>
 ///
 /// 用于把 `neutral.*`（中立建筑：宝物商店/生物巢穴/船坞/神器…）补进百科"建筑"分类——
 /// 这些条目不隶属于任何城镇，VCMI 战斗/城镇界面也不展示，只能从 legacy `BUILDING.TXT` 取。
+///
+/// ⚠️ 中立建筑已不再进百科（VCMI 的城镇百科只列 `CTown::buildings`，中立阵营没有城镇），
+/// 故这两项目前无调用点；保留是为了将来做"中立建筑 / 地图对象"独立分类时不用重新挖数据源。
+#[allow(dead_code)]
 pub(crate) static H3_BUILDING_IDS_CACHE: std::sync::OnceLock<
     Mutex<Vec<(String, std::sync::Arc<Vec<String>>)>>,
 > = std::sync::OnceLock::new();
-
+#[allow(dead_code)]
 pub(crate) fn h3_building_ids(prefix: &str) -> Vec<String> {
     let Some(dir) = h3_core_data_dir() else {
         return Vec::new();

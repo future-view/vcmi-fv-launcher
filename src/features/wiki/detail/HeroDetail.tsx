@@ -407,7 +407,12 @@ export function HeroDetail({
                   // mod 的法术表内，属 core），名称/图标/描述一律走共享解析器：
                   // 本 mod 法术表优先 → 全类目索引兜底。
                   const ref = spellRef(sid);
-                  const rec = ref.record ?? {};
+                  // **悬空引用直接不显示**：英雄配置里的 `spellbook` 可以指向一个从未被
+                  // VCMI 装载的法术（实测 `tartarus` 的 `tarspell1` —— 它既不在 mod.json 的
+                  // spells 清单里，也不在 `spells/` 目录，游戏内根本不存在）。VCMI 加载时
+                  // 解析不到就丢掉这条引用，英雄面板里不会出现；我们此前会退化成裸 id 一行。
+                  if (!ref.record) return null;
+                  const rec = ref.record;
                   // 后端随英雄预解析的 spellDetails（含 name / index），作为兜底与优先级判据
                   const detail = ((d.spellDetails as Record<string, unknown>[]) ?? []).find(
                     (x) => String(x.id ?? "") === sid,

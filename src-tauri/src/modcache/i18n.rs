@@ -85,20 +85,101 @@ pub(crate) fn i18n_get_multi(
     i18n: &I18nMap,
     key: &str,
 ) -> Option<std::collections::HashMap<String, String>> {
+    // 深度上限 4 层：`@` 引用可能成链（目前实测最深 1 层），同时兼作成环保护。
+    i18n_get_multi_depth(i18n, key, 4)
+}
+
+fn i18n_get_multi_depth(
+    i18n: &I18nMap,
+    key: &str,
+    depth: u8,
+) -> Option<std::collections::HashMap<String, String>> {
     let core = core_i18n().and_then(|c| lookup(c.as_ref(), key).cloned());
     let own = lookup(i18n, key);
-    match (core, own) {
-        (None, None) => None,
-        (Some(m), None) => Some(m.clone()),
-        (None, Some(m)) => Some(m.clone()),
+    let merged = match (core, own) {
+        (None, None) => return None,
+        (Some(m), None) => m,
+        (None, Some(m)) => m.clone(),
         (Some(c), Some(o)) => {
-            let mut m = c.clone();
+            let mut m = c;
             for (lang, text) in o {
                 m.insert(lang.clone(), text.clone());
             }
-            Some(m)
+            m
+        }
+    };
+    if depth == 0 {
+        return Some(merged);
+    }
+    Some(resolve_text_refs_depth(i18n, merged, depth))
+}
+
+/// 解析 VCMI 的 JSON 文本引用：值以 `@` 开头表示"取该 key 的多语言文本"。
+///
+/// 实测 `config/creatures/inferno.json` 的
+/// `"description": "@creatures.core.devil.bonus.decreaseLuck"` —— 不解析就会把引用原文
+/// 当成文案（百科里出现 `@creatures.core.devil.bonus.decr…`）。
+///
+/// **i18n 表与配置内嵌文本两条路都要走**：前者的引用在 `i18n_get_multi` 内部解析，
+/// 后者（`name_obj_with_inline` 的 `inner`）在这里解析 —— 大恶魔的能力文本正是
+/// "配置内嵌 + @引用"，只在 i18n 层解析覆盖不到它。
+pub(crate) fn resolve_text_refs(
+    i18n: &I18nMap,
+    m: std::collections::HashMap<String, String>,
+) -> std::collections::HashMap<String, String> {
+    resolve_text_refs_depth(i18n, m, 4)
+}
+
+fn resolve_text_refs_depth(
+    i18n: &I18nMap,
+    m: std::collections::HashMap<String, String>,
+    depth: u8,
+) -> std::collections::HashMap<String, String> {
+    if depth == 0 {
+        return m;
+    }
+    let mut out = std::collections::HashMap::with_capacity(m.len());
+    for (lang, text) in m {
+        let resolved = resolve_one(i18n, &text, &lang, depth);
+        out.insert(lang, resolved.unwrap_or(text));
+    }
+    out
+}
+
+/// 解析单条文本里的引用（两种形态都来自 VCMI 的真实数据）：
+///
+/// 1. **裸引用** `@key` —— 配置内嵌文本用（`config/creatures/inferno.json` 的
+///    `"description": "@creatures.core.devil.bonus.decreaseLuck"`）；
+/// 2. **包在 MetaString 头部里的引用** `{@key}` / `{@key}尾部` —— 翻译表用：
+///    实测 `core.bonus.LUCK.description` = `{@creatures.core.devil.bonus.decreaseLuck}`，
+///    即" Luck 类加成的文案 = 引用恶魔那条 bonus 描述"。只处理第 1 种会让第 2 种
+///    把 `@creatures…` 当成能力**名称**显示（正是用户看到的 bug）。
+///
+/// 第 2 种**连花括号一起替换**：替换后得到 `{Reduces enemy luck}\nDevils and …`，
+/// 后续 `ability_text_from_bonus_type` 的 `{名称}\n描述` 拆分才能正常工作。
+fn resolve_one(i18n: &I18nMap, text: &str, lang: &str, depth: u8) -> Option<String> {
+    if depth == 0 {
+        return None;
+    }
+    let t = text.trim();
+    let lookup = |key: &str| -> Option<String> {
+        let sub = i18n_get_multi_depth(i18n, key, depth - 1)?;
+        sub.get(lang)
+            .or_else(|| sub.get("english"))
+            .or_else(|| sub.get("chinese"))
+            .or_else(|| sub.values().next())
+            .cloned()
+    };
+    if let Some(k) = t.strip_prefix('@') {
+        return lookup(k.trim());
+    }
+    if let Some(rest) = t.strip_prefix("{@") {
+        if let Some(end) = rest.find('}') {
+            let head = lookup(rest[..end].trim())?;
+            return Some(format!("{head}{}", &rest[end + 1..]));
         }
     }
+    None
 }
 
 /// 解析 VCMI 核心翻译的 `bonus.<TYPE>.description`：
@@ -180,6 +261,8 @@ pub(crate) fn build_name_object(
             m.insert(lang.clone(), text.clone());
         }
     }
+    // 配置内嵌文本也可能是 `@key` 引用（VCMI 的 JSON 文本引用语法，与 i18n_get_multi 同规则）
+    m = resolve_text_refs(i18n, m);
     // auto 兜底：chinese -> english（不取任意第三方语言原文）
     if !m.contains_key("auto") {
         let auto = m.get("chinese").or_else(|| m.get("english")).cloned();

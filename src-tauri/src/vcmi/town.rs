@@ -39,6 +39,12 @@ pub(crate) struct TownConfig {
     /// 部分模组**没有 translation 目录**，直接把中文名写在配置里；
     /// 若只走 i18n 键取名会未命中而回落成英文 id（表现为中英混杂），故保留兜底。
     pub(crate) town_name: Option<String>,
+    /// 城镇自带描述（`town.json` 顶层 `description`，可能是字符串或多语言对象）。
+    ///
+    /// 多数中文城镇模组把整段设定（「种族阵营 / 种族地形 / 所在地」+ 正文）全写在这一个字段里
+    /// （实测 `bastille/town.json`），而 mod.json 的 description 往往只有一句简介 ——
+    /// 用后者会把前者整段顶掉，所以城镇自己的描述必须优先。
+    pub(crate) town_desc: Option<Value>,
     /// 建筑详情（id + cost），用于百科建筑表显示花费。
     pub(crate) buildings_detail: Vec<Value>,
     /// 城镇界面建筑图标 DEF（clientInfo.buildingsIcons），帧号 = 建筑数字 id（bid）。
@@ -220,6 +226,9 @@ pub(crate) fn read_town_configs(mod_path: &Path) -> Vec<TownConfig> {
                 // glade→禁猎地、xanadu→灵墟、shuHan→蜀汉 等全部只剩英文 id）。
                 if dst.town_name.is_none() {
                     dst.town_name = cfg.town_name;
+                }
+                if dst.town_desc.is_none() {
+                    dst.town_desc = cfg.town_desc;
                 }
                 // 结构位置与建筑原始对象：字段级并入（首次命中优先，保证多文件拆分时不全丢）
                 if dst.structures.is_empty() {
@@ -744,6 +753,18 @@ pub(crate) fn build_town_config(v: &Value) -> TownConfig {
         })
         .filter(|s| !s.is_empty());
 
+    // 城镇自带描述（`inner.description` / `town_sub.description`；字符串或多语言对象）。
+    // 与 town_name 同理：部分模组没有 translation 目录，整段设定直接写在 town.json 里。
+    let town_desc: Option<Value> = inner
+        .get("description")
+        .or_else(|| town_sub.and_then(|t| t.get("description")))
+        .filter(|v| match v {
+            Value::String(s) => !s.trim().is_empty(),
+            Value::Object(m) => !m.is_empty(),
+            _ => false,
+        })
+        .cloned();
+
     // 城镇界面建筑动画（town.structures：<bid> → { animation: "<file>.def", x, y }）。
     // 仅取资源名文本，不做任何解码——原版 town-screen 有 2452 个 .def，
     // 全量预解会显著拖慢构建；改为详情页打开时按需加载（设计 §11 / §13.1）。
@@ -793,6 +814,7 @@ pub(crate) fn build_town_config(v: &Value) -> TownConfig {
         alignment,
         native_terrain,
         town_name,
+        town_desc,
         buildings_detail,
         buildings_icons,
         building_animations,

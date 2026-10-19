@@ -17,6 +17,48 @@ use crate::vcmi::h3core::I18nMap;
 use crate::vcmi::resource::resolve_resource_fallback;
 use crate::vcmi::town::{value_to_resource, TownConfig};
 
+/// 城镇自带 `description` → 多语言对象。
+///
+/// 两件必须做的事：
+/// 1. **字符串形态同时写入 chinese / english**。配置里的裸字符串只可能是作者写的原文
+///    （这些模组没有翻译文件），若只塞进 `english`，界面语言为中文时 `pickName(...,"chinese")`
+///    会取空 → 描述整段消失。两端都写，任何界面语言都取得到。
+/// 2. **去掉 VCMI MetaString 的 `{标题}` 花括号**。VCMI 把 `{堡垒}` 渲染成高亮标题，
+///    我们是纯文本渲染，保留花括号会原样显示 `{堡垒}`。只剥一层括号、保留内容。
+fn normalize_town_desc(v: &Value) -> Option<Value> {
+    let strip = |s: &str| -> String {
+        let t = s.trim();
+        if let Some(rest) = t.strip_prefix('{') {
+            if let Some((head, tail)) = rest.split_once('}') {
+                return format!("{head}{tail}");
+            }
+        }
+        t.to_string()
+    };
+    match v {
+        // **裸字符串原样返回**（只剥花括号），不在这里写任何语言键：
+        // 交给共用的 `name_obj_with_inline` 按"VCMI 翻译基准语言"单键注入，
+        // 前端 `pickName` 的 `当前语言 → english` 回退链会兜住中文界面。
+        // 若在这里枚举具体语言（chinese/english/…），就等于把语言集合写死 ——
+        // 界面语言会继续增加（当前 5 种），写死的那天就是新语言静默失效的那天。
+        Value::String(s) if !s.trim().is_empty() => Some(json!(strip(s))),
+        Value::Object(m) if !m.is_empty() => {
+            let mut out = serde_json::Map::new();
+            for (k, x) in m {
+                if let Some(s) = x.as_str() {
+                    out.insert(k.clone(), json!(strip(s)));
+                }
+            }
+            if out.is_empty() {
+                None
+            } else {
+                Some(Value::Object(out))
+            }
+        }
+        _ => None,
+    }
+}
+
 pub(crate) fn build_towns(
     p: &Path,
     mod_id: &str,
@@ -39,6 +81,8 @@ pub(crate) fn build_towns(
     // 建筑图标提取失败诊断（见下方 buildings 循环；随 cache.json 的 `iconFailures` 输出）
     let mut icon_failures: Vec<Value> = Vec::new();
     for cfg in configs {
+        // 城镇自带描述 → 多语言对象（字符串形态同时写入 chinese/english，见 normalize_town_desc）
+        let town_desc_norm = cfg.town_desc.as_ref().and_then(normalize_town_desc);
         let mut bg_img = None;
         if let Some(res) = &cfg.town_background {
             // 原版城镇背景（如 castle 的 TBCSBACK.bmp）位于游戏根资源包，需回退游戏根解析
@@ -404,13 +448,15 @@ pub(crate) fn build_towns(
                 mod_name_inline,
                 cfg.town_name.as_deref().unwrap_or(&cfg.faction_id),
             ),
-            // 阵营描述（VCMI: faction.<mod>.<id>.description，合成图下方段落）：
-            // 翻译键 → 单城镇 mod 的 mod.json 语言块 description → 空
-            // （实测 485/630 个 mod 把描述写在 mod.json 的语言块里，此前完全不读）
+            // 阵营描述（VCMI: faction.<mod>.<id>.description，合成图下方段落）。
+            // 兜底链：翻译键 → **城镇自带 description** → 单城镇 mod 的 mod.json 语言块 → 空。
+            // ⚠️ 城镇自带必须优先：中文城镇模组常把「种族阵营 / 种族地形 / 所在地 + 正文」
+            // 整段写进 town.json 的 description（实测 bastille 有 4 行设定），而 mod.json 的
+            // description 只是一句简介（"EXP中的堡垒种族"）—— 用后者会把整段顶掉。
             "description": name_obj_with_inline(
                 &i18n,
                 &format!("faction.{}.{}.description", scope, cfg.faction_id),
-                mod_desc_inline,
+                town_desc_norm.as_ref().or(mod_desc_inline),
                 "",
             ),
             "background": bg_img,

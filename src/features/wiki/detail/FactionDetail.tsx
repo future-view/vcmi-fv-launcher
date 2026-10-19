@@ -125,8 +125,13 @@ export function FactionDetail({
           ) : null}
         </div>
       </div>
+      {/* `whitespace-pre-line`：城镇描述常是多行设定（实测 bastille 是
+          「{堡垒}\n种族阵营：…\n种族地形：…\n所在地：…\n正文」，换行是作者写进去的结构），
+          浏览器默认会把 `\n` 折成空格，整段会挤成一行。 */}
       {pickName((d.description as Record<string, string>) ?? {}, lang) && (
-        <p className="text-sm leading-relaxed text-slate-400">{pickName((d.description as Record<string, string>) ?? {}, lang)}</p>
+        <p className="whitespace-pre-line text-sm leading-relaxed text-slate-400">
+          {pickName((d.description as Record<string, string>) ?? {}, lang)}
+        </p>
       )}
       {buildings.length > 0 && (
         <div>

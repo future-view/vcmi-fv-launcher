@@ -333,7 +333,12 @@ pub(crate) fn is_type_config_path(rel_lower: &str, type_subdir: &str) -> bool {
     if other_dir || other_agg {
         return false;
     }
-    let in_dir = all[..all.len().saturating_sub(1)]
+    // ⚠️ 只在**最后一个 `config` 段之后**找类型目录，不能扫全路径：
+    // 文件系统路径里还有 `Mods/<mod>/…` 这些段，其中**模组目录名**可能恰好等于某个类型名——
+    // 实测 `Mods/hota/Mods/artifacts/Content/config/artiSpells/fakeHornSpell.json`：
+    // 该 mod 的目录名就是 `artifacts`，扫全路径会把 `artiSpells/` 里的**法术**当成宝物收录
+    // （百科里出现一件"召唤夺心魔"、无价格无槽位的假宝物）。
+    let in_dir = segs[..segs.len().saturating_sub(1)]
         .iter()
         .any(|s| type_seg_match(s, type_subdir));
     let is_agg = fname.trim_end_matches(".json") == t

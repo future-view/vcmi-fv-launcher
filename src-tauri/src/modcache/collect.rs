@@ -151,6 +151,42 @@ fn collect_config_jsons_merged_uncached(
     map.into_iter().collect()
 }
 
+/// 读取 `<mod>/mod.json` 里某类型的显式文件清单，返回**绝对路径**（相对 `content/` 解析）。
+///
+/// VCMI 允许 mod 元数据按类型列出配置（`"spells": [...]`、`"heroes": [...]` ...），
+/// 与 `content/config/` 下的目录名无关；这是唯一能覆盖 `NewOldSpells` 这类
+/// "目录名不是标准类型"的模组的办法（见 `collect_config_jsons` 的说明）。
+fn mod_json_type_files(mod_path: &Path, type_subdir: &str) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    for name in ["mod.json", "Mod.json"] {
+        let p = mod_path.join(name);
+        let Ok(text) = fs::read_to_string(&p) else {
+            continue;
+        };
+        let Value::Object(m) = parse_vcmi_json(&text) else {
+            continue;
+        };
+        let Some(arr) = m.get(type_subdir).and_then(|v| v.as_array()) else {
+            continue;
+        };
+        for x in arr {
+            let Some(rel) = x.as_str() else { continue };
+            let rel = rel.trim_start_matches('/').replace('\\', "/");
+            // VCMI 的 mod 文件系统以 `content/` 为根；大小写按磁盘实况兜底（Windows 无关，
+            // 但打包/迁移到大小写敏感文件系统时会用得上）。
+            for root in ["Content", "content"] {
+                let f = mod_path.join(root).join(&rel);
+                if f.is_file() {
+                    out.push(f);
+                    break;
+                }
+            }
+        }
+        break;
+    }
+    out
+}
+
 /// 收集 mod 配置目录下指定类型子目录的所有 JSON（含 Content 目录 + content.zip）。
 /// 返回 `(对象 id, 对象根 Value)`。类型如 "creatures"/"heroes"/"spells"/"artifacts"/"skills"。
 /// 每个 JSON 顶层 `{ "<id>": { ... } }`，也可能直接是对象体（无包裹），此时 id 用文件名。
@@ -158,16 +194,33 @@ pub(crate) fn collect_config_jsons(mod_path: &Path, type_subdir: &str) -> Vec<(S
     let mut out: Vec<(String, Value)> = Vec::new();
     let type_subdir = type_subdir.trim_matches('/');
 
+    // 0) `mod.json` 里该类型的**显式文件清单**。
+    //
+    // VCMI 的 mod.json 支持按类型列出配置文件路径（`"spells": ["config/NewOldSpells/x.json"]`），
+    // 路径相对于该 mod 的 `content/`，**与目录名无关**。实测两个真实模组都靠这个机制装载：
+    //   · `Mods/NewOldSpells+`：法术放在 `Content/config/NewOldSpells/`（目录名不是 spells）
+    //   · `Mods/tartarus`：法术放在 `Content/config/tartarus/NewOldSpells/`
+    // 只按目录名扫会整批漏掉 → 百科里这些法术没有名字/图标（表现为裸 id、空格子）。
+    let mut files: Vec<std::path::PathBuf> = mod_json_type_files(mod_path, type_subdir);
+
     // 1) Content/config/**/<type>/*.json
     let content_dir = mod_path.join("Content").join("config");
     if content_dir.is_dir() {
-        let mut files = Vec::new();
-        collect_json_files(&content_dir, type_subdir, &mut files);
-        for f in files {
-            if let Ok(text) = fs::read_to_string(&f) {
-                let v = parse_vcmi_json(&text);
-                push_config_object(&mut out, &f.to_string_lossy(), v, type_subdir);
-            }
+        let mut scanned = Vec::new();
+        collect_json_files(&content_dir, type_subdir, &mut scanned);
+        // 去重：显式清单与目录扫描可能指向同一个文件（不合并会重复 push 同一 id）
+        let known: std::collections::HashSet<String> =
+            files.iter().map(|p| p.to_string_lossy().to_lowercase()).collect();
+        files.extend(
+            scanned
+                .into_iter()
+                .filter(|p| !known.contains(&p.to_string_lossy().to_lowercase())),
+        );
+    }
+    for f in files {
+        if let Ok(text) = fs::read_to_string(&f) {
+            let v = parse_vcmi_json(&text);
+            push_config_object(&mut out, &f.to_string_lossy(), v, type_subdir);
         }
     }
 

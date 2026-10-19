@@ -84,18 +84,40 @@ pub(crate) fn build_artifacts(
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        // 装备槽（slot）：wearable 对象或 slot 数组
+        // 装备槽（slot）：字符串 / 字符串数组 / wearable 对象 / 旧写 `slots` 数组。
+        //
+        // VCMI `CArtHandler::loadSlots`（lib/entities/artifact/CArtHandler.cpp:350-362）读的是
+        // **单数 `slot`**，且按"字符串就单个、数组就逐项"处理 —— 我们此前**只认数组**，
+        // 于是最常见写法 `"slot": "RIGHT_HAND"`（实测 hota `fakeHorn.json`）解析成空槽，
+        // 百科里表现为"装备槽 —"的假宝物。
         let mut slots = Vec::new();
-        if let Some(arr) = obj.get("slot").and_then(|s| s.as_array()) {
-            for s in arr {
-                if let Some(str) = s.as_str() {
-                    slots.push(str.to_string());
+        match obj.get("slot") {
+            Some(Value::String(s)) if !s.trim().is_empty() => slots.push(s.trim().to_string()),
+            Some(Value::Array(arr)) => {
+                for s in arr {
+                    if let Some(str) = s.as_str() {
+                        slots.push(str.to_string());
+                    }
                 }
             }
-        } else if let Some(w) = obj.get("wearable").and_then(|w| w.as_object()) {
-            for k in w.keys() {
-                if k != "hidden" {
-                    slots.push(k.clone());
+            _ => {}
+        }
+        if slots.is_empty() {
+            // 旧写法 / 少数 mod 的 `slots` 数组（VCMI 不读，但存在真实数据，保留兜底）
+            if let Some(arr) = obj.get("slots").and_then(|s| s.as_array()) {
+                for s in arr {
+                    if let Some(str) = s.as_str() {
+                        slots.push(str.to_string());
+                    }
+                }
+            }
+        }
+        if slots.is_empty() {
+            if let Some(w) = obj.get("wearable").and_then(|w| w.as_object()) {
+                for k in w.keys() {
+                    if k != "hidden" {
+                        slots.push(k.clone());
+                    }
                 }
             }
         }

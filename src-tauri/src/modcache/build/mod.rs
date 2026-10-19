@@ -17,7 +17,7 @@ use crate::infra::json::parse_vcmi_json;
 use crate::modcache::collect::{
     collect_all_raw_configs, collect_config_jsons_merged, merge_json_in_place,
 };
-use crate::modcache::i18n::{name_obj_en_zhcn, set_core_i18n};
+use crate::modcache::i18n::{set_core_i18n};
 use crate::modcache::version::{ASSETS_VERSION, WIKI_CACHE_VERSION};
 use crate::modcache::{sanitize_id, set_assets_enabled};
 use crate::vcmi::gamedata::{
@@ -394,6 +394,10 @@ pub(crate) fn probe_mod_cache(
 ///
 /// 键沿用 VCMI 语言名（与 wiki 其它多语言字段同构）；缺译语言由前端 `pickName` 回退
 /// `english`，所以不需要（也不应该）在数据里伪造其它语言的英文副本。
+///
+/// ⚠️ 仅测试在用：中立建筑已不再进百科（见"中立建筑不再进百科"注释），
+/// 这个函数留着只为保住"标签来自外部数据、代码里不写译文"这条口径的回归测试。
+#[cfg(test)]
 fn neutral_faction_name() -> Value {
     static LABEL: OnceLock<Value> = OnceLock::new();
     LABEL
@@ -716,35 +720,15 @@ pub(crate) fn build_mod_wiki_once(
             }
         }
     }
-    // 中立建筑（原版 h3-core `neutral.*`）：只挂在父 core 上（不隶属任何城镇），
-    // 名称/描述来自 BUILDING.TXT（`building.core.neutral.<bid>.name/description`）。
-    // 图标与花费暂缺——中立建筑在 H3 里是冒险地图对象，无城镇图标、BUILDING.TXT 也无成本列。
-    if is_core && core_faction.is_none() {
-        for bid in crate::vcmi::h3core::h3_building_ids("neutral.") {
-            let short = bid.trim_start_matches("neutral.").to_string();
-            let name = name_obj_en_zhcn(
-                &i18n,
-                &format!("building.core.neutral.{}.name", short),
-                &short,
-            );
-            let desc = name_obj_en_zhcn(
-                &i18n,
-                &format!("building.core.neutral.{}.description", short),
-                "",
-            );
-            buildings.push(json!({
-                "id": format!("neutral.{}", short),
-                "mode": "neutral",
-                "bid": -1,
-                "name": name,
-                "description": desc,
-                "cost": {},
-                "image": Value::Null,
-                "factionId": "neutral",
-                "factionName": neutral_faction_name(),
-            }));
-        }
-    }
+    // 中立建筑（原版 h3-core `neutral.*`）**不再进百科**（2026-10-19 修正）。
+    //
+    // 它们是 BUILDING.TXT 里的冒险地图对象（"1级兵种生产建筑"这类通用名），没有图标、没有
+    // 成本、bid = -1 —— 而 VCMI 的城镇百科只列**城镇自己的建筑**
+    // （`WikiTownContent.cpp:210-300` 遍历 `CTown::buildings`，mode=normal），
+    // 中立阵营在 H3 里根本没有城镇，所以官方百科里一条都不出现。
+    // 我们此前为了"可检索"把它们合成了 24 条（`neutral.dwellingLvl1` …），
+    // 结果是建筑类目里 24 条无图条目，且名称全是通用描述，检索价值极低。
+    // 若将来要给中立建筑做专门页面，应在独立分类里做，而不是塞进城镇建筑表。
 
     // ---- 生物 ----
     let mut creatures = crate::infra::metrics::scope("ent.creatures", || {
