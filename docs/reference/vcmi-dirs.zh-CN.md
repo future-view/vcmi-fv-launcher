@@ -49,3 +49,31 @@ VCMI 只自动 `create_directories(userDataPath / cache / config / logs / Saves)
 ## 9. 引擎版本怎么读
 
 exe **没有** PE 版本资源，`mod.json` 里的 `1.5` **不是**引擎版本。权威来源是 `VCMI_client.exe -v`。
+
+## 10. `persistentStorage.json` 是引擎缓存，切预设后会失效（VCMI 1.7.4 闪退）
+
+`userdata/config/persistentStorage.json` 由**引擎自己写**（不是启动器写入的启动器配置），
+其中 `battleModeSettings` 保存上一次「战斗模式」的自定义对局，字符串取值形如
+`<modId>:<entityId>`（实测样例：`"selectedTown": "fairy:fairy"`）。
+
+切到**不含该模组**的预设后，客户端这样崩：
+
+1. `BattleOnlyModeTab` 构造时反序列化该段；标识符解析失败，而
+   `requestIdentifier` 是**回调式** API、失败时回调不触发
+   ⇒ 字段停在构造函数默认值（`selectedTerrain = TerrainId::NONE(-1)`、
+   `selectedTown = FactionID::ANY(-1)`）；
+2. 客户端收到服务端广播的 `LobbySetBattleOnlyModeStartInfo`
+   → `applyStartInfo()` → `update()` → `setTerrainButtonText()`，
+   在 `terrain == NONE` 时改用 `selectedTown` 查城镇表（`-1`）；
+3. `CHandlerBase::getObjectImpl`（`lib/IHandlerBase.h`）打日志后抛
+   `std::runtime_error`，未捕获 ⇒ `std::terminate` ⇒ **闪退**
+   （日志末行即 `faction id -1 is invalid`）。
+
+⚠️ 反直觉点：
+
+- 崩溃发生在**进入 Lobby 时**，与选哪张地图无关；只能由启动器在**拉起 VCMI 之前**清洗。
+- **只删 `selectedTown` 是无效修法**：键缺失时反序列化同样给 `ANY(-1)`，
+  与 `selectedTerrain == NONE` 组合仍命中崩溃分支 ⇒ 必须**同时**补一个合法地形
+  （当前实现写 `core:dirt`）。
+
+启动器侧处理见 §12。

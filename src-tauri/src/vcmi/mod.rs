@@ -6,6 +6,7 @@
 //!
 //! 模块职责：
 //! - `paths`：目录识别（`dirs.json` → `VcmiPaths`）、缓存/日志/领域目录派生、环境变量展开。
+//! - `persistent`：引擎持久化（`persistentStorage.json`）清洗，剔除指向未启用模组的引用。
 //! - `config`：`launcher.json` 的磁盘结构（`LauncherConfig` / `WindowSize` / 路径 serde）。
 //! - `resource`：模组资源解析（mod 目录 / `content.zip` / 游戏 LOD 三来源）。
 //! - `scan`：模组扫描与分类（`Mods/` 遍历、`mod.json` 解析、submod 归并）。
@@ -40,6 +41,8 @@ pub mod mod_install;
 #[allow(dead_code)]
 pub mod hd_edition;
 pub mod paths;
+/// 引擎持久化清洗（`persistentStorage.json` 失效跨模组引用）。
+pub mod persistent;
 pub mod resource;
 pub mod scan;
 pub mod setup;

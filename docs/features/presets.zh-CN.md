@@ -87,3 +87,27 @@ npx tauri dev             # 真机：新建继承 → 切换 → 导出 → 导�
 ## 11. 开放问题
 
 - 导出目前只支持单预设；多预设批量导出未实现。
+
+## 12. 跨预设残留引用清洗（启动前唯一出口）
+
+**问题**：`persistentStorage.json` 由引擎自写，会保留**别的预设**里模组的标识符；
+切预设后引擎拿它去查表会崩（详见 [vcmi-dirs](../reference/vcmi-dirs.zh-CN.md) §10）。
+
+**实现**：`src-tauri/src/vcmi/persistent.rs`（`vcmi/` 领域层，**无 tauri 类型**）
+
+| 关注点 | 落点 |
+|---|---|
+| 生效配置目录 | `VcmiPaths::effective_config_dir()` —— 按 `<game_dir>/config/dirs.json → userConfigPath` 解析，**领域模式自动命中领域隔离目录**；**不得**用全局快照 `AppPaths.user_config_dir`（领域激活后它不更新） |
+| 启用组合 | `presets[activePreset].mods` ∪ `RESERVED_SCOPES`（`core` / `vcmi`），比较时大小写不敏感；子模组 `parent.child` 按父级判定 |
+| 失效判定 | 值含 `:` 且 scope 不在白名单 ⇒ 剔除；不含 `:`（= 内置 / core）恒保留 |
+| 清洗范围（白名单） | `battleModeSettings.selectedTown` / `.selectedTerrain` / `.slots[].{selectedHero, selectedArmy[].type, secSkillLevel[].skill, artifacts, spells}`、`rmg.rmg.lastSettings.roads` |
+| 时机 | `launch_game` / `launch_editor` / `launch_native_launcher`：spawn **之前** |
+
+⚠️ 安全红线（既有容错底线，勿移除）：
+
+1. 只在**发现失效引用**时写盘；无变化不碰文件（不刷 mtime、不产生备份）。
+2. 写前备份 `persistentStorage.json.backup`（与 `write_mod_settings` 同款约定）。
+3. 解析失败 → **跳过清洗**，只记日志；绝不降级为空对象覆写（会清空玩家既有设置）。
+4. **原地覆写**（走 `trunc`），**禁止** temp + rename —— 领域共享配置是硬链接，
+   rename 会断开共享（见 [realms](./realms.zh-CN.md) §5）。
+5. 清洗失败**不阻断启动**（与既有「自检失败只记日志」同口径）。

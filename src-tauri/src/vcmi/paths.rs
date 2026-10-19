@@ -630,6 +630,45 @@ impl VcmiPaths {
         self.user_config_dir.join("settings.json")
     }
 
+    /// VCMI **实际会读**的配置目录：`<game_dir>/config/dirs.json → userConfigPath`
+    /// （支持 `%VAR%` / `$VAR` 展开），缺失 / 无法解析时回退 `<userDataPath>/config`
+    /// （与本结构体其余派生字段同口径）。
+    ///
+    /// 为什么必须按 `dirs.json` 解析，而不是直接用启动器全局快照：
+    /// **领域激活**会把 5 个 key 改写为领域隔离目录 —— 此时 VCMI 读的是
+    /// `<realm>/vcmi/config`，而 `AppPaths.user_config_dir` 仍指向全局用户目录；
+    /// 用它落盘会**改错文件**（详见 `realms/activate.rs` §配置共享）。
+    ///
+    /// ⚠️ 凡「写 VCMI 用户配置」的动作（清洗 persistentStorage.json、
+    /// 播种 setupCompleted 等）都应按本函数解析目录，不要传全局快照路径。
+    pub fn effective_config_dir(game_dir: &Path) -> Option<PathBuf> {
+        if game_dir.as_os_str().is_empty() {
+            return None;
+        }
+
+        let dirs_path = game_dir.join("config").join("dirs.json");
+        if dirs_path.is_file() {
+            let configured = std::fs::read_to_string(&dirs_path)
+                .ok()
+                .and_then(|text| crate::infra::json::parse_json_lenient(&text).ok())
+                .and_then(|v| v.get("userConfigPath").and_then(|x| x.as_str()).map(str::to_string))
+                .map(|raw| expand_env(&raw));
+
+            if let Some(expanded) = configured {
+                let parsed = PathBuf::from(expanded.trim());
+                if parsed.is_absolute() && !has_unresolved_var(&expanded) {
+                    return Some(parsed);
+                }
+            }
+        }
+
+        let user_dir = Self::resolve_user_dir(game_dir);
+        if user_dir.as_os_str().is_empty() {
+            return None;
+        }
+        Some(user_dir.join("config"))
+    }
+
     pub fn update_from_config(&mut self, cfg: &LauncherConfig) {
         self.game_dir = cfg.paths.game_dir.clone();
         self.user_dir = cfg.paths.user_data_dir.clone();
@@ -782,7 +821,7 @@ fn resolve_env_var(var: &str) -> Option<String> {
 
 /// 判断字符串中是否残留未展开的环境变量（%VAR% 或 $VAR 形式）。
 /// 用于防御：展开失败时应回退默认，而非把字面量当相对路径拼到游戏目录。
-fn has_unresolved_var(s: &str) -> bool {
+pub(crate) fn has_unresolved_var(s: &str) -> bool {
     let bytes = s.as_bytes();
     for (i, &b) in bytes.iter().enumerate() {
         if b == b'%' || b == b'$' {
@@ -797,7 +836,7 @@ fn has_unresolved_var(s: &str) -> bool {
 }
 
 /// 展开 Windows 环境变量（%VAR% 与 $VAR 两种形式）
-fn expand_env(raw: &str) -> String {
+pub(crate) fn expand_env(raw: &str) -> String {
     let mut result = raw.to_string();
     // %VAR% 形式
     let chars: Vec<char> = raw.chars().collect();
