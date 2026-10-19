@@ -23,6 +23,7 @@ export function EntryDetail({
   onNavigate,
   compact,
   getEntry,
+  sourceLabels,
 }: DetailProps) {
   const d = entry.data as Record<string, unknown>;
 
@@ -79,7 +80,18 @@ export function EntryDetail({
       )}
 
       {/* 按类型渲染详情 */}
-      {renderDetail(entry, d, contentLang, t, onNavigate, cacheDir, modCache, compact, getEntry)}
+      {renderDetail(
+        entry,
+        d,
+        contentLang,
+        t,
+        onNavigate,
+        cacheDir,
+        modCache,
+        compact,
+        getEntry,
+        sourceLabels,
+      )}
     </div>
   );
 }
@@ -94,6 +106,7 @@ function renderDetail(
   modCache?: Record<string, unknown>,
   compact?: boolean,
   getEntry?: (category: WikiCategory, id: string) => WikiEntry | undefined,
+  sourceLabels?: Record<string, { modId: string; label: string }>,
 ) {
   const modId = entry.modId;
   switch (entry.category) {
@@ -114,7 +127,19 @@ function renderDetail(
     case "terrains":
       return <TerrainDetail d={d} lang={lang} t={t} cacheDir={cacheDir} compact={compact} />;
     case "mods":
-      return <ModDetail d={d} lang={lang} t={t} modId={modId} modCache={modCache} onNavigate={onNavigate} compact={compact} />;
+      return (
+        <ModDetail
+          d={d}
+          lang={lang}
+          t={t}
+          modId={modId}
+          cacheDir={cacheDir}
+          modCache={modCache}
+          onNavigate={onNavigate}
+          sourceLabels={sourceLabels}
+          compact={compact}
+        />
+      );
     default:
       return null;
   }

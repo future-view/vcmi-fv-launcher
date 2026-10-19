@@ -54,6 +54,18 @@
 - 「来源模组」**只挂在 `artifacts` / `spells`**（这两个类目没有阵营维度，且原版内容全部收敛到 `core`，故该维度等价于「原版 vs 某个 mod」）。不挂载的理由：`factions`（1 个城镇 mod 恰好提供 1 个阵营 → 筛选结果与列表一一对应、计数恒为 1）、`heroes` / `creatures`（条目按 `core.<faction>` 伪模组分散，与「阵营名称」重复）、`buildings`（已被「阵营」覆盖）、`skills`（原版技能全收敛到 core）、`terrains`（游戏级数据、跨 mod 去重后不归属单一模组）、`mods`（本身即模组清单）；
 - **布局不变量**：工具槽宽度、浮层都不参与列表布局 —— 任何类目下输入框宽度与列表上沿均恒定（列表上方不新增任何行）。
 
+### 2.2 `mods` 类目：父子树与父模组聚合
+
+`index.json` 的每个条目带 `parentId`（点号前第一段，顶层为自身），`mods` 类目据此渲染**树形**：
+
+- 默认**全折叠**（101 个模组全展开等于没折叠）。点父行 = **选中 + 展开**；折叠只由行首 chevron 负责 —— chevron 与主按钮是**兄弟**节点（按钮套按钮是非法 HTML），点它只切展开、不改选中；
+- 父模组**不在当前可见集合**（卸载 / 缓存缺失）时，其子模组按根展示，避免整棵子树凭空消失；
+- **只列「百科里有内容」的模组**（对齐 VCMI `WikiModContent.cpp:97-112` 的 `modHasContent`）：判定用索引的 `contentCount`（构建期已排除 `ref`），字体包 / 翻译 / 纯 AI 调参 / 地图对象补丁七类实体全为 0 → 不列。实测该发行版 572 个 mod 里 309 个属于这类噪音。**自身无内容但后代有内容的父模组必须保留**（`hota` 本身七类全空，28 个城镇 / 扩展子模组有内容），否则子模组失去树形归属；
+- **搜索 / 模组类型筛选生效时改为扁平命中列表**：树里"父模组没命中、子模组命中"会被折叠藏起来，而此刻用户要的是匹配项本身；
+- 选中带子模组的模组时，右栏 `ModDetail` 用**自身 + 全部后代**的聚合缓存渲染：前端按父 modId 合并（实测 1.83 发行版 101 份缓存合计 6.0 MB、最大一族 hota 的 28 个子模组合计 0.7 MB，点一次代价可忽略；后端预聚合会让父缓存成倍膨胀，而绝大多数用户从不点父模组页）。聚合规则：按 id 去重（**父模组优先**）、跳过 `ref` 跨 mod 补丁引用、`defines` 按"任意后代定义了"重算（否则父模组自己没定义生物的类目会被整节隐藏）、`terrains` 不聚合（游戏级共享数据，每个缓存里都是同一份）；
+- 聚合态的行尾标注**来源子模组**（`sourceLabels`，键 `类目:id`），点击跳转指向来源 mod —— 指向父模组会指错对象；
+- 模组页（聚合态与非聚合态一致）**只列本 mod 作用域内的实体**：`ref:true` 的跨 mod 补丁引用一律不渲染 —— `core.castle` 的 21 条法术全是 moat / trigger 这类引用，过滤后该节整节消失，也不会再出现 Boiling Oil / Boneyard 这类重名行；`terrains` 不进模组页（地形的 scope 是 `core`，且已并进每个 mod 的缓存，列表与详情都只会是同一份，另有独立类目可查）。
+
 ## 3. 数据来源
 
 - `loadWikiIndex()` 读 `mods/index.json`，`loadModCache(modId)` 读 `mods/<modId>/cache.json`。
@@ -76,7 +88,7 @@
 | `SkillDetail` | basic / advanced / expert 三级描述 |
 | `ArtifactDetail` | 效果行 + 价格 |
 | `TerrainDetail` | 地形图块 + 移动消耗 + `nativeTowns` |
-| `ModDetail` | 读 `cache.json` 顶层 `modMeta`（多语言名 / 描述 / 版本）+ 按类目分节列出可跳转条目 |
+| `ModDetail` | 读 `cache.json` 顶层 `modMeta`（多语言名 / 描述 / 版本）+ 按类目分节列出可跳转条目；带子模组时用「自身 + 后代」聚合缓存，行尾标注来源子模组（详见 §2.2） |
 
 公共件 `detailShared.tsx`：`ANIM` 动画组号 / `CREA_PREVIEW`、`SafeImg`、`DetailProps`、`DetailHeader`、`StatRow`、`StatTableRow`、`RelatedRow`、`costText`、`formatCost` / `formatResourceAmount`（资源图标优先 `resources` 段，回退 `core/images/resources/<idx>.webp`）、`WikiLink`。
 

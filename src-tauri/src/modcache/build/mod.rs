@@ -797,6 +797,33 @@ pub(crate) fn build_mod_wiki_once(
         "ref": ref_count,
     });
 
+    // 该 mod **自己定义**了哪些类目（供模组页决定"这一节要不要列"）。
+    //
+    // 语义对齐 VCMI `WikiModContent.cpp`：模组页只列**本 mod scope** 的实体
+    // （`isEntityOfMod`，:65-68），而 `collectModEntries` 更进一步——七类全无的 mod
+    // 直接不进模组列表（`modHasContent`，:110-112）。实测 east-realm 发行版 124 个 mod
+    // 里大量是字体包 / 视频包 / 纯 AI 调参，百科里逐个列出来只是噪音。
+    //
+    // ⚠️ 六类可以直接看构建结果，**地形不行**：`read_terrain_type` 会把游戏根
+    // `config/terrains.json` 的 10 个原版地形并进**每一个** mod 的缓存
+    // （实测 123/124 个 mod 都带这 10 个）——不区分"自己定义的"就会让每个模组页
+    // 都挂着一节一字不差的"地形"。故地形单独按 mod 自己的配置判定；
+    // core 系伪模组的地形来自游戏根，那对它们就是自己的内容。
+    let own_terrains = raw_cfgs
+        .get("terrains")
+        .and_then(|x| x.as_object())
+        .is_some_and(|m| !m.is_empty())
+        || (is_core && game_dir.join("config").join("terrains.json").is_file());
+    let defines = json!({
+        "factions": !factions.is_empty(),
+        "creatures": !creatures.is_empty(),
+        "heroes": !heroes.is_empty(),
+        "artifacts": !artifacts.is_empty(),
+        "spells": !spells.is_empty(),
+        "skills": !skills.is_empty(),
+        "terrains": own_terrains,
+    });
+
     // 属性表头图标（游戏 stackWindow def）与公共 UI 图标（游戏级资源，与 mod 无关，供弹窗使用），
     // 缺游戏资源时为空对象。统一由 `assets` 维度入口提取（见 `assets/mod.rs`）。
     let (stat_icons, shared_icons) = crate::infra::metrics::scope("shared.icons", || {
@@ -966,6 +993,8 @@ pub(crate) fn build_mod_wiki_once(
         "cachePath": out.to_string_lossy(),
         "factions": factions.len(),
         "contentCount": content_count,
+        // 该 mod 自己定义的类目（模组页据此决定列哪些节；地形需与共享基线区分）
+        "defines": defines,
         "h3DataMissing": h3_missing,
         // 建筑图标失败数（批次层按此汇总 WARN；明细见 cache.json 的 iconFailures）
         "failedIcons": icon_failures.len(),

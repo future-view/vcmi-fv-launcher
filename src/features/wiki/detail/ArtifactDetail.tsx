@@ -6,7 +6,6 @@ import { HdIcon } from "@/shared/HdIcon";
 import {
   DetailHeader,
   StatRow,
-  WikiLink,
   formatResourceAmount,
   makeRefResolver,
   type ResourceInfo,
@@ -71,32 +70,41 @@ export function ArtifactDetail({
   };
   const slotText =
     slots.length > 0 ? [...new Set(slots.map(slotLabel))].join(", ") : "—";
-  // VCMI WikiArtifactContent：组成部件/所属组合为竖排列表，每行 = 图标 + 名称
+  // VCMI WikiArtifactContent：组成部件/所属组合为竖排列表，每行 = 图标 + 名称。
+  // 与模组页（`ModDetail`）一致：**整行可点 + hover 高亮**，而不是让名称做成一个小 chip
+  // ——chip 的点击热区只有文字那几个字宽，图标区域点了没反应，且行间留白会被误读成分隔线。
   const artifactRows = (ids: string[]) => (
-    <div className="space-y-1">
+    <div className="divide-y divide-slate-800/50 overflow-hidden rounded-lg border border-slate-800/60 bg-slate-900/40">
       {ids.map((id) => {
         const ref = artifactRef(id);
-        return (
-          <div
+        const body = (
+          <>
+            <span className="flex h-8 w-8 flex-none items-center justify-center overflow-hidden rounded border border-slate-700/50 bg-slate-800/60">
+              {ref.image ? (
+                <HdIcon
+                  src={fullImgUrl(cacheDir, ref.image)}
+                  alt=""
+                  className="h-full w-full object-contain"
+                />
+              ) : null}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[11px] text-slate-200">{ref.name}</span>
+          </>
+        );
+        // 没有跳转回调时（如领域信息页）退化为静态行：不加 hover，避免"能点的错觉"
+        return onNavigate ? (
+          <button
             key={id}
-            className="flex items-center gap-2 rounded-lg border border-slate-800/60 bg-slate-900/40 px-2 py-1.5"
+            type="button"
+            title={ref.name}
+            onClick={() => onNavigate({ modId: ref.modId, category: "artifacts", id })}
+            className="flex w-full items-center gap-2 px-2 py-1 text-left transition-colors hover:bg-slate-800/50"
           >
-            {ref.image ? (
-              <HdIcon
-                src={fullImgUrl(cacheDir, ref.image)}
-                alt=""
-                className="h-8 w-8 flex-none rounded border border-slate-700/50 object-contain"
-              />
-            ) : (
-              <span className="h-8 w-8 flex-none rounded border border-slate-700/40 bg-slate-800/40" />
-            )}
-            <WikiLink
-              modId={ref.modId}
-              category="artifacts"
-              id={id}
-              label={ref.name}
-              onNavigate={onNavigate}
-            />
+            {body}
+          </button>
+        ) : (
+          <div key={id} className="flex items-center gap-2 px-2 py-1" title={ref.name}>
+            {body}
           </div>
         );
       })}

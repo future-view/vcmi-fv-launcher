@@ -97,6 +97,14 @@ export interface DetailProps {
    * 与改动前一致，不会更差。
    */
   getEntry?: (category: WikiCategory, id: string) => WikiEntry | undefined;
+  /**
+   * 聚合态（模组页）里每个条目的**来源子模组**：键 `${category}:${id}`。
+   *
+   * 只在「父模组页」出现——那一页合并了全部后代子模组的内容，行尾要能看出每样东西
+   * 来自哪个子模组，点击跳转也要指向来源 mod（指向父模组会指错对象）。
+   * 缺省（其它类目 / 未聚合）时所有条目都属于当前 mod，行尾不显示来源。
+   */
+  sourceLabels?: Record<string, { modId: string; label: string }>;
 }
 
 /** `makeRefResolver` 的解析结果 */

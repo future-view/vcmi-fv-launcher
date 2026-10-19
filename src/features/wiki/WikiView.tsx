@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Search, X } from "lucide-react";
+import { ChevronRight, Search, X } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +54,17 @@ const DEDUP_CATS: WikiCategory[] = ["spells", "skills", "artifacts", "creatures"
 
 /** **逐 mod 直接入列**的类目（不去重，各自 mod 的条目都保留）。 */
 const DIRECT_CATS: WikiCategory[] = ["factions", "heroes", "buildings"];
+
+/**
+ * 父模组页**聚合**的类目（与 `ModDetail` 的 SECTIONS 同一组）。
+ *
+ * `terrains` 刻意不在内：它是游戏级共享数据（每个 mod 缓存里都是同一份），
+ * 聚合只会把同一批地形重复拼几遍。
+ */
+const AGG_CATS: WikiCategory[] = ["factions", "heroes", "creatures", "artifacts", "spells", "skills"];
+
+/** `mods` 类目中栏的一行（树形展开后的扁平行） */
+type ModRow = { entry: WikiEntry; depth: number; hasChildren: boolean };
 
 /** 一次装载的产出：**全部类目** → 条目数组（见 `loadAllCategories` / `catEntriesRef`）。 */
 type WikiCategoryMap = Map<WikiCategory, WikiEntry[]>;
@@ -121,6 +132,22 @@ export function WikiView() {
    */
   const [visibleKeys, setVisibleKeys] = useState<Set<string> | null>(null);
   const [cacheDir, setCacheDir] = useState<string | null>(null);
+  // `mods` 类目的树展开态（默认**全折叠**：101 个 mod 全展开等于没折叠）。
+  // 点父行 = 选中 + 展开；点 chevron = 只切展开，不改选中。
+  const [expandedMods, setExpandedMods] = useState<Set<string>>(() => new Set());
+  /**
+   * 父模组页的**聚合结果**：自身 + 全部后代子模组的各类目条目合并成一份虚拟缓存，
+   * 外加「条目 → 来源子模组」映射（行尾来源标签 + 跳转目标）。
+   *
+   * 为什么在前端做而不是后端：实测 1.83 发行版全部 101 份缓存合计 **6.0 MB**，
+   * 最大一族 hota 的 28 个子模组合计 **0.7 MB** —— 点一次父模组的代价可忽略，
+   * 且可以按父 modId memo，重复点击不重复读。后端预聚合则会让父缓存成倍膨胀。
+   */
+  const [modAggregate, setModAggregate] = useState<{
+    modId: string;
+    cache: Record<string, unknown>;
+    sources: Record<string, { modId: string; label: string }>;
+  } | null>(null);
   const [counts, setCounts] = useState<Record<string, number>>({});
   // 任一 mod 缓存缺失原版 H3 数据文件：百科图标/背景将无图（提示用户补放 Data/*.lod）
   const [h3Missing, setH3Missing] = useState(false);
@@ -334,7 +361,10 @@ export function WikiView() {
         }
       }
       list.sort(sortByName);
-      out.set("mods", list);
+      // 只保留「百科里有内容」的模组（对齐 VCMI `WikiModContent.cpp:97-112` 的 `modHasContent`）：
+      // 实测 572 个 mod 里 309 个是字体 / 翻译 / 纯 AI 调参 / 地图对象补丁 / 兼容补丁，
+      // 它们七类实体全为空 —— 列进百科只是噪音，点开也没有任何内容可看。
+      out.set("mods", pruneModsWithoutContent(list));
     }
     // 只遍历「当前可见」的 mod：索引条目随时间累积（卸载后仍保留），
     // 而下面每条都要一次 IPC 读 cache.json —— 不筛选的话，开销会随使用时长单调增长。
@@ -735,9 +765,7 @@ export function WikiView() {
   }, [selected]);
 
   // 搜索过滤（**只做搜索**）。
-  //
-  // 搜索匹配**条目的全部语言名**（`name` 是 VCMI 多语言对象，键为 chinese / tchinese / english / …），
-  // 而不是枚举某几种语言：界面语言已达 5 种且会继续增加，任何"写死中/英"的口径在新增语言时
+  // 匹配条目的**全部语言名**而不是枚举某几种语言：界面语言已达 5 种且会继续增加，任何"写死中/英"的口径在新增语言时
   // 都会静默失效（只改文案救不了）。`id` 一并参与匹配，便于按 jsonKey 定位。
   // 这套「跨语言可搜」是**有意超出 VCMI 官方**的：官方只对当前语言显示名做模糊匹配
   // （`WikiWindow.cpp` 的 `isFuzzyMatch(filter, entry.name)`），而用户常常只记得另一种语言名。
@@ -763,6 +791,207 @@ export function WikiView() {
     return searched.filter((e) => activeSpecs.every((s) => s.match(e, filters[s.key])));
   }, [searched, category, filters]);
 
+  /**
+   * `mods` 类目的**父子结构**（数据源 = 平铺的 `entries`，每条的 `data.parentId`）。
+   *
+   * `parentId` 的语义见 `lib/modScanner`：点号前第一段，顶层模组为自身（或空）。
+   * 父模组**不在当前可见集合**（卸载 / 缓存缺失）时把该条按根展示 —— 否则整棵子树
+   * 会凭空消失，用户连它自己都看不到。
+   *
+   * 只依赖 `entries`（不依赖搜索/筛选）：结构是数据属性，不该随查询变化；
+   * 聚合 effect 也才能稳定，否则每敲一个字都要重新合并一次后代内容。
+   */
+  const modStructure = useMemo(() => {
+    if (category !== "mods") return null;
+    const byKey = new Map<string, WikiEntry>();
+    for (const e of entries) byKey.set(modIdKey(e.modId), e);
+    const roots: WikiEntry[] = [];
+    const childrenOf = new Map<string, WikiEntry[]>();
+    const parentOf = new Map<string, string>();
+    for (const e of entries) {
+      const key = modIdKey(e.modId);
+      const pid = modIdKey(String((e.data as Record<string, unknown>).parentId ?? ""));
+      if (!pid || pid === key || !byKey.has(pid)) {
+        roots.push(e);
+        continue;
+      }
+      parentOf.set(key, pid);
+      const arr = childrenOf.get(pid);
+      if (arr) arr.push(e);
+      else childrenOf.set(pid, [e]);
+    }
+    // `entries` 已按显示名排序，故 roots / childrenOf 内的顺序天然是名称序
+    return { roots, childrenOf, parentOf };
+  }, [category, entries]);
+
+  /** 搜索 / 模组类型筛选生效时，中栏改为**扁平命中列表**（见 `modRows`）。 */
+  const modsFlat =
+    category === "mods" && (query.trim() !== "" || WIKI_FILTERS.mods.some((s) => filters[s.key]));
+
+  /**
+   * 中栏要渲染的模组行（DFS 序，只下钻到已展开的节点；默认全折叠 —— 101 个模组
+   * 全展开等于没折叠）。点父行 = 选中 + 展开；折叠只由 chevron 负责。
+   *
+   * 搜索 / 筛选时改扁平：树里"父模组没命中、子模组命中"会被折叠藏起来，
+   * 而此刻用户要的是"哪些匹配项"，不是看层级。
+   */
+  const modRows = useMemo<ModRow[]>(() => {
+    if (!modStructure) return [];
+    if (modsFlat) return filtered.map((entry) => ({ entry, depth: 0, hasChildren: false }));
+    const out: ModRow[] = [];
+    const walk = (list: WikiEntry[], depth: number) => {
+      for (const e of list) {
+        const kids = modStructure.childrenOf.get(modIdKey(e.modId)) ?? [];
+        out.push({ entry: e, depth, hasChildren: kids.length > 0 });
+        if (kids.length > 0 && expandedMods.has(modIdKey(e.modId))) walk(kids, depth + 1);
+      }
+    };
+    walk(modStructure.roots, 0);
+    return out;
+  }, [modStructure, modsFlat, filtered, expandedMods]);
+
+  /** 中栏实际行数（分页 / 滚动定位用）：模组类是树形扁平行，其余类目就是 `filtered`。 */
+  const rowCount = category === "mods" ? modRows.length : filtered.length;
+
+  /** 分页窗口内的行。非 `mods` 类目包一层 `ModRow` 形状，渲染处只认这一种。 */
+  const visibleRows = useMemo<ModRow[]>(() => {
+    const rows: ModRow[] =
+      category === "mods"
+        ? modRows
+        : filtered.map((entry) => ({ entry, depth: 0, hasChildren: false }));
+    return rows.slice(0, visibleCount);
+  }, [category, modRows, filtered, visibleCount]);
+
+  /**
+   * 选中的模组若在折叠的子树里（返回 / 跳转 / 搜索后清空搜索），逐级把祖先展开：
+   * 否则中栏高亮行根本不存在，"返回后滚动到恢复行"也无从定位。
+   */
+  useEffect(() => {
+    if (category !== "mods" || selected?.category !== "mods" || !modStructure) return;
+    const need = new Set<string>();
+    let cur: string | undefined = modIdKey(selected.modId);
+    for (let i = 0; i < 16 && cur; i += 1) {
+      need.add(cur);
+      cur = modStructure.parentOf.get(cur);
+    }
+    setExpandedMods((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const k of need) {
+        if (!next.has(k)) {
+          next.add(k);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [category, selected, modStructure]);
+
+  /**
+   * **父模组页聚合**：选中带子模组的模组时，把它自己 + 全部后代的条目合并成一份
+   * 虚拟缓存，另建「条目 → 来源子模组」表（行尾标签 + 点击跳转用）。
+   *
+   * 为什么在前端做而不是后端：实测 1.83 发行版 101 份缓存合计 **6.0 MB**，最大一族
+   * `hota` 的 28 个子模组合计 **0.7 MB** —— 点一次父模组的代价可忽略，且能按父
+   * modId 复用；后端预聚合会让父缓存成倍膨胀，而绝大多数用户从不点父模组页。
+   *
+   * 叶子模组不做聚合（返回 `null`）：沿用既有的单 mod 缓存路径，不凭空造对象。
+   */
+  useEffect(() => {
+    if (category !== "mods" || selected?.category !== "mods" || !modStructure) {
+      setModAggregate(null);
+      return;
+    }
+    const selfKey = modIdKey(selected.modId);
+    // 逐级收集后代（顺带记下每个子模组的多语言名：来源标签不必再查一次索引）
+    const descendants: { modId: string; name: Record<string, string> }[] = [];
+    const seenKeys = new Set<string>([selfKey]);
+    const walk = (key: string, depth: number) => {
+      if (depth > 8) return; // 异常数据里的自引用 / 环
+      for (const child of modStructure.childrenOf.get(key) ?? []) {
+        const ck = modIdKey(child.modId);
+        if (seenKeys.has(ck)) continue;
+        seenKeys.add(ck);
+        descendants.push({ modId: child.modId, name: child.name });
+        walk(ck, depth + 1);
+      }
+    };
+    walk(selfKey, 0);
+    if (descendants.length === 0) {
+      setModAggregate(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const ids = [selected.modId, ...descendants.map((d) => d.modId)];
+      const caches = await Promise.all(
+        ids.map(async (mid) => {
+          const hit = cacheRef.current.get(mid);
+          if (hit) return hit;
+          const c = await loadModCache(mid);
+          if (c) putModCache(cacheRef.current, mid, c);
+          return c;
+        }),
+      );
+      if (cancelled) return;
+      const selfCache = caches[0] ?? {};
+      // 父模组自己的元数据（modMeta / defines / resources）原样保留：详情页标题、
+      // 描述、版本都取自这里
+      const cache: Record<string, unknown> = { ...selfCache };
+      const sources: Record<string, { modId: string; label: string }> = {};
+      for (const cat of AGG_CATS) {
+        const merged: unknown[] = [];
+        const seenIds = new Set<string>();
+        caches.forEach((c, i) => {
+          for (const item of (c?.[cat] as unknown[]) ?? []) {
+            const o = item as Record<string, unknown>;
+            // 跨 mod 补丁引用没有自己的数据（见 `loadAllCategories` 同款过滤）
+            if (o.ref) continue;
+            const id = String(o.id ?? o.factionId ?? "");
+            if (!id || seenIds.has(id)) continue;
+            seenIds.add(id);
+            merged.push(o);
+            // 自己（i === 0）的条目不加来源标签；同 id 时父模组优先，也落在这一支
+            if (i > 0) {
+              sources[`${cat}:${id}`] = {
+                modId: ids[i],
+                label:
+                  pickName(modNames[modIdKey(ids[i])], contentLang) ||
+                  pickName(descendants[i - 1].name, contentLang) ||
+                  ids[i],
+              };
+            }
+          }
+        });
+        if (merged.length > 0) cache[cat] = merged;
+      }
+      // `defines` 是"**本 mod 自己**定义了什么"，聚合后必须按"任意后代定义了"重算：
+      // 否则父模组自己没定义生物的类目会被整节隐藏（子模组的生物就看不见了）。
+      const selfDefines = selfCache.defines as Record<string, boolean> | undefined;
+      if (selfDefines && typeof selfDefines === "object") {
+        const defines: Record<string, boolean> = { ...selfDefines };
+        for (const cat of AGG_CATS) {
+          if (!defines[cat] && ((cache[cat] as unknown[]) ?? []).length > 0) defines[cat] = true;
+        }
+        cache.defines = defines;
+      }
+      // 资源表 / 共享图标是游戏级数据：父模组缓存里缺时从后代借一份（否则详情页
+      // 的花费图标、法术图标会整片空掉）
+      if (!cache.resources) {
+        const withRes = caches.find((c) => c?.resources);
+        if (withRes) cache.resources = withRes.resources;
+      }
+      if (!cache.sharedIcons) {
+        const withIcons = caches.find((c) => c?.sharedIcons);
+        if (withIcons) cache.sharedIcons = withIcons.sharedIcons;
+      }
+      setModAggregate({ modId: selected.modId, cache, sources });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [category, selected, modStructure, modNames, contentLang]);
+
   // 切换类目/搜索时重置分页窗口
   useEffect(() => {
     setVisibleCount(300);
@@ -780,9 +1009,15 @@ export function WikiView() {
   useEffect(() => {
     if (!pendingListScrollRef.current) return;
     if (loadedCategory !== category) return; // 列表尚未装载完当前类目 → 继续等
-    const idx = filtered.findIndex((e) => e.modId === selected?.modId && e.id === selected?.id);
+    // 模组类是树形扁平行：按**可见行**定位，否则折叠子树里的目标永远找不到
+    const idx =
+      category === "mods"
+        ? modRows.findIndex((r) => r.entry.modId === selected?.modId && r.entry.id === selected?.id)
+        : filtered.findIndex((e) => e.modId === selected?.modId && e.id === selected?.id);
     if (idx < 0) {
-      // 目标确实不在当前列表（数据缺失 / 被跨 mod 去重），无法定位，放弃
+      // 模组类目：目标可能只是还被折叠在子树里（祖先展开是上一轮 effect 里的状态更新），
+      // 等下一次 render 再试；其余类目 / 模组确实不在列表（数据缺失或被跨 mod 去重）则放弃。
+      if (category === "mods" && selected && entries.some((e) => e.modId === selected.modId)) return;
       pendingListScrollRef.current = false;
       return;
     }
@@ -792,7 +1027,7 @@ export function WikiView() {
     }
     pendingListScrollRef.current = false;
     listScrollRef.current?.querySelector('[data-wiki-active="true"]')?.scrollIntoView({ block: "nearest" });
-  }, [filtered, selected, visibleCount, category, loadedCategory]);
+  }, [filtered, modRows, entries, selected, visibleCount, category, loadedCategory]);
 
   /**
    * 切换类目后**按类目记忆 / 恢复**中栏滚动位置。
@@ -839,16 +1074,16 @@ export function WikiView() {
     }
     // 记忆位置可能落在分页窗口之外（新类目会把窗口复位到 300 条）→ 先把窗口开够，
     // 下一次 render 再写入；直接写会被当前内容高度夹掉。
-    const rendered = Math.min(filtered.length, visibleCount);
-    if (rendered > 0 && saved > el.scrollHeight - el.clientHeight && visibleCount < filtered.length) {
+    const rendered = Math.min(rowCount, visibleCount);
+    if (rendered > 0 && saved > el.scrollHeight - el.clientHeight && visibleCount < rowCount) {
       const rowH = el.scrollHeight / rendered;
       const need = Math.ceil(saved / Math.max(rowH, 1)) + 50;
-      setVisibleCount((c) => Math.min(Math.max(c, need), filtered.length));
+      setVisibleCount((c) => Math.min(Math.max(c, need), rowCount));
       return;
     }
     el.scrollTop = saved;
     pendingRestoreRef.current = null;
-  }, [category, loadedCategory, visibleCount, filtered]);
+  }, [category, loadedCategory, visibleCount, rowCount]);
 
   // ⚠️ **未就绪时只渲染蒙层，不渲染任何内容**（早返回）：
   // 被蒙层遮住的内容照样会渲染、跑 effect、拉数据（列表、图片、甚至按需合成预览），
@@ -971,7 +1206,7 @@ export function WikiView() {
             // `scrollTop` 夹到 0 —— 那是滚动容器的高度限制，不是用户的位置，不能覆盖记忆值。
             if (!loading) listScrollMemoRef.current.set(category, el.scrollTop);
             if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) {
-              setVisibleCount((c) => (c < filtered.length ? c + 300 : c));
+              setVisibleCount((c) => (c < rowCount ? c + 300 : c));
             }
           }}
         >
@@ -981,10 +1216,11 @@ export function WikiView() {
                 <div key={i} className="h-10 animate-pulse rounded-lg bg-slate-800/60" />
               ))}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : rowCount === 0 ? (
             <p className="p-4 text-sm text-slate-500">{t.wiki.empty}</p>
           ) : (
-            filtered.slice(0, visibleCount).map((e) => {
+            visibleRows.map((row) => {
+              const e = row.entry;
               const name = pickName(e.name, contentLang) || pickName(e.name, "english") || e.id;
               // 副标题语义化（对齐 VCMI WikiListItem：英雄→职业、生物→等级、宝物→等级、法术→学派、Mod→类型、其余→来源 mod）
               const ed = e.data as Record<string, unknown>;
@@ -1061,7 +1297,29 @@ export function WikiView() {
                   tip={tip}
                   alignment={alignment}
                   active={selected?.id === e.id && selected?.modId === e.modId}
-                  onClick={() => pushAndSelect(e)}
+                  depth={row.depth}
+                  hasChildren={row.hasChildren}
+                  expanded={expandedMods.has(modIdKey(e.modId))}
+                  onToggleExpand={() =>
+                    setExpandedMods((prev) => {
+                      const next = new Set(prev);
+                      const k = modIdKey(e.modId);
+                      if (next.has(k)) next.delete(k);
+                      else next.add(k);
+                      return next;
+                    })
+                  }
+                  onClick={() => {
+                    // 点父行 = 选中 + 展开（折叠只交给 chevron，避免"点一下又收起来"）
+                    if (row.hasChildren) {
+                      setExpandedMods((prev) =>
+                        prev.has(modIdKey(e.modId))
+                          ? prev
+                          : new Set(prev).add(modIdKey(e.modId)),
+                      );
+                    }
+                    pushAndSelect(e);
+                  }}
                 />
               );
             })
@@ -1095,8 +1353,18 @@ export function WikiView() {
               contentLang={contentLang}
               t={t}
               cacheDir={cacheDir}
+              // 带子模组的模组页用**聚合缓存**（自身 + 全部后代）；叶子模组 / 其它类目
+              // 沿用单 mod 缓存。聚合结果未就绪时先显示自身那份，随后自动补全。
               modCache={
-                modCacheMap[selected.modId] ?? cacheRef.current.get(selected.modId)
+                selected.category === "mods" && modAggregate?.modId === selected.modId
+                  ? modAggregate.cache
+                  : (modCacheMap[selected.modId] ?? cacheRef.current.get(selected.modId))
+              }
+              // 行尾「来源子模组」标签 + 点击跳转目标（仅聚合态有值）
+              sourceLabels={
+                selected.category === "mods" && modAggregate?.modId === selected.modId
+                  ? modAggregate.sources
+                  : undefined
               }
               getEntry={lookupEntry}
               onNavigate={navigateTo}
@@ -1119,7 +1387,12 @@ export function WikiView() {
   );
 }
 
-/** 中栏条目行：VCMI WikiListItem::showPopupWindow —— 右键弹文本气泡 */
+/**
+ * 中栏条目行：VCMI WikiListItem::showPopupWindow —— 右键弹文本气泡。
+ *
+ * 模组类目带层级（`depth` / `hasChildren` / `expanded`）：chevron 与主按钮是**兄弟**
+ * 而非嵌套（按钮里套按钮是非法 HTML），chevron 只切展开、不改变选中。
+ */
 function EntryRow({
   entry,
   cacheDir,
@@ -1128,6 +1401,10 @@ function EntryRow({
   tip,
   alignment,
   active,
+  depth = 0,
+  hasChildren = false,
+  expanded = false,
+  onToggleExpand,
   onClick,
 }: {
   entry: WikiEntry;
@@ -1138,50 +1415,82 @@ function EntryRow({
   tip: string;
   alignment: string;
   active: boolean;
+  /** 树形缩进层级（0 = 顶层） */
+  depth?: number;
+  hasChildren?: boolean;
+  expanded?: boolean;
+  onToggleExpand?: () => void;
   onClick: () => void;
 }) {
   const { t } = useI18n();
   const popup = useWikiPopup();
   const triggers = usePopupTriggers();
+  const indented = hasChildren || depth > 0;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      // 返回后中栏要滚到恢复的行：列表容器据此查询高亮行（见 scrollListToSelection）
+    <div
+      // 返回后中栏要滚到恢复的行：列表容器据此查询高亮行（见"返回后把中栏滚到恢复的高亮行"）
       data-wiki-active={active ? "true" : undefined}
-      // VCMI WikiListItem::showPopupWindow：条目行右键 = 文本气泡（居中于光标）。
-      // 显示 `tip`（描述/传记）而不是副标题 —— 副标题是分类信息（T6 / 狂化人），
-      // 作为气泡没有信息量；`tip` 一定非空（回退了条目名），故恒挂触发器。
-      {...triggers((p) => popup.showText(tip, p))}
       className={cn(
-        "flex w-full items-center gap-2 border-l-2 px-3 py-2 text-left transition-colors",
+        "flex w-full items-stretch border-l-2 transition-colors",
         active ? "border-blue-500 bg-blue-500/15" : "border-transparent hover:bg-slate-800/50",
       )}
     >
-      <EntryIcon entry={entry} cacheDir={cacheDir} />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center justify-between gap-2">
-          <span className="min-w-0 flex-1 truncate text-sm text-slate-100">{name}</span>
-          {alignment ? (
-            <span
-              className={cn(
-                "flex-none rounded px-1.5 py-0.5 text-[10px] font-medium",
-                alignment.toLowerCase() === "good"
-                  ? "bg-emerald-500/20 text-emerald-300"
-                  : alignment.toLowerCase() === "evil"
-                    ? "bg-red-500/20 text-red-300"
-                    : "bg-slate-600/30 text-slate-400",
-              )}
-            >
-              {t.wiki.alignment[alignment.toLowerCase() as keyof typeof t.wiki.alignment] ?? alignment}
-            </span>
+      {hasChildren ? (
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-expanded={expanded}
+          title={expanded ? t.mods.collapse : t.mods.expand}
+          aria-label={expanded ? t.mods.collapse : t.mods.expand}
+          style={{ marginLeft: depth * 14 + 2 }}
+          className="flex w-4 flex-none items-center justify-center text-slate-500 transition-colors hover:text-slate-200"
+        >
+          <ChevronRight
+            className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-90")}
+          />
+        </button>
+      ) : depth > 0 ? (
+        // 无子模组的子行：占位宽度与 chevron 一致，保证同级图标左沿对齐
+        <span className="flex-none" style={{ width: depth * 14 + 18 }} />
+      ) : null}
+      <button
+        type="button"
+        onClick={onClick}
+        // VCMI WikiListItem::showPopupWindow：条目行右键 = 文本气泡（居中于光标）。
+        // 显示 `tip`（描述/传记）而不是副标题 —— 副标题是分类信息（T6 / 狂化人），
+        // 作为气泡没有信息量；`tip` 一定非空（回退了条目名），故恒挂触发器。
+        {...triggers((p) => popup.showText(tip, p))}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-2 py-2 pr-3 text-left",
+          // 只有"顶层且无子节点"的行保持原来的左内边距；其余由 chevron / 占位撑开
+          indented ? "pl-0" : "pl-3",
+        )}
+      >
+        <EntryIcon entry={entry} cacheDir={cacheDir} />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center justify-between gap-2">
+            <span className="min-w-0 flex-1 truncate text-sm text-slate-100">{name}</span>
+            {alignment ? (
+              <span
+                className={cn(
+                  "flex-none rounded px-1.5 py-0.5 text-[10px] font-medium",
+                  alignment.toLowerCase() === "good"
+                    ? "bg-emerald-500/20 text-emerald-300"
+                    : alignment.toLowerCase() === "evil"
+                      ? "bg-red-500/20 text-red-300"
+                      : "bg-slate-600/30 text-slate-400",
+                )}
+              >
+                {t.wiki.alignment[alignment.toLowerCase() as keyof typeof t.wiki.alignment] ?? alignment}
+              </span>
+            ) : null}
+          </span>
+          {sub && sub !== name ? (
+            <span className="mt-0.5 block truncate text-[11px] text-slate-500">{sub}</span>
           ) : null}
         </span>
-        {sub && sub !== name ? (
-          <span className="mt-0.5 block truncate text-[11px] text-slate-500">{sub}</span>
-        ) : null}
-      </span>
-    </button>
+      </button>
+    </div>
   );
 }
 
@@ -1207,6 +1516,72 @@ function EntryIcon({ entry, cacheDir }: { entry: WikiEntry; cacheDir: string | n
 }
 
 
+
+/** 索引 `contentCount` 中代表"百科里有实体"的键（对齐 VCMI `collectScopes` 的七类）。 */
+const MOD_CONTENT_KEYS = [
+  "factions",
+  "heroes",
+  "creatures",
+  "artifacts",
+  "spells",
+  "skills",
+  // 原版法术 / 技能在计数里单独拆成 builtin（见 `collectCounts`），它们同样是 core 的真实条目
+  "spellBuiltin",
+  "skillBuiltin",
+] as const;
+
+/**
+ * 剔除**没有任何百科内容**的模组（对齐 VCMI `WikiModContent.cpp:97-112` 的 `modHasContent`）。
+ *
+ * 判定用索引里的 `contentCount`（构建期已排除 `ref` 补丁引用），而不是"缓存存在与否"：
+ * 字体包 / 翻译 / 纯 AI 调参 / 地图对象补丁的 cache.json 一样存在，但七类实体全为 0。
+ * 实测该发行版 572 个 mod 里 309 个属于这类噪音。
+ *
+ * ⚠️ 自身无内容、但**后代有内容**的父模组必须保留：树形列表靠它挂住子模组
+ * （实测 `hota` 本身七类全空，28 个城镇 / 扩展子模组却都有内容）。
+ */
+function pruneModsWithoutContent(list: WikiEntry[]): WikiEntry[] {
+  const hasOwn = new Map<string, boolean>();
+  const childrenOf = new Map<string, string[]>();
+  for (const e of list) {
+    const key = modIdKey(e.modId);
+    const cc = (e.data as Record<string, unknown>).contentCount as
+      | Record<string, number>
+      | undefined;
+    // ⚠️ 旧索引 / 外部 mock 可能**根本没有** `contentCount`：此时必须保守地当成"有内容"，
+    // 否则整个模组列表会被清空（与 `visibleKeys === null` 不筛选同一条失效原则）。
+    hasOwn.set(
+      key,
+      !cc || typeof cc !== "object" ? true : MOD_CONTENT_KEYS.some((k) => (cc[k] ?? 0) > 0),
+    );
+  }
+  for (const e of list) {
+    const key = modIdKey(e.modId);
+    const pid = modIdKey(String((e.data as Record<string, unknown>).parentId ?? ""));
+    if (!pid || pid === key || !hasOwn.has(pid)) continue;
+    const arr = childrenOf.get(pid);
+    if (arr) arr.push(key);
+    else childrenOf.set(pid, [key]);
+  }
+  const keep = new Map<string, boolean>();
+  const visit = (key: string, depth: number): boolean => {
+    const hit = keep.get(key);
+    if (hit !== undefined) return hit;
+    keep.set(key, false); // 先占位：异常数据里的环不至于递归不返回
+    let ok = hasOwn.get(key) ?? false;
+    if (!ok && depth < 16) {
+      for (const child of childrenOf.get(key) ?? []) {
+        if (visit(child, depth + 1)) {
+          ok = true;
+          break;
+        }
+      }
+    }
+    keep.set(key, ok);
+    return ok;
+  };
+  return list.filter((e) => visit(modIdKey(e.modId), 0));
+}
 
 function collectCounts(mods: { contentCount?: Record<string, number> }[]): Record<string, number> {
   const counts: Record<string, number> = {};
