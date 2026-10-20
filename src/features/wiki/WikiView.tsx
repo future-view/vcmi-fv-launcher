@@ -26,6 +26,15 @@ import { WikiPopupProvider } from "@/features/wiki/detail/WikiPopup";
 import { useWikiPopup, usePopupTriggers } from "@/features/wiki/detail/WikiPopupContext";
 import { HdIcon } from "@/shared/HdIcon";
 import { WikiFilterPanel } from "@/features/wiki/WikiFilterPanel";
+import {
+  DEFAULT_SORT,
+  collectBidNames,
+  collectClassNames,
+  normalizeSort,
+  sortEntries,
+} from "@/features/wiki/sort";
+import type { SortContext, SortDim, SortSpec } from "@/features/wiki/sort";
+import { readWikiSort, writeWikiSort } from "@/lib/uiPrefs";
 import { artifactClassLabel, WIKI_FILTERS } from "@/features/wiki/filters";
 
 const CATEGORIES: { key: WikiCategory; label: (t: LangDict) => string }[] = [
@@ -107,6 +116,21 @@ export function WikiView() {
   const [query, setQuery] = useState("");
   // 筛选：维度 key → 选中值（空串 / 缺省 = 全部）。切类目时清空，对齐 VCMI 切类目清空搜索框的语义
   const [filters, setFilters] = useState<Record<string, string>>({});
+  //
+  // 排序（双槽：主排序 + 次排序），**按类目各记一组**（localStorage `wikiSort`）。
+  //
+  // 与筛选刻意不同：**切类目不清排序**。筛选的维度随类目变化，沿用无意义；排序是视图偏好，
+  // 清了会让用户每次切类目都要重设。按类目记而非全局单记，是因为维度池随类目变化
+  // （生物有等级、英雄有职业、建筑有 bid）——全局记会频繁遇到"在生物选的等级切到英雄不存在"。
+  const [sortSpecs, setSortSpecs] = useState<Record<WikiCategory, SortSpec>>(() => {
+    const stored = readWikiSort();
+    const out = {} as Record<WikiCategory, SortSpec>;
+    for (const k of Object.keys(DEFAULT_SORT) as WikiCategory[]) {
+      // localStorage 的形状是宽松的（string），合法性由 normalizeSort 运行时裁剪
+      out[k] = normalizeSort(k, stored[k] as Partial<SortSpec> | undefined);
+    }
+    return out;
+  });
   // 阵营 id → 多语言名（cache.json 顶层 `factionNames`，跨 mod 合并）：供「按阵营筛选」显示名字
   const [factionNames, setFactionNames] = useState<Record<string, Record<string, string>>>({});
   // modId（小写归一）→ 多语言名（取自索引条目名）：供「来源模组」筛选显示名字
@@ -332,6 +356,52 @@ export function WikiView() {
   );
 
   /**
+   * 按给定排序配置重排一个类目的列表（**原地**）。
+   *
+   * 供两处共用：① `loadAllCategories` 装载完毕时；② 用户在浮层切换排序时。
+   * 切换排序走这条而不是重新装载 —— 重排不需要再读一遍 572 个 mod 的 cache.json
+   * （32 MB + 解析），零 IPC。
+   *
+   * `factionNames` 由调用方传入：装载途中要用刚收集的 `namesAcc`（state 那时还没更新），
+   * 切换排序时用 `factionNames` state。
+   */
+  const sortList = useCallback(
+    (
+      cat: WikiCategory,
+      list: WikiEntry[],
+      spec: SortSpec,
+      fnames: Record<string, Record<string, string>>,
+    ) => {
+      // 主排序为名称 → 保持原有名称序（含 english 回退），确保"按名称"模式零回归。
+      // buildings 额外保留「中立置顶」：默认模式要解决"370+ 城镇建筑淹没中立建筑"的
+      // 实测问题；分组模式下无城镇条目由「无值排最后」接管，两者相反是刻意的。
+      if (spec.primary === "name") {
+        if (cat === "buildings") {
+          list.sort((a, b) => {
+            const an =
+              String((a.data as Record<string, unknown>).factionId ?? "") === "neutral" ? 0 : 1;
+            const bn =
+              String((b.data as Record<string, unknown>).factionId ?? "") === "neutral" ? 0 : 1;
+            return an - bn || sortByName(a, b);
+          });
+          return;
+        }
+        list.sort(sortByName);
+        return;
+      }
+      const ctx: SortContext = {
+        lang: contentLang,
+        t,
+        factionNames: fnames,
+        classNames: cat === "heroes" ? collectClassNames(list) : {},
+        bidNames: cat === "buildings" ? collectBidNames(list) : {},
+      };
+      sortEntries(list, spec, ctx, nameCollator);
+    },
+    [sortByName, contentLang, t, nameCollator],
+  );
+
+  /**
    * 一次装载**全部类目**的条目（聚合各 mod），返回 `类目 → 条目数组`。
    *
    * 为什么不是"按需装载单个类目"：装载要遍历全部可见 mod（572 个）各读一份 `cache.json`，
@@ -495,9 +565,14 @@ export function WikiView() {
     // 一次产出全部类目意味着这一段是**同步长任务**（上万个 `buildEntry` + 排序），
     // 故每处理一个类目让出一帧，避免一次性卡住交互（与上面 mod 循环同款防护）。
     const yieldFrame = () => new Promise((r) => setTimeout(r, 0));
+    //
+    // 排序走共享的 `sortList`（与浮层切换排序是同一条代码路径，避免两处口径漂移）。
+    // `namesAcc` 是本次装载刚收集的跨 mod 名字表 —— 此时 `factionNames` state 还没更新。
+    const applySort = (cat: WikiCategory, list: WikiEntry[]) =>
+      sortList(cat, list, sortSpecs[cat], namesAcc);
     for (const c of DIRECT_CATS) {
       const list = directAcc[c];
-      list.sort(sortByName);
+      applySort(c, list);
       out.set(c, list);
       await yieldFrame();
     }
@@ -506,7 +581,7 @@ export function WikiView() {
       for (const { mod, item } of dedupAcc[c].values()) {
         list.push(buildEntry(mod, c, item));
       }
-      list.sort(sortByName);
+      applySort(c, list);
       out.set(c, list);
       await yieldFrame();
     }
@@ -521,18 +596,6 @@ export function WikiView() {
       list.sort(sortByName);
       out.set("terrains", list);
       await yieldFrame();
-    }
-    {
-      // 建筑：中立建筑置顶，避免被 370+ 条城镇建筑淹没（用户实测"看不到中立建筑"）。
-      // 置顶语义**优先于**名称序，组内再按显示名升序。
-      const list = out.get("buildings") ?? [];
-      list.sort((a, b) => {
-        const an =
-          String((a.data as Record<string, unknown>).factionId ?? "") === "neutral" ? 0 : 1;
-        const bn =
-          String((b.data as Record<string, unknown>).factionId ?? "") === "neutral" ? 0 : 1;
-        return an - bn || sortByName(a, b);
-      });
     }
     // 左栏计数 = 实际聚合条目数（原版法术等已跨 mod 去重，与列表一致）。
     // 一次装载产出全部类目，故一次写全；此前是每装载一个类目写一次。
@@ -552,6 +615,10 @@ export function WikiView() {
     indexed,
     visibleKeys,
     sortByName,
+    sortList,
+    // `sortSpecs` 进 deps 是**必需**的：用户切换排序后若再切类目，新一轮装载必须用新配置，
+    // 否则新类目会退回上一次的排序（缓存的 useCallback 捕获的是旧值）。
+    sortSpecs,
     // `contentLang` 进 deps 是**必需**的：闭包内的 `sortByName` 要按当前语言排序。
     // 有效性键（含 `epoch`）由调用方以 `key` 传入，见 `catCacheKey`。
     contentLang,
@@ -1205,6 +1272,32 @@ export function WikiView() {
               contentLang={contentLang}
               factionNames={factionNames}
               modNames={modNames}
+              sortSpec={sortSpecs[category]}
+              sortCategory={category}
+              onSortChange={(spec) => {
+                setSortSpecs((prev) => {
+                  const next = { ...prev, [category]: spec };
+                  // 持久化放在 updater 里：functional update 保证连续切换时不丢中间态。
+                  // 幂等写，重复调用无害。
+                  writeWikiSort(next);
+                  return next;
+                });
+                // 内存重排：不重新装载（省 572 个 cache.json 的 32MB + 解析）。
+                //
+                // ⚠️ 必须**换数组引用**，不能原地 sort：`searched` / `filtered` 都是 useMemo，
+                // 按引用比较依赖 —— 原地排序内容变了但引用不变，memo 不失效 → 列表不刷新
+                // （2026-10-20 实测"点了排序列表没反应"就是这个原因）。
+                // `entries` 与 `catEntriesRef` 里的数组本就是同一引用，故两处都要换成新的。
+                const cur = catEntriesRef.current;
+                if (cur) {
+                  const reordered = [...(cur.get(category) ?? [])];
+                  sortList(category, reordered, spec, factionNames);
+                  cur.set(category, reordered);
+                  setEntries(reordered);
+                }
+                // 排序变了，恢复的滚动位置会指向另一个条目 → 直接回顶部
+                listScrollRef.current?.scrollTo({ top: 0 });
+              }}
               t={t}
             />
           </div>

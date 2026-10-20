@@ -145,6 +145,42 @@ fn encode_mod_path_for_cache(
 mod tests {
     use super::*;
 
+    /// 回归（"生物技能图片全部无法显示"）：`clear_stale` 的清理只删**归属自己**的产物，
+    /// 不能连带删掉别的 mod 写进本 mod 目录的共享图 —— 典型实例：生物能力图标归属
+    /// Bonus Icons 子模组，而该子模组自己 `creatures: 0`、根本不产能力图标；
+    /// 整目录删（或按"记录过"无差别删）会让它无人重建。
+    #[test]
+    fn recorded_assets_cleanup_keeps_foreign_owned_assets() {
+        let tmp = std::env::temp_dir().join(format!(
+            "fv-recorded-assets-{}-{}",
+            std::process::id(),
+            line!()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let own = tmp.join("mymod").join("images").join("ability");
+        let foreign = tmp.join("bonus-icons").join("images").join("ability");
+        std::fs::create_dir_all(&own).unwrap();
+        std::fs::create_dir_all(&foreign).unwrap();
+        std::fs::write(own.join("a.webp"), b"1").unwrap();
+        std::fs::write(foreign.join("b.webp"), b"2").unwrap();
+        let cj = tmp.join("mymod").join("cache.json");
+        // 同一条 abilities 里混着归属自己与归属别人的产物
+        std::fs::write(
+            &cj,
+            r#"{"creatures":[{"abilities":[{"icon":"mymod/images/ability/a.webp"},{"icon":"bonus-icons/images/ability/b.webp"}]}]}"#,
+        )
+        .unwrap();
+
+        remove_recorded_assets(&cj, &tmp, "mymod");
+
+        assert!(!own.join("a.webp").is_file(), "归属自己的产物应被删除");
+        assert!(
+            foreign.join("b.webp").is_file(),
+            "归属别人的共享图必须保留，否则无人重建 → 图标永久缺失"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
     /// 中立阵营名来自 `resources/h3-core-texts.json`（`.rs` 里不写译文）；
     /// 键必须是 VCMI 语言名，且至少中英都有真译文。
     #[test]
@@ -246,6 +282,53 @@ pub(crate) fn build_mod_wiki_phase(
         crate::modcache::hd_map::write_source_mark(cache_root, mod_id);
     }
     r
+}
+
+/// 删除旧 `cache.json` 里**记录过**的产物文件（精确到文件，不动目录、不碰别人的产物）。
+///
+/// 与「整目录删 `images/`」的区别见调用处注释：产物归属改为「素材来源方」后，
+/// 一个 mod 的 `images/` 目录里混有其它 mod 写入的共享图，整目录删会误删且无人重建。
+fn remove_recorded_assets(cache_json: &Path, cache_root: &Path, mod_id: &str) {
+    let text = match fs::read_to_string(cache_json) {
+        Ok(t) => t,
+        Err(_) => return,
+    };
+    let v: serde_json::Value = match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+    let mut rels: Vec<String> = Vec::new();
+    fn walk(v: &serde_json::Value, out: &mut Vec<String>) {
+        match v {
+            serde_json::Value::String(s) => {
+                let t = s.trim();
+                // 判定口径与 `wiki_image_rel` 一致：相对缓存根 + `/images/` + `.webp`
+                if t.ends_with(".webp") && t.contains("/images/") {
+                    out.push(t.to_string());
+                }
+            }
+            serde_json::Value::Array(a) => a.iter().for_each(|x| walk(x, out)),
+            serde_json::Value::Object(o) => o.values().for_each(|x| walk(x, out)),
+            _ => {}
+        }
+    }
+    walk(&v, &mut rels);
+    //
+    // 只删**归属自己**的产物。归属别人的共享图（典型：`core.castle` 记录的地形归属 `core`、
+    // 能力图标归属 Bonus Icons 子模组）不能在这里删 —— 删了之后，引用它的其它 mod
+    // 若已缓存命中就不会重建，图会永久缺失。
+    // 共享产物的失效由批次开头的**一次性整体清理**负责（素材版本变化时），
+    // 那才是"全部 mod 都会重建"的安全时机。
+    let own_prefix = format!("{}/images/", sanitize_id(mod_id));
+    for rel in rels {
+        if !rel.starts_with(&own_prefix) {
+            continue;
+        }
+        let p = cache_root.join(&rel);
+        if p.is_file() {
+            let _ = fs::remove_file(&p);
+        }
+    }
 }
 
 /// 增量短路兜底（问题 1-B）：缓存键命中不代表素材文件仍在磁盘上——可能被外部删除 /
@@ -439,9 +522,18 @@ fn build_mod_wiki_phase_inner(
             if phase == 0 {
                 return cached_json(&probe.content_count);
             }
+            // `core` 也不例外：清空粒度是「本 mod 记录过的产物」，不是整个 images/ 目录。
             if probe.clear_stale {
                 let dir = cache_root.join(sanitize_id(mod_id));
-                let _ = fs::remove_dir_all(dir.join("images"));
+                //
+                // ⚠️ **只删本 mod 的 cache.json 里记录过的产物文件，不能整目录删 `images/`**。
+                // 产物归属改为「素材来源方」后，一个 mod 的 images/ 目录里混有**其它 mod
+                // 写入**的共享图 —— 典型实例：生物能力图标归属 Bonus Icons 子模组
+                // （`core.castle` 的能力图标落在 `vcmi-extras.bonusicons.bonus icons/images/ability/`），
+                // 而该子模组自己 `creatures: 0`、根本不产能力图标。
+                // 整目录删会连带删掉这些图且**无人重建**（归属方不在本批、也不产它们）
+                // → 表现为"生物技能图片全部无法显示"。
+                remove_recorded_assets(&dir.join("cache.json"), cache_root, mod_id);
                 let _ = fs::remove_file(dir.join("hd-map.json"));
             }
             return build_mod_wiki_once(mod_path, mod_id, cache_root, game_dir, true);

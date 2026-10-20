@@ -131,7 +131,7 @@ pub(crate) fn config_scan_roots(game_dir: &Path) -> Vec<PathBuf> {
         out.push(core);
     }
     if let Some(all) = crate::vcmi::resource::wiki_mod_paths() {
-        for p in all.iter() {
+        for (p, _) in all.iter() {
             if content_dir_of(p).is_some() {
                 out.push(p.clone());
             }

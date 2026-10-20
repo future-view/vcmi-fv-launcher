@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::vcmi::paths::VcmiPaths;
-use crate::vcmi::scan::cached_mod_paths;
+use crate::vcmi::scan::{cached_mod_paths, ModEntry};
 
 /// 单个 content.zip 的条目索引。
 #[derive(Default)]
@@ -542,6 +542,32 @@ fn resource_keys(resource: &str) -> (String, String) {
     (key, key_with_ext)
 }
 
+/// 资源的**文件名安全标识**（供百科缓存给产物命名）。
+///
+/// 取 `resource_keys` 的 `key_with_ext`（去虚拟前缀、含扩展名、小写）再做文件名安全化，
+/// 于是**命名键 == 解析键**：
+/// - 不同资源必不同名 —— 不会重演 basename 撞名（实测 hota 的
+///   `artifactsCampaignBonuses/capeOfSilence.png` 与 `artifactsIcons/capeOfSilence.png`
+///   内容完全不同却同名，共 173 组）；
+/// - 同一资源必同名 —— 被 N 个条目引用也只产出一个文件。
+///
+/// ⚠️ 安全化把 `/` 与 `.` 都映射成 `_`，理论上存在「`a/b` 与 `a_b` 撞名」的单射性瑕疵。
+/// 实测资源名中 `~` 极少见，故保留 `-`/`_`/字母数字，其余一律 `_`；撞名由落盘哨兵告警兜住
+/// （见 `modcache::assets::note_asset_collision`），不会静默错图。
+pub(crate) fn resource_asset_key(res: &str) -> String {
+    let (_, key_with_ext) = resource_keys(res);
+    key_with_ext
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '_' | '-') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
 fn resolve_resource_inner(mod_path: &Path, resource: &str) -> Option<(Vec<u8>, String)> {
     let resource = resource.trim();
     if resource.is_empty() {
@@ -591,13 +617,55 @@ fn resolve_resource_inner(mod_path: &Path, resource: &str) -> Option<(Vec<u8>, S
 /// `HALLCSTL.DEF`、`TPCASCAS`），`resolve_resource` 只搜 mod 自身故必须回退。
 /// 返回**实际命中的扩展名**（经 `read_game_resource_ext` 的基名+多扩展名回退，
 /// 配置写 `.bmp`/无扩展名也能命中 lod 内的 `.pcx`），供下游 `encode_webp` 正确解码。
+/// 素材来源归属：这份素材**真正属于谁**（而非谁在提取它）。
+///
+/// 用途：百科缓存据此把产物归属到来源方，使同一份素材只落一份盘 ——
+/// 游戏级素材 → 归属 `core`；跨模组引用 → 归属被引用方；本模组素材 → 归属自己。
+///
+/// ⚠️ 刻意用 `SelfMod` 而不是直接带 id：解析层只持有**磁盘路径**，由路径反查 modId
+/// 要遍历整张模组表（热路径白付代价）。"归属请求方自己"这层语义留给调用方填它自己的
+/// modId —— 调用方本来就知道自己是谁。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Origin {
+    /// 游戏根 `Data/*.lod` 或用户数据 `Data/`（原版 H3 素材）
+    Game,
+    /// 请求方模组自己（调用方即归属方）
+    SelfMod,
+    /// 其它已装模组（跨模组引用命中），携带该模组的规范 modId
+    Mod(String),
+}
+
 pub(crate) fn resolve_resource_fallback(
     mod_path: &Path,
     game_dir: &Path,
     res: &str,
 ) -> Option<(Vec<u8>, String)> {
-    if let Some(r) = resolve_resource(mod_path, res) {
-        return Some(r);
+    resolve_core(mod_path, game_dir, res).map(|(b, e, _)| (b, e))
+}
+
+/// 与 [`resolve_resource_fallback`] 同结果，但额外给出**素材来源归属**（见 [`Origin`]）。
+///
+/// 供百科缓存的落盘入口使用：产物归属由来源决定，而非由提取调用方决定。
+pub(crate) fn resolve_resource_origin(
+    mod_path: &Path,
+    game_dir: &Path,
+    res: &str,
+) -> Option<(Vec<u8>, String, Origin)> {
+    resolve_core(mod_path, game_dir, res)
+}
+
+/// 资源解析的**唯一实现**（三级回退：本模组 → 游戏根 → 跨模组），附带来源归属。
+///
+/// ⚠️ 单一实现是硬要求：两个对外入口（[`resolve_resource_fallback`] /
+/// [`resolve_resource_origin`]）共用它。两处各写一份归一口径必然漂移 ——
+/// [`resource_keys`] 的文档记过这类漂移的后果（负缓存误伤命中）。
+fn resolve_core(
+    mod_path: &Path,
+    game_dir: &Path,
+    res: &str,
+) -> Option<(Vec<u8>, String, Origin)> {
+    if let Some((b, e)) = resolve_resource(mod_path, res) {
+        return Some((b, e, Origin::SelfMod));
     }
     // 埋点：mod 内未命中 → 回退游戏根（会走到 `lod.open` 这条高代价路径）
     crate::infra::metrics::count("res.fallback", 1);
@@ -605,13 +673,13 @@ pub(crate) fn resolve_resource_fallback(
     // 资源解析（便携运行原版数据常在 `user_data_dir/Data`）。故两个目录都试，而非"二选一"——
     // 否则游戏根仅有部分/HD 版 LOD 时，会漏掉真正的原版精灵。
     // 命中 mod 内资源时根本不走这里；且任一目录命中即返回，正常（游戏根已含数据）构建零额外开销。
-    if let Some(r) = crate::infra::lod::read_game_resource_ext(game_dir, res) {
-        return Some(r);
+    if let Some((b, e)) = crate::infra::lod::read_game_resource_ext(game_dir, res) {
+        return Some((b, e, Origin::Game));
     }
     if let Some(ud) = wiki_user_data_dir() {
         if !ud.as_os_str().is_empty() {
-            if let Some(r) = crate::infra::lod::read_game_resource_ext(&ud, res) {
-                return Some(r);
+            if let Some((b, e)) = crate::infra::lod::read_game_resource_ext(&ud, res) {
+                return Some((b, e, Origin::Game));
             }
         }
     }
@@ -619,9 +687,11 @@ pub(crate) fn resolve_resource_fallback(
     // 仅当本模组与游戏根均未命中才进入（常见图标都在前面短路），对正常构建零额外开销；
     // 真正跨模组引用的素材（如子模组 Fen 的 `Sprites/fen/creatures/...` 被父模组配置引用）由此补到。
     //
-    // ⚠️ 这是首次全量构建最贵的一段（实测 291,358 次 `res.dir_scan` ≈ 6,286s CPU，占整批 76%）：
-    // 未命中的资源（典型：建筑图标声明的帧号在文件里根本不存在，实测 299 个）会把几百个模组
-    // 全扫一遍，且**扫多少次都扫不出结果**。两道闸门：
+    // 历史（2026-10-15 已解决，留档避免重复踩坑）：本节曾是全量构建的头号开销
+    // （291,358 次 `res.dir_scan` ≈ 6,286s CPU，占整批 76%）—— 根因是 `DIR_INDEX_CACHE`
+    // 当时是 `Vec` + 容量 64，容量远小于 500+ 模组的工作集 → 索引反复淘汰重建。
+    // 改为 `HashMap` + 容量 4096 后单次已是 O(1)，本节不再是瓶颈。
+    // 现存的两道闸门保留（仍防"扫多少次都扫不出结果"的那 299 个不存在帧号）：
     //   ① 负结果缓存 —— 扫空过一次的 key 直接跳过（同类请求在同一批里大量重复）；
     //   ② 模组载体缓存 —— 没有 `Content/` 也没有 `content.zip` 的模组连 stat 都不做。
     if let Some(all) = wiki_mod_paths() {
@@ -636,7 +706,7 @@ pub(crate) fn resolve_resource_fallback(
                 }
             }
         }
-        for mp in all.iter() {
+        for (mp, mid) in all.iter() {
             if mp.as_path() == mod_path {
                 continue; // 本模组已查过
             }
@@ -644,9 +714,10 @@ pub(crate) fn resolve_resource_fallback(
             if !has_dir && !has_zip {
                 continue;
             }
-            if let Some(r) = resolve_resource(mp, res) {
+            if let Some((b, e)) = resolve_resource(mp, res) {
                 crate::infra::metrics::count("res.hit.crossmod", 1);
-                return Some(r);
+                // 归属直接取命中模组的 modId（无需调用方事后反查路径→id）
+                return Some((b, e, Origin::Mod(mid.clone())));
             }
         }
         let set = CROSSMOD_MISS.get_or_init(|| Mutex::new(HashSet::new()));
@@ -695,18 +766,21 @@ pub(crate) fn wiki_user_data_dir() -> Option<PathBuf> {
     WIKI_USER_DATA_DIR.lock().ok().and_then(|g| g.clone())
 }
 
-/// 批量/详情构建期**全部已装模组路径**（用于跨模组资源搜索，对齐 VCMI `findResourceOrigin` 的全局遍历）。
+/// 批量/详情构建期**全部已装模组条目**（用于跨模组资源搜索，对齐 VCMI `findResourceOrigin` 的全局遍历）。
+///
+/// 条目形如 `(磁盘路径, modId)`（见 [`ModEntry`]）：跨模组命中时靠 `modId` 直接答出素材归属，
+/// 无需调用方事后反查路径→id。
 ///
 /// 由 wiki 构建编排入口（batch / index）与详情页 `read_def_bytes` 在每批/每次开始前设置一次；
-/// `resolve_resource_fallback` 在「本模组 + 游戏根 + 用户数据」都未命中后，迭代这些路径做跨模组检索。
-/// 用 `Arc<Vec<PathBuf>>` 存储：读取时仅原子增引用，避免每次解析都克隆整条路径列表。
-static WIKI_MOD_PATHS: Mutex<Option<Arc<Vec<PathBuf>>>> = Mutex::new(None);
+/// `resolve_resource_fallback` 在「本模组 + 游戏根 + 用户数据」都未命中后，迭代这些条目做跨模组检索。
+/// 用 `Arc<Vec<ModEntry>>` 存储：读取时仅原子增引用，避免每次解析都克隆整条列表。
+static WIKI_MOD_PATHS: Mutex<Option<Arc<Vec<ModEntry>>>> = Mutex::new(None);
 
-/// 设置当前构建的全部模组路径（见 `WIKI_MOD_PATHS`）。
+/// 设置当前构建的全部模组条目（见 `WIKI_MOD_PATHS`）。
 ///
 /// 同时清空 [`CROSSMOD_MISS`]：模组集合变了（新装模组 / 切换领域 / 重扫目录），
 /// 之前"全部模组都没有"的结论就不再成立，必须重新探测，否则新模组的资源会被永久漏掉。
-pub(crate) fn set_wiki_mod_paths(paths: &[PathBuf]) {
+pub(crate) fn set_wiki_mod_paths(paths: &[ModEntry]) {
     if let Ok(mut g) = WIKI_MOD_PATHS.lock() {
         *g = Some(Arc::new(paths.to_vec()));
     }
@@ -722,8 +796,8 @@ pub(crate) fn set_wiki_mod_paths(paths: &[PathBuf]) {
     crate::vcmi::spell_icons::release_caches();
 }
 
-/// 读取当前构建的全部模组路径（未设置则返回 None，跨模组搜索退化为仅本模组 + 游戏根）。
-pub(crate) fn wiki_mod_paths() -> Option<Arc<Vec<PathBuf>>> {
+/// 读取当前构建的全部模组条目（未设置则返回 None，跨模组搜索退化为仅本模组 + 游戏根）。
+pub(crate) fn wiki_mod_paths() -> Option<Arc<Vec<ModEntry>>> {
     WIKI_MOD_PATHS.lock().ok().and_then(|g| g.clone())
 }
 
@@ -869,7 +943,7 @@ pub(crate) fn read_def_bytes_inner(
         ordered.push(paths.game_dir.join("Mods").join("vcmi"));
     }
     if !leaf.is_empty() {
-        for p in all.iter() {
+        for (p, _) in all.iter() {
             if p.file_name()
                 .map(|n| n.to_string_lossy().to_ascii_lowercase() == leaf)
                 .unwrap_or(false)
@@ -878,7 +952,7 @@ pub(crate) fn read_def_bytes_inner(
             }
         }
     }
-    for mp in ordered.iter().chain(all.iter()) {
+    for mp in ordered.iter().chain(all.iter().map(|(p, _)| p)) {
         // resolve_resource 只搜 mod 自身；原版生物战斗动画（如 CPKMAN.DEF）实际在
         // 游戏根 Data/*.lod 内，故加游戏目录回退，与背景/图标资源一致。
         if let Some((bytes, _ext)) = resolve_resource_fallback(mp, &paths.game_dir, resource) {

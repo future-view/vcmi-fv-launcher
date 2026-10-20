@@ -1,10 +1,14 @@
 //! 缓存素材落盘：图标 / DEF 帧 / 特长图标的提取与保存（受线程局部素材开关控制）。
 //!
-//! 产物写入 `mods/<sanitize_id(mod_id)>/images/<sub>/<name>.<ext>`，返回**相对缓存根**的路径。
+//! 产物写入 `mods/<sanitize_id(owner)>/images/<sub>/<资源标识[~帧]>.webp`，返回**相对缓存根**的路径。
+//!
+//! `owner` 是**素材来源方**（游戏级素材 → `core`、跨模组引用 → 被引用方、自有素材 → 自己），
+//! 文件名由**资源标识 + 帧**决定。二者合力保证：同一份素材无论被多少个模组、多少个条目提取，
+//! 磁盘上只存一份（实测原版地形曾被 124 个模组各存一份、`@4x` 变体各放大一遍）。
 //!
 //! 依赖方向：可依赖 `infra` 与 `vcmi`（见 `docs/architecture/backend.zh-CN.md` §4.1）。
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -15,7 +19,9 @@ use crate::infra::hash::fnv1a_of;
 use crate::infra::image::{encode_rgba_auto, encode_webp, encode_webp_from_bgra};
 use crate::infra::json::parse_vcmi_json;
 use crate::modcache::{assets_enabled, sanitize_id};
-use crate::vcmi::resource::{resolve_resource, resolve_resource_fallback};
+use crate::vcmi::resource::{
+    resolve_resource, resolve_resource_fallback, resolve_resource_origin, Origin,
+};
 
 /// webp 编码结果缓存（内容寻址）：`(源字节指纹, 源长度, 扩展名) → webp 字节`。
 ///
@@ -123,14 +129,142 @@ fn decode_def_frame_cached(buf: &[u8], group: u16, frame: u16) -> Option<DefFram
     Some(f)
 }
 
+/// 素材来源 → **产物归属者**（产物落在谁的缓存目录下）。
+///
+/// 这是缓存去重的关键：产物归属**素材真正的来源方**，而非提取调用方。
+/// - 游戏级素材（`Origin::Game`）→ `core`：原版地形/英雄特长/生物图只落一份，124 个 mod 共用；
+/// - 跨模组引用（`Origin::Mod(id)`）→ 被引用方：A 借用 B 的精灵时产物落在 B 目录，A 只引用路径；
+/// - 本模组素材（`Origin::SelfMod`）→ 自己：第三方自有素材仍在各自目录，保持自包含。
+///
+/// 与既有 `global.rs`「游戏级图标归位 core」的方向一致，只是判定改为由解析结果给出，
+/// 不再靠"调用方猜"。
+fn owner_of(origin: &Origin, mod_id: &str) -> String {
+    match origin {
+        Origin::Game => "core".to_string(),
+        Origin::SelfMod => mod_id.to_string(),
+        Origin::Mod(id) => id.clone(),
+    }
+}
+
+/// 产物名：**资源标识 + 帧**，而不是条目名。
+///
+/// 这是消除「同一份素材被多个条目各存一份」的核心：
+/// - 实测 `core.rampart` 的 7 个建筑共用同一个 `buildingsIcons` 帧、
+///   68 个生物共用「飞行」能力图标 —— 按条目名落盘就各存一份（同内容不同名）；
+/// - 按资源标识命名后，它们天然指向同一个文件（`...~g0f0.webp`）。
+///
+/// 帧标识约定：DEF → `g<group>f<frame>`；sprites-json / 序列位图 → `f<index>`；整图 → 省略。
+/// `hd.rs` 的变体命名是 `<stem>@Nx`，该格式对它无影响（`@` 仍在末尾）。
+fn asset_name(res: &str, frame: Option<&str>) -> String {
+    let key = crate::vcmi::resource::resource_asset_key(res);
+    match frame {
+        Some(f) => format!("{key}~{f}"),
+        None => key,
+    }
+}
+
+/// 「产物路径 ← 资源引用」声明表（进程级）。用途见 [`note_asset_declared`] 与
+/// [`flush_asset_manifest`]：撞名探测 + 诊断落盘。
+static ASSET_DECLARED: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+
+/// 记录「产物路径 ← 资源引用」的首次声明，探测文件名冲突。
+///
+/// `resource_asset_key` 的 `_` 归一存在单射性瑕疵（`a/b` 与 `a_b` 会撞）。
+/// 撞名意味着**两个不同素材共用一个文件**，属静默错图级别 —— 必须可观测。
+fn note_asset_declared(owner: &str, sub: &str, fname: &str, res: &str) {
+    let map = ASSET_DECLARED.get_or_init(|| Mutex::new(HashMap::new()));
+    let key = format!("{owner}/{sub}/{fname}");
+    let mut g = match map.lock() {
+        Ok(g) => g,
+        Err(e) => e.into_inner(),
+    };
+    match g.get(&key) {
+        Some(prev) if prev != res => {
+            crate::infra::metrics::count("img.name_collision", 1);
+            eprintln!(
+                "[assets] 产物名冲突：{key} 同时由 `{prev}` 与 `{res}` 声明 → 其中一方会显示错误图片"
+            );
+        }
+        Some(_) => {}
+        None => {
+            g.insert(key, res.to_string());
+        }
+    }
+}
+
+/// 把「产物路径 ← 资源引用」声明表落盘为 `<cacheRoot>/asset-manifest.json`。
+///
+/// **纯诊断产物，不参与命名，也不影响缓存正确性**：文件名现在是「资源标识 + 帧」，
+/// 一眼能看出取自哪个资源，但要拼回原始引用（含虚拟前缀与大小写）仍需查表。
+/// 每批次末调用一次（清空后重填，避免跨批次残留失效条目）。
+pub(crate) fn flush_asset_manifest(cache_root: &Path) {
+    let map = ASSET_DECLARED.get_or_init(|| Mutex::new(HashMap::new()));
+    let taken = {
+        let mut g = match map.lock() {
+            Ok(g) => g,
+            Err(e) => e.into_inner(),
+        };
+        std::mem::take(&mut *g)
+    };
+    if taken.is_empty() {
+        return;
+    }
+    if let Ok(text) = serde_json::to_string_pretty(&taken) {
+        let _ = fs::write(cache_root.join("asset-manifest.json"), text);
+        crate::infra::metrics::count("asset.manifest", taken.len() as u64);
+    }
+}
+
 /// 缓存图片的相对路径（相对缓存根）。落盘与"是否已存在"判定必须**同一口径**，否则短路会误判。
-pub(crate) fn wiki_image_rel(mod_id: &str, sub: &str, name: &str) -> String {
+///
+/// ⚠️ 单点生成是硬要求：存在性判定 / 落盘 / `cache.json` 写入 / `hd_map` 登记四处必须共用它。
+/// 任一处另算路径 → 出现「cache.json 存 A 径、实际写在 B 径」，比路径超长难查得多。
+///
+/// `owner` 是**素材来源方**（见 [`owner_of`]），不是提取调用方。
+pub(crate) fn wiki_image_rel(owner: &str, sub: &str, name: &str) -> String {
     format!(
         "{}/images/{}/{}.webp",
-        sanitize_id(mod_id),
+        sanitize_id(owner),
         sub,
-        sanitize_id(name)
+        sanitize_asset_name(name)
     )
+}
+
+/// 产物文件名的安全化：只替换 Windows 非法字符，**保留 `~`**。
+///
+/// 不能直接复用 `sanitize_id`：那是 modId→目录名的归一（保持双射），会把 `~` 也替换成 `_`，
+/// 从而抹掉「资源标识 ~ 帧」的分隔，使 `a~g0f0` 与真实的 `a_g0f0` 存在撞名可能。
+fn sanitize_asset_name(name: &str) -> String {
+    name.chars()
+        .map(|c| {
+            if matches!(c, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect()
+}
+
+/// 完整路径预算（字符数），对应 Windows 默认 `MAX_PATH = 260` 留出安全余量。
+///
+/// 注意：**换成内容短哈希并不能根治长路径** —— 路径前缀（`<游戏目录>/.vcmi-fv-launcher/mods`
+/// + 嵌套 modId，实测最长 71 字符）由用户安装位置决定，文件名方案改不了它。
+/// 因此这里只做"逐路径预算 + 超限降级"：把文件名段压到最短，把余量全让给前缀。
+const PATH_BUDGET: usize = 240;
+
+/// 带路径预算的产物路径（相对缓存根）：超预算时文件名降级为定长短哈希名。
+///
+/// 降级仍需保证**唯一**（否则不同素材互相覆盖 → 静默错图），故用资源标识的
+/// 64 位指纹而非截断原始名（截断会让前缀相同的两个长名撞在一起）。
+fn resolve_rel(cache_root: &Path, owner: &str, sub: &str, name: &str) -> String {
+    let rel = wiki_image_rel(owner, sub, name);
+    if cache_root.join(&rel).to_string_lossy().len() <= PATH_BUDGET {
+        return rel;
+    }
+    let short = format!("{:016x}", fnv1a_of(name.as_bytes()));
+    crate::infra::metrics::count("img.path_fallback", 1);
+    wiki_image_rel(owner, sub, &short)
 }
 
 /// 产物是否已存在（命中返回相对路径）。
@@ -142,14 +276,14 @@ pub(crate) fn wiki_image_rel(mod_id: &str, sub: &str, name: &str) -> String {
 /// 实测这两项合计占全量构建 CPU 的三成以上（见运行日志 `本批耗时构成`）。
 pub(crate) fn wiki_image_exists(
     cache_root: &Path,
-    mod_id: &str,
+    owner: &str,
     sub: &str,
     name: &str,
 ) -> Option<String> {
     if !assets_enabled() {
         return None;
     }
-    let rel = wiki_image_rel(mod_id, sub, name);
+    let rel = resolve_rel(cache_root, owner, sub, name);
     if cache_root.join(&rel).is_file() {
         crate::infra::metrics::count("img.reuse", 1);
         Some(rel)
@@ -158,9 +292,13 @@ pub(crate) fn wiki_image_exists(
     }
 }
 
+/// 落盘（归属 `owner` 目录，见 [`owner_of`]）。
+///
+/// ⚠️ `owner` 是素材来源方：同一份素材被 N 个 mod 提取时，产物路径相同 →
+/// 首个 mod 落盘后其余全部命中短路，**既不重复写也不重复解码/编码**。
 pub(crate) fn save_wiki_image(
     cache_root: &Path,
-    mod_id: &str,
+    owner: &str,
     sub: &str,
     name: &str,
     buf: &[u8],
@@ -170,7 +308,7 @@ pub(crate) fn save_wiki_image(
     if !assets_enabled() {
         return None;
     }
-    let rel = wiki_image_rel(mod_id, sub, name);
+    let rel = resolve_rel(cache_root, owner, sub, name);
     let out = cache_root.join(&rel);
     // 产物幂等：已存在则跳过解码+编码。增量重跑、中断续跑时省下大量 CPU。
     // 缓存失效重建前会清空该 mod 的 images/ 目录（见 build_mod_wiki_inner），故不会残留旧版本产物。
@@ -213,9 +351,11 @@ fn encode_webp_cached(buf: &[u8], ext: &str) -> Option<Vec<u8>> {
 ///
 /// 与 DEF 帧类的区别：这里用**资源名**（去路径 / 去扩展名由 `hd_edition::candidate_keys` 负责），
 /// 无需读 DEF 头，成本仅一次哈希查表。
-fn note_hd_bitmap(mod_id: &str, sub: &str, name: &str, res: &str) {
+/// 登记键必须与产物路径同属一个 owner：HD 阶段按 `<sub>/<name>` 在 **owner** 的表里取源，
+/// 若登记归到调用方、产物却落在来源方，HD 阶段查表必然落空。
+fn note_hd_bitmap(owner: &str, sub: &str, name: &str, res: &str) {
     if let Some(hd) = crate::vcmi::hd_edition::probe(res) {
-        crate::modcache::hd_map::record(mod_id, sub, name, &hd);
+        crate::modcache::hd_map::record(owner, sub, name, &hd);
     }
 }
 
@@ -272,24 +412,42 @@ fn extract_icon_and_save_inner(
     cache_root: &Path,
     mod_id: &str,
     sub: &str,
-    name: &str,
+    _name: &str,
     res: Option<&str>,
 ) -> Option<String> {
     // 阶段一（只出数据）：**在解析资源之前**直接返回，省下 resolve/解码/抠图/编码
     if !assets_enabled() {
         return None;
     }
-    // 产物已存在：直接复用路径，不再解析与编码（跨 mod 共享图标此前每 mod 重做一遍）
-    if let Some(rel) = wiki_image_exists(cache_root, mod_id, sub, name) {
-        return Some(rel);
-    }
     let res = res?;
     let res_trim = res.trim();
     if res_trim.is_empty() {
         return None;
     }
-    // mod 优先，失败回退游戏根资源（原版英雄头像 TPLICHxx.DEF 等位于游戏根 lods）
-    let (buf, ext) = resolve_resource_fallback(p, game_dir, res_trim)?;
+    //
+    // ⚠️ 顺序与旧实现相反：**先解析、后短路**。
+    // 产物归属由素材来源决定（游戏级 → `core`、跨模组引用 → 被引用方），不解析就不知道
+    // 该去哪个 owner 目录查。代价是短路不再能省掉 resolve；收益是跨 mod 共享素材
+    // （实测原版地形 124 份、跨模组引用的精灵）只落一份盘、只解码编码一次 —— 远大于代价。
+    // 且 resolve 侧已有「目录索引 / zip 索引 / LOD 条目表」三级缓存，单次成本本就很低。
+    let (buf, ext, origin) = resolve_resource_origin(p, game_dir, res_trim)?;
+    let owner = owner_of(&origin, mod_id);
+    //
+    // 产物名由**资源标识 + 帧**决定，而非条目名（见 `asset_name` 的说明）。
+    // 帧在这里即可确定（DEF 取首帧、sprites-json 取首帧、整图无帧），
+    // 因此短路仍然发生在**解码之前**。
+    let fname = if ext.eq_ignore_ascii_case("def") {
+        asset_name(res_trim, Some("g0f0"))
+    } else if ext.eq_ignore_ascii_case("json") || res_trim.to_lowercase().ends_with(".json") {
+        asset_name(res_trim, Some("f0"))
+    } else {
+        asset_name(res_trim, None)
+    };
+    note_asset_declared(&owner, sub, &fname, res_trim);
+    // 产物已存在：直接复用路径（省掉解码 + 编码 + 落盘）
+    if let Some(rel) = wiki_image_exists(cache_root, &owner, sub, &fname) {
+        return Some(rel);
+    }
     // sprites-json 资源（VCMI 1.6+）：**按内容识别**（resolve 的尾匹配可能命中同名 .def，
     // 故 ext==json 或引用尾缀 .json 时都尝试解析）；支持 sequences 形态、basepath 缺省、
     // file 自带扩展名（bmp/png）与 zip 内定义（见 read_sprite_json / sprite_json_frame）。
@@ -320,11 +478,11 @@ fn extract_icon_and_save_inner(
         // 走解码缓存（见 `FRAME_CACHE`）：同一份 DEF 首帧被同一 mod 的多个条目重复解码
         if let Some(f) = decode_def_frame_cached(&buf, 0, 0) {
             let (w, h, bgra) = (f.w, f.h, f.bgra);
-            if let Some(rel) = save_def_frame_matte(cache_root, mod_id, sub, name, w, h, &bgra) {
+            if let Some(rel) = save_def_frame_matte(cache_root, &owner, sub, &fname, w, h, &bgra) {
                 return Some(rel);
             }
             let webp = encode_webp_from_bgra(&bgra, w, h)?;
-            return save_wiki_image(cache_root, mod_id, sub, name, &webp, "webp");
+            return save_wiki_image(cache_root, &owner, sub, &fname, &webp, "webp");
         }
         return None;
     }
@@ -352,16 +510,16 @@ fn extract_icon_and_save_inner(
     let small_icon = matches!(ext.to_lowercase().as_str(), "png" | "bmp" | "webp");
     if small_icon {
         let rel = crate::infra::metrics::scope("img.matte", || {
-            matte_and_save(cache_root, mod_id, sub, name, &buf)
+            matte_and_save(cache_root, &owner, sub, &fname, &buf)
         });
         if let Some(rel) = rel {
-            note_hd_bitmap(mod_id, sub, name, res_trim);
+            note_hd_bitmap(&owner, sub, &fname, res_trim);
             return Some(rel);
         }
     }
-    let rel = save_wiki_image(cache_root, mod_id, sub, name, &buf, &ext)?;
+    let rel = save_wiki_image(cache_root, &owner, sub, &fname, &buf, &ext)?;
     // 位图类资源也可能有官方 HD 版（如第三方 mod 引用原版 `HPL000KN.pcx`）→ 登记
-    note_hd_bitmap(mod_id, sub, name, res_trim);
+    note_hd_bitmap(&owner, sub, &fname, res_trim);
     Some(rel)
 }
 
@@ -369,7 +527,7 @@ fn extract_icon_and_save_inner(
 /// HOTA 法术/宝物 def 首帧）常带青蓝底框，期望透明底（对齐小图标 matte 逻辑，见 [`matte_rgba`]）。
 fn save_def_frame_matte(
     cache_root: &Path,
-    mod_id: &str,
+    owner: &str,
     sub: &str,
     name: &str,
     w: u32,
@@ -382,7 +540,7 @@ fn save_def_frame_matte(
     let mut rgba = bgra_to_rgba(w, h, bgra);
     matte_rgba(&mut rgba);
     let webp = encode_rgba_auto(rgba.as_raw(), w, h)?;
-    save_wiki_image(cache_root, mod_id, sub, name, &webp, "webp")
+    save_wiki_image(cache_root, owner, sub, name, &webp, "webp")
 }
 
 /// BGRA（DefReader 输出，顶向下）转 RGBA 像素缓冲（交换 R/B）。
@@ -433,7 +591,7 @@ fn matte_rgba(img: &mut image::RgbaImage) {
 /// 不适用（尺寸超限 / 无透明角 / 编码失败）时返回 None，由调用方走常规编码路径。
 fn matte_and_save(
     cache_root: &Path,
-    mod_id: &str,
+    owner: &str,
     sub: &str,
     name: &str,
     buf: &[u8],
@@ -450,7 +608,7 @@ fn matte_and_save(
         .encode(rgba.as_raw(), w, h, image::ExtendedColorType::Rgba8)
         .is_ok()
     {
-        return save_wiki_image(cache_root, mod_id, sub, name, &webp, "webp");
+        return save_wiki_image(cache_root, owner, sub, name, &webp, "webp");
     }
     None
 }
@@ -463,7 +621,7 @@ pub(crate) fn extract_def_frame_and_save(
     cache_root: &Path,
     mod_id: &str,
     sub: &str,
-    name: &str,
+    _name: &str,
     def_res: &str,
     group: usize,
     index: usize,
@@ -472,29 +630,34 @@ pub(crate) fn extract_def_frame_and_save(
     if def_res.is_empty() {
         return None;
     }
-    // 同上：阶段一不解析；产物已存在则直接复用（短路必须早于资源解析与 DEF 解码）
+    // 阶段一不解析
     if !assets_enabled() {
         return None;
     }
-    if let Some(rel) = wiki_image_exists(cache_root, mod_id, sub, name) {
+    // 先解析取归属、后短路（理由见 `extract_icon_and_save_inner` 的同款注释）
+    let (buf, _ext, origin) = resolve_resource_origin(p, game_dir, def_res)?;
+    let owner = owner_of(&origin, mod_id);
+    // 产物名 = 资源标识 + 帧：同一帧被多个条目引用时只落一份
+    let frame = format!("g{group}f{index}");
+    let fname = asset_name(def_res, Some(&frame));
+    note_asset_declared(&owner, sub, &fname, def_res);
+    if let Some(rel) = wiki_image_exists(cache_root, &owner, sub, &fname) {
         return Some(rel);
     }
-    // mod 优先，失败回退游戏根资源（原版建筑图标 HALLCSTL.DEF 等位于游戏根 lods）
-    let (buf, _ext) = resolve_resource_fallback(p, game_dir, def_res)?;
     // 只解目标帧：此前解码整个动画再挑一帧（DEF 动辄上百帧）
     let def = crate::infra::def::DefReader::new(&buf);
     let (w, h, bgra, _lm, _tm) = def.decode_frame_at(group, index)?;
     let rel = save_wiki_image(
         cache_root,
-        mod_id,
+        &owner,
         sub,
-        name,
+        &fname,
         &encode_webp_from_bgra(&bgra, w, h)?,
         "webp",
     )?;
     // 该帧若有官方 HD 真高清源则登记（HD 变体阶段据此取源放大，替代从 1x 插值）
     if let Some(hd) = crate::vcmi::hd_edition::probe_def_frame(&buf, group, index) {
-        crate::modcache::hd_map::record(mod_id, sub, name, &hd);
+        crate::modcache::hd_map::record(&owner, sub, &fname, &hd);
     }
     Some(rel)
 }
@@ -509,22 +672,26 @@ pub(crate) fn extract_game_def_frame_and_save(
     group: usize,
     frame: usize,
     sub: &str,
-    name: &str,
+    _name: &str,
 ) -> Option<String> {
     // 阶段一（只出数据）不解 DEF 取帧，由阶段二补齐
     if !assets_enabled() {
         return None;
-    }
-    // 原版游戏级图标统一归位到父 `core` 模组的 images/ 下：产物已存在则直接复用，
-    // 不再读 lod、不再解码 DEF（此前每个 mod 都完整重做一遍）
-    if let Some(rel) = wiki_image_exists(cache_root, "core", sub, name) {
-        return Some(rel);
     }
     let target = if def_name.to_uppercase().ends_with(".DEF") {
         def_name.trim().to_string()
     } else {
         format!("{}.DEF", def_name.trim())
     };
+    // 产物名 = 资源标识 + 帧：原版同一帧（如 68 个生物共用的「飞行」图标）只落一份
+    let frame_tag = format!("g{group}f{frame}");
+    let fname = asset_name(&target, Some(&frame_tag));
+    note_asset_declared("core", sub, &fname, &target);
+    // 原版游戏级图标统一归位到父 `core` 模组的 images/ 下：产物已存在则直接复用，
+    // 不再读 lod、不再解码 DEF（此前每个 mod 都完整重做一遍）
+    if let Some(rel) = wiki_image_exists(cache_root, "core", sub, &fname) {
+        return Some(rel);
+    }
     let bytes = crate::vcmi::resource::read_game_resource_fallback(game_dir, &target)?;
     // 只解目标帧：此前解码整个动画（CPRSMALL 150+ 帧只取 1 帧）
     let def = crate::infra::def::DefReader::new(&bytes);
@@ -538,56 +705,60 @@ pub(crate) fn extract_game_def_frame_and_save(
     } else {
         encode_webp_from_bgra(&bgra, w, h)
     }?;
-    // 原版游戏级图标统一归位到父 `core` 模组的 images/ 下（`_shared` 收编进 core，
+    // 落盘走单一入口（与上面的存在性判定同口径；`_shared` 已收编进 core，
     // 迁移时仅需拷贝 `core*` 目录）。各 mod 的 statIcons/sharedIcons 均引用此路径。
-    let dir = cache_root.join("core").join("images").join(sub);
-    fs::create_dir_all(&dir).ok()?;
-    let rel = format!("core/images/{}/{}.webp", sub, sanitize_id(name));
-    let out = cache_root.join(&rel);
-    if out.is_file() {
-        return Some(rel);
-    }
-    fs::write(&out, &webp).ok()?;
+    let rel = save_wiki_image(cache_root, "core", sub, &fname, &webp, "webp")?;
     // 共享 UI 图标的产物**归属父 `core`**（可能由任意 mod 的构建执行），登记也必须归到 core
     if let Some(hd) = crate::vcmi::hd_edition::probe_def_frame(&bytes, group, frame) {
-        crate::modcache::hd_map::record("core", sub, name, &hd);
+        crate::modcache::hd_map::record("core", sub, &fname, &hd);
     }
     Some(rel)
 }
 
 /// 与 [`extract_game_def_frame_and_save`] 同逻辑（从游戏目录 lod 解析 DEF 取指定帧转 webp），
-/// 但产物按 `mod_id` 落到 `cache_root/<mod_id>/images/<sub>/<name>.webp`，而非全局 `_shared/`。
+/// 但允许调用方指定 `sub`，且产物同样**归位 `core`**。
 ///
-/// 用途：原版生物/英雄资源（CPRSMALL/TWCRPORT/UN32/UN44 等游戏级 DEF）归位到各自的
-/// `core.<faction>` 模组目录（中性归入 `core`），使每个原版城镇模组自包含、便于打包迁移，
-/// 不再把所有阵营资源混进全局 `_shared/`。
+/// 用途：原版生物/英雄资源（CPRSMALL/TWCRPORT/UN32/UN44 等游戏级 DEF）。
+/// 历史：早期按 `core.<faction>` 分目录存放（使原版城镇自包含）；改为「产物归属素材来源方」后，
+/// 来源恒为游戏根 → 统一归 `core`，避免同一帧在 9 个城镇模组里各存一份。
 pub(crate) fn extract_game_def_frame_and_save_mod(
     game_dir: &Path,
     cache_root: &Path,
-    mod_id: &str,
+    _mod_id: &str,
     def_name: &str,
     group: usize,
     frame: usize,
     sub: &str,
-    name: &str,
+    _name: &str,
 ) -> Option<String> {
     if !assets_enabled() {
         return None;
     }
+    //
+    // 本函数只读**游戏根**资源（见 `read_game_resource_fallback`），来源恒为游戏级
+    // → 产物归属恒为 `core`，因此短路可以**早于**读字节（连 LOD 读取一并省掉）。
+    let owner = "core";
     let target = if def_name.to_uppercase().ends_with(".DEF") {
         def_name.trim().to_string()
     } else {
         format!("{}.DEF", def_name.trim())
     };
+    // 产物名 = 资源标识 + 帧：原版同一帧被多个条目（不同英雄/生物）引用时只落一份
+    let frame_tag = format!("g{group}f{frame}");
+    let fname = asset_name(&target, Some(&frame_tag));
+    note_asset_declared(owner, sub, &fname, &target);
+    if let Some(rel) = wiki_image_exists(cache_root, owner, sub, &fname) {
+        return Some(rel);
+    }
     let bytes = crate::vcmi::resource::read_game_resource_fallback(game_dir, &target)?;
     // 只解目标帧
     let def = crate::infra::def::DefReader::new(&bytes);
     let (w, h, bgra, _lm, _tm) = def.decode_frame_at(group, frame)?;
     let webp = encode_webp_from_bgra(&bgra, w, h)?;
-    let rel = save_wiki_image(cache_root, mod_id, sub, name, &webp, "webp")?;
+    let rel = save_wiki_image(cache_root, owner, sub, &fname, &webp, "webp")?;
     // 生物小/大图、英雄特长图标（CPRSMALL / TWCRPORT / UN32 / UN44）：登记 HD 源
     if let Some(hd) = crate::vcmi::hd_edition::probe_def_frame(&bytes, group, frame) {
-        crate::modcache::hd_map::record(mod_id, sub, name, &hd);
+        crate::modcache::hd_map::record(owner, sub, &fname, &hd);
     }
     Some(rel)
 }
@@ -601,14 +772,24 @@ pub(crate) fn extract_game_def_frame_and_save_mod(
 pub(crate) fn extract_portrait_frame_mod(
     game_dir: &Path,
     cache_root: &Path,
-    mod_id: &str,
-    hero_id: &str,
+    _mod_id: &str,
+    _hero_id: &str,
     image_index: i64,
 ) -> Option<String> {
     if !assets_enabled() || image_index < 0 {
         return None;
     }
+    // 两个分支都只读**游戏根**资源 → 归属恒为 `core`，短路可**早于**读字节
+    let owner = "core";
     let idx = image_index as usize;
+    // 产物名 = 资源标识 + 帧（头像索引），与"老 DEF / 新版 json+bitmap"两种格式无关：
+    // 同一 `imageIndex` 的英雄头像只产出一份，跨 mod 也共用（此前按英雄 id 命名 → 各存一份）
+    let frame_tag = format!("g0f{idx}");
+    let fname = asset_name("PortraitsLarge.DEF", Some(&frame_tag));
+    note_asset_declared(owner, "hero", &fname, "PortraitsLarge.DEF");
+    if let Some(rel) = wiki_image_exists(cache_root, owner, "hero", &fname) {
+        return Some(rel);
+    }
     // a) 老版本 PortraitsLarge.DEF（group0 顺序帧）
     if let Some(bytes) =
         crate::vcmi::resource::read_game_resource_fallback(game_dir, "PortraitsLarge.DEF")
@@ -617,11 +798,11 @@ pub(crate) fn extract_portrait_frame_mod(
         let def = crate::infra::def::DefReader::new(&bytes);
         if let Some((w, h, bgra, _lm, _tm)) = def.decode_frame_at(0, idx) {
             if let Some(webp) = encode_webp_from_bgra(&bgra, w, h) {
-                let rel = save_wiki_image(cache_root, mod_id, "hero", hero_id, &webp, "webp")?;
+                let rel = save_wiki_image(cache_root, owner, "hero", &fname, &webp, "webp")?;
                 // 头像有官方 HD 版（`HPL*`），按 DEF 帧名登记
                 if let Some(name) = def.frame_name(0, idx) {
                     if let Some(hd) = crate::vcmi::hd_edition::probe(&name) {
-                        crate::modcache::hd_map::record(mod_id, "hero", hero_id, &hd);
+                        crate::modcache::hd_map::record(owner, "hero", &fname, &hd);
                     }
                 }
                 return Some(rel);
@@ -660,11 +841,11 @@ pub(crate) fn extract_portrait_frame_mod(
                         {
                             if let Some(webp) = encode_webp(&b, ext) {
                                 let rel = save_wiki_image(
-                                    cache_root, mod_id, "hero", hero_id, &webp, "webp",
+                                    cache_root, owner, "hero", &fname, &webp, "webp",
                                 )?;
                                 // json 的 `file`（如 `HPL000KN.bmp`）就是 HD pak 的键（`HPL*`）→ 登记
                                 if let Some(hd) = crate::vcmi::hd_edition::probe(file) {
-                                    crate::modcache::hd_map::record(mod_id, "hero", hero_id, &hd);
+                                    crate::modcache::hd_map::record(owner, "hero", &fname, &hd);
                                 }
                                 return Some(rel);
                             }
@@ -713,17 +894,22 @@ pub(crate) fn resolve_specialty_icon_mod(
         );
     }
     if let Some((buf, ext)) = resolve_resource(p, raw) {
-        if ext.eq_ignore_ascii_case("def") {
+        // mod 自有特长图（来源 = 自己）：按资源标识命名，
+        // 同一张图被多个英雄引用时只存一份
+        let is_def = ext.eq_ignore_ascii_case("def");
+        let fname = asset_name(raw, is_def.then_some("g0f0"));
+        note_asset_declared(mod_id, sub, &fname, raw);
+        if is_def {
             // 只要 group0 首帧：不再解码整个动画
             let def = crate::infra::def::DefReader::new(&buf);
             if let Some((w, h, bgra, _lm, _tm)) = def.decode_frame_at(0, 0) {
                 if let Some(webp) = encode_webp_from_bgra(&bgra, w, h) {
-                    return save_wiki_image(cache_root, mod_id, sub, &name, &webp, "webp");
+                    return save_wiki_image(cache_root, mod_id, sub, &fname, &webp, "webp");
                 }
             }
             return None;
         }
-        return save_wiki_image(cache_root, mod_id, sub, &name, &buf, &ext);
+        return save_wiki_image(cache_root, mod_id, sub, &fname, &buf, &ext);
     }
     extract_game_def_frame_and_save_mod(game_dir, cache_root, mod_id, raw, 0, 0, sub, &name)
 }

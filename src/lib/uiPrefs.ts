@@ -40,3 +40,28 @@ export function isLauncherNoticeMuted(): boolean {
 export function setLauncherNoticeMuted(muted: boolean): void {
   writeFlag(SKIP_LAUNCHER_NOTICE_KEY, muted);
 }
+
+/** 百科中栏排序偏好（按类目各记一组主/次排序，见 `features/wiki/sort.ts`）。 */
+const WIKI_SORT_KEY = "vcmi-fv.ui.wikiSort";
+
+/** 形状宽松：只保证是个对象，字段合法性由调用方的 `normalizeSort` 裁剪。 */
+export type WikiSortPrefs = Record<string, { primary?: string; secondary?: string }>;
+
+export function readWikiSort(): WikiSortPrefs {
+  try {
+    const raw = localStorage.getItem(WIKI_SORT_KEY);
+    if (!raw) return {};
+    const v: unknown = JSON.parse(raw);
+    return v && typeof v === "object" && !Array.isArray(v) ? (v as WikiSortPrefs) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeWikiSort(prefs: WikiSortPrefs): void {
+  try {
+    localStorage.setItem(WIKI_SORT_KEY, JSON.stringify(prefs));
+  } catch {
+    // 写不进去就放弃，下次用默认排序
+  }
+}

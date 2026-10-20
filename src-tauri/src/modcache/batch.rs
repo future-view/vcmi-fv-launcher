@@ -441,6 +441,60 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
         VcmiPaths::read_launcher_config().as_ref(),
         std::path::Path::new(game_dir),
     );
+    //
+    // 共享产物区（`core/images/`）的清理：**批次开头、串行、早于一切写入**。
+    //
+    // 素材产物归属来源方（游戏级素材归 `core`）后，124 个模组的地形/英雄特长等共享图
+    // 都会写进 `core/images/`。若让 core 走"各模组并行构建时各自清空自己目录"的老路径，
+    // core 的清空就会随机删掉其它模组刚写入的共享图 → 共享图丢失、构建结果不可复现。
+    // 放在这里串行使清空**happens-before** 全部写入；各模组侧已跳过 core 的清空
+    // （见 `build/mod.rs` 的 `probe.clear_stale && mod_id != "core"`）。
+    //
+    // 阶段一（phase 0）不产图，无需清理 —— 省掉一次全目录 IO。
+    //
+    // ⚠️ **必须幂等：只在素材版本变化时清一次**，不能每个批次开头无条件清。
+    // 本函数会被多次调用（阶段一/二分离、领域预热、先 Town 后 rest），而后一批的
+    // `mods` 列表里往往**不含已缓存的 core** —— 那时若清空 `core/images/`，
+    // 前一批刚生成的共享图会被整片删掉且无人重建，而各 mod 的 `cache.json`
+    // 早已记录了这些路径 → 表现为"原版素材（地形/建筑图标/英雄头像/特长）全部无图"。
+    // 产物若被外部删除，`wiki_image_exists` 不命中后会正常重建，无需靠批次清理兜底。
+    if phase != 0 {
+        // 素材版本**未清过**才清（同一版本多次批次只清一次，幂等）。
+        //
+        // ⚠️ 刻意**不加**「本批必须包含 core」这种条件：那会让"第一批不清、第二批才清"，
+        // 而第二批往往不含已在第一批重建过的 mod —— 于是把第一批刚写入 `core/images/`
+        // 的共享图删掉且无人重建（各 mod 的 `cache.json` 早已记录这些路径）→ 原版素材全空。
+        // 正确语义是「**版本变化后，整个流程的第一次批次清一次**」，此后各批只增量补，
+        // 若个别产物被外部删除，`wiki_image_exists` 不命中后会正常重建。
+        let marker = cache_root.join(".core-assets-version");
+        let want = crate::modcache::version::ASSETS_VERSION.to_string();
+        let cleared = fs::read_to_string(&marker)
+            .map(|s| s.trim() == want)
+            .unwrap_or(false);
+        if !cleared {
+            //
+            // 版本变化 → **一次性清空所有产物目录**（含全部归属方：`core` / `vcmi` /
+            // 第三方子模组如 Bonus Icons）。
+            //
+            // 必须整目录清：各 mod 的 `clear_stale` 现在只精确删**自己 cache.json 记录过的**
+            // 产物，而归属别人的共享图（典型：`core.castle` 的能力图标归属
+            // `vcmi-extras.bonusicons.bonus icons`）不在任何调用方的删除清单里 ——
+            // 只能靠这一次整体失效，否则新编码策略对它们永不生效。
+            //
+            // 一次性（marker）是硬要求：本函数会被多次调用，此后每个批次只增量补，
+            // 不会再整目录删，也就不会删掉别的 mod 刚写入的共享图。
+            if let Ok(rd) = fs::read_dir(cache_root) {
+                for e in rd.flatten() {
+                    let p = e.path();
+                    if p.is_dir() {
+                        let _ = fs::remove_dir_all(p.join("images"));
+                    }
+                    let _ = fs::remove_file(p.join("hd-map.json"));
+                }
+            }
+            let _ = fs::write(&marker, &want);
+        }
+    }
     let total = mods.len();
     // 每批独立统计：批开始清空全局累计，批结束打印的即为**本批**耗时构成
     crate::infra::metrics::reset_global();
@@ -619,6 +673,10 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
             crate::infra::metrics::format_global_top(15)
         );
     }
+
+    // 素材归属诊断表落盘（`<cacheRoot>/asset-manifest.json`，纯诊断、不参与命名）。
+    // 阶段一不产图 → 表为空 → 直接跳过，不产生 IO。
+    crate::modcache::assets::flush_asset_manifest(&cache_root);
 
     // 重建 index.json：合并已有索引，避免分多批次调用（如 ensureWikiCacheBuilt
     // 先 Town 后 rest）时互相覆盖——否则首批构建的 mod 会从最终索引中丢失。

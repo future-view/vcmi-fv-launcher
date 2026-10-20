@@ -89,6 +89,17 @@ export const pl: LangDict = {
     allMods: "Wszystkie mody",
     searchPlaceholder: "Szukaj nazwy…",
     searchClear: "Wyczyść wyszukiwanie",
+    sort: {
+      title: "Sortowanie",
+      byName: "Według nazwy",
+      nameShort: "nazwy",
+      byFaction: "Według miasta",
+      byLevel: "Według poziomu",
+      byClass: "Według klasy",
+      byType: "Według typu",
+      noGroup: "Bez grupowania (według nazwy)",
+      noInfoLast: "Wpisy bez odpowiedniej informacji są na końcu",
+    },
     contentPlaceholder: "Wybierz wpis, aby wyświetlić jego opis.",
     filter: {
       title: "Filtr",

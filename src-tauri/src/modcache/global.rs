@@ -127,14 +127,19 @@ pub(crate) fn extract_shared_ui_icons(game_dir: &Path, cache_root: &Path, _mod_i
 
     // 3) SPELLBON.DEF：法术列表小图标（group0 全部帧，按 spell.iconIndex 索引）
     let spellbon_dir = cache_root.join("core").join("images").join("spellbon");
-    // 产物跨 mod 共享且帧数多（80+ 帧，每帧都要解码+编码）：已生成则**整体跳过**。
-    // 此前每个 mod 都完整重跑一遍，是 `shared.icons` 的头号开销（实测 ③批次 412s）。
-    let spellbon_done = fs::read_dir(&spellbon_dir)
-        .map(|rd| rd.count())
-        .unwrap_or(0);
-    if spellbon_done > 0 {
+    //
+    // ⚠️ 完整性判定必须看**首帧在不在**，不能只看"目录非空"。
+    // 曾经用 `read_dir().count() > 0`：一旦目录里剩下任意一帧（例如没有被任何法术条目
+    // 引用过的 30.webp）就整体跳过，而其余帧若被精确清理（`remove_recorded_assets`
+    // 按 cache.json 记录删除）删掉，就**永远不会补齐** → 引用它们的法术图标 404、列表全空。
+    // 逐帧写入已有 `!path.is_file()` 保护，所以重跑时只补缺失帧，不会重复解码。
+    let spellbon_complete = spellbon_dir.join("0.webp").is_file();
+    if spellbon_complete {
         out.insert("spellbonDir".into(), json!("core/images/spellbon"));
-        out.insert("spellbonFrames".into(), json!(spellbon_done));
+        out.insert(
+            "spellbonFrames".into(),
+            json!(fs::read_dir(&spellbon_dir).map(|rd| rd.count()).unwrap_or(0)),
+        );
     } else if let Some(bytes) =
         crate::vcmi::resource::read_game_resource_fallback(game_dir, "SPELLBON.DEF")
     {

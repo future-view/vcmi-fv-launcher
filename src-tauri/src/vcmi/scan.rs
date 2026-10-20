@@ -533,18 +533,30 @@ pub(crate) fn push_installed_mod(
     }
 }
 
-/// 遍历所有 mod（含子 mod）收集磁盘路径列表，供跨 mod 资源解析。
+/// 模组条目：**`(磁盘绝对路径, 规范 modId)`**。
+///
+/// 带上 `modId` 是为了让资源解析能直接答出「这份素材属于哪个模组」，供百科缓存把产物
+/// 归属到**素材真正的来源方**而非提取调用方（游戏级素材 → `core`；跨模组引用 → 被引用方）。
+/// `.0` = 磁盘路径（大小写敏感文件系统上定位用），`.1` = modId（缓存归属用）。
+pub(crate) type ModEntry = (PathBuf, String);
+
+/// 遍历所有 mod（含子 mod）收集磁盘路径 + modId 列表，供跨 mod 资源解析。
 /// 接受已解出的 `&VcmiPaths`，便于在 spawn_blocking 闭包内使用（无需持有 State）。
-pub(crate) fn collect_mod_paths(paths: &VcmiPaths) -> Vec<PathBuf> {
+pub(crate) fn collect_mod_paths(paths: &VcmiPaths) -> Vec<ModEntry> {
     let game = paths.game_mods_dir();
     let user = paths.user_mods_dir();
-    let mut list: Vec<PathBuf> = vec![];
+    let mut list: Vec<ModEntry> = vec![];
     let mut seen = std::collections::HashSet::new();
-    fn walk(v: &Value, list: &mut Vec<PathBuf>, seen: &mut std::collections::HashSet<String>) {
+    fn walk(v: &Value, list: &mut Vec<ModEntry>, seen: &mut std::collections::HashSet<String>) {
         if let Some(obj) = v.as_object() {
             if let Some(mp) = obj.get("modPath").and_then(|x| x.as_str()) {
                 if seen.insert(mp.to_string()) {
-                    list.push(PathBuf::from(mp));
+                    let mid = obj
+                        .get("id")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    list.push((PathBuf::from(mp), mid));
                 }
             }
             if let Some(subs) = obj.get("subs").and_then(|x| x.as_array()) {
@@ -562,16 +574,22 @@ pub(crate) fn collect_mod_paths(paths: &VcmiPaths) -> Vec<PathBuf> {
     let user_mods = scan_user_mods_dir(&user);
     walk(&json!(game_mods), &mut list, &mut seen);
     walk(&json!(user_mods), &mut list, &mut seen);
+    //
+    // ⚠️ 排序是**必需**而非美化：跨模组检索是「遍历全部模组，首个命中即返回」，
+    // 命中结果直接决定素材归属（进而决定产物落盘目录）。顺序若沿用文件系统枚举顺序，
+    // 归属就会跨机器 / 跨文件系统不可复现 → 产物路径变化 → 缓存键抖动 → 反复重建。
+    // 按 modId 字典序固定，任意机器上同一模组集合得到同一顺序。
+    list.sort_by(|a, b| a.1.cmp(&b.1));
     list
 }
 
 /// `.def` 资源定位用的模组路径列表：按 Mods 目录指纹缓存，
 /// 避免每次 `read_def_bytes` 都重新扫描全部模组（600+ 目录）造成卡顿。
 pub(crate) static MOD_PATHS_CACHE: std::sync::OnceLock<
-    Mutex<Vec<(String, std::sync::Arc<Vec<PathBuf>>)>>,
+    Mutex<Vec<(String, std::sync::Arc<Vec<ModEntry>>)>>,
 > = std::sync::OnceLock::new();
 
-pub(crate) fn cached_mod_paths(paths: &VcmiPaths) -> std::sync::Arc<Vec<PathBuf>> {
+pub(crate) fn cached_mod_paths(paths: &VcmiPaths) -> std::sync::Arc<Vec<ModEntry>> {
     let key = format!(
         "{}|{}",
         paths.game_mods_dir().display(),

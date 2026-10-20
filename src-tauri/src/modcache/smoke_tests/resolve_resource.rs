@@ -2,7 +2,8 @@
 
 use super::*;
 use crate::vcmi::resource::{
-    has_core_h3_lods, resolve_resource_fallback, set_wiki_mod_paths, set_wiki_user_data_dir,
+    has_core_h3_lods, resolve_resource_fallback, resolve_resource_origin, set_wiki_mod_paths,
+    set_wiki_user_data_dir, Origin,
 };
 
 #[test]
@@ -70,7 +71,7 @@ fn read_def_bytes_creature_smoke() {
     let paths = VcmiPaths::detect();
     let mod_paths = collect_mod_paths(&paths);
     let resource = "abyss/battle/creatures/sandcrab.def";
-    for mp in &mod_paths {
+    for (mp, _) in &mod_paths {
         if let Some((bytes, ext)) = resolve_resource(mp, resource) {
             println!("resolved {resource} ext={ext} len={}", bytes.len());
             assert!(bytes.len() > 100, "def 文件应非空");
@@ -123,7 +124,10 @@ fn crossmod_fallback_resolves_resource_in_foreign_mod() {
     std::fs::create_dir_all(&sprite_dir).unwrap();
     std::fs::write(sprite_dir.join("cross.bmp"), b"FAKEPNGDATA").unwrap();
 
-    set_wiki_mod_paths(&[current.clone(), foreign.clone()]);
+    set_wiki_mod_paths(&[
+        (current.clone(), "current-mod".to_string()),
+        (foreign.clone(), "foreign-fen".to_string()),
+    ]);
 
     // 资源引用形如 VCMI 配置：fen/creatures/cross.bmp（解析器去 Sprites/ 前缀并归一）
     let res = "fen/creatures/cross.bmp";
@@ -131,6 +135,19 @@ fn crossmod_fallback_resolves_resource_in_foreign_mod() {
         .expect("应跨模组从 foreign-fen 的 Content/Sprites/fen/creatures/cross.bmp 取到");
     assert_eq!(buf, b"FAKEPNGDATA");
     assert_eq!(ext, "bmp");
+
+    // 归属：跨模组命中必须报出**被引用方**的 modId。
+    // 百科缓存据此把产物落到 foreign-fen 的缓存目录，而不是提取调用方 current-mod 的目录
+    // —— 这是「跨模组素材相互依赖时不各存一份」的判定基础。
+    let (_, _, origin) = resolve_resource_origin(&current, &current, res).expect("同上应命中");
+    assert_eq!(origin, Origin::Mod("foreign-fen".to_string()));
+
+    // 对照：本模组内命中 → SelfMod（由调用方填自己的 modId 归属到自己）
+    let own = current.join("Content").join("own.bmp");
+    std::fs::write(&own, b"OWNDATA").unwrap();
+    let (_, _, origin_own) =
+        resolve_resource_origin(&current, &current, "own.bmp").expect("本模组内应命中");
+    assert_eq!(origin_own, Origin::SelfMod);
 
     let _ = std::fs::remove_dir_all(&tmp);
 }

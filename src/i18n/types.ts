@@ -133,6 +133,22 @@ export interface LangDict {
     allMods: string;
     searchPlaceholder: string;
     searchClear: string;
+    /** 排序（双槽：主排序 + 次排序），仅生物/英雄/建筑三类提供 */
+    sort: {
+      title: string;
+      byName: string;
+      /** 摘要链里的短标签：chip 上仍用 byName「按名称」，
+       *  避免「宝物等级 → 按名称」这种「按」字重复 */
+      nameShort: string;
+      byFaction: string;
+      byLevel: string;
+      byClass: string;
+      byType: string;
+      /** 「不分组（按名称）」：放弃分组、回到扁平字典序的独立项 */
+      noGroup: string;
+      /** 通用说明：无对应信息的条目排在最后（三类共用，取代原来的静态 hint） */
+      noInfoLast: string;
+    };
     /**
      * 右栏内容区在"未选中任何条目"时的占位文本。
      * 对齐 VCMI `vcmi.wiki.content.placeholder`（`WikiWindow.cpp:1195` 未选中时

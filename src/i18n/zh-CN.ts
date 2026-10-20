@@ -75,6 +75,17 @@ export const zhCN: LangDict = {
     allMods: "全部模组",
     searchPlaceholder: "搜索名称…",
     searchClear: "清空搜索",
+    sort: {
+      title: "排序",
+      byName: "按名称",
+      nameShort: "名称",
+      byFaction: "按城镇",
+      byLevel: "按等级",
+      byClass: "按职业",
+      byType: "按类型",
+      noGroup: "不分组（按名称）",
+      noInfoLast: "无对应信息的条目排在最后",
+    },
     // 右栏空态占位：对齐 VCMI `vcmi.wiki.content.placeholder`。类别已在左栏选中，
     // 所以不说"选择类别"，只让用户选中栏里的条目
     contentPlaceholder: "选择一个条目以查看其说明。",

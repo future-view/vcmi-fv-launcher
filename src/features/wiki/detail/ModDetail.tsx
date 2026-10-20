@@ -1,9 +1,11 @@
+import { useMemo } from "react";
 import type { LangDict } from "@/i18n/types";
 import type { WikiLinkTarget } from "@/lib/modcache";
 import { fullImgUrl, pickName } from "@/lib/modcache";
 import { HdIcon } from "@/shared/HdIcon";
 import { SafeImg } from "./detailShared";
 import { useWikiPopup, usePopupTriggers } from "./WikiPopupContext";
+import { readWikiSort } from "@/lib/uiPrefs";
 
 /**
  * 模组页的内容节顺序（对齐 VCMI `WikiModContent.cpp` 的 buildModContent）。
@@ -23,6 +25,14 @@ const SECTIONS: WikiLinkTarget["category"][] = [
   "spells",
   "skills",
 ];
+
+import {
+  collectBidNames,
+  collectClassNames,
+  normalizeSort,
+  sortEntries,
+} from "@/features/wiki/sort";
+import type { SortContext, SortSpec } from "@/features/wiki/sort";
 
 export function ModDetail({
   d,
@@ -47,6 +57,9 @@ export function ModDetail({
 }) {
   const popup = useWikiPopup();
   const triggers = usePopupTriggers();
+  // 排序偏好（按类目，localStorage）：与百科中栏共享同一份配置，
+  // 中栏改了「按城镇」，模组详情的英雄/生物节随之改变
+  const sortPrefs = useMemo(() => readWikiSort(), []);
   // 模组元数据（多语言 name/description/version）：来自完整缓存 cache.json 顶层 modMeta
   const meta = (modCache?.modMeta as Record<string, unknown>) ?? {};
   const metaName = (meta.name as Record<string, string>) ?? null;
@@ -122,13 +135,37 @@ export function ModDetail({
         //（地形是游戏级共享数据，否则每个模组页都会挂一节相同的地形）
         if (defines && defines[key] === false) return null;
         const label = labelOf(key);
-        const sorted = [...items].sort((a, b) =>
-          (
-            pickName((a.name as Record<string, string>) ?? {}, lang) || String(a.id ?? "")
-          ).localeCompare(
-            pickName((b.name as Record<string, string>) ?? {}, lang) || String(b.id ?? ""),
-          ),
+        // 排序走**共享模块**（与百科中栏同口径，避免两处漂移）：
+        // 主键城镇（原版固定序 + 自定义/无城镇按名），次键生物按 level、英雄/建筑按名称。
+        // 偏好按类目存在 localStorage，中栏改过这里随之改变。
+        const spec = normalizeSort(key, sortPrefs[key] as Partial<SortSpec> | undefined);
+        // `factionNames`：本 mod 的 factions 数组（ModDetail 只渲染单个 mod 的数据），
+        // 缺失时 `sort.ts` 内部兜底用 factionId 本身。
+        const factionNames: Record<string, Record<string, string>> = {};
+        for (const f of (d.factions as Record<string, unknown>[]) ?? []) {
+          const fid = String(f.factionId ?? "");
+          const nm = f.name as Record<string, string> | undefined;
+          if (fid && nm) factionNames[fid] = nm;
+        }
+        const wrapped = (items as Record<string, unknown>[]).map((it) => ({
+          id: String(it.id ?? it.factionId ?? ""),
+          data: it,
+        }));
+        const ctx: SortContext = {
+          lang,
+          t,
+          factionNames,
+          classNames: key === "heroes" ? collectClassNames(wrapped) : {},
+          bidNames: key === "buildings" ? collectBidNames(wrapped) : {},
+        };
+        sortEntries(
+          wrapped,
+          spec,
+          ctx,
+          // 与 WikiView 同款 Collator：中文按拼音、数字按数值
+          new Intl.Collator(lang, { numeric: true, sensitivity: "base" }),
         );
+        const sorted = wrapped.map((w) => w.data);
         return (
           <div key={key}>
             <h3 className="mb-1 text-sm font-semibold text-slate-300">

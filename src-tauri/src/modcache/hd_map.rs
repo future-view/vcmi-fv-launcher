@@ -27,6 +27,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::Mutex;
 
 use crate::modcache::sanitize_id;
 
@@ -58,25 +59,45 @@ pub(crate) fn record(owner: &str, sub: &str, name: &str, hd_name: &str) {
     });
 }
 
+/// 保护"读-改-写"登记表的互斥锁（见下方 flush 说明）。
+static FLUSH_LOCK: std::sync::OnceLock<Mutex<()>> = std::sync::OnceLock::new();
+
 /// 把本线程的登记项**按 owner 分别落盘**到 `<cache>/<sanitize(owner)>/hd-map.json`，随后清空。
 ///
 /// mod 构建结束时调用一次（rayon 线程复用的前提）。
+///
+/// ⚠️ 必须**与已有内容合并**再整体写回，不能整文件覆盖：产物归属改为「素材来源方」后，
+/// 多个模组会**同时**向同一个共享 owner（典型是 `core`）登记（124 个模组的原版地形同一份
+/// HD 源）。直接 `fs::write` 会让后 flush 的模组把先 flush 的条目整片抹掉 —— 表现为
+/// 高清阶段随机取不到真高清源、退回 1x 插值。故加锁保护读-改-写，保证不丢条目。
 ///
 /// ⚠️ 空表**既不写也不删**：缓存命中（`wiki_image_exists` 短路）的 mod 不会产生登记项，
 /// 若此时删文件就会把"上一次重建写好的登记"误清空。
 pub(crate) fn flush(cache_root: &Path) {
     let all = ENTRIES.with(|m| std::mem::take(&mut *m.borrow_mut()));
+    if all.is_empty() {
+        return;
+    }
+    let lock = FLUSH_LOCK.get_or_init(|| Mutex::new(()));
+    let _guard = lock.lock().unwrap_or_else(|e| e.into_inner());
     for (owner, entries) in all {
         if entries.is_empty() {
             continue;
         }
         let path = cache_root.join(sanitize_id(&owner)).join("hd-map.json");
+        // 埋点只计**本次新增**的条目（merged 含历史条目，计它会重复计数）
+        let added = entries.len();
+        let mut merged: HashMap<String, String> = fs::read_to_string(&path)
+            .ok()
+            .and_then(|t| serde_json::from_str::<HashMap<String, String>>(&t).ok())
+            .unwrap_or_default();
+        merged.extend(entries);
         if let Some(parent) = path.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        if let Ok(text) = serde_json::to_string(&entries) {
+        if let Ok(text) = serde_json::to_string(&merged) {
             let _ = fs::write(&path, text);
-            crate::infra::metrics::count("hd_src.recorded", entries.len() as u64);
+            crate::infra::metrics::count("hd_src.recorded", added as u64);
         }
     }
 }

@@ -89,6 +89,17 @@ export const ru: LangDict = {
     allMods: "Все моды",
     searchPlaceholder: "Поиск по названию…",
     searchClear: "Очистить поиск",
+    sort: {
+      title: "Сортировка",
+      byName: "По названию",
+      nameShort: "названию",
+      byFaction: "По городу",
+      byLevel: "По уровню",
+      byClass: "По классу",
+      byType: "По типу",
+      noGroup: "Без группировки (по названию)",
+      noInfoLast: "Записи без соответствующей информации — в конце",
+    },
     contentPlaceholder: "Выберите запись, чтобы посмотреть описание.",
     filter: {
       title: "Фильтр",

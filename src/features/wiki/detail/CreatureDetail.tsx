@@ -301,6 +301,26 @@ export function CreatureDetail({
     }
   };
 
+  /**
+   * 能力无图标时的占位标识：取 type 的缩写。
+   *
+   * 规则：蛇形命名按 `_` 分段取各段首字母（`ON_COMBAT_EVENT` → `OCE`），
+   * 只有一段时取前三个字母（`FLYING` → `FLY`），上限 4 字符（52px 框内可读）。
+   *
+   * ⚠️ 刻意不用通用图标：占位必须能反推出"缺的是哪个能力"，
+   * 否则上游（Bonus Icons 的 bonuses.json）补了真图标也无法从界面上察觉。
+   */
+  const abilityTypeAbbr = (type: string): string => {
+    const parts = type.split("_").filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase();
+    return parts
+      .map((p) => p[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 4);
+  };
+
   // 能力图标框的描边色：对齐 VCMI `CCreatureWindow.cpp:277-290` 的 bonusColors
   // （ARTIFACT 绿 / CREATURE_ABILITY 黄 / SPELL_EFFECT 橙 / 技能系 紫 / 经验系 青）。
   const abilityBorder = (src: string) => {
@@ -506,7 +526,16 @@ export function CreatureDetail({
               >
                 {abIcon ? (
                   <HdIcon src={abIcon} alt="" className="h-full w-full object-contain" />
-                ) : null}
+                ) : (
+                  // 无图标占位：能力 type 的缩写。刻意不用通用图标 ——
+                  // 占位必须能反推出"缺的是哪个能力"，否则以后想补真图标时无从发现。
+                  <span
+                    className="absolute inset-0 flex items-center justify-center text-[13px] font-semibold tracking-tight text-slate-500"
+                    title={`${String(ab.type ?? "")}（无图标）`}
+                  >
+                    {abilityTypeAbbr(String(ab.type ?? ""))}
+                  </span>
+                )}
                 <span className="absolute inset-x-0 bottom-0 truncate bg-slate-900/80 px-0.5 text-center text-[8px] leading-3 text-slate-400">
                   {sourceLabel(ab.source as string)}
                 </span>

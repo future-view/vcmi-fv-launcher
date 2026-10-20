@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ListFilter, Search } from "lucide-react";
+import { ChevronDown, ListFilter, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LangDict } from "@/i18n/types";
 import type { WikiEntry } from "@/lib/modcache";
 import type { WikiFilterContext, WikiFilterOption, WikiFilterSpec } from "./filters";
+import { PRIMARY_DIMS, dimLabel, hasSortSwitch, normalizeSort, secondaryDims } from "./sort";
+import type { SortSpec } from "./sort";
+import type { WikiCategory } from "@/lib/modcache";
 
 /** 浮层宽度：固定值，便于按触发按钮右边界左对齐定位 */
 const PANEL_W = 272;
@@ -30,6 +33,11 @@ export interface WikiFilterPanelProps {
   factionNames: Record<string, Record<string, string>>;
   /** modId（小写归一）→ 多语言名（来自 index.json） */
   modNames: Record<string, Record<string, string>>;
+  /** 当前类目的排序配置（双槽）；仅生物/英雄/建筑三类提供切换 */
+  sortSpec: SortSpec;
+  /** 排序类目（决定维度池与说明文案；与 `specs` 同类目） */
+  sortCategory: WikiCategory;
+  onSortChange: (spec: SortSpec) => void;
   t: LangDict;
 }
 
@@ -53,9 +61,19 @@ export function WikiFilterPanel({
   contentLang,
   factionNames,
   modNames,
+  sortSpec,
+  sortCategory,
+  onSortChange,
   t,
 }: WikiFilterPanelProps) {
+  // 兜底规范化：保证「组内排序」**永远有且仅有一个选中项**。
+  // 旧缓存 / 手改 localStorage 可能留下非法组合（如 primary=level 而 secondary=level），
+  // 不兜底就会出现两个按钮都不高亮的状态真空 —— 用户看不懂当前到底怎么排。
+  const sortSpecNorm = normalizeSort(sortCategory, sortSpec);
   const [open, setOpen] = useState(false);
+  // 排序区块展开态：**默认折叠**（低频操作不该常驻），摘要行始终显示当前排序。
+  // 组件由调用方以 `key={category}` 挂载 → 切类目时自动重置为折叠。
+  const [sortOpen, setSortOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -180,6 +198,103 @@ export function WikiFilterPanel({
                 </button>
               )}
             </div>
+
+            {/* 排序（双槽：主排序 + 次排序）。与筛选**正交** —— 筛选是收窄（只看一个
+                阵营），排序是分组（全部条目按维度分段），所以「按等级排序」不是
+                「按等级筛选」的重复：筛选只能看单个等级，排序能看 T1(16 城) → T2(16 城) → …
+                仅生物/英雄/建筑三类提供；其余类目**整块隐藏**而非禁用 —— 它们没有城镇维度，
+                显示一个禁用的开关会让人以为"设置失效了"，隐藏则直接表达"这类没有排序选项"。 */}
+            {hasSortSwitch(sortCategory) && (
+              <div className="mb-2 flex-none rounded-md border border-slate-800/70 bg-slate-900/50">
+                {/* 摘要行（折叠态只占一行）：**始终显示当前排序**，状态不隐藏；
+                    点整行展开完整选项。排序是低频操作（设一次就好），不该常驻展开 ——
+                    否则会把下面的筛选维度挤出可视区。 */}
+                <button
+                  type="button"
+                  onClick={() => setSortOpen((v) => !v)}
+                  aria-expanded={sortOpen}
+                  className="flex w-full items-center gap-2 px-2 py-1.5 text-left transition-colors hover:bg-slate-800/40"
+                >
+                  <span className="flex-none text-[11px] font-medium text-slate-400">
+                    {t.wiki.sort.title}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[11px] text-slate-200">
+                    {sortSpecNorm.primary === "name"
+                      ? dimLabel("name", t)
+                      : `${dimLabel(sortSpecNorm.primary, t)} → ${
+                          // 次维度是名称时用短标签：chip 上"按名称"是 radio 语义，
+                          // 摘要链里再出现一个「按」会读成「宝物等级 → 按名称」
+                          sortSpecNorm.secondary === "name"
+                            ? t.wiki.sort.nameShort
+                            : dimLabel(sortSpecNorm.secondary, t)
+                        }`}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "h-3.5 w-3.5 flex-none text-slate-500 transition-transform",
+                      sortOpen && "rotate-180",
+                    )}
+                  />
+                </button>
+                {sortOpen && (
+                  <div className="px-2 pb-2">
+                    {/* 分组维度（radio 形态）：**组内选项作为缩进子行紧随其下**，
+                        仅当前选中项展开 —— 位置即从属，不需要"组内排序"这种额外标题
+                        （那个词本身就是理解障碍）。 */}
+                    <div className="space-y-1">
+                      {PRIMARY_DIMS[sortCategory]
+                        .filter((d) => d !== "name")
+                        .map((d) => (
+                          <div key={d}>
+                            <SpecTab
+                              label={dimLabel(d, t)}
+                              active={sortSpecNorm.primary === d}
+                              hasValue={false}
+                              onClick={() => {
+                                // 切换主排序：次排序**联动到合法值**（旧值仍可用则保留，
+                                // 否则取第一个）。否则会出现"组内按钮都不高亮"的状态真空。
+                                const opts = secondaryDims(sortCategory, d);
+                                const keep = opts.includes(sortSpecNorm.secondary)
+                                  ? sortSpecNorm.secondary
+                                  : opts[0] ?? "name";
+                                onSortChange({ primary: d, secondary: keep });
+                              }}
+                            />
+                            {/* 子行：仅当前选中项展开，且**组内选项多于一项时才渲染** ——
+                                宝物/法术的组内只有"名称"一项，渲染出来点了也没变化。 */}
+                            {sortSpecNorm.primary === d &&
+                              secondaryDims(sortCategory, d).length > 1 && (
+                                <div className="ml-4 mt-1 flex flex-wrap gap-1">
+                                  {secondaryDims(sortCategory, d).map((s) => (
+                                    <SpecTab
+                                      key={s}
+                                      label={dimLabel(s, t)}
+                                      active={sortSpecNorm.secondary === s}
+                                      hasValue={false}
+                                      onClick={() =>
+                                        onSortChange({ primary: d, secondary: s })
+                                      }
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                          </div>
+                        ))}
+                      {/* 不分组（按名称）：独立项，没有"组"就没有组内选项 → 子行整块消失 */}
+                      <SpecTab
+                        label={t.wiki.sort.noGroup}
+                        active={sortSpecNorm.primary === "name"}
+                        hasValue={false}
+                        onClick={() => onSortChange({ primary: "name", secondary: "name" })}
+                      />
+                    </div>
+                    <p className="mt-1.5 text-[10px] leading-tight text-slate-500">
+                      <span className="text-slate-600">{t.wiki.sort.noInfoLast}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {specs.length > 1 && (
               <div className="mb-2 flex flex-none flex-wrap gap-1 border-b border-slate-800 pb-2">
