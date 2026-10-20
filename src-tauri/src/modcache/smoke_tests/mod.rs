@@ -24,7 +24,9 @@
 
 use crate::infra::hash::compute_source_hash;
 use crate::infra::image::encode_webp;
-use crate::modcache::batch::{build_mods_cache_batch_inner, wiki_threads, BatchWikiMod};
+use crate::modcache::batch::{
+    build_mods_cache_batch_inner, build_mods_cache_batch_inner_hd, wiki_threads, BatchWikiMod,
+};
 use crate::modcache::build::build_mod_wiki_inner;
 use crate::modcache::build::build_mod_wiki_phase;
 use crate::modcache::collect::collect_all_raw_configs;
@@ -36,6 +38,7 @@ use crate::modcache::preview::generate_town_preview_inner;
 use crate::modcache::preview::{
     compose_town_preview_for, composite_structures_to_canvas, load_structure_frame,
 };
+use crate::modcache::batch::BuildSlot;
 use crate::modcache::version::WIKI_CACHE_VERSION;
 use crate::vcmi::h3core::{h3_core_data_dir, load_h3_core_i18n};
 use crate::vcmi::paths::VcmiPaths;

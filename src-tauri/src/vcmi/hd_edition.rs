@@ -126,6 +126,23 @@ impl HdEditionSource {
         s
     }
 
+    /// 全量帧名（**只读诊断**）：`(档位, 条目名, 帧名)`，供覆盖度审计比对
+    /// "HD 收录了什么" vs "百科实际登记/使用了什么"。
+    #[cfg(test)]
+    pub fn dump_frames(&self) -> Vec<(u32, String, String)> {
+        let mut out = Vec::new();
+        for sc in &self.scales {
+            for pak in &sc.paks {
+                for (entry, frames) in pak.entries_with_frames() {
+                    for f in frames {
+                        out.push((sc.scale, entry.clone(), f));
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// 按资源名取图（直查：位图/PCX 类用同名，DEF 类用帧名换算后的名字）。
     ///
     /// 名字经 [`candidate_keys`] 归一（**去路径 / 去扩展名**），因此调用方可直接传配置里的
@@ -177,27 +194,39 @@ impl HdEditionSource {
 
     /// 按**需求倍率** `need`（相对 1x 基准图）选最优源档取图。
     ///
-    /// 选源规则（2026-09-23 拍板）：对每个可用档 `h` 取 `k = ceil(need / h)`，选使 **`h*k` 最小**者
-    /// （结果尺寸最贴近需求 → 体积最小、浪费最少）；同分时选 **`k` 最小**者（插值次数最少 → 质量最好）。
+    /// 选源规则分两段（2026-10-20 修订，起因：用户实测 `@4x` 明显糊）：
     ///
-    /// 实例（档位 {2,3}）：`need=4` → (h=2,k=2) 覆盖 4x（而非 h=3 放大到 6x）；
-    /// `need=5` → (h=3,k=2) 与 (h=2,k=3) 同为 6x，取 k 小的 x3；`need=2` → (h=2,k=1) 官方原图直出。
+    /// - `need <= 最高档`（常见 2x / 3x）→ 沿用 2026-09-23 拍板：对每个可用档 `h` 取
+    ///   `k = ceil(need / h)`，选 **`h*k` 最小**者（体积最小），同分取 **`k` 最小**者。
+    ///   `need=2` → (h=2,k=1) 官方原图直出，不跨档去解更大的图集。
+    /// - `need > 最高档`（4x / 5x…）→ **一律取最高档 `h`**，由调用方重采样到精确需求。
+    ///   旧规则此时选 x2 再放大 2×（`h*k` 恰好 = 4），但 x2 原图细节本就不足，
+    ///   2× 插值后比"x3 重采样到 4x"明显更糊（同一 x3 素材多 1.5× 线性细节）。
     ///
-    /// 返回 `(图, 源档 h, 放大倍数 k)`；`k=1` 表示"直接用 HD 原图"，调用方按 `@need x` 命名落盘即可
-    /// （实际像素尺寸可能 ≥ 需求，前端按 CSS 尺寸显示、浏览器下采样，无害）。
+    /// 返回 `(图, 源档 h, 建议整数放大倍数 k = ceil(need/h))`。调用方决定：
+    /// `need % h == 0` 用整数放大 `k`；否则 `h > need` 走下采样、`h < need` 走
+    /// `hd::resample_hd_to_need` 的单步重采样（见 `modcache::hd::upscale_file`）。
     pub fn lookup_for(&self, name: &str, need: u32) -> Option<(image::RgbaImage, u32, u32)> {
         let keys = candidate_keys(name);
         if keys.is_empty() {
             return None;
         }
         let need = need.max(1);
+        let max_scale = self.scales.iter().map(|s| s.scale).max().unwrap_or(1);
         let mut best: Option<(u32, u32, u32)> = None; // (h, k, h*k)
         for s in &self.scales {
             let k = need.div_ceil(s.scale).max(1);
             let cover = s.scale * k;
             let better = match best {
                 None => true,
-                Some((_, bk, bc)) => cover < bc || (cover == bc && k < bk),
+                // 大倍率需求：取最高档（细节最多），尺寸交给调用方重采样
+                Some((bh, bk, bc)) => {
+                    if need > max_scale {
+                        s.scale > bh
+                    } else {
+                        cover < bc || (cover == bc && k < bk)
+                    }
+                }
             };
             if better {
                 best = Some((s.scale, k, cover));
@@ -219,10 +248,86 @@ impl HdEditionSource {
         None
     }
 
+    /// 取该帧在**指定档位**的**阴影图**（VCMI `HdImageLoader::getImage(shadow=true)`）。
+    ///
+    /// HD 版把生物战斗帧的阴影存成**独立切片**（`PakFrame::shadow`），本体图里不再含阴影
+    /// —— 不画就会"悬空"。绘制位置与本体**同一套公式**（`(lm/tm − spriteOffset) × 档位`，
+    /// VCMI `HdImageLoader.cpp:176` 对两者一视同仁），故本函数只返回图，不返回偏移：
+    /// 调用方先画阴影、再画本体即可。
+    ///
+    /// ⚠️ 必须传**本体实际用的档位**：阴影切片与本体是同一动画的两半，跨档尺寸口径不一致。
+    pub fn lookup_shadow(&self, name: &str, scale: u32) -> Option<image::RgbaImage> {
+        let keys = candidate_keys(name);
+        if keys.is_empty() {
+            return None;
+        }
+        let s = self.scales.iter().find(|x| x.scale == scale)?;
+        for pak in &s.paks {
+            for key in &keys {
+                if let Some(fr) = pak.find(key) {
+                    if let Some((sheet, rect)) = fr.shadow {
+                        return self.frame_rect(scale, &fr.entry, sheet, rect, fr.shadow_rot);
+                    }
+                    // 该帧没有阴影切片 → 不必再看同档其它 pak
+                    break;
+                }
+            }
+        }
+        None
+    }
+
+    /// 按**目标倍数 `need`** 取图（含绘制偏移）：选**最小满足** `档位 ≥ need` 的档位，
+    /// 都不满足则取最高档。
+    ///
+    /// 与 [`Self::lookup_with_offset`]（恒取最高档）的区别就是这一句：
+    /// 动画帧体积大（整组十余帧），在 1080p 下恒取 x3 属于浪费，
+    /// 而 `need` 由"显示框 CSS × 屏幕物理倍率 ÷ 窗口源像素"算出，够用即止。
+    pub fn lookup_with_offset_for(
+        &self,
+        name: &str,
+        need: u32,
+    ) -> Option<(image::RgbaImage, u32, (i32, i32))> {
+        let keys = candidate_keys(name);
+        if keys.is_empty() {
+            return None;
+        }
+        let mut asc: Vec<u32> = self.scales.iter().map(|s| s.scale).collect();
+        asc.sort_unstable();
+        let want = need.max(1);
+        let chosen = asc
+            .iter()
+            .copied()
+            .find(|s| *s >= want)
+            .unwrap_or_else(|| *asc.last().unwrap_or(&1));
+        let s = self.scales.iter().find(|x| x.scale == chosen)?;
+        for pak in &s.paks {
+            for key in &keys {
+                if let Some(fr) = pak.find(key) {
+                    if let Some(img) = self.frame_image(chosen, &fr) {
+                        return Some((img, chosen, fr.sprite_offset));
+                    }
+                }
+            }
+        }
+        None
+    }
+
     /// 把某帧从图集裁出（含 `rotation=1` 的顺时针 90°，复刻 VCMI `CSDL_Ext::Rotate90`）。
     fn frame_image(&self, scale: u32, fr: &PakFrame) -> Option<image::RgbaImage> {
-        let sheet = self.load_sheet(scale, &fr.entry, fr.sheet)?;
-        let (x, y, w, h) = fr.rect;
+        self.frame_rect(scale, &fr.entry, fr.sheet, fr.rect, fr.rotation)
+    }
+
+    /// 按 `(entry, sheet, rect, rotation)` 裁帧：本体与**阴影**共用（两者各有独立的 rotation）。
+    fn frame_rect(
+        &self,
+        scale: u32,
+        entry: &str,
+        sheet_idx: u32,
+        rect: (u32, u32, u32, u32),
+        rotation: u32,
+    ) -> Option<image::RgbaImage> {
+        let sheet = self.load_sheet(scale, entry, sheet_idx)?;
+        let (x, y, w, h) = rect;
         if w == 0
             || h == 0
             || x.checked_add(w)? > sheet.width()
@@ -231,7 +336,7 @@ impl HdEditionSource {
             return None;
         }
         let cropped = image::imageops::crop_imm(sheet.as_ref(), x, y, w, h).to_image();
-        Some(if fr.rotation == 1 {
+        Some(if rotation == 1 {
             rotate90_cw(&cropped)
         } else {
             cropped
@@ -580,6 +685,16 @@ pub fn lookup_for(name: &str, need: u32) -> Option<(image::RgbaImage, u32, u32)>
     source()?.lookup_for(name, need)
 }
 
+/// 便捷入口：取某帧在指定档位的**阴影图**（见 [`HdEditionSource::lookup_shadow`]）。
+pub fn lookup_shadow(name: &str, scale: u32) -> Option<image::RgbaImage> {
+    source()?.lookup_shadow(name, scale)
+}
+
+/// 便捷入口：按**目标倍数**取图 + 绘制偏移（见 [`HdEditionSource::lookup_with_offset_for`]）。
+pub fn lookup_with_offset_for(name: &str, need: u32) -> Option<(image::RgbaImage, u32, (i32, i32))> {
+    source()?.lookup_with_offset_for(name, need)
+}
+
 /// 便捷入口：按 DEF 的 `(group, index)` 查 HD 图（帧名换算见 [`DefReader::frame_name`]）。
 ///
 /// 传入的是**已在手的 DEF 字节**（提取链路本来就要读它），因此不需要再次解析资源。
@@ -602,7 +717,14 @@ pub fn probe_def_frame(def_bytes: &[u8], group: usize, index: usize) -> Option<S
     let src = source()?;
     let def = DefReader::new(def_bytes);
     let name = def.frame_name(group, index)?;
-    probe_in(&src, &name)
+    if let Some(hit) = probe_in(&src, &name) {
+        return Some(hit);
+    }
+    // 动画化 DEF（地形 tiles、河流等）的帧名是**动画根**（`WATRTL01`），HD 素材按
+    // **子帧** 存（`WATRTL01_0`…`WATRTL01_9`）：只查主名必 miss —— 实测水域 tiles
+    // 因此永远登记不上（`terrain/watrtl_def~g0f0` 缺失，只能 1x 放大）。
+    // 回退首子帧：语义上正是"该动画的第 0 个子帧"，与本函数"取静态首帧"的用途一致。
+    probe_in(&src, &format!("{name}_0"))
 }
 
 /// 便捷入口：按资源名**探测** HD 是否收录（只查索引，不解码）。
@@ -748,7 +870,8 @@ mod tests {
         set_source(None);
     }
 
-    /// 档位选择规则（x2 与 x3 都可用时）：最小覆盖，其次最小放大倍数。
+    /// 档位选择规则（x2 与 x3 都可用时）：
+    /// `need <= 最高档` → 最小覆盖、其次最小放大倍数；`need > 最高档` → **取最高档**。
     #[test]
     #[ignore]
     fn real_hd_lookup_for_scale_choice() {
@@ -763,10 +886,11 @@ mod tests {
         let src = detect(&[PathBuf::from(user_mods)], None).expect("应探测到 hd-edition");
         assert_eq!(src.scales(), vec![3, 2], "默认应含 x3 与 x2（降序）");
 
-        // need=4：x2 档 k=2 覆盖 4x，优于 x3 档 k=2 覆盖 6x → 选 x2
+        // need=4（> 最高档 3）→ 取 x3（细节最多），由 `upscale_file` 重采样到 4× 精确尺寸。
+        // 旧规则选 x2 再放大 2×，实测明显更糊（x2 源本身细节不足）。
         let (img, h, k) = src.lookup_for("TBCSBACK", 4).expect("应取到幕布");
-        assert_eq!((h, k), (2, 2));
-        assert_eq!(img.dimensions(), (1600, 748));
+        assert_eq!((h, k), (3, 2));
+        assert_eq!(img.dimensions(), (2400, 1122));
 
         // need=6：x3 档 k=2 与 x2 档 k=3 覆盖同为 6x → 取 k 小的 x3
         let (img, h, k) = src.lookup_for("TBCSBACK", 6).expect("应取到幕布");

@@ -12,7 +12,8 @@
  *
  * 容量刻意取小：单条字节可达数 MB，宁可淘汰重取也不要常驻占内存。
  */
-import { readDefBytes } from "@/lib/tauri";
+import { getHdPhys } from "@/lib/hd";
+import { readDefBytes, readDefGroupHd, type HdDefGroup } from "@/lib/tauri";
 import { decodeGroup, type DefFrame } from "./decoder";
 
 /** 缓存的 DEF 字节条目上限（单条可能数 MB） */
@@ -22,6 +23,8 @@ const MAX_GROUP_ENTRIES = 96;
 
 const bytesCache = new Map<string, Uint8Array>();
 const groupCache = new Map<string, DefFrame[]>();
+/** 高清分组缓存（**已解码的 ImageBitmap**，必须 `close()` 才能回收显存） */
+const hdCache = new Map<string, HdGroup>();
 
 const bytesKey = (modId: string, resource: string) => `${modId}\u0000${resource}`;
 const groupKey = (modId: string, resource: string, groupIndex: number) =>
@@ -36,14 +39,22 @@ function lruGet<T>(m: Map<string, T>, key: string): T | undefined {
   return v;
 }
 
-/** LRU 写入：超容量时淘汰最久未用者 */
-function lruSet<T>(m: Map<string, T>, key: string, value: T, max: number): void {
+/** LRU 写入：超容量时淘汰最久未用者（`dispose` 用于释放非 GC 资源，如 ImageBitmap） */
+function lruSet<T>(
+  m: Map<string, T>,
+  key: string,
+  value: T,
+  max: number,
+  dispose?: (v: T) => void,
+): void {
   if (m.has(key)) m.delete(key);
   m.set(key, value);
   while (m.size > max) {
     const oldest = m.keys().next();
     if (oldest.done) break;
+    const evicted = m.get(oldest.value);
     m.delete(oldest.value);
+    if (evicted !== undefined) dispose?.(evicted);
   }
 }
 
@@ -88,8 +99,127 @@ export async function getDefGroup(
   return frames;
 }
 
+/**
+ * **高清**动画分组：帧已在后端合成好（含 HD 独立阴影），前端只需按 `x/y` 贴到画布。
+ *
+ * 与 1x 的 [`DefFrame`] 是两套绘制路径（位图 vs BGRA 逐像素），但**共用同一播放器**：
+ * 见 [`getAnimGroup`] 的统一包装。
+ */
+export interface HdGroup {
+  w: number;
+  h: number;
+  scale: number;
+  frames: { x: number; y: number; w: number; h: number; img: ImageBitmap }[];
+}
+
+/**
+ * 一个可播放的动作分组：**高清优先**，不可高清化时是 1x 的 BGRA 帧。
+ *
+ * 播放器按 `hd` 是否为 null 分派绘制（`drawImage` / `putImageData`）—— 两条路径始终并存，
+ * 高清缺失 / 未装 hd-edition / 第三方生物都走 1x，行为与加高清前完全一致。
+ */
+export interface AnimGroup {
+  /** 画布宽（像素）：高清时 = DEF 逻辑画布 × 档位，1x 时 = 首帧尺寸 */
+  w: number;
+  h: number;
+  /** 高清帧（含位置）；`null` = 走 1x */
+  hd: HdGroup["frames"] | null;
+  /** 1x 帧（BGRA，画在 0,0）；`hd` 非空时为 null */
+  raw: DefFrame[] | null;
+  count: number;
+}
+
+/**
+ * 取某动作分组（**高清优先，1x 兜底**），带分组级缓存。
+ *
+ * 顺序不可颠倒：先问 `read_def_group_hd`，它返回 null 才解码 1x ——
+ * 后端已保证"整组命中或整组回退"，前端不做逐帧混档判断。
+ *
+ * `boxCss`：动画框的 CSS 边长（130/180）。它与屏幕物理倍率一起决定后端取哪一档高清
+ * （1080p 大图 x3、弹窗 x2、4K 封顶 x3）—— **构图恒定 130 源像素窗口，只有分辨率随屏幕变**。
+ */
+export async function getAnimGroup(
+  modId: string,
+  resource: string,
+  groupIndex: number,
+  doubleWide: boolean,
+  boxCss: number,
+): Promise<AnimGroup | null> {
+  const need = Math.round(boxCss * (await getHdPhys()));
+  // 档位不同 → 产物不同，缓存键必须带上 `need`
+  const gKey = `${groupKey(modId, resource, groupIndex)}\u0000${need}`;
+  const hdHit = lruGet(hdCache, gKey);
+  if (hdHit) {
+    return { w: hdHit.w, h: hdHit.h, hd: hdHit.frames, raw: null, count: hdHit.frames.length };
+  }
+  const rawHit = lruGet(groupCache, groupKey(modId, resource, groupIndex));
+  if (rawHit && rawHit.length > 0) {
+    return { w: rawHit[0].w, h: rawHit[0].h, hd: null, raw: rawHit, count: rawHit.length };
+  }
+  // 1) 后端合成（HD 优先，未收录时后端自己走 1x 同口径窗口）
+  const hd = await fetchHdGroup(modId, resource, groupIndex, doubleWide, need);
+  if (hd) {
+    lruSet(hdCache, gKey, hd, MAX_HD_GROUP_ENTRIES, closeHdGroup);
+    return { w: hd.w, h: hd.h, hd: hd.frames, raw: null, count: hd.frames.length };
+  }
+  // 2) 最后兜底：前端 TS 解码（命令整体失败时才会走到，构图与后端不完全一致）
+  const frames = await getDefGroup(modId, resource, groupIndex);
+  if (frames.length === 0) return null;
+  return { w: frames[0].w, h: frames[0].h, hd: null, raw: frames, count: frames.length };
+}
+
+/**
+ * 高清分组条目上限（单条含十余张 300×390 位图，约 4~6MB）。
+ *
+ * 4 个状态合计会触碰约 12 个组（待机 3 / 移动 5 / 攻击 4 / 受击 3），
+ * 留 4 个余量避免在状态间切换时反复 close/reopen。
+ */
+const MAX_HD_GROUP_ENTRIES = 16;
+
+/** 释放一组高清帧的显存（ImageBitmap 不受 GC 管辖，必须显式 close） */
+function closeHdGroup(g: HdGroup): void {
+  g.frames.forEach((f) => f.img.close());
+}
+
+/** 取并解码高清分组（webp 字节 → ImageBitmap）；任一环节失败 → null。 */
+async function fetchHdGroup(
+  modId: string,
+  resource: string,
+  groupIndex: number,
+  doubleWide: boolean,
+  need: number,
+): Promise<HdGroup | null> {
+  if (typeof createImageBitmap !== "function") return null;
+  let g: HdDefGroup | null = null;
+  try {
+    g = await readDefGroupHd(modId, resource, groupIndex, doubleWide, need);
+  } catch {
+    return null;
+  }
+  if (!g || !g.frames || g.frames.length === 0 || g.w <= 0 || g.h <= 0) return null;
+  const frames: HdGroup["frames"] = [];
+  try {
+    for (const f of g.frames) {
+      const bytes = f.data instanceof Uint8Array ? f.data : new Uint8Array(f.data);
+      // 拷进独立 ArrayBuffer：`BlobPart` 不接受 `Uint8Array<ArrayBufferLike>`（TS 5.7+ 泛型），
+      // 且 IPC 传来的视图可能指向共享内存，交给解码器前先固化成普通 ArrayBuffer。
+      const ab = new ArrayBuffer(bytes.length);
+      new Uint8Array(ab).set(bytes);
+      const img = await createImageBitmap(new Blob([ab], { type: "image/webp" }));
+      frames.push({ x: f.x, y: f.y, w: f.w, h: f.h, img });
+    }
+  } catch {
+    // 解码到一半失败：已解出的必须关闭，且**不得**缓存半成品
+    frames.forEach((f) => f.img.close());
+    return null;
+  }
+  return { w: g.w, h: g.h, scale: g.scale ?? 1, frames };
+}
+
 /** 清空缓存（切换领域/游戏目录后源数据可能变化时使用）。 */
 export function clearDefAnimationCache(): void {
   bytesCache.clear();
   groupCache.clear();
+  for (const g of hdCache.values()) g.frames.forEach((f) => f.img.close());
+  hdCache.clear();
 }

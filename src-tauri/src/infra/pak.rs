@@ -84,6 +84,11 @@ pub struct PakFrame {
     pub rotation: u32,
     /// 阴影帧：`(sheet, (x, y, w, h))`
     pub shadow: Option<(u32, (u32, u32, u32, u32))>,
+    /// 阴影帧的 rotation（`PakLoader.cpp` 的 `shadowRotation`，与本体 [`Self::rotation`] **独立**）。
+    ///
+    /// HD 版阴影是与本体分开存的一张独立切片，绘制时复用本体同一套 margins 公式，
+    /// 但**是否旋转要按它自己的标志** —— 用本体的 rotation 处理会转错（实测生物战斗帧）。
+    pub shadow_rot: u32,
 }
 
 /// 已打开的 pak（持路径 + 索引；sheet 按需 seek 读取）。
@@ -259,6 +264,25 @@ impl PakArchive {
         Some(buf)
     }
 
+    /// 全量条目 + 帧名（**只读诊断**：HD 素材覆盖度审计，`cargo test` 下用）。
+    ///
+    /// 生产链路一律按名查询（`find`），不需要枚举；这里只是把 `ensure_index` 的内部
+    /// 视图暴露出来，避免审计脚本自己再写一遍 pak 解析。
+    #[cfg(test)]
+    pub fn entries_with_frames(&self) -> Vec<(String, Vec<String>)> {
+        let mut out: Vec<(String, Vec<String>)> = Vec::new();
+        for name in self.entries.keys() {
+            if let Some(frames) = self.frames_of(name) {
+                out.push((
+                    name.clone(),
+                    frames.iter().map(|f| f.name.clone()).collect(),
+                ));
+            }
+        }
+        out.sort();
+        out
+    }
+
     /// 全量「帧名 → (entry, 下标)」索引（懒构建一次，进程内复用）。
     fn ensure_index(&self) -> Option<Arc<HashMap<String, (String, usize)>>> {
         let mut guard = self.index.lock().ok()?;
@@ -345,6 +369,8 @@ fn parse_metadata(entry: &str, data: &[u8]) -> Vec<PakFrame> {
             sprite_offset: (g(1) as i32, g(3) as i32),
             rotation: if g(9) == 1 { 1 } else { 0 },
             shadow,
+            // `g(16)` = 阴影 rotation（仅 18 列行存在；`g` 缺省回 0）
+            shadow_rot: if g(16) == 1 { 1 } else { 0 },
         });
     }
     out

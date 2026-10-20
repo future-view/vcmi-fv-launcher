@@ -39,7 +39,10 @@ const WORST_DISPLAY_ZOOM: f64 = 148.0 / 64.0;
 /// 递增后首次运行会**清理全部 `@Nx` 变体**并重新生成 —— 变体的幂等判定只看
 /// "目标文件是否存在"，所以编码质量或分级规则变了，旧变体不会自己更新。
 /// （仅"倍率随显示器变化"不在此列：那由逐图 `target_rate` 对比自动清理。）
-pub const HD_SCHEME_VERSION: u32 = 1;
+/// v2（2026-10-20）：`need > 最高档`（4x 起）改为**取最高档 HD 源 + 单步重采样到精确需求**
+/// —— 旧规则在 4x 时选 x2 再放大 2×，x2 原图细节不足、实测偏糊；变体文件名不变（仍是
+/// `@4x`），只能靠本版本号清理重建。
+pub const HD_SCHEME_VERSION: u32 = 2;
 
 /// 进程内"方案已核对"标志：`generate_for_mod` 会被 600+ 个 mod 调用，只应核对一次。
 static SCHEME_CHECKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -233,7 +236,7 @@ impl HdOptions {
 /// | warmachine | 32×32 | `HeroDetail` 投石车 `h-8 w-8` |
 /// | artifact | 32×32 | `ArtifactDetail` `h-8 w-8` |
 /// | spell / skill / spellbon / spellbook / secsk32 | 56×56 | `detailShared` `DetailHeader` `h-14 w-14` |
-/// | pskil42 | 28×28 | `HeroDetail` 二技能 `h-7 w-7` |
+/// | pskil42 | 32×32 | `HeroDetail` 主属性 `h-8 w-8`（原写 28×28 与实际不符，导致该目录永不生成变体） |
 /// | stats | 20×20 | `FactionDetail` 表头 `h-5 w-5` |
 /// | stackwin / resources | 16×16 | `CreatureDetail` 属性行 / `formatCost` `h-4 w-4` |
 ///
@@ -252,7 +255,11 @@ pub(crate) fn hd_target_box(sub: &str) -> Option<(u32, u32)> {
         "ability" => (52, 52),
         "warmachine" | "artifact" => (32, 32),
         "spell" | "skill" | "spellbon" | "spellbook" | "secsk32" => (56, 56),
-        "pskil42" => (28, 28),
+        // ⚠️ 必须是 32 而非 28：`HeroDetail` 主属性图标是 `h-8 w-8`（32 CSS px）。
+        // 取 28 时 1080p 需求 = 28×1.5 = 42px，恰等于 PSKIL42 源帧 42×42 →
+        // `target_rate` 恒为 1 ⇒ 该目录**一个 `@Nx` 都不生成**，HD 版（hd-map 已登记
+        // `PSKIL42A/D/P/S`）也就永远用不上（实测 2026-10-20 用户报「pskil42 没走高清」）。
+        "pskil42" => (32, 32),
         "stats" => (20, 20),
         "stackwin" | "resources" => (16, 16),
         _ => return None,
@@ -720,7 +727,11 @@ fn collect_webp(dir: &Path, out: &mut Vec<PathBuf>) {
 /// ## 源（2026-09-23 拍板）
 ///
 /// - `hd_name` 非空且 HD 素材可用 → 用官方真高清图作源：`hd_edition::lookup_for` 按需求档位
-///   选源（`k == 1` 表示"能整除 → 原图直出、零插值"；否则整数放大 `k` 倍，结果尺寸 ≥ 需求）；
+///   选源，三种落法：
+///   ① 源档 == 需求 → 原图直出（零插值）；
+///   ② 需求是源档的整数倍 → 整数放大（xBRZ / AI / Lanczos3+USM）；
+///   ③ 否则（如 x3 源 → 4x 需求）→ **单步重采样到精确 `need × 1x`**（Lanczos3，预乘 alpha），
+///      避免"先用低档放大到整数倍"细节不足（用户实测 `@4x` 糊）；
 /// - 否则读 1x 基准图（阶段二产物）放大 `rate` 倍 —— 与从前行为一致。
 ///
 /// 算法由 [`pick_upscaler`] 试算决定（像素画 → xBRZ；插画/写实 → Lanczos3 / AI）。
@@ -881,6 +892,51 @@ pub(crate) fn upscale_lowpass(
     Some((out, ow, oh))
 }
 
+/// 单步重采样到任意目标尺寸（Lanczos3 + 预乘 alpha）。
+///
+/// 用途：HD 源档与需求**不是整数倍**时（x3 源 → 4x 需求 = 1.33×）一次到位，
+/// 而不是"先用低档放大到整数倍"再让浏览器下采样 —— 后者细节更少、观感更糊。
+/// alpha 处理与 [`upscale_lowpass`] 同口径：defringe → 预乘插值 → 反预乘 →
+/// 低 alpha 带回填源色（源色取自**未预乘**的入参，避免回填出偏暗的边）。
+fn resample_lowpass(
+    rgba: &[u8],
+    w: u32,
+    h: u32,
+    tw: u32,
+    th: u32,
+) -> Option<(Vec<u8>, u32, u32)> {
+    let n = (w as usize) * (h as usize);
+    if w == 0 || h == 0 || tw == 0 || th == 0 || rgba.len() < n * 4 {
+        return None;
+    }
+    let mut pre = rgba[..n * 4].to_vec();
+    defringe(&mut pre, w, h, 3);
+    premultiply_rgba(&mut pre);
+    let sheet = image::RgbaImage::from_raw(w, h, pre)?;
+    let mut out = image::imageops::resize(
+        &sheet,
+        tw,
+        th,
+        image::imageops::FilterType::Lanczos3,
+    )
+    .into_raw();
+    unpremultiply_rgba(&mut out);
+    for y in 0..th as usize {
+        for x in 0..tw as usize {
+            let i = y * tw as usize + x;
+            if out[i * 4 + 3] < 96 {
+                let sx = (x * w as usize / tw as usize).min(w as usize - 1);
+                let sy = (y * h as usize / th as usize).min(h as usize - 1);
+                let j = (sy * w as usize + sx) * 4;
+                out[i * 4] = rgba[j];
+                out[i * 4 + 1] = rgba[j + 1];
+                out[i * 4 + 2] = rgba[j + 2];
+            }
+        }
+    }
+    Some((out, tw, th))
+}
+
 pub(crate) fn upscale_file(
     src: &Path,
     dest: &Path,
@@ -890,10 +946,13 @@ pub(crate) fn upscale_file(
     sub: &str,
 ) -> bool {
     // 1) 定源与放大倍数：HD 真高清优先（命中即计埋点，便于与"1x 放大"区分统计）
-    let (img, k) = match hd_name.and_then(|n| crate::vcmi::hd_edition::lookup_for(n, rate)) {
-        Some((img, _h, k)) => {
+    let need = rate.max(1);
+    let hd_src = hd_name.and_then(|n| crate::vcmi::hd_edition::lookup_for(n, need));
+    let hd_hit = hd_src.is_some();
+    let (img, src_scale) = match hd_src {
+        Some((img, h, _k)) => {
             crate::infra::metrics::count("hd_src.variant", 1);
-            (img, k.max(1))
+            (img, h.max(1))
         }
         None => {
             let Ok(bytes) = fs::read(src) else {
@@ -902,16 +961,46 @@ pub(crate) fn upscale_file(
             let Ok(decoded) = image::load_from_memory(&bytes) else {
                 return false;
             };
-            (decoded.to_rgba8(), rate.max(1))
+            (decoded.to_rgba8(), 1u32)
         }
     };
     let (w, h) = (img.width(), img.height());
     if w == 0 || h == 0 {
         return false;
     }
+    // HD 源档与需求不是整数倍（如 x3 源 → 4x 需求）：单步重采样到精确需求。
+    // 旧规则此时选 x2 档再放大 2×（`h*k` 恰等于需求），但 x2 原图细节不足，
+    // 2× 插值后明显比"x3 重采样到 4x"糊（用户实测），且重采样不增加任何体积。
+    let exact = hd_hit && src_scale > 1 && need % src_scale != 0;
+    let k = if hd_hit {
+        need.div_ceil(src_scale).max(1)
+    } else {
+        need
+    };
 
     // 2) 放大与编码分派；`k == 1`（HD 原图直出）跳过插值，只判编码
-    let (rgba, out_w, out_h, pixel_like) = if k <= 1 {
+    let (rgba, out_w, out_h, pixel_like) = if exact {
+        // HD 源 → 精确需求尺寸（单步 Lanczos3，预乘 alpha；不叠 AI/xBRZ）
+        let tw = ((w as u64 * need as u64 + src_scale as u64 / 2) / src_scale as u64).max(1) as u32;
+        let th = ((h as u64 * need as u64 + src_scale as u64 / 2) / src_scale as u64).max(1) as u32;
+        let pixel_like = color_ratio_pct(img.as_raw(), w, h) <= PIXEL_ART_FAST_PCT;
+        let buf = preprocess_for_interpolation(img.as_raw(), w, h, !pixel_like);
+        let Some((mut out, ow, oh)) = resample_lowpass(&buf, w, h, tw, th) else {
+            return false;
+        };
+        crate::infra::metrics::count("hd_src.resample", 1);
+        if !pixel_like && opt.usm > 0.0 && !ai_excluded(sub) {
+            crate::infra::metrics::count("hd.usm", 1);
+            out = crate::infra::sharpen::usm(
+                &out,
+                ow,
+                oh,
+                crate::infra::sharpen::DEFAULT_SIGMA,
+                opt.usm,
+            );
+        }
+        (out, ow, oh, pixel_like)
+    } else if k <= 1 {
         let pixel_like = color_ratio_pct(img.as_raw(), w, h) <= PIXEL_ART_FAST_PCT;
         (img.into_raw(), w, h, pixel_like)
     } else {
@@ -1021,4 +1110,22 @@ pub(crate) fn upscale_file(
         let _ = fs::create_dir_all(parent);
     }
     fs::write(dest, &enc).is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{hd_target_box, target_rate};
+
+    /// 回归（2026-10-20）：`pskil42` 的 1x 源帧是 42×42，而 UI 显示 32 CSS px。
+    ///
+    /// 1080p（phys=1.5）需求 48px > 42px → 必须出 2x 变体（有 HD 源时即 HD 直出）。
+    /// 此前目标框错写 28×28：28×1.5 = 42 恰等于源尺寸 → `target_rate` 恒为 1 →
+    /// 该目录**一个 `@Nx` 都不生成**，hd-map 里已登记的 `PSKIL42A/D/P/S` 永远用不上。
+    #[test]
+    fn pskil42_gets_variant_at_1080p() {
+        assert_eq!(hd_target_box("pskil42"), Some((32, 32)));
+        assert_eq!(target_rate(42, 42, "pskil42", 1.5, 4), 2);
+        // 低 DPI（phys=1）下 32px 需求仍小于 42px 源图 → 不生成，避免白占磁盘
+        assert_eq!(target_rate(42, 42, "pskil42", 1.0, 4), 1);
+    }
 }

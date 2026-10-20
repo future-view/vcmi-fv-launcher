@@ -256,6 +256,31 @@ export interface LangDict {
       mana: string;
       morale: string;
       luck: string;
+      /** 战斗动画的「动作切换」UI（动作 = DEF 分组，见 `detailShared.tsx` 的 `ANIM`） */
+      anim: {
+        /** 入口按钮的无障碍名 / tooltip */
+        entry: string;
+        /** 状态行前缀（「动作：攻击 · 正」） */
+        label: string;
+        /** 可切换的**状态**（组合动作）：待机 / 移动 / 主动攻击 / 受到攻击 */
+        state: {
+          idle: string;
+          move: string;
+          attack: string;
+          hurt: string;
+        };
+        holding: string;
+        hitted: string;
+        defence: string;
+        death: string;
+        attack: string;
+        shoot: string;
+        special: string;
+        /** 方向后缀：上 / 正 / 下（VCMI ATTACK_UP/FRONT/DOWN） */
+        up: string;
+        front: string;
+        down: string;
+      };
     };
     bonusSource: {
       creature: string;

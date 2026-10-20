@@ -288,6 +288,21 @@ pub(crate) fn build_mod_wiki_phase(
 ///
 /// 与「整目录删 `images/`」的区别见调用处注释：产物归属改为「素材来源方」后，
 /// 一个 mod 的 `images/` 目录里混有其它 mod 写入的共享图，整目录删会误删且无人重建。
+///
+/// ## 删除范围 = 自己 + `core` 共享区（2026-10-20 修正）
+///
+/// 旧口径只删 `own_prefix`（归属自己）的产物，漏掉一类**高频共享图**：8 族的生物 /
+/// 英雄 / 特长 / 建筑图标记录在 `core.<faction>/cache.json` 里、产物却落 `core/images/`
+/// （归属来源方 core）。它们的 `rel` 前缀是 `core/images/`，任何 mod 的 `own_prefix`
+/// 都匹配不到 ⇒ **装/卸 hd-edition 后 `.hd-src` 触发重跑时删不到、`wiki_image_exists`
+/// 短路不重建、HD 登记永不补齐**（实测 8 族生物图 120 帧可登记只有 2 条）。
+/// 故对本 mod **引用到**的 `core/images/` 共享图一并删除。
+///
+/// 安全性：本函数只在 `clear_stale` 分支调用，紧接着就是 `build_mod_wiki_once`
+/// 重新构建本 mod —— 其提取链路（build_creatures / build_heroes / build_terrains /
+/// `assets::build_shared_icons` / `extract_shared_resource_icons`）对每个 mod 都会跑，
+/// 删掉的共享图会被重建方重新提取落盘。归属**其它第三方 mod** 的产物（典型：Bonus Icons
+/// 子模组的能力图标）不在两个前缀内，仍不碰。
 fn remove_recorded_assets(cache_json: &Path, cache_root: &Path, mod_id: &str) {
     let text = match fs::read_to_string(cache_json) {
         Ok(t) => t,
@@ -313,15 +328,12 @@ fn remove_recorded_assets(cache_json: &Path, cache_root: &Path, mod_id: &str) {
         }
     }
     walk(&v, &mut rels);
-    //
-    // 只删**归属自己**的产物。归属别人的共享图（典型：`core.castle` 记录的地形归属 `core`、
-    // 能力图标归属 Bonus Icons 子模组）不能在这里删 —— 删了之后，引用它的其它 mod
-    // 若已缓存命中就不会重建，图会永久缺失。
-    // 共享产物的失效由批次开头的**一次性整体清理**负责（素材版本变化时），
-    // 那才是"全部 mod 都会重建"的安全时机。
     let own_prefix = format!("{}/images/", sanitize_id(mod_id));
+    // 共享产物区（归属来源方 `core`）：删除范围含"被本 mod 引用"的部分，理由见函数头。
+    // `mod_id == "core"` 时两前缀相同，`starts_with` 天然覆盖，无需去重。
+    const SHARED_PREFIX: &str = "core/images/";
     for rel in rels {
-        if !rel.starts_with(&own_prefix) {
+        if !rel.starts_with(&own_prefix) && !rel.starts_with(SHARED_PREFIX) {
             continue;
         }
         let p = cache_root.join(&rel);
@@ -522,7 +534,8 @@ fn build_mod_wiki_phase_inner(
             if phase == 0 {
                 return cached_json(&probe.content_count);
             }
-            // `core` 也不例外：清空粒度是「本 mod 记录过的产物」，不是整个 images/ 目录。
+            // `core` 也不例外：清空粒度是「本 mod 记录过的产物（含引用的 core 共享区）」，
+            // 不是整个 images/ 目录 —— 归属其它第三方 mod 的产物不能误删。
             if probe.clear_stale {
                 let dir = cache_root.join(sanitize_id(mod_id));
                 //
@@ -534,7 +547,9 @@ fn build_mod_wiki_phase_inner(
                 // 整目录删会连带删掉这些图且**无人重建**（归属方不在本批、也不产它们）
                 // → 表现为"生物技能图片全部无法显示"。
                 remove_recorded_assets(&dir.join("cache.json"), cache_root, mod_id);
-                let _ = fs::remove_file(dir.join("hd-map.json"));
+                // HD 登记同样只摘除本 mod 记录过的键：`core/hd-map.json` 是多 mod 共建的
+                // 共享表，删整个文件会把别人的登记一并抹掉（2026-10-20 实测 1010→140）。
+                crate::modcache::hd_map::prune_recorded(&dir.join("cache.json"), cache_root, mod_id);
             }
             return build_mod_wiki_once(mod_path, mod_id, cache_root, game_dir, true);
         }

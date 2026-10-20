@@ -9,7 +9,9 @@ use std::path::Path;
 use serde_json::{json, Value};
 
 use crate::infra::json::parse_vcmi_json;
-use crate::modcache::assets::{extract_game_def_frame_and_save_mod, extract_icon_and_save};
+use crate::modcache::assets::{
+    extract_game_def_frame_and_save_mod, extract_icon_and_save, save_hd_or_raw_image,
+};
 use crate::modcache::collect::{accumulate_full_cost, collect_config_jsons};
 use crate::modcache::i18n::{
     ability_text_from_bonus_type, i18n_get_multi, i18n_mod_scope, lang_map_to_obj,
@@ -114,6 +116,37 @@ fn inline_ability_text(
     Some((names, split_descs))
 }
 
+/// 中立阵营的生物背景（VCMI `config/factions/neutral.json` 的 `creatureBackground`，
+/// 原版为 `CRBKGNEU`）。
+///
+/// 中立不是一个可玩城镇，**不会出现在 `factions` 列表里**（`read_game_root_factions`
+/// 明确过滤 neutral/random），所以中立生物按阵营查背景永远查不到 —— 百科只能显示黑底。
+/// VCMI 自己给中立阵营也配了背景（`CCreaturePic` 只认 `creature->faction` 的 bg），
+/// 故这里单独解析并提取一份，供 `faction == "neutral"` 的生物共用。
+fn neutral_creature_background(
+    p: &Path,
+    mod_id: &str,
+    cache_root: &Path,
+    game_dir: &Path,
+) -> Option<Value> {
+    let cfg = crate::vcmi::town::parse_town_config_file(
+        &game_dir.join("config").join("factions").join("neutral.json"),
+    );
+    let res = cfg.creature_background?;
+    let (buf, ext) = crate::vcmi::resource::resolve_resource_fallback(p, game_dir, &res)?;
+    // 与城镇背景同一条链路：命中官方 HD 版就用 HD（CRBKG* 在 pak 内）
+    let img = save_hd_or_raw_image(
+        cache_root,
+        mod_id,
+        "town",
+        "neutral-creature-bg",
+        &res,
+        &buf,
+        &ext,
+    )?;
+    Some(Value::String(img))
+}
+
 pub(crate) fn build_creatures(
     p: &Path,
     mod_id: &str,
@@ -125,6 +158,8 @@ pub(crate) fn build_creatures(
     creature_jsons: &HashMap<String, Value>,
     upgraded_from: &HashMap<String, Vec<String>>,
 ) -> Vec<Value> {
+    // 惰性解析：只有真遇到中立生物时才去解析配置 + 提取图片（其它 mod 零开销）
+    let mut neutral_bg: Option<Option<Value>> = None;
     // 战争机器关联：神器配置的 `warMachine` 指向生物 id（VCMI CArtHandler.cpp:230-235），
     // 反查得到"生物 → 神器 id"，供英雄弹窗战争机器区识别（CHeroOverview.cpp:181 判空）。
     let mut war_machine_of: std::collections::HashMap<String, String> =
@@ -678,6 +713,18 @@ pub(crate) fn build_creatures(
                         || fid.ends_with(&format!(".{fac_id_for_bg}")))
             })
             .and_then(|f| f.get("creatureBackground").cloned())
+            // 中立生物：`factions` 里没有 neutral 条目 → 用单独解析的官方中立背景兜底
+            .or_else(|| {
+                if fac_id_for_bg == "neutral" {
+                    neutral_bg
+                        .get_or_insert_with(|| {
+                            neutral_creature_background(p, mod_id, cache_root, game_dir)
+                        })
+                        .clone()
+                } else {
+                    None
+                }
+            })
             .unwrap_or(Value::Null);
         // 士气/运气：CStackWindow 用 valOfBonuses(MORALE/LUCK)，生物自身配置通常为 0。
         // 若配置显式写了 MORALE/LUCK bonus，取其数值。

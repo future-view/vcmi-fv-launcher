@@ -15,7 +15,7 @@ use tauri::State;
 use crate::infra::berror::be_err;
 use crate::state::AppPaths;
 use crate::vcmi::paths::VcmiPaths;
-use crate::vcmi::resource::read_def_bytes_inner;
+use crate::vcmi::resource::{read_def_bytes_inner, read_def_group_hd_inner};
 use crate::vcmi::scan::{push_installed_mod, scan_user_mods_dir};
 
 /// 扫描真实 Mods 目录，返回顶层 mod 清单（含子 mod 树），与前端 ModInfo 对齐。
@@ -148,6 +148,36 @@ pub async fn read_def_bytes(mod_id: String, resource: String) -> Result<Vec<u8>,
     tauri::async_runtime::spawn_blocking(move || {
         let paths = VcmiPaths::detect();
         read_def_bytes_inner(&paths, &mod_id, &resource)
+    })
+    .await
+    .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?
+}
+
+/// 取 `.def` 某分组的动画帧（**高清优先、1x 兜底**，见 `vcmi::resource::read_def_group_hd_inner`）。
+///
+/// - `doubleWide`：双格生物（VCMI 窗口左上角 x=170，否则 150）；
+/// - `need`：该区域实际要占的**物理像素**（显示框 CSS × 屏幕物理倍率），决定取哪一档。
+///
+/// `null` = 该分组没有可播放的帧 → 前端回退 `read_def_bytes` 的 TS 解码 / 静态图。
+#[tauri::command]
+pub async fn read_def_group_hd(
+    mod_id: String,
+    resource: String,
+    group: u32,
+    double_wide: bool,
+    need: u32,
+) -> Result<Option<Value>, String> {
+    // 打开 pak + 逐帧解 DDS + webp 编码全是 CPU 活 —— 同 `read_def_bytes` 下沉阻塞线程池。
+    tauri::async_runtime::spawn_blocking(move || {
+        let paths = VcmiPaths::detect();
+        Ok(read_def_group_hd_inner(
+            &paths,
+            &mod_id,
+            &resource,
+            group as usize,
+            double_wide,
+            need,
+        ))
     })
     .await
     .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?

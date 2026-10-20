@@ -53,11 +53,33 @@ mods/
 
 **原版数据以伪模组入缓存**：`core`（承载全局 / 无归属实体）与 `core.<faction>`（9 个原版城镇，形态等同第三方 town mod）。前端 `buildTargets.ts` 构造它们，`modPath` 指向 `<gameDir>/Mods/vcmi`。
 
+**产物归属 = 素材来源方**（`assets::owner_of`，`Origin::{Game,SelfMod,Mod}`）：
+
+- 游戏根资源（`Data/*.lod`、游戏级 DEF/位图）→ 一律归 `core`：9 个原版城镇的
+  `building` / `creature` / `hero` / `herospec` 图标**只落一份**在 `core/images/`，
+  `core.<faction>/images/` 只留该族专有的 `town` / `townscreen` / `townborder`；
+- 跨模组引用 → 归被引用方；
+- 第三方 mod 自有素材 → 归自己（保持自包含）。
+- `core` / `core.<faction>` 是本 VCMI 核心模组的**同一份磁盘目录**，故其 `SelfMod` 命中
+  同样归 `core` —— 否则同一张图会在父 core + 9 个城镇目录各写一份（2026-10-20 修复前
+  `spell/battle_actiongenie_png.webp` 实测 10 份）。
+
+**判定标准不是"是否与城镇有关"，而是"是否跨阵营共用"**（2026-10-20 复核，结论：现有分布正确）：
+
+| 用途 | 归属 | 理由 |
+|---|---|---|
+| `building` / `creature` / `hero` / `herospec` / `artifact` / `skill` / `terrain` / `pskil42` / `luck` / `morale` / `resources` / `spellbon` | `core/images/`（一份） | 游戏根素材，9 族页面**共用同一批帧**；按族复制 = 纯浪费（实测 334 个建筑图标、236 个生物小图、130 个头像都只有一份原始数据） |
+| `town`（幕布底图 / 兵种背景）、`townscreen`（合成预览）、`townborder`（结构描边高亮） | `core.<faction>/images/` | **每族独有的整幅画面**，不存在跨族共享；与第三方 town mod"自带幕布/描边"的布局一致（`hota/images/town/...`） |
+
+⇒ 因此 `core.<faction>/images/` 只剩这三类（实测 `core.castle` 37 张描边 + 2 张幕布），
+不是遗留重复。若把它们也搬进 `core/images/`，`core.<faction>` 将不剩任何图片，
+反而破坏"城镇模组自包含"的对称性（第三方城镇仍然自带幕布），故**不做调整**。
+
 ## 4. 缓存键与失效
 
 键格式：`v{WIKI_CACHE_VERSION}:{sourceHash}:{h3DataKey}:{h3CoreHash}:{schemaHash}`，**字符串相等**判定命中。
 
-当前值：`WIKI_CACHE_VERSION = 1`、`ASSETS_VERSION = 4`（另 `HD_SCHEME_VERSION = 6`）。
+当前值：`WIKI_CACHE_VERSION = 2`、`ASSETS_VERSION = 3`（另 `HD_SCHEME_VERSION = 6`）。`ASSETS_VERSION = 3`（2026-10-20）：HD 登记表键口径由 `sanitize_id`（`~`→`_`）修正为 `sanitize_asset_name`（保留 `~`，与磁盘 stem 一致），旧登记全线失效必须重建，见 [hd-assets](./hd-assets.zh-CN.md) §6。
 
 失效条件：源哈希变化、游戏数据指纹变化、h3-core 文案表变化、schema 变化；素材未就绪或 `assetsVersion < ASSETS_VERSION` 或 HD 来源指纹变化时，清 `images/` 与 `hd-map.json` 重跑。
 

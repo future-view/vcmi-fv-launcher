@@ -18,7 +18,7 @@ use serde_json::Value;
 use crate::infra::hash::fnv1a_of;
 use crate::infra::image::{encode_rgba_auto, encode_webp, encode_webp_from_bgra};
 use crate::infra::json::parse_vcmi_json;
-use crate::modcache::{assets_enabled, sanitize_id};
+use crate::modcache::{assets_enabled, sanitize_asset_name, sanitize_id};
 use crate::vcmi::resource::{
     resolve_resource, resolve_resource_fallback, resolve_resource_origin, Origin,
 };
@@ -138,12 +138,24 @@ fn decode_def_frame_cached(buf: &[u8], group: u16, frame: u16) -> Option<DefFram
 ///
 /// 与既有 `global.rs`「游戏级图标归位 core」的方向一致，只是判定改为由解析结果给出，
 /// 不再靠"调用方猜"。
+///
+/// ⚠️ **`core.<faction>` 伪模组的 `SelfMod` 必须归 `core`**：它们没有自己的磁盘目录，
+/// 构建时的 `mod_path` 就是 VCMI 基础模组（`Mods/vcmi`），所以"本模组命中"实际等于
+/// "VCMI 核心自带素材"。若按 `mod_id` 归位，9 个城镇 + 父 core 会各写一份完全相同
+/// 的文件（实测 2026-10-20：`battle/actionGenie.png` 在 `core/images/spell/` 与
+/// 9 个 `core.<faction>/images/spell/` 各一份，共 10 份）。
 fn owner_of(origin: &Origin, mod_id: &str) -> String {
     match origin {
         Origin::Game => "core".to_string(),
+        Origin::SelfMod if is_core_scope(mod_id) => "core".to_string(),
         Origin::SelfMod => mod_id.to_string(),
         Origin::Mod(id) => id.clone(),
     }
+}
+
+/// 是否原版伪模组（`core` / `core.<faction>`）——与 `vcmi::h3core::parse_core_mod` 同口径。
+fn is_core_scope(mod_id: &str) -> bool {
+    crate::vcmi::h3core::parse_core_mod(mod_id).0
 }
 
 /// 产物名：**资源标识 + 帧**，而不是条目名。
@@ -219,6 +231,7 @@ pub(crate) fn flush_asset_manifest(cache_root: &Path) {
 ///
 /// ⚠️ 单点生成是硬要求：存在性判定 / 落盘 / `cache.json` 写入 / `hd_map` 登记四处必须共用它。
 /// 任一处另算路径 → 出现「cache.json 存 A 径、实际写在 B 径」，比路径超长难查得多。
+/// （文件名安全化在 `modcache::sanitize_asset_name`——与 `sanitize_id` 是两套口径，见其注释。）
 ///
 /// `owner` 是**素材来源方**（见 [`owner_of`]），不是提取调用方。
 pub(crate) fn wiki_image_rel(owner: &str, sub: &str, name: &str) -> String {
@@ -228,22 +241,6 @@ pub(crate) fn wiki_image_rel(owner: &str, sub: &str, name: &str) -> String {
         sub,
         sanitize_asset_name(name)
     )
-}
-
-/// 产物文件名的安全化：只替换 Windows 非法字符，**保留 `~`**。
-///
-/// 不能直接复用 `sanitize_id`：那是 modId→目录名的归一（保持双射），会把 `~` 也替换成 `_`，
-/// 从而抹掉「资源标识 ~ 帧」的分隔，使 `a~g0f0` 与真实的 `a_g0f0` 存在撞名可能。
-fn sanitize_asset_name(name: &str) -> String {
-    name.chars()
-        .map(|c| {
-            if matches!(c, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
-                '_'
-            } else {
-                c
-            }
-        })
-        .collect()
 }
 
 /// 完整路径预算（字符数），对应 Windows 默认 `MAX_PATH = 260` 留出安全余量。
@@ -476,15 +473,26 @@ fn extract_icon_and_save_inner(
     // 首帧常带法术卷轴/宝物底框色（青蓝），小帧做四角抠图去底（对齐小图标 matte）。
     if ext.eq_ignore_ascii_case("def") {
         // 走解码缓存（见 `FRAME_CACHE`）：同一份 DEF 首帧被同一 mod 的多个条目重复解码
-        if let Some(f) = decode_def_frame_cached(&buf, 0, 0) {
-            let (w, h, bgra) = (f.w, f.h, f.bgra);
-            if let Some(rel) = save_def_frame_matte(cache_root, &owner, sub, &fname, w, h, &bgra) {
-                return Some(rel);
+        let Some(f) = decode_def_frame_cached(&buf, 0, 0) else {
+            return None;
+        };
+        let (w, h, bgra) = (f.w, f.h, f.bgra);
+        let rel = match save_def_frame_matte(cache_root, &owner, sub, &fname, w, h, &bgra) {
+            Some(rel) => Some(rel),
+            None => {
+                let webp = encode_webp_from_bgra(&bgra, w, h)?;
+                save_wiki_image(cache_root, &owner, sub, &fname, &webp, "webp")
             }
-            let webp = encode_webp_from_bgra(&bgra, w, h)?;
-            return save_wiki_image(cache_root, &owner, sub, &fname, &webp, "webp");
+        };
+        // 登记该帧的官方 HD 源（此前本分支漏了这步 → 走这条路径的素材永远从 1x 插值）。
+        // 实测 2026-10-20：地形 tiles（`DIRTTL.DEF` 首帧 `TDTS000`、`ROCKTL.DEF` 首帧
+        // `ROCKTL01`）在 hd-edition 里**确实有**高清源，却因缺少登记而只生成普通放大变体。
+        if rel.is_some() {
+            if let Some(hd) = crate::vcmi::hd_edition::probe_def_frame(&buf, 0, 0) {
+                crate::modcache::hd_map::record(&owner, sub, &fname, &hd);
+            }
         }
-        return None;
+        return rel;
     }
     // 无 alpha 的位图（bmp/png）常拿纯青 `(0,255,255)` 当透明底（H3 色键，见
     // [`crate::infra::image::keyed_rgba`]）：实测 `hota.Factory` 的法术图标
@@ -1173,6 +1181,11 @@ pub(crate) fn extract_border_and_save(
     } else {
         crate::infra::metrics::count("img.cached", 1);
     }
+    // 登记官方 HD 源：原版城镇描边在配置里写作 `TOCSMAG1.bmp`，而 hd-edition 里
+    // 正好有同名帧（`probe` 会去扩展名后直查）。实测 Castle 37 个结构**全部命中**，
+    // 且 HD 帧 = 恰好 3× 的 1x 产物（`TOCSMAG1` x3 = 279×309 vs 89→93×103），
+    // 宽高比一致 ⇒ 按百分比定位的高亮框不会错位，可安全接 HD。
+    note_hd_bitmap(mod_id, "townborder", &name, res);
     Some((rel, w, h))
 }
 
@@ -1234,4 +1247,31 @@ fn decode_border_rgba(buf: &[u8], ext: &str) -> Option<(u32, u32, Vec<u8>)> {
         }
     }
     Some((w, h, rgba))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_core_scope, owner_of, Origin};
+
+    /// 回归（2026-10-20）：`core.<faction>` 伪模组的 `SelfMod` 素材必须归 `core`。
+    ///
+    /// 它们的 `mod_path` 就是 VCMI 基础模组（`Mods/vcmi`），"本模组命中"实际是核心自带素材；
+    /// 按 `mod_id` 归位时 9 个城镇 + 父 core 会各写一份（实测同一张 `battle/actionGenie.png`
+    /// 在 10 个目录里各一份）。
+    #[test]
+    fn core_pseudo_mod_assets_belong_to_core() {
+        assert_eq!(owner_of(&Origin::SelfMod, "core.castle"), "core");
+        assert_eq!(owner_of(&Origin::SelfMod, "core"), "core");
+        // 第三方模组不受影响：自有素材仍落在自己目录，保持自包含
+        assert_eq!(owner_of(&Origin::SelfMod, "hota"), "hota");
+        assert_eq!(owner_of(&Origin::SelfMod, "farraway.Town"), "farraway.Town");
+        // 游戏级 / 跨模组引用口径不变
+        assert_eq!(owner_of(&Origin::Game, "core.dungeon"), "core");
+        assert_eq!(
+            owner_of(&Origin::Mod("hota".into()), "core.castle"),
+            "hota"
+        );
+        assert!(is_core_scope("core.rampart"));
+        assert!(!is_core_scope("coverage"));
+    }
 }

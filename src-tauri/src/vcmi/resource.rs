@@ -12,6 +12,8 @@
 //! 原因见 [`ZipIndex::by_ext`]：sprites-json 的 `X.json` 定义与 `X.png` 位图帧同基名，
 //! 去扩展名口径下会撞 key，只按宽松 key 取会拿到定义 JSON 的字节、使位图解码失败。
 
+use serde_json::{json, Value};
+
 use crate::infra::berror::be_err;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -960,6 +962,249 @@ pub(crate) fn read_def_bytes_inner(
         }
     }
     Err(be_err("vcmi_resource_not_found", &format!("{}", resource)))
+}
+
+/// 单个动作分组的帧数上限（防御坏文件：原版生物战斗 DEF 单组最多几十帧）。
+const MAX_GROUP_FRAMES: usize = 512;
+
+/// VCMI 生物窗的**显示窗口**（源像素）：`CCreaturePic` 从 DEF 全画布裁出的固定矩形。
+///
+/// 依据 `client/widgets/MiscWidgets.cpp:703-704`：
+/// `anim->clipRect(doubleWide ? 170 : 150, 155, bg.w, bg.h)`，
+/// 且 `Images.cpp::blitImage` 用它作 `src` 矩形 1:1 画进背景框 ——
+/// 即"窗口左上角 (150|170, 155)、尺寸 = **背景图尺寸**"。
+///
+/// 背景 = 阵营 `creatureBackground["130px"]`（原版城堡 `CRBKGCAS`），**1x 为 100×130**
+/// （mod 里 "130px" 指的是高度；我们缓存的 300×390 webp 是 HD x3）。
+/// 窗口尺寸**与屏幕无关**，屏幕只决定取哪一档高清（见 `need` 参数）。
+const WIN_W: i64 = 100;
+const WIN_H: i64 = 130;
+const WIN_X_SINGLE: i64 = 150;
+const WIN_X_DOUBLE: i64 = 170;
+const WIN_Y: i64 = 155;
+
+/// 取某 `.def` 指定分组的动画帧，**高清优先、1x 兜底**，两者都合成进 VCMI 显示窗口。
+///
+/// **为什么由后端统一出图**（2026-10-21）：1x 与 HD 的构图必须完全一致，
+/// 而前端 TS 解码器只产出"裁剪帧"，拿不到 `lm/tm`，无法摆到全画布上 ——
+/// 让前端自己拼窗口会与后端两条口径，迟早漂移。故 1x 也在此合成。
+///
+/// `need`（目标物理像素）= 显示框 CSS × 屏幕物理倍率；档位取**最小满足 `档位×130 ≥ need`**
+/// 者，否则最高档（1080p 大图 x3 / 弹窗 x2；4K 封顶 x3）。
+///
+/// 返回 `None` = 该分组无法播放（资源找不到 / 该组没有可用帧），前端回退静态图或旧 TS 解码。
+///
+/// ## 出参结构
+///
+/// ```json
+/// { "w": 390, "h": 390, "scale": 3, "frames": [ { "x": 21, "y": 44, "w": 336, "h": 300, "data": [<webp 字节>] } ] }
+/// ```
+///
+/// - `w/h`：窗口尺寸 × 档位（130×`scale`）；
+/// - `x/y`：该帧在窗口内的位置 = `(lm/tm − spriteOffset − 窗口左上角) × 档位`；
+///   超出窗口的部分已裁掉（大生物被裁边是**原版行为**，`clipRect` 同样会裁）；
+/// - `data`：webp 字节（HD 的独立阴影切片已合成进这一张）。
+pub(crate) fn read_def_group_hd_inner(
+    paths: &VcmiPaths,
+    mod_id: &str,
+    resource: &str,
+    group: usize,
+    double_wide: bool,
+    need: u32,
+) -> Option<Value> {
+    // 详情链路（非构建批次）没有注入 HD 来源 → 按配置探测一次。
+    // `off` / 未装 hd-edition 时注入结果为 None，下方 `source()` 判空即走回退。
+    if crate::vcmi::hd_edition::source().is_none() {
+        crate::vcmi::hd_edition::setup_from_config(
+            VcmiPaths::read_launcher_config().as_ref(),
+            &paths.game_dir,
+        );
+    }
+    let bytes = read_def_bytes_inner(paths, mod_id, resource).ok()?;
+    let def = crate::infra::def::DefReader::new(&bytes);
+    let win_x = if double_wide { WIN_X_DOUBLE } else { WIN_X_SINGLE };
+    // 目标档位：窗口是 130 源像素，`need` 是这块区域实际要占的物理像素
+    let need_scale = need.div_ceil(WIN_W as u32).max(1);
+
+    // ── ① 高清：逐帧查 pak，任一帧未命中 → 整组回退 1x（不混档） ──
+    let hd_ok = crate::vcmi::hd_edition::source().is_some();
+    if hd_ok {
+        let mut frames: Vec<(i64, i64, u32, u32, Vec<u8>)> = Vec::new();
+        let mut scale: Option<u32> = None;
+        let mut ok = true;
+        for idx in 0..MAX_GROUP_FRAMES {
+            let Some(name) = def.frame_name(group, idx) else {
+                break;
+            };
+            let Some((img, s, off)) =
+                crate::vcmi::hd_edition::lookup_with_offset_for(&name, need_scale)
+            else {
+                ok = false;
+                break;
+            };
+            if let Some(known) = scale {
+                if known != s {
+                    ok = false;
+                    break;
+                }
+            } else {
+                scale = Some(s);
+            }
+            let (w, h) = (img.width(), img.height());
+            if w == 0 || h == 0 {
+                ok = false;
+                break;
+            }
+            // 阴影：HD 版是独立切片、本体图里不含 → 合成进同一张（左上角对齐），否则"悬空"。
+            let (rgba, w, h) = match crate::vcmi::hd_edition::lookup_shadow(&name, s) {
+                Some(sh) if sh.width() > 0 && sh.height() > 0 => {
+                    composite_shadow(img.as_raw(), w, h, &sh)
+                }
+                _ => (img.as_raw().clone(), w, h),
+            };
+            let (lm, tm) = def.frame_margins(group, idx).unwrap_or((0, 0));
+            // 全画布位置 − 窗口左上角，再按档位放大
+            let x = ((lm as i64 - off.0 as i64) - win_x) * s as i64;
+            let y = ((tm as i64 - off.1 as i64) - WIN_Y) * s as i64;
+            if let Some(f) =
+                encode_window_frame(&rgba, w, h, x, y, WIN_W * s as i64, WIN_H * s as i64)
+            {
+                frames.push(f);
+            }
+        }
+        if ok && !frames.is_empty() {
+            let s = scale.unwrap_or(1);
+            return Some(build_window_json(frames, WIN_W * s as i64, WIN_H * s as i64, s));
+        }
+    }
+
+    // ── ② 1x 兜底：同一套窗口与定位公式，只是档位恒为 1 ──
+    let mut frames: Vec<(i64, i64, u32, u32, Vec<u8>)> = Vec::new();
+    for idx in 0..MAX_GROUP_FRAMES {
+        // 动画专用渲染：处理"索引 1-4=阴影、5-7=选择层"的特殊调色板（否则阴影画成洋红实体色）
+        let Some((w, h, bgra, lm, tm)) = def.decode_frame_at_anim(group, idx) else {
+            break;
+        };
+        if w == 0 || h == 0 {
+            continue;
+        }
+        // DEF 解码产出 BGRA（见 `infra::def`），webp 编码要 RGBA
+        let mut rgba = bgra.clone();
+        for px in rgba.chunks_exact_mut(4) {
+            px.swap(0, 2);
+        }
+        let (x, y) = (lm as i64 - win_x, tm as i64 - WIN_Y);
+        if let Some(f) = encode_window_frame(&rgba, w, h, x, y, WIN_W, WIN_H) {
+            frames.push(f);
+        }
+    }
+    if frames.is_empty() {
+        return None;
+    }
+    Some(build_window_json(frames, WIN_W, WIN_H, 1))
+}
+
+/// 把一帧**裁进显示窗口**并编码：与窗口无交集的帧直接丢弃（原版 `clipRect` 同样裁掉）。
+///
+/// 返回 `(窗口内 x, 窗口内 y, 宽, 高, webp)`。
+fn encode_window_frame(
+    rgba: &[u8],
+    w: u32,
+    h: u32,
+    x: i64,
+    y: i64,
+    win_w: i64,
+    win_h: i64,
+) -> Option<(i64, i64, u32, u32, Vec<u8>)> {
+    // 与窗口 [0,win) 求交
+    let sx = (-x.min(0)).max(0) as usize;
+    let sy = (-y.min(0)).max(0) as usize;
+    let ex = ((win_w - x).min(w as i64)).max(0) as usize;
+    let ey = ((win_h - y).min(h as i64)).max(0) as usize;
+    if sx >= ex || sy >= ey {
+        return None;
+    }
+    let (cw, ch) = (ex - sx, ey - sy);
+    let mut crop = Vec::with_capacity(cw * ch * 4);
+    for yy in sy..ey {
+        let base = (yy * w as usize + sx) * 4;
+        crop.extend_from_slice(&rgba[base..base + cw * 4]);
+    }
+    let webp = crate::infra::image::encode_webp_lossy_q(
+        &crop,
+        cw as u32,
+        ch as u32,
+        crate::infra::image::LOSSY_QUALITY,
+    )?;
+    Some((x.max(0), y.max(0), cw as u32, ch as u32, webp))
+}
+
+/// 组装出参：`w/h` = 窗口尺寸 × 档位。
+fn build_window_json(
+    frames: Vec<(i64, i64, u32, u32, Vec<u8>)>,
+    win_w: i64,
+    win_h: i64,
+    scale: u32,
+) -> Value {
+    let out: Vec<Value> = frames
+        .into_iter()
+        .map(|(x, y, w, h, data)| json!({ "x": x, "y": y, "w": w, "h": h, "data": data }))
+        .collect();
+    json!({ "w": win_w, "h": win_h, "scale": scale, "frames": out })
+}
+
+/// 把 HD 的**独立阴影切片**合成到本体图里，返回 `(RGBA, 宽, 高)`。
+///
+/// 对齐 VCMI `HdImageLoader::getImage(shadow=true)` 的语义：阴影与本体**共用同一 margins**
+/// （`HdImageLoader.cpp:176` 对两者一视同仁），只是各自尺寸不同 ⇒ 二者**左上角对齐**叠加，
+/// 画布取二者较大者。绝不自己发明"底边/居中对齐" —— 那会让阴影相对生物漂移。
+fn composite_shadow(
+    body: &[u8],
+    w: u32,
+    h: u32,
+    shadow: &image::RgbaImage,
+) -> (Vec<u8>, u32, u32) {
+    let (sw, sh) = (shadow.width(), shadow.height());
+    if w == 0 || h == 0 || sw == 0 || sh == 0 {
+        return (body.to_vec(), w, h);
+    }
+    let (ow, oh) = (w.max(sw), h.max(sh));
+    let mut out = image::RgbaImage::new(ow, oh);
+    // 1) 阴影在下（左上角对齐）
+    for yy in 0..sh {
+        for xx in 0..sw {
+            let px = shadow.get_pixel(xx, yy).0;
+            if px[3] == 0 {
+                continue;
+            }
+            let dst = out.get_pixel_mut(xx, yy);
+            dst.0 = blend_over(px, dst.0);
+        }
+    }
+    // 2) 本体在上
+    for yy in 0..h.min(oh) {
+        for xx in 0..w.min(ow) {
+            let i = ((yy * w + xx) * 4) as usize;
+            let px = [body[i], body[i + 1], body[i + 2], body[i + 3]];
+            if px[3] == 0 {
+                continue;
+            }
+            let dst = out.get_pixel_mut(xx, yy);
+            dst.0 = blend_over(px, dst.0);
+        }
+    }
+    (out.into_raw(), ow, oh)
+}
+
+/// src-over 合成（`dst` 为底，`src` 在上）。
+fn blend_over(src: [u8; 4], dst: [u8; 4]) -> [u8; 4] {
+    let a = src[3] as f32 / 255.0;
+    let mut out = [0u8; 4];
+    for c in 0..3 {
+        out[c] = (src[c] as f32 * a + dst[c] as f32 * (1.0 - a)).round().min(255.0) as u8;
+    }
+    out[3] = (a * 255.0 + dst[3] as f32 * (1.0 - a)).round().min(255.0) as u8;
+    out
 }
 
 #[cfg(test)]

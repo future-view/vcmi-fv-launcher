@@ -3,16 +3,12 @@ import { cn } from "@/lib/utils";
 import type { LangDict } from "@/i18n/types";
 import type { WikiCategory, WikiEntry, WikiLinkTarget } from "@/lib/modcache";
 import { fullImgCandidates, fullImgUrl, pickName } from "@/lib/modcache";
-import { getDefGroup } from "@/lib/def/animationCache";
-import type { DefFrame } from "@/lib/def/decoder";
+import { getAnimGroup, type AnimGroup } from "@/lib/def/animationCache";
 import { HdIcon } from "@/shared/HdIcon";
 import { HdImg } from "@/shared/HdImg";
 import { useHdRate } from "@/shared/useHdRate";
 import { useWikiPopup, usePopupTriggers } from "./WikiPopupContext";
 import {
-  ANIM,
-  CREA_PREVIEW,
-  MACH_PREVIEW,
   RelatedRow,
   StatTableRow,
   costText,
@@ -20,6 +16,55 @@ import {
   makeRefResolver,
   type ResourceInfo,
 } from "./detailShared";
+import {
+  MOTION_HOME,
+  buildSteps,
+  planPatrol,
+  type AnimState,
+  type AnimStep,
+  type Motion,
+} from "./animScenario";
+
+/**
+ * 当前动画**状态**（会话内粘性：切换其它生物也沿用，重启回默认"待机"）。
+ *
+ * 只存内存、不落盘：落盘会让用户下次打开时"永远在播受击"，看起来像坏了。
+ * 2026-10-21 拍板：去掉"自动轮播"这个含糊选项，**默认即待机状态**
+ * （待机状态内部本来就随机切换 站立/防御/悬停，观感与原来的预览轮播一致）。
+ */
+let sessionState: AnimState = "idle";
+
+/** H3 固定 100ms/帧（`Images.cpp`，与战斗速度无关） */
+const ANIM_FRAME_MS = 100;
+
+/** 把某帧画到 canvas（高清=位图按 x/y 贴；1x=BGRA 逐像素） */
+function drawAnimFrame(ctx: CanvasRenderingContext2D, g: AnimGroup, idx: number) {
+  if (g.hd) {
+    const f = g.hd[Math.min(idx, g.hd.length - 1)];
+    ctx.drawImage(f.img, f.x, f.y);
+    return;
+  }
+  if (g.raw) {
+    const f = g.raw[Math.min(idx, g.raw.length - 1)];
+    const rgba = new Uint8ClampedArray(f.bgra.length);
+    for (let i = 0; i < f.bgra.length; i += 4) {
+      rgba[i] = f.bgra[i + 2];
+      rgba[i + 1] = f.bgra[i + 1];
+      rgba[i + 2] = f.bgra[i];
+      rgba[i + 3] = f.bgra[i + 3];
+    }
+    ctx.putImageData(new ImageData(rgba, f.w, f.h), 0, 0);
+  }
+}
+
+/**
+ * 「该生物没有这个动作分组」的会话记忆：`modId\u0000resource` → 组号集合。
+ *
+ * 存在理由：射击/特技在近战生物、部分分组在部分生物上并不存在，而"组是否存在"
+ * **只能加载后才知道**（不预扫描，避免打开详情就连发十几次 IPC）。记住后，
+ * 粘性选中这些组时不必每次切生物都重跑一次注定失败的加载。
+ */
+const missingGroups = new Map<string, Set<number>>();
 
 export function CreatureDetail({
   d,
@@ -55,8 +100,18 @@ export function CreatureDetail({
   // 只持有**当前播放分组**的帧：大型战斗 DEF 含十几个分组数百帧，
   // 一次性全解会在主线程同步执行、打开页面时掉帧（设计 §13.1）。
   // 按需只解当前动作，并带字节级/分组级 LRU 缓存（§13.2）。
-  const [frames, setFrames] = useState<DefFrame[]>([]);
-  const [groupIdx, setGroupIdx] = useState<number>(ANIM.HOLDING);
+  // 帧序列**同时兼容两条路径**：
+  // - 高清（`hd`）：后端已用官方 HD 素材合成好每帧（含独立阴影切片），按 x/y 贴到位图；
+  // - 1x（`raw`）：原来的 DEF 字节 + 前端逐像素 BGRA。
+  // 二者由 `getAnimGroup` 统一产出，高清缺失时自动回退 1x，播放器行为完全一致。
+  const [frames, setFrames] = useState<AnimGroup | null>(null);
+  // 当前状态（粘性见模块级 `sessionState`）
+  const [animState, setAnimState] = useState<AnimState>(sessionState);
+  // 画布姿态（位移/镜像/缩放，移动状态用；其它状态回 `MOTION_HOME`）
+  const [motion, setMotion] = useState<Motion>(MOTION_HOME);
+  // 姿态过渡时长（ms）：行走时跟随本步播放时长，转身/收步为短过渡
+  const [motionMs, setMotionMs] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const popup = useWikiPopup();
   const triggers = usePopupTriggers();
@@ -64,87 +119,159 @@ export function CreatureDetail({
   const abilityScrollRef = useRef<HTMLDivElement | null>(null);
   const [abilityCanScroll, setAbilityCanScroll] = useState(false);
 
-  // 加载当前动作分组的帧（惰性 + 缓存）
+  /**
+   * 播放器：按**状态**连续播放（代替原先"单组循环 + 随机跳组"）。
+   *
+   * 每轮由 [`buildSteps`] 生成步骤；步骤里的组**按需加载**（`getAnimGroup` 带缓存），
+   * 缺失的组（近战没有 SHOOT、原版没有 SPECIAL/TURN）跳过并记入 `missingGroups`，
+   * 之后同一生物不再重试 —— 避免每次进入状态都付一次注定失败的加载。
+   */
   useEffect(() => {
     if (!battleRes) {
-      setFrames([]);
+      setFrames(null);
       return;
     }
     let cancelled = false;
-    getDefGroup(modId, battleRes, groupIdx).then((f) => {
-      if (cancelled) return;
-      if (f.length > 0) {
-        setFrames(f);
-        return;
+    let raf = 0;
+    // 切状态即复位姿态（离开移动状态后不残留位移/缩放）
+    setMotion(MOTION_HOME);
+    setMotionMs(0);
+    const doubleWide = d.doubleWide === true;
+    // 传**宽度**（窗口 100 源像素宽）；后端据此算档位
+    const boxCss = compact ? 100 : 180;
+    const missKey = `${modId}\u0000${battleRes}`;
+
+    /** 等 canvas 挂上：首帧 `setFrames` 之后才会渲染 canvas */
+    const waitCanvas = async () => {
+      for (let i = 0; i < 20; i++) {
+        const c = canvasRef.current;
+        if (c) return c;
+        await new Promise((r) => setTimeout(r, 16));
       }
-      // 该动作分组不存在（部分生物缺少某些动作）→ 回落到 HOLDING
-      if (groupIdx !== ANIM.HOLDING) {
-        getDefGroup(modId, battleRes, ANIM.HOLDING).then((h) => {
-          if (!cancelled && h.length > 0) setFrames(h);
-        });
-        return;
-      }
-      // HOLDING 也缺失：按 VCMI 预览表依次尝试，避免直接退化到静态图
-      const previewList = d.siegeWeapon === true ? MACH_PREVIEW : CREA_PREVIEW;
-      (async () => {
-        for (const g of previewList) {
+      return null;
+    };
+
+    /** 播一个步骤（循环 N 圈 / 一次性停末帧 + 停留），完成时 resolve */
+    const play = (g: AnimGroup, step: AnimStep) =>
+      new Promise<void>((resolve) => {
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext("2d");
+        if (!canvas || !ctx || g.count === 0) {
+          resolve();
+          return;
+        }
+        if (canvas.width !== g.w || canvas.height !== g.h) {
+          canvas.width = g.w;
+          canvas.height = g.h;
+        }
+        let fi = 0;
+        let done = 0;
+        // 减掉一帧：首个 tick 就画出第 0 帧，使"起步"与位移过渡同时开始
+        let last = performance.now() - ANIM_FRAME_MS;
+        const finish = () => {
+          if (step.holdMs > 0) window.setTimeout(resolve, step.holdMs);
+          else resolve();
+        };
+        const tick = (now: number) => {
+          if (cancelled) {
+            resolve();
+            return;
+          }
+          if (now - last >= ANIM_FRAME_MS) {
+            last = now;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawAnimFrame(ctx, g, Math.min(fi, g.count - 1));
+            if (step.once) {
+              // 一次性（死亡）：停在末帧，不循环、不跳组
+              if (fi >= g.count - 1) {
+                finish();
+                return;
+              }
+              fi++;
+            } else {
+              fi++;
+              if (fi >= g.count) {
+                fi = 0;
+                done++;
+                if (done >= Math.max(1, step.loops)) {
+                  finish();
+                  return;
+                }
+              }
+            }
+          }
+          raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+      });
+
+    const boxH = compact ? 130 : 234;
+
+    /**
+     * 应用一步的姿态。
+     *
+     * `syncMotion`（行走）的过渡时长跟随**本步实际播放时长** = 圈数 × 帧数 × 100ms，
+     * 否则会出现"脚在迈、身已到"的滑行感。
+     */
+    const applyMotion = (step: AnimStep, g: AnimGroup) => {
+      if (!step.motion) return;
+      setMotion(step.motion);
+      setMotionMs(step.syncMotion ? step.loops * g.count * ANIM_FRAME_MS : 260);
+    };
+
+    const run = async () => {
+      let emptyRounds = 0;
+      // 巡逻光标：跨轮保存当前位置/朝向（"走到一边再走回来"）
+      let cursor: Motion = MOTION_HOME;
+      while (!cancelled) {
+        let played = 0;
+        let steps: AnimStep[];
+        if (animState === "move") {
+          const plan = planPatrol(cursor, boxCss, boxH);
+          steps = plan.steps;
+          cursor = plan.next;
+        } else {
+          steps = buildSteps(animState);
+        }
+        for (const step of steps) {
           if (cancelled) return;
-          const h = await getDefGroup(modId, battleRes, g);
-          if (h.length > 0) {
-            setGroupIdx(g);
-            setFrames(h);
+          if (missingGroups.get(missKey)?.has(step.group)) continue;
+          const g = await getAnimGroup(modId, battleRes, step.group, doubleWide, boxCss);
+          if (cancelled) return;
+          if (!g || g.count === 0) {
+            const set = missingGroups.get(missKey) ?? new Set<number>();
+            set.add(step.group);
+            missingGroups.set(missKey, set);
+            continue;
+          }
+          // `wantMs` → 圈数：各生物 MOVING 帧数差异很大（2~12），按实际帧数换算才不像滑冰
+          const loops = step.wantMs
+            ? Math.max(1, Math.min(8, Math.round(step.wantMs / Math.max(1, g.count * ANIM_FRAME_MS))))
+            : step.loops;
+          const playStep = loops === step.loops ? step : { ...step, loops };
+          setFrames(g);
+          applyMotion(playStep, g);
+          if (!(await waitCanvas())) return;
+          played++;
+          await play(g, playStep);
+        }
+        // 整个状态一个组都播不了（该生物没有这些组）→ 交给静态图兜底，别空转
+        if (played === 0) {
+          emptyRounds++;
+          if (emptyRounds >= 2) {
+            setFrames(null);
+            setMotion(MOTION_HOME);
             return;
           }
         }
-        setFrames([]);
-      })();
-    });
+      }
+    };
+    void run();
     return () => {
       cancelled = true;
+      cancelAnimationFrame(raf);
     };
-  }, [battleRes, modId, groupIdx]);
-
-  // 播放循环：100ms/帧；一组播完后随机切换预览动作（VCMI loopPreview, Images.cpp:488-529）
-  useEffect(() => {
-    if (frames.length === 0) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const f0 = frames[0];
-    if (canvas.width !== f0.w || canvas.height !== f0.h) {
-      canvas.width = f0.w;
-      canvas.height = f0.h;
-    }
-    const previewList = d.siegeWeapon === true ? MACH_PREVIEW : CREA_PREVIEW;
-    let raf = 0;
-    let fi = 0;
-    let last = performance.now();
-    const interval = 100; // H3 固定 100ms/帧，与战斗速度无关
-    const draw = (now: number) => {
-      if (now - last >= interval) {
-        last = now;
-        const frame = frames[fi % frames.length];
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const rgba = new Uint8ClampedArray(frame.bgra.length);
-        for (let i = 0; i < frame.bgra.length; i += 4) {
-          rgba[i] = frame.bgra[i + 2];
-          rgba[i + 1] = frame.bgra[i + 1];
-          rgba[i + 2] = frame.bgra[i];
-          rgba[i + 3] = frame.bgra[i + 3];
-        }
-        ctx.putImageData(new ImageData(rgba, frame.w, frame.h), 0, 0);
-        fi++;
-        if (fi >= frames.length) {
-          // 一组播完 → 随机挑下一个预览动作（VCMI loopPreview 行为）
-          setGroupIdx(previewList[Math.floor(Math.random() * previewList.length)]);
-        }
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
-  }, [frames, groupIdx, d.siegeWeapon]);
+  }, [battleRes, modId, animState, d.doubleWide, compact]);
 
   const name = pickName((d.name as Record<string, string>) ?? {}, lang);
   const desc = pickName((d.description as Record<string, string>) ?? {}, lang);
@@ -167,17 +294,13 @@ export function CreatureDetail({
 
   const sharedIcons = (modCache?.sharedIcons ?? {}) as Record<string, string>;
 
-  // 士气/运气：VCMI `WikiCreatureContent.cpp` 的百科页**不显示**这两项（只有战斗弹窗
-  // CStackWindow 显示）；且原版 146 只生物里只有 9 只非 0（天使/大天使/牛头怪/牛头王
-  // +1 士气，骨龙/鬼龙 −1，恶魔/大恶魔 运气 −1，矮妖精 +1），恒显只会得到两个 0。
-  // → 非 0 才渲染，且值带符号。
-  const moraleVal = Number(d.morale ?? 0);
-  const luckVal = Number(d.luck ?? 0);
-  const hasMoraleLuck = moraleVal !== 0 || luckVal !== 0;
-  const mlFrame = (v: number) => Math.max(0, Math.min(6, v + 3));
-  const moraleIcon = fullImgUrl(cacheDir, sharedIcons[`morale/${mlFrame(moraleVal)}`]);
-  const luckIcon = fullImgUrl(cacheDir, sharedIcons[`luck/${mlFrame(luckVal)}`]);
-  const signed = (v: number) => (v > 0 ? `+${v}` : String(v));
+  // 士气/运气**不在百科页展示**（2026-10-21 移除，原本是一处设计错误）：
+  // - VCMI 百科页 `WikiCreatureContent.cpp` 不显示这两项，只有战斗堆叠窗 `CStackWindow`
+  //   的 `MoraleLuckBox` 才显示（那是"该堆叠此刻的士气/运气"，会叠加英雄/宝物/地形）；
+  // - 生物配置里的 `MORALE`/`LUCK` 能力是 `propagator: ARMY`（给**全军**的加成），
+  //   如大天使「提高友军士气」，它已经在能力区以「Increases allies morale」出现，
+  //   在这里再画一个「士气 +1」既是重复、也是语义误读；
+  // - 全库 312 个生物只有 3 个非 0（archangel/archDevil/ghostDragon），条件渲染还造成布局跳动。
 
   // 统计表：**行序与行名对齐 VCMI `WikiCreatureContent.cpp:130-172`**（等级 → 攻击力 →
   // 防御力 → 杀伤力 → 速度 → 生命值 → 生长率 → 弹药量 → 法力 → 囤兵增长 → 双格单位 →
@@ -343,12 +466,62 @@ export function CreatureDetail({
 
   /* ------------------------------ 各内容块 ------------------------------ */
 
+  /**
+   * 状态列表（2026-10-21 拍板：术语由"动作组"改为"状态"，一行一个状态）。
+   *
+   * 不再暴露单个 DEF 组（"待机/受击/攻击·正…"）—— 那正是"动画零散"的来源；
+   * 组合状态内部的编排见 `animScenario.ts`。
+   */
+  const stateRows: { state: AnimState; label: string }[] = [
+    { state: "idle", label: t.wiki.creature.anim.state.idle },
+    { state: "move", label: t.wiki.creature.anim.state.move },
+    { state: "attack", label: t.wiki.creature.anim.state.attack },
+    { state: "hurt", label: t.wiki.creature.anim.state.hurt },
+  ];
+
+  /** 切换状态：写入模块级粘性值（跨生物沿用） */
+  const pickState = (st: AnimState) => {
+    setMenuOpen(false);
+    sessionState = st;
+    setAnimState(st);
+  };
+
+  // 换生物 / 换资源即收起浮层（状态保留，见 `sessionState`）
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [modId, battleRes]);
+
+  // 浮层的关闭：点外部 / Esc。用 `data-anim-menu` 圈定"内部"范围，
+  // 避免把面板自己的点击也判成"点外部"。
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const el = e.target;
+      if (!(el instanceof Element) || !el.closest("[data-anim-menu]")) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  /** 当前状态的可读文本 */
+  const animLabel =
+    stateRows.find((r) => r.state === animState)?.label ?? t.wiki.creature.anim.state.idle;
+
   const picBlock = (
     <div className="space-y-2">
+      {/* 框比与 VCMI 背景图一致（100:130）：背景用 `object-contain` 时不会产生留白，
+          生物在窗口内的位置才与游戏一致（方形框会把背景居中缩小，导致"生物偏左"）。 */}
       <div
         className={cn(
           "relative mx-auto overflow-hidden rounded-xl border border-slate-600/60 bg-[#0a0e1a]",
-          compact ? "h-[130px] w-[130px]" : "h-[180px] w-[180px]",
+          compact ? "h-[130px] w-[100px]" : "h-[234px] w-[180px]",
         )}
       >
         {/* VCMI CCreaturePic：阵营 creatureBackground 130px 作底，战斗动画叠在其上。
@@ -362,8 +535,28 @@ export function CreatureDetail({
           />
         )}
         <div className="relative flex h-full w-full items-center justify-center">
-          {frames.length > 0 ? (
-            <canvas ref={canvasRef} className="max-h-full max-w-full pixelated" />
+          {frames && frames.count > 0 ? (
+            <canvas
+              ref={canvasRef}
+              style={{
+                // 位移 + 水平镜像（向左走 = 向右动画镜像，VCMI `reverse` 同款）+ 纵深缩放。
+                // 顺序：先平移到目标点，再镜像，最后缩放（镜像以元素中心为轴，不影响位置）。
+                transform: `translate(${motion.x}px, ${motion.y}px) scaleX(${
+                  motion.flip ? -1 : 1
+                }) scale(${motion.scale})`,
+                // 行走用 linear（与地面平移一致，匀速）；转身/收步用短 ease-out
+                transition: `transform ${motionMs}ms ${motionMs > 400 ? "linear" : "ease-out"}`,
+              }}
+              className={cn(
+                // ⚠️ 必须用 `h-full w-full`（不是 `max-h/max-w`）：后者只限上限、**不会放大**，
+                // 1x 兜底的画布只有 100×130，会在 180×234 的框里缩成一半（实测雷元素/农民）。
+                // 画布宽高比恒等于框（100:130），拉伸不会变形。
+                // 两条路径都不是整数倍缩放（HD 300→180 下采样 0.6×；1x 100→180 上采样 1.8×），
+                // 用最近邻会出现"有的像素 2px、有的 1px"的不均匀锯齿 → 统一走平滑插值。
+                "h-full w-full",
+                "pixelated-none",
+              )}
+            />
           ) : (
             <HdImg
               src={fullImgCandidates(
@@ -372,29 +565,68 @@ export function CreatureDetail({
                 rate,
               )}
               alt=""
-              className="max-h-full max-w-full object-contain"
+              // 与动画画布同一口径：`max-*` 不会放大，静态兜底图（多为 128px 级）会显小
+              className="h-full w-full object-contain"
               pixelArt
             />
           )}
         </div>
       </div>
-      {hasMoraleLuck && (
-        <div className="flex justify-center gap-3">
-          {[
-            { url: moraleIcon, v: moraleVal, title: t.wiki.creature.morale },
-            { url: luckIcon, v: luckVal, title: t.wiki.creature.luck },
-          ]
-            .filter((x) => x.v !== 0)
-            .map((x) => (
-              <div key={x.title} className="flex items-center gap-1" title={x.title}>
-                {x.url ? (
-                  <HdIcon src={x.url} alt="" className="h-5 w-5 object-contain" />
-                ) : (
-                  <div className="h-5 w-5 rounded border border-slate-700/50 bg-slate-800/40" />
-                )}
-                <span className="text-[11px] font-medium text-slate-200">{signed(x.v)}</span>
-              </div>
-            ))}
+      {/* 动作栏：**画布外**（解决"按钮压幕布"），宽度与画布对齐（同宽、居中），
+          文本 `flex-1 truncate` + 按钮 `flex-none` 贴右缘 —— 多语言再长也不会推动按钮。
+          compact（130px 弹窗）不渲染：高度紧张，且无空间。 */}
+      {!compact && battleRes && (
+        <div
+          className="relative mx-auto flex w-[180px] items-center gap-2"
+          data-anim-menu
+        >
+          {/* 只显示当前状态本身：按钮就在右侧，"动作："前缀属冗余（多语言还会顶掉按钮空间）。
+              2026-10-21：去掉"自动轮播"，默认即"待机状态"，不再有歧义选项。 */}
+          <span
+            className="min-w-0 flex-1 truncate text-[11px] leading-none text-slate-300"
+            title={`${t.wiki.creature.anim.label}：${animLabel}`}
+          >
+            {animLabel}
+          </span>
+          <button
+            type="button"
+            aria-label={t.wiki.creature.anim.entry}
+            title={t.wiki.creature.anim.entry}
+            onClick={() => setMenuOpen((v) => !v)}
+            className={cn(
+              "flex h-[20px] w-[20px] flex-none items-center justify-center rounded border text-[11px] leading-none transition-colors",
+              animState !== "idle"
+                ? "border-amber-400/80 bg-slate-800/80 text-amber-200"
+                : "border-slate-600/60 bg-slate-900/60 text-slate-300 hover:text-slate-100",
+            )}
+          >
+            ≡
+          </button>
+          {/* 状态面板：**一行一个状态**（2026-10-21 拍板），只有 4 行 → 无滚动、无截断。
+              挂在状态栏上（栏不在 overflow-hidden 容器内），向下弹出，不遮动画区。 */}
+          {menuOpen && (
+            <div className="absolute right-0 top-[26px] z-30 w-[168px] rounded-lg border border-slate-700/70 bg-slate-900/95 p-1 shadow-lg">
+              {stateRows.map((row) => {
+                const active = row.state === animState;
+                return (
+                  <button
+                    key={row.state}
+                    type="button"
+                    onClick={() => pickState(row.state)}
+                    title={row.label}
+                    className={cn(
+                      "flex w-full items-center gap-1 rounded px-1 py-1 text-left text-[11.5px]",
+                      "text-slate-200 hover:bg-slate-800/70",
+                      active && "bg-slate-800/60 text-amber-200",
+                    )}
+                  >
+                    <span className="w-2 flex-none text-center">{active ? "●" : ""}</span>
+                    <span className="min-w-0 flex-1 truncate">{row.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

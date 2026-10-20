@@ -81,6 +81,95 @@ fn read_def_bytes_creature_smoke() {
     panic!("未找到 {resource}（VCMI_GAME_DIR 未设置或目录无效）");
 }
 
+/// 真机冒烟（2026-10-20）：生物战斗动画的**高清分组**。
+///
+/// 两条对照，**缺一不可**：
+/// - `CGRIFF.DEF`（狮鹫）在 hd-edition 里整组收录 → 应返回整组高清帧；
+/// - `CPEAS.DEF`（农民）未收录 → 必须返回 `None`（前端据此回退 1x 解码，行为不变）。
+///
+/// 运行：`VCMI_GAME_DIR=<游戏目录> cargo test --lib modcache::smoke_tests::resolve_resource::def_group_hd_creature_smoke -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn def_group_hd_creature_smoke() {
+    let paths = VcmiPaths::detect();
+    // 与详情链路同口径：`auto` 探测 hd-edition（未装则两条都应回退 None）
+    crate::vcmi::hd_edition::setup_from_config(None, &paths.game_dir);
+    let has_hd = crate::vcmi::hd_edition::source().is_some();
+    println!("hd-edition 来源: {has_hd}");
+
+    // need = 显示框 CSS(180) × phys(1080p=1.5) = 270
+    for (res, expect_hd) in [("CGRIFF.DEF", true), ("CPEAS.DEF", false)] {
+        let got = crate::vcmi::resource::read_def_group_hd_inner(
+            &paths,
+            "core.castle",
+            res,
+            2,    // HOLDING
+            true, // doubleWide
+            270,
+        );
+        match got {
+            Some(v) => {
+                let frames = v["frames"].as_array().map(|a| a.len()).unwrap_or(0);
+                let scale = v["scale"].as_u64().unwrap_or(0);
+                println!(
+                    "{res} → 命中：窗口 {}x{} 档位 {} 帧数 {frames}",
+                    v["w"], v["h"], scale
+                );
+                assert!(frames > 0, "命中时必须至少一帧");
+                assert_eq!(v["w"].as_u64(), Some(100 * scale), "窗口宽 = 100 × 档位");
+                assert_eq!(v["h"].as_u64(), Some(130 * scale), "窗口高 = 130 × 档位");
+                if expect_hd {
+                    assert!(
+                        scale >= 2,
+                        "{res} 被 HD 收录，应取高清档（need=270 → x3），实际 {scale}"
+                    );
+                } else {
+                    assert_eq!(scale, 1, "{res} 未被 HD 收录，应走 1x 兜底");
+                    assert_eq!(v["w"].as_u64(), Some(100), "1x 窗口应为 100×130");
+                    assert_eq!(v["h"].as_u64(), Some(130));
+                }
+            }
+            None => {
+                println!("{res} → 无帧返回");
+                // 只有"带 HD 且确有帧"的期望不该落空；未收录的也必须由 1x 兜底给出帧
+                panic!("{res} 应返回帧（HD 或 1x 兜底）");
+            }
+        }
+    }
+    // 不存在的动作组 → None（前端据此把该项置灰）
+    assert!(
+        crate::vcmi::resource::read_def_group_hd_inner(&paths, "core.castle", "CGRIFF.DEF", 99, true, 270)
+            .is_none(),
+        "不存在的组应返回 None"
+    );
+    crate::vcmi::hd_edition::set_source(None);
+}
+
+/// 真机冒烟（2026-10-21）：**中立阵营必须有 creatureBackground**。
+///
+/// 中立不是可玩城镇（`read_game_root_factions` 明确过滤 neutral），所以它的
+/// `creatureBackground`（原版 `CRBKGNEU`）不会进入 `factions` 列表 —— 中立生物在百科里
+/// 只能显示黑底。此测试守住"能解析到 + 资源可读"，配合 `build_creatures` 的兜底提取。
+///
+/// 运行：`VCMI_GAME_DIR=<游戏目录> cargo test --lib modcache::smoke_tests::resolve_resource::neutral_faction_bg_smoke -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn neutral_faction_bg_smoke() {
+    let game = game_dir();
+    let cfg = crate::vcmi::town::parse_town_config_file(
+        &game.join("config").join("factions").join("neutral.json"),
+    );
+    assert_eq!(cfg.faction_id, "neutral", "应解析出 neutral 阵营");
+    let bg = cfg
+        .creature_background
+        .expect("neutral.json 应有 creatureBackground");
+    println!("neutral creatureBackground = {bg}");
+    let (buf, ext) =
+        crate::vcmi::resource::resolve_resource_fallback(&game, &game, &bg).expect("资源应可读");
+    println!("resolved {} bytes, ext={ext}", buf.len());
+    assert!(buf.len() > 1000, "背景图不应为空");
+}
+
 /// 回归守卫：当游戏根 `Data/` 无原版 LOD（便携运行场景），原版数据放在 `user_data_dir/Data` 时，
 /// `resolve_resource_fallback` 必须回退到用户数据目录取到精灵（此前"二选一"逻辑会漏掉）。
 #[test]

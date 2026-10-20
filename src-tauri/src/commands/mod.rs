@@ -69,7 +69,9 @@ pub use mod_install::{install_local_mod, preview_mod_zip};
 pub use mod_settings::{
     clear_mod_validation, patch_preset_lang_mods, read_mod_settings, write_mod_settings,
 };
-pub use mods::{detect_edition, list_installed_mods, read_def_bytes, scan_mods};
+pub use mods::{
+    detect_edition, list_installed_mods, read_def_bytes, read_def_group_hd, scan_mods,
+};
 pub use paths::{detect_vcmi_paths, get_dirs, suggest_user_data_dir};
 pub use runtime::{runtime_cancel, runtime_install, runtime_status, runtime_uninstall};
 pub use settings::{

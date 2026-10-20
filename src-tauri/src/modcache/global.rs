@@ -157,6 +157,17 @@ pub(crate) fn extract_shared_ui_icons(game_dir: &Path, cache_root: &Path, _mod_i
                     if !path.is_file() {
                         let _ = fs::write(&path, &webp);
                     }
+                    // 登记官方 HD 源（与其它共享图标同口径；本段此前手工解码落盘，漏了登记）。
+                    // 实测 hd-edition 未收录 SPELLBON 帧（`SB01SUMB`/`SB16MBLT`… 全 miss），
+                    // 故当前不产生登记；留着是为了将来某版 HD 收录后能自动接上。
+                    if let Some(hd) = crate::vcmi::hd_edition::probe_def_frame(&bytes, 0, idx) {
+                        crate::modcache::hd_map::record(
+                            "core",
+                            "spellbon",
+                            &idx.to_string(),
+                            &hd,
+                        );
+                    }
                     max_frame = idx;
                 }
                 idx += 1;

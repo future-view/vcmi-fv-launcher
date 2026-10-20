@@ -182,8 +182,14 @@ function factionFilter(field: string): WikiFilterSpec {
       [...countBy(entries, (e) => fieldOf(e, field)).entries()]
         .map(([v, n]) => ({
           value: v,
-          // 显示名取 cache.json 顶层 `factionNames`；缺失（mod 未提供阵营数据）时回退 id 本身
-          label: textOf(ctx.factionNames[v], ctx.contentLang) || v,
+          // 显示名取 cache.json 顶层 `factionNames`；缺失（mod 未提供阵营数据）时回退 id 本身。
+          // `neutral` 是"无阵营生物/英雄"的桶，VCMI 的 `config/factions/neutral.json` 没有
+          // 翻译键（名字就是字面量 "Neutral"），也不会进入 `factions` 列表 → 这里直接用
+          // 已有的「中立」文案，避免出现英文 id。
+          label:
+            v === "neutral"
+              ? ctx.t.wiki.alignment.neutral
+              : textOf(ctx.factionNames[v], ctx.contentLang) || v,
           count: n,
         }))
         .sort(byLabel),

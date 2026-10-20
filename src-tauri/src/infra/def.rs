@@ -393,6 +393,29 @@ impl<'a> DefReader<'a> {
         group: usize,
         index: usize,
     ) -> Option<(u32, u32, Vec<u8>, i32, i32)> {
+        self.decode_frame_at_impl(group, index, false)
+    }
+
+    /// 动画专用：与 [`Self::decode_frame_at`] 同一解码，但按**特殊调色板索引**渲染 ——
+    /// H3 DEF 约定索引 0=透明、1-4=阴影（半透明黑）、5-7=选择高亮（不显示）。
+    ///
+    /// 战斗生物 DEF 普遍用索引 1-4 画阴影；静态图标提取不走本函数
+    /// （沿用 [`render_bgra`] 的历史口径，避免影响既有产物）。
+    /// 与前端 `lib/def/decoder.ts::renderBgra` 的 `SPECIAL_ALPHA` 同口径。
+    pub fn decode_frame_at_anim(
+        &self,
+        group: usize,
+        index: usize,
+    ) -> Option<(u32, u32, Vec<u8>, i32, i32)> {
+        self.decode_frame_at_impl(group, index, true)
+    }
+
+    fn decode_frame_at_impl(
+        &self,
+        group: usize,
+        index: usize,
+        special_palette: bool,
+    ) -> Option<(u32, u32, Vec<u8>, i32, i32)> {
         let header = self.parse_header()?;
         let g = &header.groups.get(group)?.offsets;
         // ⚠️ 帧号越界剪枝（2026-10-16）：原实现在 index 越界时会**把整组帧逐个解码一遍**
@@ -414,7 +437,11 @@ impl<'a> DefReader<'a> {
                     continue;
                 }
                 if k == index {
-                    let bgra = render_bgra(&rows, &header.palette);
+                    let bgra = if special_palette {
+                        render_bgra_anim(&rows, &header.palette)
+                    } else {
+                        render_bgra(&rows, &header.palette)
+                    };
                     return Some((w, h, bgra, lm, tm));
                 }
                 k += 1;
@@ -620,6 +647,52 @@ fn render_bgra(rows: &[Vec<u8>], palette: &[u8]) -> Vec<u8> {
         for x in 0..w {
             let idx = *row.get(x).unwrap_or(&0) as usize;
             let (r, g, b) = pal[idx.min(255)];
+            let alpha = if (r, g, b) == key { 0 } else { 255 };
+            out.push(b);
+            out.push(g);
+            out.push(r);
+            out.push(alpha);
+        }
+    }
+    out
+}
+
+/// 动画专用渲染：在 [`render_bgra`] 的色键之外，额外处理 **H3 特殊调色板索引**
+/// （0=透明、1-4=阴影 → 半透明黑、5-7=选择高亮 → 不显示）。
+///
+/// 口径与前端 `lib/def/decoder.ts::renderBgra` 的 `SPECIAL_ALPHA` 完全一致 ——
+/// 缺了它，生物战斗帧的阴影（索引 1-4）会被画成调色板里的洋红/金色实体色。
+fn render_bgra_anim(rows: &[Vec<u8>], palette: &[u8]) -> Vec<u8> {
+    // 索引 1-4 → 半透明黑（阴影档位），0 与 5-7 → 全透明。**RGB 必须置 0**：
+    // 这些索引的调色板色是洋红/金色渐变，只改 alpha 会透出洋红（实测农民帧）。
+    const SPECIAL_ALPHA: [u8; 8] = [0, 64, 64, 128, 128, 0, 0, 0];
+    let h = rows.len();
+    let w = if h > 0 { rows[0].len() } else { 0 };
+    let pal: Vec<(u8, u8, u8)> = (0..256)
+        .map(|i| {
+            let p = i * 3;
+            (
+                *palette.get(p).unwrap_or(&0),
+                *palette.get(p + 1).unwrap_or(&0),
+                *palette.get(p + 2).unwrap_or(&0),
+            )
+        })
+        .collect();
+    let key = palette_color_key(palette);
+    let mut out = Vec::with_capacity(w * h * 4);
+    for y in 0..h {
+        let row = &rows[y];
+        for x in 0..w {
+            let idx = (*row.get(x).unwrap_or(&0)).min(255) as usize;
+            if idx == 0 || (5..=7).contains(&idx) {
+                out.extend_from_slice(&[0, 0, 0, 0]);
+                continue;
+            }
+            if (1..=4).contains(&idx) {
+                out.extend_from_slice(&[0, 0, 0, SPECIAL_ALPHA[idx]]);
+                continue;
+            }
+            let (r, g, b) = pal[idx];
             let alpha = if (r, g, b) == key { 0 } else { 255 };
             out.push(b);
             out.push(g);

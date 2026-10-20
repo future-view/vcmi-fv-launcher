@@ -3381,6 +3381,55 @@ export async function readDefBytes(
   }
 }
 
+/** 高清动画的**单帧**：位置是画布像素坐标，字节是该帧的 webp。 */
+export interface HdDefFrame {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** webp 字节（后端侧已把 HD 的独立阴影切片合进这一张） */
+  data: number[] | Uint8Array;
+}
+
+/** 高清动画分组（后端 `read_def_group_hd`；`null` = 该组不可高清化，需回退 1x）。 */
+export interface HdDefGroup {
+  /** 画布尺寸 = DEF 逻辑画布 × 档位 */
+  w: number;
+  h: number;
+  /** 档位（2 / 3） */
+  scale: number;
+  frames: HdDefFrame[];
+}
+
+/**
+ * 取 `.def` 某分组的动画帧（**高清优先、1x 兜底**，VCMI 显示窗口已由后端合成）。
+ *
+ * - `doubleWide`：双格生物（窗口左上角 x=170，否则 150）；
+ * - `need`：该区域实际要占的**物理像素**（显示框 CSS × 屏幕物理倍率），决定取哪一档。
+ *
+ * 返回 `null` = 该组没有可播放的帧（前端回退 TS 解码 / 静态图）。
+ */
+export async function readDefGroupHd(
+  modId: string,
+  resource: string,
+  group: number,
+  doubleWide: boolean,
+  need: number,
+): Promise<HdDefGroup | null> {
+  if (!isTauri()) return null;
+  try {
+    return await invoke<HdDefGroup | null>("read_def_group_hd", {
+      modId,
+      resource,
+      group,
+      doubleWide,
+      need,
+    });
+  } catch {
+    return null;
+  }
+}
+
 /* ----------------------------- 启动器自动更新（命令契约见 commands/updater.rs） ----------------------------- */
 
 /** 后端 `UpdateInfo`（camelCase 序列化，见 updater/manifest.rs） */

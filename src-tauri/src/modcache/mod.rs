@@ -231,5 +231,28 @@ pub(crate) fn sanitize_id(id: &str) -> String {
         .collect()
 }
 
+/// **产物文件名**的安全化：只替换 Windows 非法字符，**保留 `~`**。
+///
+/// ⚠️ 与 [`sanitize_id`]（modId→目录名归一）是**两套口径，禁止互用**：
+/// - `sanitize_id` 保持 modId 双射，会把 `~` 也替换成 `_`；
+/// - 本函数保留 `~` —— 产物名约定为「资源标识 `~` 帧标识」（见 `assets::asset_name`），
+///   替换 `~` 会抹掉这层分隔，使 `a~g0f0` 与真实的 `a_g0f0` 撞名。
+///
+/// 单点定义的原因：`wiki_image_rel`（落盘/存在性判定/cache.json 记录）与
+/// `hd_map::record`（HD 登记键，阶段三按**磁盘文件 stem** 反查）必须同口径 ——
+/// 曾因登记用了 `sanitize_id`、磁盘用本函数，导致 `cprsmall_def_g0f100`（登记）与
+/// `cprsmall_def~g0f100`（磁盘）全线错位，140 条登记无一命中（2026-10-20 实修复）。
+pub(crate) fn sanitize_asset_name(name: &str) -> String {
+    name.chars()
+        .map(|c| {
+            if matches!(c, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
+                '_'
+            } else {
+                c
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod smoke_tests;
