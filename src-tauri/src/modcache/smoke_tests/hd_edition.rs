@@ -9,6 +9,203 @@ use crate::modcache::hd::{generate_for_mod, HdOptions};
 // 游戏目录 / 用户模组目录统一走 `mod.rs` 的 `game_dir()` / `user_mods_dir()`（未设置环境变量时
 // 回落仓库内 `references/Heroes3-VCMI` 验证 fixture，跨机器一致）。
 
+/// **高清素材导出**：把 `hd-edition` 各档收录的素材导出到 `references/h3-hd-assets`。
+///
+/// 产物（供开发者核对"HD 到底有哪些可用素材"）：
+/// - `index.csv`：`档位,条目,帧名` 全量清单（每档约 2.4 万行）；
+/// - `x<N>/<pak类>/<条目>.webp`：**每个条目的首帧**可视样本（每档 2731 张）。
+///   不导出全部帧的原因：两档合计约 4.9 万帧，全量导出会到 GB 级；核对"有哪些素材"
+///   用条目首帧即可，具体帧名查 `index.csv`。
+///
+/// 运行：`VCMI_USER_MODS_DIR=<含 hd-edition 的目录> cargo test --lib modcache::smoke_tests::hd_edition::hd_assets_dump -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn hd_assets_dump() {
+    use std::collections::BTreeMap;
+    use std::io::Write;
+
+    let _g = crate::vcmi::hd_edition::test_guard();
+    // CARGO_MANIFEST_DIR = <repo>/src-tauri → 退一级即仓库根
+    let out_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("references")
+        .join("h3-hd-assets");
+    fs::create_dir_all(&out_root).unwrap();
+    // 探针：先确认目标目录可写（避免"跑了半天、一个文件都没落盘"）
+    match fs::write(out_root.join(".probe"), b"x") {
+        Ok(()) => println!("探针写入 OK：{}", out_root.canonicalize().unwrap_or_default().display()),
+        Err(e) => println!("探针写入失败：{e}（目标 {}）", out_root.display()),
+    }
+    let mut csv = fs::File::create(out_root.join("index.csv")).expect("清单文件");
+    writeln!(csv, "scale,pak,entry,frame").unwrap();
+
+    for forced in [3u32, 2u32] {
+        let src = crate::vcmi::hd_edition::detect(&[user_mods_dir()], Some(forced));
+        let Some(src) = src else {
+            println!("x{forced}: 未检测到 hd-edition");
+            continue;
+        };
+        crate::vcmi::hd_edition::set_source(Some(src));
+        let src = crate::vcmi::hd_edition::source().expect("已注入");
+
+        // (条目 → 帧名列表)；pak 类用条目首个字母粗分（pak 本身不暴露文件名，按用途归类）
+        let mut by_entry: BTreeMap<String, (String, Vec<String>)> = BTreeMap::new();
+        for (_scale, pak_name, entry, frame) in src.dump_frames() {
+            by_entry
+                .entry(entry.clone())
+                .or_insert_with(|| (pak_name.clone(), Vec::new()))
+                .1
+                .push(frame.clone());
+            writeln!(csv, "x{forced},{pak_name},{entry},{frame}").unwrap();
+        }
+
+        let scale_dir = out_root.join(format!("x{forced}"));
+        let mut written = 0usize;
+        for (entry, (pak_name, frames)) in &by_entry {
+            frames.iter().find_map(|f| src.lookup(f)).map(|(img, _)| {
+                // 目录用真实 pak 名（`sprite_...` / `bitmap_...`），不用条目名猜
+                let dir = scale_dir.join(pak_name);
+                fs::create_dir_all(&dir).unwrap();
+                if let Some(bytes) =
+                    crate::infra::image::encode_webp_lossy(img.as_raw(), img.width(), img.height())
+                {
+                    match fs::write(dir.join(format!("{entry}.webp")), bytes) {
+                        Ok(()) => written += 1,
+                        Err(e) if written == 0 => println!("首个写入失败：{e}"),
+                        Err(_) => {}
+                    }
+                }
+            });
+        }
+        println!("x{forced}: 条目 {}，导出首帧样本 {written} → {}", by_entry.len(), scale_dir.display());
+    }
+    println!("清单 {}", out_root.join("index.csv").display());
+}
+
+/// **全量帧导出**：把每个条目的**每一帧**都导出成 webp（GB 级，仅供人工核对）。
+///
+/// 产物：`x<N>/<pak>/<条目>/<帧名>.webp`。跳过已存在的文件，可中断后续跑。
+///
+/// 运行：`VCMI_USER_MODS_DIR=<含 hd-edition 的目录> cargo test --lib modcache::smoke_tests::hd_edition::hd_assets_dump_all -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn hd_assets_dump_all() {
+    let _g = crate::vcmi::hd_edition::test_guard();
+    let out_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("references")
+        .join("h3-hd-assets");
+    fs::create_dir_all(&out_root).unwrap();
+
+    for forced in [3u32, 2u32] {
+        let Some(src) = crate::vcmi::hd_edition::detect(&[user_mods_dir()], Some(forced)) else {
+            println!("x{forced}: 未检测到 hd-edition");
+            continue;
+        };
+        crate::vcmi::hd_edition::set_source(Some(src));
+        let src = crate::vcmi::hd_edition::source().expect("已注入");
+
+        let mut n = 0usize;
+        let mut entries = 0usize;
+        let mut cur_dir: Option<std::path::PathBuf> = None;
+        // dump_frames 已按 (档位, pak, 条目) 有序产出 → 目录只需在条目变化时建一次
+        for (_scale, pak_name, entry, frame) in src.dump_frames() {
+            let need_dir = match &cur_dir {
+                Some(d) => !d.ends_with(&entry),
+                None => true,
+            };
+            if need_dir {
+                let d = out_root.join(format!("x{forced}")).join(&pak_name).join(&entry);
+                fs::create_dir_all(&d).unwrap();
+                entries += 1;
+                cur_dir = Some(d);
+            }
+            let dir = cur_dir.as_ref().unwrap();
+            let path = dir.join(format!("{frame}.webp"));
+            if path.is_file() {
+                n += 1;
+                continue;
+            }
+            if let Some((img, _)) = src.lookup(&frame) {
+                if let Some(bytes) =
+                    crate::infra::image::encode_webp_lossy(img.as_raw(), img.width(), img.height())
+                {
+                    let _ = fs::write(&path, bytes);
+                    n += 1;
+                }
+            }
+        }
+        println!("x{forced}: 条目 {entries}，帧 {n}");
+    }
+    println!("全量导出完成：{}", out_root.display());
+}
+
+/// 真机冒烟（2026-10-22）：**法术图标的 HD 兄弟帧**。
+///
+/// HD 版没有 `SPELLBON` 条目，但同一套法术图标以卷轴版收录在 `SPELLSCR`
+/// （帧名 `SB01SumB` → `SM01SUMB`，前缀 SB→SM、其余一致）。验证映射与 pak 命中。
+///
+/// 运行：`VCMI_USER_MODS_DIR=<含 hd-edition 的目录> cargo test --lib modcache::smoke_tests::hd_edition::spellbon_hd_sibling_smoke -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn spellbon_hd_sibling_smoke() {
+    let _g = crate::vcmi::hd_edition::test_guard();
+    let Some(src) = crate::vcmi::hd_edition::detect(&[user_mods_dir()], None) else {
+        println!("跳过：未检测到 hd-edition");
+        return;
+    };
+    crate::vcmi::hd_edition::set_source(Some(src));
+    let game = game_dir();
+    let bytes = crate::vcmi::resource::read_game_resource_fallback(&game, "SPELLBON.DEF")
+        .expect("应能读到 SPELLBON.DEF");
+    let def = crate::infra::def::DefReader::new(&bytes);
+    let raw = def.frame_name(0, 0).expect("帧名");
+    let stem = raw.trim().rsplit_once('.').map_or(raw.trim(), |(s, _)| s);
+    let sibling = format!("SM{}", stem[2..].to_ascii_uppercase());
+    let hit = crate::vcmi::hd_edition::lookup(&sibling);
+    println!("SPELLBON g0f0 = {raw} → 兄弟帧 {sibling} → {}", if hit.is_some() { "命中" } else { "未命中" });
+    let img = hit.expect("SPELLSCR 应有同图案高清帧");
+    println!("高清尺寸 {}x{}（1x 约 {}x{}）", img.0.width(), img.0.height(), img.0.width() / img.1, img.0.height() / img.1);
+    assert!(img.0.width() > 100, "应为真高清帧");
+}
+
+/// 真机冒烟（2026-10-22）：**别名帧**（DEF 帧名与 pak 命名不同体系）。
+///
+/// - 法术图标：`SB01SUMB` → `SPELLSCR` 的 `SM01SUMB`；
+/// - 战争机器图标：`CPRSMALL` 的 147..150 帧 → pak 同条目的 **118..121**
+///   （`CPRS118M`..`CPRS121M`，HD 版只保留这 4 个 `M` 帧；轮廓 IoU 已验证顺序一致）。
+///
+/// 运行：`VCMI_USER_MODS_DIR=<含 hd-edition 的目录> cargo test --lib modcache::smoke_tests::hd_edition::hd_alias_frames_smoke -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn hd_alias_frames_smoke() {
+    let _g = crate::vcmi::hd_edition::test_guard();
+    let Some(src) = crate::vcmi::hd_edition::detect(&[user_mods_dir()], None) else {
+        println!("跳过：未检测到 hd-edition");
+        return;
+    };
+    crate::vcmi::hd_edition::set_source(Some(src));
+    for (label, name, min_w) in [
+        ("法术图标 SM 兄弟帧", "SM01SUMB", 100u32),
+        ("投石车图标 CPRS118M", "CPRS118M", 80),
+        ("弩车图标 CPRS119M", "CPRS119M", 80),
+        ("帐篷图标 CPRS120M", "CPRS120M", 60),
+        ("补给车图标 CPRS121M", "CPRS121M", 60),
+    ] {
+        match crate::vcmi::hd_edition::lookup(name) {
+            Some((img, scale)) => {
+                println!("{label}: {name} 命中 x{scale} {}x{}", img.width(), img.height());
+                assert!(
+                    img.width() >= min_w,
+                    "{name} 应为高清帧（实测宽 {}）",
+                    img.width()
+                );
+            }
+            None => panic!("{label}: {name} 未命中"),
+        }
+    }
+}
+
 /// 端到端：`core.castle` 阶段二应产出 HD 登记；`generate_for_mod` 应据 HD 源生成 `@Nx` 变体。
 ///
 /// 断言链（对应 2026-09-23 拍板的两条策略）：
@@ -693,7 +890,7 @@ fn dump_hd_index() {
     };
     let frames = src.dump_frames();
     let mut lines = String::new();
-    for (scale, entry, name) in &frames {
+    for (scale, _pak, entry, name) in &frames {
         lines.push_str(&format!("{scale}\t{entry}\t{name}\n"));
     }
     let out = std::env::temp_dir().join("hd-index.tsv");

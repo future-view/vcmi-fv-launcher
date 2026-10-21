@@ -158,9 +158,27 @@ pub(crate) fn extract_shared_ui_icons(game_dir: &Path, cache_root: &Path, _mod_i
                         let _ = fs::write(&path, &webp);
                     }
                     // 登记官方 HD 源（与其它共享图标同口径；本段此前手工解码落盘，漏了登记）。
-                    // 实测 hd-edition 未收录 SPELLBON 帧（`SB01SUMB`/`SB16MBLT`… 全 miss），
-                    // 故当前不产生登记；留着是为了将来某版 HD 收录后能自动接上。
-                    if let Some(hd) = crate::vcmi::hd_edition::probe_def_frame(&bytes, 0, idx) {
+                    //
+                    // ⚠️ HD 版**没有** SPELLBON 条目（实测 x2/x3 pak 均无 `SB..` 帧），
+                    // 但同一套法术图标以**卷轴版**收录在 `SPELLSCR`：帧名 `SB01SumB` →
+                    // `SM01SUMB`（前缀 SB→SM、其余一致，70 帧一一对应，x3 帧 249×183）。
+                    // 因此除常规帧名探测外，再做一次"SM 兄弟帧"探测 —— 命中即把
+                    // `@Nx` 变体接到真高清源（否则 58×64 的小图标只能插值放大）。
+                    let mut hd_hit = crate::vcmi::hd_edition::probe_def_frame(&bytes, 0, idx);
+                    if hd_hit.is_none() {
+                        if let Some(raw) = def.frame_name(0, idx) {
+                            let stem = raw.trim().rsplit_once('.').map_or(raw.trim(), |(s, _)| s);
+                            let b = stem.as_bytes();
+                            if b.len() >= 2 && b[..2].eq_ignore_ascii_case(b"SB") {
+                                let sibling =
+                                    format!("SM{}", stem[2..].to_ascii_uppercase());
+                                if crate::vcmi::hd_edition::lookup(&sibling).is_some() {
+                                    hd_hit = Some(sibling);
+                                }
+                            }
+                        }
+                    }
+                    if let Some(hd) = hd_hit {
                         crate::modcache::hd_map::record(
                             "core",
                             "spellbon",

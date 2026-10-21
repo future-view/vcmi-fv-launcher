@@ -802,16 +802,66 @@ pub(crate) fn extract_game_def_frame_and_save_mod(
     // 只解目标帧
     let def = crate::infra::def::DefReader::new(&bytes);
     let (w, h, bgra, _lm, _tm) = def.decode_frame_at(group, frame)?;
+    // 空帧（alpha 覆盖率 <5%）不接 HD：`terrain/rocktl_def~g0f0` 实测基准全透明，
+    // 却登记了 `ROCKTL01` → 变体凭空多出一块内容（原图是空 tile）。
+    let opaque = bgra.chunks_exact(4).filter(|p| p[3] > 8).count();
+    let coverage = opaque as f64 / (w as f64 * h as f64).max(1.0);
     let webp = encode_webp_from_bgra(&bgra, w, h)?;
     let rel = save_wiki_image(cache_root, owner, sub, &fname, &webp, "webp")?;
     // 生物小/大图、英雄特长图标（CPRSMALL / TWCRPORT / UN32 / UN44）：登记 HD 源
-    if let Some(hd) = crate::vcmi::hd_edition::probe_def_frame(&bytes, group, frame) {
+    //
+    // 帧名直查不到时再试**别名表**（见 [`hd_frame_alias`]）：HD pak 对个别资源的命名
+    // 与 DEF 帧名不同体系（如法术图标 `SB01SumB` 收录成 `SPELLSCR` 的 `SM01SUMB`、
+    // 弩车图标 `CPrS146M` 在 pak 的 CPRSMALL 里根本没有，却在 UN32 里叫 `UN32BALL`）。
+    let mut hd = if coverage < 0.05 {
+        None
+    } else {
+        crate::vcmi::hd_edition::probe_def_frame(&bytes, group, frame)
+    };
+    if hd.is_none() && coverage >= 0.05 {
+        if let Some(alias) =
+            hd_alias(&target, group, frame, &def.frame_name(group, frame).unwrap_or_default())
+        {
+            if crate::vcmi::hd_edition::lookup(&alias).is_some() {
+                hd = Some(alias);
+            }
+        }
+    }
+    if let Some(hd) = hd {
         crate::modcache::hd_map::record(owner, sub, &fname, &hd);
     }
     Some(rel)
 }
 
-/// 原版英雄头像：按 imageIndex 抽取单帧，归位到各模组目录
+/// HD pak 与 DEF 命名**不同体系**时的别名映射。
+///
+/// 实测（x2/x3 pak 全量索引 + 轮廓 IoU 比对）：
+///
+/// 1. **战争机器图标**：`CPRSMALL` 的 147..150 帧（`CPrS145M`..`CPrS148M`）在 HD 版的
+///    `CPRSMALL` 里被编到 **118..121**（`CPRS118M`..`CPRS121M`，只保留这 4 个 `M` 帧）——
+///    见 [`WAR_MACHINE_HD`]。轮廓 IoU：帐篷→120M 0.761、补给车→121M 0.838、弩车→119M 0.693，
+///    顺序映射成立（投石车 0.572/0.582 两者接近，按同序取 118M）。
+/// 2. **法术图标**：pak 无 `SPELLBON`，同一图案收录在 `SPELLSCR`（`SB01SumB` → `SM01SUMB`）。
+fn hd_alias(target: &str, group: usize, frame: usize, def_frame_name: &str) -> Option<String> {
+    // ① 战争机器：按帧号（比帧名稳，DEF 里名字是 `CPrS145M` 这种错位命名）
+    let tstem = target.rsplit_once('.').map_or(target, |(s, _)| s);
+    if group == 0 && tstem.eq_ignore_ascii_case("CPRSMALL") && (147..=150).contains(&frame) {
+        return Some(WAR_MACHINE_HD[frame - 147].to_string());
+    }
+    // ② 法术图标：SB** → SM**
+    let n = def_frame_name.trim();
+    let stem = n.rsplit_once('.').map_or(n, |(s, _)| s);
+    let up = stem.to_ascii_uppercase();
+    if let Some(rest) = up.strip_prefix("SB") {
+        return Some(format!("SM{rest}"));
+    }
+    None
+}
+
+/// 战争机器图标在 HD pak `CPRSMALL` 里的帧名（按 catapult/ballista/tent/cart 顺序）。
+const WAR_MACHINE_HD: [&str; 4] = ["CPRS118M", "CPRS119M", "CPRS120M", "CPRS121M"];
+
+/// 原版英雄头像：按 imageIndex 抽取单帧/// 原版英雄头像：按 imageIndex 抽取单帧，归位到各模组目录
 /// （`core.<faction>/images/hero/<hero_id>.webp`；中性归入 `core/images/hero/`）。
 ///
 /// 兼容两种资源形态：老版 `PortraitsLarge.DEF`（group0 顺序帧），

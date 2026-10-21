@@ -238,16 +238,35 @@ pub(crate) fn build_heroes(
             "",
         );
         // VCMI 文本键：hero.<mod>.<id>.specialty.name / description / tooltip
-        let spec_obj =
-            name_obj_en_zhcn(&i18n, &format!("hero.{}.{}.specialty.name", scope, id), "");
-        let spec_desc_obj = name_obj_en_zhcn(
+        //
+        // ⚠️ 除翻译表键外，**必须支持 `texts.specialty.*` 内嵌回退**：
+        // VCMI `CHeroHandler.cpp:59-61` 正是把 `texts.specialty.name/tooltip/description`
+        // 直接注册进文本系统，所以一大批不带 `translations/` 的中文 mod（实测 地府
+        // karmicCourt / 神州 shuHan / 封神 adeptorium / feydom…）只把特长文案写在配置里。
+        // 此前这三段用 `name_obj_en_zhcn`（仅查 i18n）→ 这类 mod 的 specialty 三字段全空
+        // → 英雄详情与右键弹窗的整块特长区被 `pickName(spec, lang)` 判空跳过。
+        // 口径与上方 name / biography（同为 `texts.*` 内嵌）保持一致。
+        let inline_spec = |sub: &str| -> Option<&Value> {
+            obj.get("texts")
+                .and_then(|t| t.get("specialty"))
+                .and_then(|s| s.get(sub))
+        };
+        let spec_obj = name_obj_with_inline(
             &i18n,
-            &format!("hero.{}.{}.specialty.description", scope, id),
+            &format!("hero.{}.{}.specialty.name", scope, id),
+            inline_spec("name"),
             "",
         );
-        let spec_tooltip_obj = name_obj_en_zhcn(
+        let spec_desc_obj = name_obj_with_inline(
+            &i18n,
+            &format!("hero.{}.{}.specialty.description", scope, id),
+            inline_spec("description"),
+            "",
+        );
+        let spec_tooltip_obj = name_obj_with_inline(
             &i18n,
             &format!("hero.{}.{}.specialty.tooltip", scope, id),
+            inline_spec("tooltip"),
             "",
         );
         // 特长附加能力文本（schema `hero.json`：`specialty.bonuses.<key>.name/description`，

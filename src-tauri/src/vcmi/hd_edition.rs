@@ -126,16 +126,24 @@ impl HdEditionSource {
         s
     }
 
-    /// 全量帧名（**只读诊断**）：`(档位, 条目名, 帧名)`，供覆盖度审计比对
+    /// 全量帧名（**只读诊断**）：`(档位, pak 文件名, 条目名, 帧名)`，供覆盖度审计比对
     /// "HD 收录了什么" vs "百科实际登记/使用了什么"。
+    ///
+    /// `pak` 用真实文件名（如 `sprite_DXT_com_x3`）—— 分类必须以此为准，
+    /// 按条目名前缀猜会分错（实测猜错率约四成）。
     #[cfg(test)]
-    pub fn dump_frames(&self) -> Vec<(u32, String, String)> {
+    pub fn dump_frames(&self) -> Vec<(u32, String, String, String)> {
         let mut out = Vec::new();
         for sc in &self.scales {
             for pak in &sc.paks {
+                let pak_name = pak
+                    .path()
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_default();
                 for (entry, frames) in pak.entries_with_frames() {
                     for f in frames {
-                        out.push((sc.scale, entry.clone(), f));
+                        out.push((sc.scale, pak_name.clone(), entry.clone(), f));
                     }
                 }
             }

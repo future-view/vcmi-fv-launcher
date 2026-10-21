@@ -58,6 +58,7 @@ mod hd_compare;
 mod ability_icons;
 mod hd_edition;
 mod hero_class_decl;
+mod hero_specialty_text;
 mod protocol;
 mod rebuild;
 mod resolve_resource;

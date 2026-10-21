@@ -961,6 +961,32 @@ fn resample_lowpass(
     Some((out, tw, th))
 }
 
+/// 用 1x 基准图的 alpha 给 HD 变体"补回透明度"。
+///
+/// 只在 **HD 结果全不透明 && 基准确有透明** 时介入（HD 版把部分小图标连底板一起收录）；
+/// 其它情况原样返回 —— HD 帧自带 alpha 时以它为准，避免把高清边缘裁掉。
+fn mask_with_base_alpha(mut rgba: Vec<u8>, w: u32, h: u32, base: &Path) -> Vec<u8> {
+    if rgba.chunks_exact(4).any(|p| p[3] < 250) {
+        return rgba;
+    }
+    let Ok(bytes) = fs::read(base) else {
+        return rgba;
+    };
+    let Ok(dec) = image::load_from_memory(&bytes) else {
+        return rgba;
+    };
+    let b = dec.to_rgba8();
+    if !b.pixels().any(|p| p.0[3] < 250) {
+        return rgba;
+    }
+    let scaled = image::imageops::resize(&b, w, h, image::imageops::FilterType::Triangle);
+    let src_a = scaled.as_raw();
+    for (i, px) in rgba.chunks_exact_mut(4).enumerate() {
+        px[3] = src_a[i * 4 + 3];
+    }
+    rgba
+}
+
 pub(crate) fn upscale_file(
     src: &Path,
     dest: &Path,
@@ -1114,6 +1140,16 @@ pub(crate) fn upscale_file(
             (up, uw, uh)
         };
         (up, uw, uh, pixel_like)
+    };
+
+    // ── HD 源是**不透明底**时，用 1x 基准的 alpha 还原透明度 ──
+    // 实测 52/1229 条登记属于此类（luck/morale 深棕底、secsk32/pskil42 图标板）：
+    // 基准 alpha 覆盖 0.32~0.81，而 HD 帧是 1.00 → 变体在高倍率下会多出一块底，
+    // 与原版"透明底图标"对不上。带 alpha 的 HD 帧不受影响。
+    let rgba = if hd_hit {
+        mask_with_base_alpha(rgba, out_w, out_h, src)
+    } else {
+        rgba
     };
 
     // - **像素画一律无损** —— 硬边 + 纯色块对有损极敏感（振铃/色块直接毁观感），
