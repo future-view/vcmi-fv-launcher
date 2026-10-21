@@ -105,7 +105,7 @@ ANSI 代码页」三重坑，且 `start` 会闪出黑框并报「文件名、目
 
 | 机制 | 说明 |
 |---|---|
-| `config_patch` | 一次性把更新包里的 `launcher.patch.json` 合并进用户 `launcher.json` 后删除（天然幂等）。对象递归合并（未提及的键保留）/ 数组与标量以补丁为准；仅在确有改动时写回并备份 `launcher.json.bak`。**必须早于日志初始化执行** |
+| `config_patch` | 一次性把更新包里的 `launcher.patch.json` 合并进用户 `launcher.json` 后删除（天然幂等）。对象递归合并（未提及的键保留）/ **标量数组去重合并**（用户既有项在前、补丁缺失项追加——如 `realms.repository_urls`，升级带入官方源不清空用户自定义源）/ 含对象的数组与标量以补丁为准；仅在确有改动时写回并备份 `launcher.json.bak`。**必须早于日志初始化执行** |
 | `delete_patch` | `launcher.delete.json` 补上"更新只能覆盖不能删除"的缺口。白名单前缀只允许 `.vcmi-fv-launcher/{realms,mods,runtime}/` 与 `runtime/`；不许删白名单根；含 `..` 拒绝；**junction 只能 `remove_dir`**；单项跳过而非整包拒绝 |
 
 ## 7. 迁移（migrate）

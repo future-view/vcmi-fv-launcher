@@ -12,7 +12,12 @@
 //! ## 合并语义（拍板口径）
 //!
 //! - **对象**：递归合并 —— 补丁未提及的键**原样保留**
-//! - **数组 / 标量**：整体以**补丁为准**（不逐元素合并：数组的"追加"语义无法预测）
+//! - **标量数组**（元素全为 string/number/bool）：**去重合并** —— 用户既有项保持原序在前，
+//!   补丁中缺失的项追加在后。服务「用户可增删的源列表」（如 `realms.repository_urls`）：
+//!   升级补丁带入官方默认源时**不清空**用户自定义源（2026-10-21 决策，取代早先的
+//!   "数组整体替换"——那个口径会让每版补丁都覆盖掉用户手加的仓库地址）
+//! - **含对象/嵌套数组的数组、标量**：整体以**补丁为准**（对象数组无唯一标识，且
+//!   `network.mirror_rules` 等有声明序语义，追加合并会静默改变优先级）
 //! - 补丁处理完**立即删除** → 天然幂等：同一补丁只应用一次
 //! - 只有**确实产生改动**时才写回配置；写回前备份 `launcher.json.bak`
 //! - 任何失败只记日志，**绝不阻断启动**
@@ -33,7 +38,7 @@
 //!       "ai": { "package": { "url": "https://…", "sha256": "…" } }
 //!     }
 //!   },
-//!   "mods": { "required": ["h3e-main-menu"] }       // 数组：整体替换
+//!   "mods": { "required": ["h3e-main-menu"] }       // 标量数组：去重合并（用户既有项保留，缺失项追加）
 //! }
 //! ```
 //!
@@ -141,12 +146,18 @@ pub(crate) fn apply_at(config_path: &Path, patch_path: &Path) -> Result<bool, St
     Ok(changed)
 }
 
-/// 深度合并：**对象递归、数组/标量以 `patch` 为准**
+/// 深度合并（语义见模块 doc「合并语义」）：
+///
+/// - **对象**：递归合并 —— 补丁未提及的键原样保留；
+/// - **标量数组**：去重合并 —— 用户既有项保持原序在前，补丁中缺失的项追加在后；
+/// - **含对象/嵌套的数组、标量、键缺失、类型不符**：整体以 `patch` 为准。
 fn merge(base: &mut Value, patch: &Value) {
     if let (Value::Object(b), Value::Object(p)) = (&mut *base, patch) {
         for (k, v) in p {
             match b.get_mut(k) {
                 Some(slot) if v.is_object() => merge(slot, v),
+                // 标量数组合并：补丁空数组 = 无项可加（不清空用户列表）
+                Some(Value::Array(slot)) if is_scalar_array(v) => union_scalars(slot, v),
                 _ => {
                     b.insert(k.clone(), v.clone());
                 }
@@ -154,6 +165,29 @@ fn merge(base: &mut Value, patch: &Value) {
         }
     } else {
         *base = patch.clone();
+    }
+}
+
+/// 补丁值是「标量数组」？—— 元素全为 string / number / bool（空数组 vacuously 成立）。
+///
+/// 含 `null` / 对象 / 嵌套数组 → `false`（走整体替换：对象数组无唯一标识，
+/// 且 `network.mirror_rules` 等有声明序语义，追加合并会静默改变优先级）。
+fn is_scalar_array(v: &Value) -> bool {
+    match v {
+        Value::Array(items) => items
+            .iter()
+            .all(|i| i.is_string() || i.is_number() || i.is_boolean()),
+        _ => false,
+    }
+}
+
+/// 标量数组合并：用户既有项保持原序在前，补丁中缺失的项（按值去重）追加在后。
+fn union_scalars(base: &mut Vec<Value>, patch: &Value) {
+    let Value::Array(items) = patch else { return };
+    for it in items {
+        if !base.contains(it) {
+            base.push(it.clone());
+        }
     }
 }
 
@@ -231,19 +265,114 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
     }
 
+    /// 对象数组：仍**整体替换**（无唯一标识；`mirror_rules` 有声明序语义）
     #[test]
-    fn patch_replaces_arrays_wholesale() {
-        let d = tmp("array");
+    fn patch_replaces_object_arrays_wholesale() {
+        let d = tmp("object-array");
         let cfg = d.join("launcher.json");
         let pat = d.join("launcher.patch.json");
-        write(&cfg, r#"{"mods":{"required":["a","b"]}}"#);
-        write(&pat, r#"{"mods":{"required":["c"]}}"#);
+        write(
+            &cfg,
+            r#"{"network":{"mirror_rules":[{"enabled":true,"hosts":["a.com"]}]}}"#,
+        );
+        write(
+            &pat,
+            r#"{"network":{"mirror_rules":[{"enabled":false,"hosts":["b.com"]}]}}"#,
+        );
 
         apply_at(&cfg, &pat).unwrap();
         assert_eq!(
-            read_json(&cfg)["mods"]["required"],
-            serde_json::json!(["c"])
+            read_json(&cfg)["network"]["mirror_rules"],
+            serde_json::json!([{ "enabled": false, "hosts": ["b.com"] }])
         );
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    /// 标量数组：**去重合并** —— 用户既有项保持原序在前，补丁缺失项追加
+    /// （`realms.repository_urls` 场景：升级带入官方源，不清空用户自定义源）
+    #[test]
+    fn patch_unions_scalar_arrays() {
+        let d = tmp("scalar-array");
+        let cfg = d.join("launcher.json");
+        let pat = d.join("launcher.patch.json");
+        write(
+            &cfg,
+            r#"{"realms":{"repository_urls":["https://custom/index.json"]}}"#,
+        );
+        write(
+            &pat,
+            r#"{"realms":{"repository_urls":["https://official/index.json"]}}"#,
+        );
+
+        apply_at(&cfg, &pat).unwrap();
+        assert_eq!(
+            read_json(&cfg)["realms"]["repository_urls"],
+            serde_json::json!(["https://custom/index.json", "https://official/index.json"])
+        );
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    /// 补丁空数组 = 无项可加：**不清空**用户列表，且不写回（保住手写注释）
+    #[test]
+    fn patch_empty_scalar_array_keeps_user_items() {
+        let d = tmp("scalar-array-empty");
+        let cfg = d.join("launcher.json");
+        let pat = d.join("launcher.patch.json");
+        write(
+            &cfg,
+            "{\n  // 我的手写注释\n  \"realms\": { \"repository_urls\": [\"https://custom/index.json\"] }\n}\n",
+        );
+        write(&pat, r#"{"realms":{"repository_urls":[]}}"#);
+
+        assert!(!apply_at(&cfg, &pat).unwrap(), "无新增项 → 视为未改动");
+        let raw = fs::read_to_string(&cfg).unwrap();
+        assert!(raw.contains("我的手写注释"), "未改动时不应丢注释");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    /// 合并幂等：补丁项已在用户列表中 → 无改动、不写回（重放同一补丁也安全）
+    #[test]
+    fn patch_union_is_idempotent() {
+        let d = tmp("scalar-array-idem");
+        let cfg = d.join("launcher.json");
+        let pat = d.join("launcher.patch.json");
+        write(
+            &cfg,
+            r#"{"realms":{"repository_urls":["https://custom/index.json","https://official/index.json"]}}"#,
+        );
+        write(
+            &pat,
+            r#"{"realms":{"repository_urls":["https://official/index.json"]}}"#,
+        );
+
+        assert!(!apply_at(&cfg, &pat).unwrap(), "值相同 → 视为未改动");
+        assert_eq!(
+            read_json(&cfg)["realms"]["repository_urls"],
+            serde_json::json!(["https://custom/index.json", "https://official/index.json"]),
+            "原序原值保留"
+        );
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    /// 全新配置（无 `realms` 组）：补丁整键写入 —— fresh install 拿到官方默认源
+    #[test]
+    fn patch_writes_missing_group_wholesale() {
+        let d = tmp("fresh-group");
+        let cfg = d.join("launcher.json");
+        let pat = d.join("launcher.patch.json");
+        write(&cfg, r#"{"paths":{"game_dir":"D:/g"}}"#);
+        write(
+            &pat,
+            r#"{"realms":{"repository_urls":["https://official/index.json"]}}"#,
+        );
+
+        apply_at(&cfg, &pat).unwrap();
+        let v = read_json(&cfg);
+        assert_eq!(
+            v["realms"]["repository_urls"],
+            serde_json::json!(["https://official/index.json"])
+        );
+        assert_eq!(v["paths"]["game_dir"], "D:/g", "未提及的键必须原样保留");
         let _ = fs::remove_dir_all(&d);
     }
 
