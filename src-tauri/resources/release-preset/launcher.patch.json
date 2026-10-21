@@ -1,5 +1,10 @@
 {
   "update": {
     "manifest_url": "https://raw.githubusercontent.com/future-view/vcmi-fv-launcher/main/releases/update/{platform}.json"
+  },
+  "realms": {
+    "repository_urls": [
+      "https://raw.githubusercontent.com/future-view/vcmi-fv-launcher-realms/main/index.json"
+    ]
   }
 }
