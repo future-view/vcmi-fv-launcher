@@ -344,13 +344,43 @@ fn encode_webp_cached(buf: &[u8], ext: &str) -> Option<Vec<u8>> {
     Some(v.as_ref().clone())
 }
 
+/// 描边图接 HD 的**形状校验**：HD 帧必须与 1x 同宽高比（±2%）且为整数倍。
+///
+/// 原版 Castle 实测 `TOCSMAG1` 的 x3 帧恰好是 1x 的 3 倍（见 `extract_border_and_save`
+/// 的注释），整数倍 + 同比例说明两者是同一套美术；mod 自带描边若沿用原名但比例不同，
+/// 直接拒接 —— 否则整张图会被换成原版素材。
+fn hd_shape_matches(res: &str, w: u32, h: u32) -> bool {
+    let Some((img, _scale)) = crate::vcmi::hd_edition::lookup(res) else {
+        return false;
+    };
+    let (hw, hh) = (img.width(), img.height());
+    if hw == 0 || hh == 0 || w == 0 || h == 0 {
+        return false;
+    }
+    let ar1 = w as f64 / h as f64;
+    let ar2 = hw as f64 / hh as f64;
+    (ar1 - ar2).abs() / ar1 < 0.02 && hw % w == 0 && hh % h == 0
+}
+
 /// 位图类资源登记：命中官方 HD（`hd-edition`）时把 `<sub>/<name>` → HD 键 写入登记表。
 ///
 /// 与 DEF 帧类的区别：这里用**资源名**（去路径 / 去扩展名由 `hd_edition::candidate_keys` 负责），
 /// 无需读 DEF 头，成本仅一次哈希查表。
 /// 登记键必须与产物路径同属一个 owner：HD 阶段按 `<sub>/<name>` 在 **owner** 的表里取源，
 /// 若登记归到调用方、产物却落在来源方，HD 阶段查表必然落空。
-fn note_hd_bitmap(owner: &str, sub: &str, name: &str, res: &str) {
+fn note_hd_bitmap(owner: &str, sub: &str, name: &str, res: &str, origin: Option<&Origin>) {
+    // 默认只对**原版资源**（`Origin::Game`）或 core 伪模组产物登记。
+    // HD 键属于原版命名空间；mod 自带资源常**沿用原名**装自己的美术 —— 实测
+    // 1-knight-town 的 `CPrS005C.bmp` 里是长枪兵，而 pak 的 `CPRS005C` 是另一种生物，
+    // 不设防就会把 mod 的美术整张换成原版高清图（用户实机反馈：@3x/@4x 素材错误）。
+    // `origin = None` 表示调用方自带等价守卫（见 `hd_shape_matches`）。
+    let allow = match origin {
+        Some(o) => matches!(o, Origin::Game) || is_core_scope(owner),
+        None => true,
+    };
+    if !allow {
+        return;
+    }
     if let Some(hd) = crate::vcmi::hd_edition::probe(res) {
         crate::modcache::hd_map::record(owner, sub, name, &hd);
     }
@@ -487,7 +517,9 @@ fn extract_icon_and_save_inner(
         // 登记该帧的官方 HD 源（此前本分支漏了这步 → 走这条路径的素材永远从 1x 插值）。
         // 实测 2026-10-20：地形 tiles（`DIRTTL.DEF` 首帧 `TDTS000`、`ROCKTL.DEF` 首帧
         // `ROCKTL01`）在 hd-edition 里**确实有**高清源，却因缺少登记而只生成普通放大变体。
-        if rel.is_some() {
+        // 与 `extract_def_frame_and_save` 同口径：帧名→HD 只对**原版** DEF 生效，
+        // mod 自带 DEF 的帧名可能撞上原版资源名（会把无关的原版高清图塞进来）。
+        if rel.is_some() && matches!(origin, Origin::Game) {
             if let Some(hd) = crate::vcmi::hd_edition::probe_def_frame(&buf, 0, 0) {
                 crate::modcache::hd_map::record(&owner, sub, &fname, &hd);
             }
@@ -521,13 +553,13 @@ fn extract_icon_and_save_inner(
             matte_and_save(cache_root, &owner, sub, &fname, &buf)
         });
         if let Some(rel) = rel {
-            note_hd_bitmap(&owner, sub, &fname, res_trim);
+            note_hd_bitmap(&owner, sub, &fname, res_trim, Some(&origin));
             return Some(rel);
         }
     }
     let rel = save_wiki_image(cache_root, &owner, sub, &fname, &buf, &ext)?;
     // 位图类资源也可能有官方 HD 版（如第三方 mod 引用原版 `HPL000KN.pcx`）→ 登记
-    note_hd_bitmap(&owner, sub, &fname, res_trim);
+    note_hd_bitmap(&owner, sub, &fname, res_trim, Some(&origin));
     Some(rel)
 }
 
@@ -663,9 +695,17 @@ pub(crate) fn extract_def_frame_and_save(
         &encode_webp_from_bgra(&bgra, w, h)?,
         "webp",
     )?;
-    // 该帧若有官方 HD 真高清源则登记（HD 变体阶段据此取源放大，替代从 1x 插值）
-    if let Some(hd) = crate::vcmi::hd_edition::probe_def_frame(&buf, group, index) {
-        crate::modcache::hd_map::record(&owner, sub, &fname, &hd);
+    // 该帧若有官方 HD 真高清源则登记（HD 变体阶段据此取源放大，替代从 1x 插值）。
+    //
+    // ⚠️ **只对原版资源开放**（`Origin::Game`）：帧名→HD 键是我们为原版 DEF 加的启发式
+    // （原版 DEF 的 13 字节帧名就是 HD pak 的键），并非 VCMI 语义 —— VCMI 只按资源名匹配，
+    // 绝不会把原版图塞进 mod 自带的 DEF。mod 自带 DEF 的帧名常**沿用原版命名**：
+    // 实测 1-knight-town 的 `Knight/HALLCSTL.def` 帧名叫 `THCSMAG1`（原版 H3 魔法行会），
+    // 不设防就会把原版建筑图替换掉该 mod 的 H2 风美术（用户实机反馈：@3x 用了错误素材）。
+    if matches!(origin, Origin::Game) {
+        if let Some(hd) = crate::vcmi::hd_edition::probe_def_frame(&buf, group, index) {
+            crate::modcache::hd_map::record(&owner, sub, &fname, &hd);
+        }
     }
     Some(rel)
 }
@@ -1105,13 +1145,13 @@ pub(crate) fn extract_sprite_frame_and_save(
     if let Some(v) = read_sprite_json(p, res_ref) {
         if let Some((base, file)) = sprite_json_frame(&v, frame, 0) {
             for cand in sprite_ref_candidates(base.as_deref(), &file) {
-                if let Some((buf, ext)) = resolve_resource_fallback(p, game_dir, &cand) {
+                if let Some((buf, ext, origin)) = resolve_resource_origin(p, game_dir, &cand) {
                     let e = ext.to_lowercase();
                     if e == "json" || e == "def" {
                         continue; // 帧引用指向定义文件属异常写法，跳过
                     }
                     let rel = save_wiki_image(cache_root, mod_id, sub, name, &buf, &ext)?;
-                    note_hd_bitmap(mod_id, sub, name, &cand);
+                    note_hd_bitmap(mod_id, sub, name, &cand, Some(&origin));
                     return Some(rel);
                 }
             }
@@ -1120,14 +1160,14 @@ pub(crate) fn extract_sprite_frame_and_save(
         return None;
     }
     // 2) 非 json：裸位图直接保存；其余（DEF 等）委托单帧解码
-    if let Some((buf, ext)) = resolve_resource_fallback(p, game_dir, res_ref) {
+    if let Some((buf, ext, origin)) = resolve_resource_origin(p, game_dir, res_ref) {
         let e = ext.to_lowercase();
         if e == "json" {
             return None;
         }
         if matches!(e.as_str(), "png" | "bmp" | "pcx" | "webp") {
             let rel = save_wiki_image(cache_root, mod_id, sub, name, &buf, &ext)?;
-            note_hd_bitmap(mod_id, sub, name, res_ref);
+            note_hd_bitmap(mod_id, sub, name, res_ref, Some(&origin));
             return Some(rel);
         }
     }
@@ -1185,7 +1225,9 @@ pub(crate) fn extract_border_and_save(
     // 正好有同名帧（`probe` 会去扩展名后直查）。实测 Castle 37 个结构**全部命中**，
     // 且 HD 帧 = 恰好 3× 的 1x 产物（`TOCSMAG1` x3 = 279×309 vs 89→93×103），
     // 宽高比一致 ⇒ 按百分比定位的高亮框不会错位，可安全接 HD。
-    note_hd_bitmap(mod_id, "townborder", &name, res);
+    if hd_shape_matches(res, w, h) {
+        note_hd_bitmap(mod_id, "townborder", &name, res, None);
+    }
     Some((rel, w, h))
 }
 

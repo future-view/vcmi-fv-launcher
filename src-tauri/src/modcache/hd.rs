@@ -39,13 +39,22 @@ const WORST_DISPLAY_ZOOM: f64 = 148.0 / 64.0;
 /// 递增后首次运行会**清理全部 `@Nx` 变体**并重新生成 —— 变体的幂等判定只看
 /// "目标文件是否存在"，所以编码质量或分级规则变了，旧变体不会自己更新。
 /// （仅"倍率随显示器变化"不在此列：那由逐图 `target_rate` 对比自动清理。）
-/// v2（2026-10-20）：`need > 最高档`（4x 起）改为**取最高档 HD 源 + 单步重采样到精确需求**
-/// —— 旧规则在 4x 时选 x2 再放大 2×，x2 原图细节不足、实测偏糊；变体文件名不变（仍是
-/// `@4x`），只能靠本版本号清理重建。
 pub const HD_SCHEME_VERSION: u32 = 2;
 
 /// 进程内"方案已核对"标志：`generate_for_mod` 会被 600+ 个 mod 调用，只应核对一次。
 static SCHEME_CHECKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// 本轮进程是否**清理过**旧变体（方案版本变化）。供批次对"缓存仍新鲜"的 mod 补跑一次
+/// 变体生成，避免它们在方案切换后长期缺 `@Nx`。
+static SCHEME_CHANGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// 本轮进程是否因方案版本变化清理过旧变体（见 [`ensure_hd_scheme`]）。
+///
+/// **会先触发一次方案核对**（批次入口在动手前问，正是为了这一下）：核对发生在进程内
+/// 只做一次，后续每个 mod 的 `generate_for_mod` 看到 `SCHEME_CHECKED` 即跳过。
+pub fn scheme_changed(cache_root: &Path) -> bool {
+    ensure_hd_scheme(cache_root);
+    SCHEME_CHANGED.load(std::sync::atomic::Ordering::SeqCst)
+}
 
 /// 方案版本不匹配时清理全部 `@Nx` 变体（下次生成按新方案重建）。
 ///
@@ -62,33 +71,48 @@ fn ensure_hd_scheme(cache_root: &Path) {
     if cur == Some(HD_SCHEME_VERSION) {
         return;
     }
+    SCHEME_CHANGED.store(true, std::sync::atomic::Ordering::SeqCst);
     let mut removed = 0usize;
+    let mut maps = 0usize;
     if let Ok(mods) = fs::read_dir(cache_root) {
         for m in mods.flatten() {
             let img = m.path().join("images");
-            if !img.is_dir() {
-                continue;
-            }
-            let mut files = Vec::new();
-            collect_webp(&img, &mut files);
-            for f in files {
-                let is_variant = f
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .and_then(variant_rate)
-                    .is_some();
-                if is_variant && fs::remove_file(&f).is_ok() {
-                    removed += 1;
+            if img.is_dir() {
+                let mut files = Vec::new();
+                collect_webp(&img, &mut files);
+                for f in files {
+                    let is_variant = f
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .and_then(variant_rate)
+                        .is_some();
+                    if is_variant && fs::remove_file(&f).is_ok() {
+                        removed += 1;
+                    }
                 }
+            }
+            // 第三方 mod 的 HD 来源登记一并作废（v3：旧登记含"帧名误配原版素材"的脏项）。
+            // core / core.<faction> 的登记保留 —— 那是原版资源的合法 HD 源，清掉会让
+            // 原版生物/英雄/图标的高清集体退化成插值，直到各自重建。
+            let id = m
+                .file_name()
+                .to_string_lossy()
+                .to_string();
+            if !crate::vcmi::h3core::parse_core_mod(&id).0
+                && m.path().join("hd-map.json").is_file()
+                && fs::remove_file(m.path().join("hd-map.json")).is_ok()
+            {
+                maps += 1;
             }
         }
     }
     tracing::info!(
         target: "wiki",
-        "高清方案版本 {} → {}：清理旧变体 {} 个（将按新方案重新生成）",
+        "高清方案版本 {} → {}：清理旧变体 {} 个、作废第三方 HD 登记 {} 份（将按新方案重新生成）",
         cur.map(|v| v.to_string()).unwrap_or_else(|| "无".into()),
         HD_SCHEME_VERSION,
-        removed
+        removed,
+        maps
     );
     let _ = fs::write(&mark, HD_SCHEME_VERSION.to_string());
 }

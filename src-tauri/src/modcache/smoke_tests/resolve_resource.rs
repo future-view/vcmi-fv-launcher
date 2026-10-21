@@ -145,6 +145,47 @@ fn def_group_hd_creature_smoke() {
     crate::vcmi::hd_edition::set_source(None);
 }
 
+/// 真机冒烟（2026-10-21）：**mod 自带资源必须被归类为 mod 来源**（HD 守卫的前提）。
+///
+/// 背景：HD 素材按**原版命名空间**匹配。若 mod 自带资源被误判成 `Origin::Game`，
+/// 帧名/名字探针就会把原版高清图塞进 mod 的美术（实测 1-knight-town 的 `CPrS005C.bmp`
+/// 里是长枪兵，pak 的 `CPRS005C` 却是另一种生物 → @4x 整张错图）。
+///
+/// 运行：`VCMI_GAME_DIR=<游戏目录> cargo test --lib modcache::smoke_tests::resolve_resource::mod_bitmap_origin_smoke -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn mod_bitmap_origin_smoke() {
+    let game = game_dir();
+    let mod_dir = game.join("Mods").join("1-knight-town");
+    if !mod_dir.is_dir() {
+        println!("跳过：未安装 1-knight-town（{mod_dir:?}）");
+        return;
+    }
+    let (buf, ext, origin) = crate::vcmi::resource::resolve_resource_origin(
+        &mod_dir,
+        &game,
+        "Sprites/Knight/creatures/iconsSmall/CPrS005C.bmp",
+    )
+    .expect("应能解析 mod 自带位图");
+    println!("origin={origin:?} ext={ext} bytes={}", buf.len());
+    assert!(
+        !matches!(origin, crate::vcmi::resource::Origin::Game),
+        "mod 自带资源不得被判为原版来源，否则 HD 替换会张冠李戴"
+    );
+    // 对照组：原版资源必须判为 Game（守卫不能把原版高清也一起挡掉）
+    let (_b, _e, game_origin) = crate::vcmi::resource::resolve_resource_origin(
+        &game.join("Mods").join("vcmi"),
+        &game,
+        "CRBKGCAS.bmp",
+    )
+    .expect("应能解析原版兵种背景");
+    assert_eq!(
+        game_origin,
+        crate::vcmi::resource::Origin::Game,
+        "原版资源必须判为 Game，否则 HD 守卫会误伤原版高清"
+    );
+}
+
 /// 真机冒烟（2026-10-21）：**中立阵营必须有 creatureBackground**。
 ///
 /// 中立不是可玩城镇（`read_game_root_factions` 明确过滤 neutral），所以它的

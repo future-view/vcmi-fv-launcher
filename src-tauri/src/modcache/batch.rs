@@ -519,6 +519,8 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
     let hd_skipped = std::sync::atomic::AtomicUsize::new(0);
     let hd_failed = std::sync::atomic::AtomicUsize::new(0);
     let hd_pruned = std::sync::atomic::AtomicUsize::new(0);
+    // 本轮是否需要"全网补跑高清变体"（HD 方案版本变化时置位，见 `hd::scheme_changed`）
+    let hd_sweep = std::sync::atomic::AtomicBool::new(crate::modcache::hd::scheme_changed(&cache_root));
     // 构建进度的时间节流（与准备阶段 `order_by_cost` 内的同一个策略）
     let build_throttle = EmitThrottle::new(PROGRESS_EMIT_MS);
     use rayon::prelude::*;
@@ -529,6 +531,20 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
             let n = done.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
             slot.done.store(n, std::sync::atomic::Ordering::Relaxed);
             return None;
+        }
+        // HD 方案刚变更（`ensure_hd_scheme` 清过全部旧变体）时，**缓存仍新鲜的 mod 也要补跑**
+        // 一次变体生成 —— 否则这些 mod 会一直缺 `@Nx`（退回 1x），直到它们各自重建。
+        // 一次性代价：只有方案版本变化的那一轮才会走到这里。
+        if hd_sweep.load(std::sync::atomic::Ordering::Relaxed) {
+            if let Some(opt) = hd.as_ref() {
+                if opt.rate >= 2 {
+                    let st = crate::modcache::hd::generate_for_mod(&cache_root, &m.mod_id, opt);
+                    hd_generated.fetch_add(st.generated, std::sync::atomic::Ordering::Relaxed);
+                    hd_skipped.fetch_add(st.skipped, std::sync::atomic::Ordering::Relaxed);
+                    hd_failed.fetch_add(st.failed, std::sync::atomic::Ordering::Relaxed);
+                    hd_pruned.fetch_add(st.pruned, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
         }
         // mod 级耗时埋点（debug）：便于开启 debug 级别分析缓存构建性能
         let t0 = std::time::Instant::now();
