@@ -22,6 +22,15 @@ import { useI18n } from "@/i18n";
  *
  * ⚠️ 不要用"非阻塞蒙层"盖在**可用内容**上：与背后文字互相干扰、观感差（已被实测否决，
  * 见 `WikiBuildOverlay` 注释）。
+ *
+ * ## 为什么**不用 backdrop-blur**（2026-10-21 真机反馈："进度条一动整个窗口就闪"）
+ *
+ * 本组件的三个使用点（`WikiBuildOverlay` / `WikiView` boot / `ModView` boot）
+ * **全部是"早返回只渲染蒙层"** —— 蒙层背后永远是空背景，模糊没有任何视觉收益。
+ * 而 WebView2 下 `backdrop-filter` 元素的内容每次重绘都会触发整个 render surface
+ * 重新采样：构建进度更新（即使已量化到 ~1.4 次/秒）时，占窗口 80%+ 的蒙层
+ * 就整体闪一次。故改用**更高不透明度的实色底**（`/80` → `/90`）替代：
+ * 遮挡效果等价，重绘只剩蒙层自身的小区域（文字 + 进度条）。
  */
 export function LoadingOverlay({
   title,
@@ -50,7 +59,7 @@ export function LoadingOverlay({
       className={cn(
         "absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 rounded-xl",
         blocking
-          ? "bg-slate-950/80 backdrop-blur-sm"
+          ? /* 阻塞：实色高不透明底（**不用 backdrop-blur**，见组件注释） */ "bg-slate-950/90"
           : /* 非阻塞：半透明且**不挡操作**，层级压在抽屉 / 弹层之下（z-20） */
             "pointer-events-none z-20 bg-slate-950/40",
       )}

@@ -66,6 +66,28 @@ export async function onWindowResized(cb: () => void): Promise<() => void> {
 }
 
 /**
+ * 订阅窗口**焦点**变化（Tauri v2 window API，`onFocusChanged`）。
+ *
+ * 用途：后台轮询类任务（如 wiki 构建进度的 400ms 兜底轮询）在窗口失焦时
+ * 暂停 —— 用户把鼠标/注意力移出窗口后，主线程不该再被周期性 IPC 持续唤醒
+ * （真机反馈：构建期鼠标移出窗口会不定期遇到光标转圈，即 WebView 对
+ * `WM_SETCURSOR` 的响应被后台工作延迟）。恢复焦点时由调用方立即补一次。
+ *
+ * 非 Tauri / 失败返回 `null`（调用方退化为"始终视为聚焦"）。
+ */
+export async function onWindowFocusChanged(
+  cb: (focused: boolean) => void,
+): Promise<(() => void) | null> {
+  if (!isTauri()) return null;
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    return await getCurrentWindow().onFocusChanged(({ payload: focused }) => cb(focused));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 设计稿画布（**全站唯一坐标系**，单位 = CSS 像素，16:9）。
  *
  * 与「阵营巡礼」播放页的定尺画布（`ShowcaseOverlay`：`scale = min(vw/DW, vh/DH)`）
@@ -1006,16 +1028,34 @@ export async function buildModsWikiBatch(
       const { listen } = await import("@tauri-apps/api/event");
       // `prep=true` = 准备阶段（排序前的 mod 成本估算，UI 的"扫描模组目录"行）。
       // 冷缓存下它是分钟级且发生在第一个 mod 之前，不透传就会表现为"0% 静止一分钟"。
-      const un = await listen<{ done: number; total: number; prep?: boolean }>(
-        "wiki-build-progress",
-        (e) => {
-          onProgress(e.payload.done, e.payload.total, e.payload.prep === true);
-        },
-      );
+      let un: (() => void) | null = null;
+      const startListen = async () => {
+        if (un) return;
+        un = await listen<{ done: number; total: number; prep?: boolean }>(
+          "wiki-build-progress",
+          (e) => {
+            onProgress(e.payload.done, e.payload.total, e.payload.prep === true);
+          },
+        );
+      };
+      const stopListen = () => {
+        un?.();
+        un = null;
+      };
+      await startListen();
+      // 窗口失焦时**退订事件**（不只停轮询）：Tauri 事件是 push 进 JS 的，
+      // 失焦后每秒 ~10 次的回调 + 后续 status 处理仍是主线程的持续唤醒源。
+      // 后端构建与窗口焦点无关，照常推进；聚焦后立即重订，后端的下一个事件
+      // 即把进度追上（完成事件同样会到，蒙层不会卡在旧值）。
+      const unFocus = await onWindowFocusChanged((focused) => {
+        if (focused) void startListen();
+        else stopListen();
+      });
       try {
         return await invoke("build_mods_cache_batch", { gameDir, mods, throttle, phase, ...hdArgs });
       } finally {
-        un();
+        stopListen();
+        void unFocus?.();
       }
     } catch {
       return null;
@@ -1092,22 +1132,43 @@ export async function releaseWikiCaches(): Promise<void> {
   }
 }
 
+/**
+ * bundled 补建的**串行链**（模块级单链）。
+ *
+ * 为什么必须串行：bundled 补建与全局后台构建**共用** `build_mods_cache_batch`
+ * 命令和 `wiki-build-progress` 事件通道（payload 无批次标识）—— 并发的两个
+ * 批次会把对方的进度账本互相打乱（2026-10-21 真机实测：全局蒙层 data 行停在
+ * 中途值 18/124 而 assets 已在 21/124），且两份 rayon 并发争抢 CPU
+ * （光标忙碌的诱因之一）。连续打开多个领域时，两次 bundled 之间同样会互踩。
+ */
+let bundledWikiChain: Promise<void> = Promise.resolve();
+
 /** 按「领域 id + 整合模组 id 列表」补建百科缓存，用于**激活领域后**。
  *
  * 编辑器里标记「整合」只是往 realm.json 记 id，模组文件要等激活时
  * （`activate_realm` 步骤 5）才复制到 `{realm-dir}/vcmi/Mods/<modId>`；
  * 这条路径不走导入，也不在全局构建的扫描范围内，故在此补齐。
- * 构建是增量的（源 hash 命中即跳过），重复调用开销很小。 */
+ * 构建是增量的（源 hash 命中即跳过），重复调用开销很小。
+ *
+ * ⚠️ **排队执行**（模块级串行链）：与全局构建并发会互相污染进度 + 争抢 CPU，
+ * 见 `bundledWikiChain` 注释。与全局构建的排队等待由调用方（`App.tsx`）
+ * 用 `isWikiBuildActive()` 处理 —— tauri 层不反向依赖 modcache/status。
+ */
 export async function buildRealmBundledWikiByIds(
   realmId: string,
   modIds: string[],
 ): Promise<void> {
   if (!isTauri() || modIds.length === 0) return;
-  const dir = await realmDir(realmId);
-  if (!dir) return;
-  await buildRealmBundledWiki(
-    modIds.map((id) => ({ modId: id, modPath: `${dir}/vcmi/Mods/${id}` })),
-  );
+  const run = async () => {
+    const dir = await realmDir(realmId);
+    if (!dir) return;
+    await buildRealmBundledWiki(
+      modIds.map((id) => ({ modId: id, modPath: `${dir}/vcmi/Mods/${id}` })),
+    );
+  };
+  // 串到链尾（前面的失败不影响后面的入链）
+  bundledWikiChain = bundledWikiChain.then(run).catch(() => {});
+  return bundledWikiChain;
 }
 
 /** 读取 modSettings.json。

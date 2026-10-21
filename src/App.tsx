@@ -11,7 +11,7 @@ import { GameDataDrawer } from "@/shell/GameDataDrawer";
 import { HelpDrawer } from "@/shell/HelpDrawer";
 import { ImportFilesDialog } from "@/shell/ImportFilesDialog";
 import { detectVcmiPaths, isDebug, isTauri, realmSelfCheck, realmSelfHeal, getActiveRealm, activateRealm, deactivateRealm, realmDir, isVcmiRunning, buildRealmBundledWikiByIds, checkLauncherUpdate, markUpdatePrompted, closeWindow, applyLauncherUpdate, setUpdatePref, type VcmiDirs, type RealmSelfCheck, type UpdateInfo } from "@/lib/tauri";
-import { ensureWikiCacheBuilt } from "@/lib/modcache/status";
+import { ensureWikiCacheBuilt, isWikiBuildActive } from "@/lib/modcache/status";
 import { getRealmById, refreshRealms, useRealms } from "@/lib/realm/store";
 import { shouldPlayIntro } from "@/lib/realm/intro";
 import type { Realm } from "@/lib/realm/types";
@@ -173,7 +173,17 @@ function AppContent() {
     setRealmMode(true);
     // 整合模组的资料补建百科缓存：文件在激活时才落到 `{realm-dir}/vcmi/Mods/`，
     // 且不在全局构建的扫描范围（只扫全局用户目录 + 游戏目录）。增量构建，重复调用很快。
-    void buildRealmBundledWikiByIds(r.id, r.mods?.bundled ?? []);
+    //
+    // ⚠️ **等全局后台构建空闲后再补**：bundled 补建与全局构建共用
+    // `build_mods_cache_batch` 命令和 `wiki-build-progress` 事件通道（无批次标识），
+    // 并发会互相打乱进度账本（2026-10-21 真机实测：蒙层 data 行停在中途值而
+    // assets 已在跑）并争抢 CPU。构建是增量的，晚几分钟无感。
+    void (async () => {
+      while (isWikiBuildActive()) {
+        await new Promise((res) => setTimeout(res, 500));
+      }
+      await buildRealmBundledWikiByIds(r.id, r.mods?.bundled ?? []);
+    })().catch(() => {});
     if (!forceIntro && !(await shouldPlayIntro(r))) return;
     try {
       const dir = await realmDir(r.id);

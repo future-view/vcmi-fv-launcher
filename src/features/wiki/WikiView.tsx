@@ -579,9 +579,13 @@ export function WikiView() {
         prev.obj.nativeTowns = [...new Set(towns)];
       }
 
-      // 每 24 个 mod 让出一帧，避免长任务阻塞交互（卡死防护）
+      // 每 8 个 mod 让出一帧，避免长任务阻塞交互（卡死防护）。
+      // 取 8（原 24）：单个 cache.json 解析是同步长任务（32MB / 289 份），
+      // 24 连跑会让单帧主线程占用达到秒级 —— WebView 无法及时处理
+      // `WM_SETCURSOR` 时 Windows 会显示忙碌光标（真机反馈：装载/构建期
+      // 光标不定期转圈）。8 连跑的单帧占用降到亚百毫秒级。
       processed += 1;
-      if (processed % 24 === 0) {
+      if (processed % 8 === 0) {
         await new Promise((r) => setTimeout(r, 0));
       }
     }

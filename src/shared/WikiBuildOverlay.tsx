@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useI18n } from "@/i18n";
 import { getWikiStatus, subscribeWikiStatus } from "@/lib/modcache/status";
 import { LoadingOverlay } from "@/shared/LoadingOverlay";
@@ -125,16 +125,52 @@ export function useWikiPreparing(): boolean {
 }
 
 /**
- * 三条进度条。**这里是唯一高频重渲染的地方**（~120ms 一次），
- * 它只包含几个 div，代价可忽略；页面主体/列表不受影响。
- */
-/**
- * 阶段进度条列表（**唯一高频重渲染的地方**）。
+ * 阶段进度条列表。
+ *
+ * ## 渲染策略：**结构走 React，数值走命令式 DOM**（2026-10-21 三轮真机反馈的终版）
+ *
+ * 构建进度约 10 次/秒到达。这条更新路径上的一切都要为"**不闪**"让路：
+ * - **量化**：显示值按 1% 取整，577 个 mod 下约 700ms 才跳一格（不会退回
+ *   "0% 静止"的老投诉）；
+ * - **transform**：`scaleX` + 外层裁圆角，走合成层不触发 layout；
+ * - **命令式数值更新**（本版关键）：进度数字 / 条宽**不经过 React 渲染** ——
+ *   直接在 store 订阅回调里写 `textContent` / `style.transform`。React 只在
+ *   **行结构变化**（阶段切换、prep 行出现、hd 开关）时重渲染一次。
+ *
+ * 为什么命令式是必要的：即便有量化，每次 emit 仍要经过 React 的
+ * "getSnapshot → 调度 → diff → commit"全链路；实测量化后蒙层**偶尔仍会闪一帧**
+ * （commit 与过渡动画在同一帧相遇时的重排/重绘）。命令式后，进度更新对
+ * React **完全不可见**：主线程每秒只多做 3~4 次微秒级 DOM 写入，蒙层其余
+ * 部分（标题 / spinner / hint）与窗口其它区域**根本不参与**。
+ *
+ * ⚠️ 维护约定：改行的 DOM 结构时，`data-stage-value` / `data-stage-bar` 两个
+ * 锚点与 JSX 初始值必须与下方命令式更新保持同步（三处一套）。
+ *
  * 导出给 `StageGate` 复用 —— 内联等待与蒙层等待显示同样的进度。
  */
 export function StageRows({ stages }: { stages: readonly BuildStage[] }) {
   const { t } = useI18n();
-  const s = useSyncExternalStore(subscribeWikiStatus, getWikiStatus, getWikiStatus);
+  // 结构快照：**行显隐 + total** 变化才触发 React 重渲染（total 变 = 阶段切换）。
+  // 百分比本身**不进**快照 —— 那是命令式更新负责的（见组件注释）。
+  useSyncExternalStore(
+    subscribeWikiStatus,
+    () => {
+      const s = getWikiStatus();
+      const st = s.stages;
+      const parts = ROWS.map((r) => {
+        const p = st?.[r.key];
+        const shown =
+          r.key === "prep"
+            ? !!p && p.total > 0
+            : stages.includes(r.key) && (r.key !== "hd" || s.hdEnabled);
+        return shown ? (p ? `1:${p.total}` : "1:0") : "0";
+      });
+      return parts.join("|");
+    },
+    () => ROWS.map(() => "0").join("|"),
+  );
+  // 结构渲染读当前值（重渲染只发生在结构变化时，值即当时最新）
+  const s = getWikiStatus();
   // `prep`（扫描模组目录）是**所有页面共用的前置阶段**：排序前要对每个 mod 目录递归
   // 枚举估成本，冷缓存下是分钟级且发生在第一个 mod 开工之前。它不属于任何页面的
   // `deps`（不参与撤除判定），但只要后端报过它就始终显示 —— 否则那段分钟级工作
@@ -146,23 +182,64 @@ export function StageRows({ stages }: { stages: readonly BuildStage[] }) {
         ? !!prep && prep.total > 0
         : stages.includes(r.key) && (r.key !== "hd" || s.hdEnabled)),
   );
+  // 行 DOM 锚点注册表（命令式更新写入用）：key → { 数字 span, 进度条 div }
+  const rowElsRef = useRef(new Map<string, { value: HTMLSpanElement | null; bar: HTMLDivElement | null }>());
+  // 数值的**命令式**更新：订阅 store，按 1% 量化后直接写 DOM（见组件注释）。
+  // 不进任何 React 状态 —— 进度更新对渲染树完全不可见。
+  useEffect(() => {
+    // 每行上次写入的百分比（ absent = 尚未写过 → 首次必写，保证挂载即有值）
+    const lastPct = new Map<string, number>();
+    return subscribeWikiStatus(() => {
+      const st = getWikiStatus().stages;
+      for (const [key, els] of rowElsRef.current) {
+        const p = st?.[key as BuildStage];
+        const total = p?.total ?? 0;
+        const done = p?.done ?? 0;
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+        if (lastPct.get(key) === pct) continue;
+        lastPct.set(key, pct);
+        if (els.value) els.value.textContent = `${done} / ${total}（${pct}%）`;
+        if (els.bar) els.bar.style.transform = `scaleX(${Math.max(0, Math.min(100, pct)) / 100})`;
+      }
+    });
+  }, []);
   return (
     <div className="w-[60%] max-w-md space-y-1.5">
       {rows.map((r) => {
         const p = s.stages?.[r.key] ?? { done: 0, total: 0 };
         const pct = p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
+        const w = Math.max(0, Math.min(100, pct));
         return (
-          <div key={r.key} className="space-y-1">
+          <div
+            key={r.key}
+            ref={(el) => {
+              // 挂载/结构变化时登记锚点（el 已含子节点，可直接 query）
+              if (el) {
+                rowElsRef.current.set(r.key, {
+                  value: el.querySelector<HTMLSpanElement>("[data-stage-value]"),
+                  bar: el.querySelector<HTMLDivElement>("[data-stage-bar]"),
+                });
+              } else {
+                rowElsRef.current.delete(r.key);
+              }
+            }}
+            className="space-y-1"
+          >
             <div className="flex items-baseline justify-between text-[11px]">
               <span className="text-slate-400">{t.wiki[r.labelKey]}</span>
-              <span className="tabular-nums text-slate-300">
+              {/* data-stage-value：命令式更新的锚点（初始值 = 当前 store 值） */}
+              <span data-stage-value className="tabular-nums text-slate-300">
                 {p.done} / {p.total}（{pct}%）
               </span>
             </div>
+            {/* 外层 overflow-hidden + rounded-full 负责裁出两端圆角；
+                内层只填色（不加圆角）并用 scaleX 表示宽度 —— 圆角不会被拉伸变形。 */}
             <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-800">
+              {/* data-stage-bar：命令式更新的锚点（初始值 = 当前 store 值） */}
               <div
-                className={`h-full rounded-full transition-all ${r.bar}`}
-                style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
+                data-stage-bar
+                className={`h-full w-full origin-left transition-transform duration-200 ease-out ${r.bar}`}
+                style={{ transform: `scaleX(${w / 100})` }}
               />
             </div>
           </div>

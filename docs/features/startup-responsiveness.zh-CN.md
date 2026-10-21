@@ -353,3 +353,74 @@ if (boot !== "ready") {
 ### 已知遗留（未做，待反馈驱动）
 
 - **切走再切回百科重新装载**：`catEntriesRef` 是组件内 ref，视图互斥卸载后丢失，重挂载要再等一轮装载（有骨架反馈）。缓解方向 = 模块级单槽缓存（与 `scanRealMods` 进程内记忆同构），但需解决内存常驻（条目合计约 32 MB 解析态）与 `catCacheKey` 同尺寸不同集合的陈旧风险，暂缓。
+
+### 第三轮：进度条一动、整个界面就闪（2026-10-21 收尾反馈）
+
+**现象**：构建蒙层里进度条每跳一次，**整个界面都在闪烁**，"像整个页面在刷新"（真机实测）。
+
+**根因**：`StageRows` 直接订阅整个 `WikiBuildStatus`（`getWikiStatus` 每次返回新对象）→ 每 ~120ms 整体重渲染一次；而它坐在 `LoadingOverlay` 的 `bg-slate-950/80 backdrop-blur-sm` 半透明蒙层里 —— **蒙层内容的每次重绘都连带整个蒙层层重绘**；再叠加进度条 `width` 百分比每 120ms 跳一次（577 步进每步仅 0.17%，`transition-all` 被反复重定向），三重因素叠出"整页闪烁"观感。
+
+**修复**（`shared/WikiBuildOverlay.tsx::StageRows`，宿主零改动）：
+1. **量化派生快照**：getSnapshot 返回 `total:floor(百分比)` 拼接**字符串**（引用稳定）→ 只有跨过 1% 整数边界才重渲染（577 total ≈ 每 6 个 mod ≈ 720ms 一次），重渲染 **8.3 次/秒 → ~1.4 次/秒**；跳变永远 ≥1% 宽，不会退回"0% 静止"老投诉。渲染值仍取最新，数字/条宽始终真实。
+2. **`width` → `transform: scaleX()`**（外层 `overflow-hidden rounded-full` 裁圆角，内层只填色）：transform 走合成层不触发 layout；`transition-transform 500ms` 把量化跳变平滑成连续推进。
+
+其他订阅点（`useWikiStageDone` / `useWikiStagesDone` / `useWikiPreparing`）均为 **boolean 派生**，值不变时 React 跳过重渲染 —— 它们不是闪源，保持不动。
+
+### 第三轮补充：量化后**依旧**全窗闪 → 真凶是 `backdrop-blur`（2026-10-21）
+
+**现象**：量化 + transform 后真机复测，"进度条一动整个窗口还是闪"。
+
+**根因**：`LoadingOverlay` 阻塞态底色是 `bg-slate-950/80 backdrop-blur-sm`。经盘点其**三个使用点（`WikiBuildOverlay` / `WikiView` boot / `ModView` boot）全部是"早返回只渲染蒙层"** —— 蒙层背后永远是空背景，blur 零视觉收益；但 WebView2 下 **`backdrop-filter` 元素的内容每次重绘都会触发整个 render surface 重新采样**：量化把重渲染降到 1.4 次/秒后，每次进度跳变仍让占窗口 80%+ 的蒙层整体闪一次。叠加 500ms transition 使半个周期都在重绘该条，余量仍够闪。
+
+**修复**：
+1. `LoadingOverlay` 阻塞态**移除 `backdrop-blur-sm`**，底色 `/80` → `/90`（实色，遮挡等价；顶栏 / 底栏的 `backdrop-blur-xl` 与设置页 `.glass` 背后内容静态，**不是闪源，保留不动**）。
+2. 进度条 `transition-transform` 时长 500ms → **200ms**：量化间隔 ~700ms 下 200ms 足够平滑，同时把每次更新的重绘 burst 压到最短。
+
+**若仍闪的下一步诊断**（均非代码路径，需真机信息）：① 观察闪烁是否**紧跟进度数字跳变**（是 → 仍有重绘级联，可继续降量化粒度到 2% / 去掉 transition）还是**持续高频**（是 → 查 WebView2 是否在软件渲染：老机器 / 集成显卡 / 远程桌面；构建期 turbo 档 `cpus/2` 与主线程争 CPU 也会放大掉帧观感）；② 可用 `--disable-gpu` 对照实验确认渲染管线。
+
+### 第四轮：高频闪已消，剩"偶尔一闪" + 光标转圈（2026-10-21 终版）
+
+**反馈**：去 blur 后高频闪烁消失，但量化跳变时**偶尔仍闪一帧**；且构建期把鼠标移出启动器窗口，光标会**不定期转圈**。
+
+**根因**：
+1. 偶尔一闪：即便有量化，每次 emit 仍要走 React 的 `getSnapshot → 调度 → diff → commit` 全链路 —— commit 与 200ms 过渡动画在同一帧相遇时的重排/重绘，偶发可见一帧。
+2. 光标转圈：WebView 对 `WM_SETCURSOR` 的响应被主线程的**周期性工作**延迟时，Windows 临时显示忙碌光标。构建期主线程被 ~10 次/秒的进度事件（Tauri IPC）+ 2.5 次/秒的轮询 invoke + 每次 emit 的 React 协调持续唤醒。
+
+**修复**：
+1. **`StageRows` 数值命令式更新**（终版关键）：进度数字 / 条宽**不经过 React** —— store 订阅回调里按 1% 量化后直接写 `textContent` / `style.transform`；React 只在**行结构变化**（阶段切换 / prep 行出现 / hd 开关）时重渲染。进度更新对渲染树完全不可见，主线程每秒只多做 3~4 次微秒级 DOM 写入。锚点 = 行上的 `data-stage-value` / `data-stage-bar`（维护约定见组件注释）。
+2. **轮询失焦暂停**（`lib/tauri.ts::onWindowFocusChanged` + `status.ts`）：窗口失焦时跳过 400ms 兜底轮询 —— 用户移开注意力后主线程不再被周期性 IPC 唤醒；恢复焦点后下一个 tick 即追上（进度事件与焦点无关，照常到达）。
+3. **emit 节流 120ms → 200ms**（`mkProgress` / `setStage`）：事件本身已 ~10 次/秒，再往上加密 emit 只增加主线程唤醒；200ms 显示延迟不可感知（StageRows 还有 1% 量化兜底）。
+
+### 光标转圈：归因修正 + 定位实验（2026-10-21，**未决**）
+
+**反馈**：上述改动后**光标仍会不定期转圈**（构建期 / 鼠标移出窗口时）——"减少主线程周期性唤醒"的归因被实测否定。
+
+**归因修正**：Windows 忙碌光标的触发条件不是"主线程被周期性唤醒"（那只会让光标**延迟**出现，不会持续显示），而是以下两类：
+1. **主线程被阻塞到无法及时处理 `WM_SETCURSOR`**（秒级长任务：大 JSON 同步解析、密集 IPC 后的连续处理）→ 窗口返回"app starting"忙碌光标且来不及恢复；
+2. **系统级因素**：构建期 rayon 满载（turbo `cpus/2`）导致 WebView2 多进程（browser/renderer/gpu）的消息处理被 CPU 争抢延迟；或大量磁盘 IO 触发杀软实时扫描钩子。
+
+**本轮已做的两项低风险整改**（对第 1 类有实质帮助，对第 2 类无效但零风险）：
+1. `buildModsWikiBatch` 的 `wiki-build-progress` 事件监听**随窗口焦点退订/重订**（原只停了轮询）—— 失焦后前端对构建相关工作彻底为零；
+2. `loadAllCategories` 让帧粒度 **24 → 8**（单帧主线程占用从"秒级"降到亚百毫秒级）。
+
+**待用户执行的定位实验**（按结果分流修复）：
+
+| 实验 | 操作 | 结果 → 结论 |
+|---|---|---|
+| A | 构建进行中**最小化**启动器，鼠标在桌面/别窗正常使用 1~2 min | 仍转 → 与 WebView 渲染无关，指向**后端 CPU / 磁盘 / 杀软**；好转 → 指向 WebView 窗口渲染 / 光标路径 |
+| B | 缓存完全建好（无蒙层、无构建）后鼠标移出窗口 1~2 min | 仍转 → **常驻**问题（与构建无关，需另查常驻订阅）；不转 → 构建期专属 |
+| C | A 命中后端时，把 `DATA_BUILD_THROTTLE` 2→1（或 0）重编复测 | 好转 → CPU 争抢坐实（长期：data 改空闲感知档 / 降并发）；无效 → 磁盘/杀软，代码侧只能减少 IO 频次 |
+
+### 真 bug：进度条错乱 = 事件通道无批次标识，双批次并发互污染（2026-10-21）
+
+**现象**：构建蒙层里「读取游戏数据 18/124 (15%)」而「提取游戏素材 21/124 (17%)」—— 违反阶段串行顺序，用户报"进度条错乱"。
+
+**根因**：`App.tsx` 的 `openRealm` 里 `void buildRealmBundledWikiByIds(...)` 是 fire-and-forget —— 用户在全局构建蒙层期间点开领域页，bundled 补建批次与全局构建**并发**：
+- 两者走**同一个** `build_mods_cache_batch` 命令、同一个 `wiki-build-progress` 事件通道（payload 无批次标识）；
+- bundled 批次只有十几个 mod，其 done 通过全局构建的 listener 写进 `st.data`，把全局的值**打停**在中途数（18）；全局自己的 data 完成后事件停发，data 行从此冻结；而全局 assets 阶段继续推进（21）。
+- 附带伤害：两份 rayon 并发争抢 CPU —— 与「实验 A 最小化仍见光标忙碌」互为印证（光标问题的后端负载侧实锤）。
+
+**修复（三层）**：
+1. **单调保护**（`status.ts::setStage` / `mkHdProgress`）：done 只增不减 —— 任何来源的旧值都无法把本阶段打回；
+2. **完成标满**（`markStageFull`）：每个阶段 invoke **成功返回**后 `done = total` —— 末帧事件丢失 / 被污染时也不会"永远差一截"（蒙层撤除判据是 `done >= total`，不到 100% 会永驻）；失败（返回 `null`）不标满，不谎报；
+3. **排队消并发**：`buildRealmBundledWikiByIds` 改模块级**串行链**；`App.tsx::openRealm` 先用 `isWikiBuildActive()`（busy || probing）等全局构建空闲再补建 —— 从源头消除互污染与 CPU 争抢。
