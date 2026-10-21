@@ -135,6 +135,8 @@ export const de: LangDict = {
     enableAnimation: "Animation aktivieren",
     generation: "Mod-Cache wird erstellt",
     generating: "Mod-Cache wird erstellt…",
+    loading: "Wiki-Daten werden geladen…",
+    loadingHint: "Beim ersten Öffnen werden die Einträge aller Mods zusammengestellt, bitte warten",
     pauseBuild: "Erstellung pausieren",
     stageData: "Spieldaten werden gelesen",
     stageAssets: "Spiel-Assets werden extrahiert",

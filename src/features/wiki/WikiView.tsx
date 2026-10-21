@@ -21,6 +21,7 @@ import {
   type WikiLinkTarget,
 } from "@/lib/modcache";
 import { useWikiStagesDone, WikiBuildOverlay } from "@/shared/WikiBuildOverlay";
+import { LoadingOverlay } from "@/shared/LoadingOverlay";
 import { EntryDetail } from "@/features/wiki/detail/EntryDetail";
 import { WikiPopupProvider } from "@/features/wiki/detail/WikiPopup";
 import { useWikiPopup, usePopupTriggers } from "@/features/wiki/detail/WikiPopupContext";
@@ -144,6 +145,26 @@ export function WikiView() {
   // 详情栏按需加载后从这里取（见下方 effect；有界 LRU）。
   const [modCacheMap, setModCacheMap] = useState<Record<string, Record<string, unknown>>>({});
   const [loading, setLoading] = useState(false);
+  /**
+   * 索引**已就绪**（`applyIndex` 完成过一次）—— 与 `indexed` 是否为**空集**是两个状态：
+   * 后者无法区分"还没读"与"读完了但确实没有条目"。
+   *
+   * 装载（`loadAllCategories`）必须等它：曾经挂载即装载，而 `indexed` 还是空集
+   * （`applyIndex` 的 IPC 未回，启动瞬间还要与预检抢同一份 `scan_mods`）→ 装载出
+   * **空壳**（`mods` 类目有 289 条、实体类目全 0）并写进 `catEntriesRef` 缓存 +
+   * 覆盖左栏真实计数 → 用户看到"分类全 0 + 未找到匹配条目"好几分钟，直到索引
+   * 姗姗就绪才重装（2026-10-21 真机实测，见 startup-responsiveness 文档）。
+   */
+  const [indexDone, setIndexDone] = useState(false);
+  /**
+   * **首次装载完成**（`loadAllCategories` 跑完一轮）。
+   *
+   * 缓存已生成（`ready=true`）到装载完成之间仍有数秒（遍历 572 个 mod 的 cache.json，
+   * 约 32 MB IPC + 解析；HDD 上更久）。这期间不渲染任何内容 —— 早返回只显示
+   * loading 蒙层（`t.wiki.loading`）：宁可明确告知"在加载"，也不能渲染空状态
+   * 让用户以为没有数据。
+   */
+  const [bootReady, setBootReady] = useState(false);
   /**
    * 中栏列表**已装载完成**的类目（`loadAllCategories` 异步，装载期间 `entries` 还是上一个类目的数据）。
    *
@@ -283,6 +304,10 @@ export function WikiView() {
   const applyIndex = useCallback(async () => {
     const [idx, keys] = await Promise.all([loadWikiIndex(), visibleModKeySet()]);
     setVisibleKeys(keys);
+    // 索引就绪：装载 effect 以此为闸门（见 `indexDone` 注释）。
+    // ⚠️ 必须在 `if (!idx) return` **之前**置位 —— "读不到索引"同样是就绪
+    // （没有数据可显示），否则闸门永远不开、boot 蒙层永驻。
+    setIndexDone(true);
     if (!idx) return;
     const mods = keys ? idx.mods.filter((m) => keys.has(modIdKey(m.modId))) : idx.mods;
     setCounts(collectCounts(mods));
@@ -759,7 +784,19 @@ export function WikiView() {
     // ⚠️ 只**取**当前类目，不重新装载：装载一次产出全部类目（`ensureCategoriesLoaded`
     // 按 `catCacheKey` 单飞，切类目不会叠出第二轮全量读盘），之后每次切类目都命中其
     // 内部缓存 → 零 IPC（这正是"切分类不再卡"的关键）。
+    //
+    // 三道闸门（都缺一不可，见各处注释）：
+    // 1. `ready`：后台构建未完成时不装载 —— 蒙层期用户看不到内容，白跑一遍全量读盘；
+    // 2. `indexDone`：索引未就绪不装载 —— 否则 `indexed` 还是空集，会产出
+    //    "只有 mods 类目"的空壳并写进 `catEntriesRef`（左栏全 0 + 未找到匹配条目）；
+    // 3. `indexed.size > 0`：真空索引（确实没有任何缓存）直接放行，让页面显示
+    //    `t.wiki.empty` —— 没有数据就不该永远转圈。
     let cancelled = false;
+    if (!ready || !indexDone) return;
+    if (indexed.size === 0) {
+      setBootReady(true);
+      return;
+    }
     void (async () => {
       const map = await ensureCategoriesLoaded(catCacheKey);
       // ⚠️ 必须判 `cancelled`：类目可能在装载期间被切走，此时这份结果属于**上一个类目**，
@@ -769,11 +806,16 @@ export function WikiView() {
       // 跨模组引用索引由 `lookupEntry` 从 `catEntriesRef` 懒建（全类目，不再限定当前类目）
       setEntries(list);
       setLoadedCategory(category);
-    })();
+      // 首次装载完成 → 撤 boot loading 蒙层（见 `bootReady` 注释）
+      setBootReady(true);
+    })().catch(() => {
+      // 装载失败：同样放行（显示 empty 好过永驻蒙层），异常已在 ensureCategoriesLoaded 内吞掉
+      if (!cancelled) setBootReady(true);
+    });
     return () => {
       cancelled = true;
     };
-  }, [category, catCacheKey, ensureCategoriesLoaded]);
+  }, [ready, indexDone, indexed.size, category, catCacheKey, ensureCategoriesLoaded]);
 
   // 数据重载（如后台阶段二补图完成）后刷新当前详情对象，避免详情页停留在旧的无图对象
   useEffect(() => {
@@ -1169,10 +1211,24 @@ export function WikiView() {
   // 被蒙层遮住的内容照样会渲染、跑 effect、拉数据（列表、图片、甚至按需合成预览），
   // 用户却完全看不见 —— 纯浪费，首次构建期间还会造成前端卡顿（实测）。
   // 只有这一处蒙层、没有"内容 + 蒙层"并存，才真正省下这些开销。
+  //
+  // 两级闸门，对应两段不同的等待：
+  // ① `!ready` —— 后台**构建**缓存中（`WikiBuildOverlay`：真实三段进度条）；
+  // ② `!bootReady` —— 缓存已在磁盘上，正在**装载**（`LoadingOverlay`：遍历 572 个
+  //    mod 的 cache.json，数秒；无真实进度可报，只给 spinner + 说明）。
+  // ② 曾是空缺：`ready` 跃迁后直接渲染空 UI（左栏全 0 + "未找到匹配条目"），
+  // 用户读作"没有数据"（2026-10-21 真机实测投诉）。
   if (!ready) {
     return (
       <div className="relative flex h-full p-3">
         <WikiBuildOverlay deps={["data", "assets"]} />
+      </div>
+    );
+  }
+  if (!bootReady) {
+    return (
+      <div className="relative flex h-full p-3">
+        <LoadingOverlay title={t.wiki.loading} hint={t.wiki.loadingHint} />
       </div>
     );
   }

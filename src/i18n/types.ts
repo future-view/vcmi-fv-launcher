@@ -192,6 +192,16 @@ export interface LangDict {
     enableAnimation: string;
     generation: string;
     generating: string;
+    /**
+     * 缓存已就绪、**汇总各 mod 条目**期间（boot loading 蒙层标题）。
+     *
+     * 与 `generating` 的分工：`generating` = 后台构建缓存（生成中）；
+     * `loading` = 缓存已在磁盘上，把 572 个 mod 的 cache.json 读进内存（加载中）。
+     * 曾用 `generating` 兼任两者，被用户投诉"缓存早建好了却显示正在生成"。
+     */
+    loading: string;
+    /** 同上：蒙层提示（说明为何要等这几秒） */
+    loadingHint: string;
     pauseBuild: string;
     /** 构建阶段名（进度条标签） */
     stageData: string;

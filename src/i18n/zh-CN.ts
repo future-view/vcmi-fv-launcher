@@ -123,6 +123,8 @@ export const zhCN: LangDict = {
     enableAnimation: "开启动画",
     generation: "模组缓存生成中",
     generating: "正在生成模组缓存…",
+    loading: "正在加载百科数据…",
+    loadingHint: "首次打开需要汇总全部模组的条目，请稍候",
     pauseBuild: "暂停构建",
     stageData: "读取游戏数据",
     stageAssets: "提取游戏素材",

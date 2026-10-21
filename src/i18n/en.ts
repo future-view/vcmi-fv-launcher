@@ -123,6 +123,8 @@ export const en: LangDict = {
     enableAnimation: "Enable animation",
     generation: "Generating mod cache",
     generating: "Generating mod cache…",
+    loading: "Loading wiki data…",
+    loadingHint: "Gathering entries from all mods on first open, please wait",
     pauseBuild: "Pause build",
     stageData: "Reading game data",
     stageAssets: "Extracting game assets",

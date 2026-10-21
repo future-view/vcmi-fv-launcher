@@ -135,6 +135,8 @@ export const pl: LangDict = {
     enableAnimation: "Włącz animację",
     generation: "Generowanie pamięci modów",
     generating: "Generowanie pamięci modów…",
+    loading: "Wczytywanie danych wiki…",
+    loadingHint: "Przy pierwszym otwarciu zbierane są wpisy ze wszystkich modów, proszę czekać",
     pauseBuild: "Wstrzymaj budowanie",
     stageData: "Odczyt danych gry",
     stageAssets: "Wyodrębnianie zasobów gry",

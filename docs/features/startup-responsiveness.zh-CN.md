@@ -326,3 +326,30 @@ if (boot !== "ready") {
 - 全命中：由"2 趟哈希"降为"1 趟预检"，**更快**；
 - 确需重建：多 1 趟预检哈希（共 3 趟），仅在重建时发生，可接受（未做"只建子集"以避免阶段 `total=0` 的语义坑）；
 - 首次运行（无缓存）：预检期间 wiki 会短暂空态再出蒙层，属一次性可接受。
+
+## 11. 首启/秒开 wiki 的空态窗口（2026-10-21，两轮真机反馈）
+
+### 第一轮：首次运行「先空页、后跳蒙层」
+
+**现象**：首次生成缓存，打开启动器切到百科 → 先看到"分类全 0 + 未找到匹配条目"的空页，数秒~数十秒后才跳进"正在生成模组缓存"蒙层。是否看到空页取决于用户多快打开百科页与预检耗时波动（HDD 上 `scan_mods` 冷扫 572 个 mod 目录达数秒~十几秒）。
+
+**根因**：预检段（§10 的 C 设计）刻意不置 `busy`，而首次运行**没有 `index.json`** —— `useWikiStagesDone` 把 `busy=false` 判为"已完成" → 百科页直接渲染空数据，直到预检结束置 `busy` 蒙层才出现。
+
+**修复**（`lib/modcache/status.ts` + `shared/WikiBuildOverlay.tsx`，宿主零改动）：预检期广播 `preparing` 标志，并在预检开始时**直读一次索引**（~ms 级）置 `indexReady`；`useWikiStagesDone` 增加分支"**预检中且无可用索引 → 未就绪**"。有索引（老用户增量重建）仍放行 —— §10-C 的设计不变。预检期只显示 spinner（`stages` 全 0/0，渲染三条 0% 会读作卡死）。详见 [modcache](./modcache.zh-CN.md) §2「启动预检期的就绪判定」。
+
+### 第二轮：缓存已生成，「等好几秒无反馈」
+
+**现象**（`D:\Games\Heroes of Might and Magic III 132mod v6.0`，572 mod，D 盘 HDD）：缓存早已生成，启动后马上切百科 → 左栏分类全 0（仅"全部模组 289"）、中栏"未找到匹配条目"、右栏占位，**等好几秒才出数据，中间无任何过渡反馈**（用户以为没有数据）。
+
+**根因（两段串起来的竞态）**：
+1. **空壳装载**：装载 effect（`WikiView` 的 `ensureCategoriesLoaded`）在**挂载即跑**，不等 `applyIndex` 完成。而 `applyIndex` 的 `visibleModKeySet` 要等 `scanRealMods`（启动瞬间正被预检占用，HDD 上数秒）→ 此刻 `indexed` 还是**空集** → `loadAllCategories` 的 `modIds=[]`，循环零次 → 产出"只有 `mods` 类目（289 条）、实体类目全 0"的**空壳**，并把它写进 `catEntriesRef` 缓存 + `setCounts` **覆盖**左栏真实计数 + `setLoading(false)`。
+2. **无反馈窗口**：空壳完成后到索引姗姗就绪（等扫描）之间 `loading=false` → 页面呈现空态；索引就绪后才触发真正装载（遍历 572 份 `cache.json` ≈ 32 MB IPC + 解析，又数秒）。用户看到的"好几秒"= 等扫描 + 等装载，全程无过渡。
+
+**修复**（`src/features/wiki/WikiView.tsx`）：
+- **串行化**：装载 effect 加两道闸门 —— `ready`（构建未完成不白跑）与 `indexDone`（`applyIndex` 完成过一次；空壳竞态的根因）。真空索引（确实无缓存）直接放行显示 `t.wiki.empty`；`indexDone` 在 `if (!idx) return` **之前**置位（读不到索引也是就绪，否则蒙层永驻）。
+- **boot loading**：新增 `bootReady`（首次装载完成才置位）。`ready` 之后、装载完成之前**早返回只渲染 loading 蒙层**（`t.wiki.loading` / `loadingHint`，5 语言新增）—— 无真实进度可报，只给 spinner + 说明，不造假进度条。与 `!ready` 的 `WikiBuildOverlay` 构成两级闸门：**构建中**（三段真实进度）→ **装载中**（spinner）→ **数据**。
+- 换语言 / 后台补图（`epoch` 变）导致的重装仍走原有中栏骨架（`loading`），不被 boot 蒙层重复遮挡。
+
+### 已知遗留（未做，待反馈驱动）
+
+- **切走再切回百科重新装载**：`catEntriesRef` 是组件内 ref，视图互斥卸载后丢失，重挂载要再等一轮装载（有骨架反馈）。缓解方向 = 模块级单槽缓存（与 `scanRealMods` 进程内记忆同构），但需解决内存常驻（条目合计约 32 MB 解析态）与 `catCacheKey` 同尺寸不同集合的陈旧风险，暂缓。
