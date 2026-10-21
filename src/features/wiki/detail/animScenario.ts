@@ -116,6 +116,19 @@ export function buildIdle(): AnimStep[] {
 }
 
 /**
+ * **弹窗专用极简待机**：只播 `HOLDING`（1~2 圈）。
+ *
+ * 右键弹窗是"按住偷看"（`WikiPopup` 在 `mouseup` 即关闭），可见时长通常 0.3~1s：
+ * - 播 `DEFENCE/MOUSEON` 要多载 1~2 个组，首开要多付 IPC + webp 解码，收益几乎看不到；
+ * - 播移动/攻击/受击更没意义 —— 还会因为巡逻位移把生物推出小画框。
+ *
+ * 因此弹窗约束为**只有待机**，且只用一个组（HOLDING 本身就是呼吸/摆动动画，足够"活着"）。
+ */
+export function buildIdleSimple(): AnimStep[] {
+  return [{ group: ANIM.HOLDING, loops: between(1, 2), holdMs: 0 }];
+}
+
+/**
  * 移动状态（巡逻）：走到一侧 → 停一下 → 走到另一侧，可带纵向偏移形成斜向。
  *
  * 生成一整轮步骤并返回**新的光标**，由调用方（播放器）跨轮保存。

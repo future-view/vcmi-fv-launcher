@@ -26,9 +26,21 @@ fn palette_color_key(palette: &[u8]) -> (u8, u8, u8) {
 #[allow(dead_code)]
 struct DefHeader {
     def_type: u32,
+    /// 画布宽（帧坐标空间，原版生物 450）
+    width: u32,
+    /// 画布高（原版生物 400）
+    height: u32,
     total_blocks: u32,
     palette: Vec<u8>,      // 768 字节
     groups: Vec<DefGroup>, // 每个分组：帧偏移 + 帧名（同序、同过滤口径）
+}
+
+/// 按 **DEF 组号** 取分组（组号可能不连续，不能用 Vec 下标）。
+fn group_by_id(header: &DefHeader, group: usize) -> Option<&DefGroup> {
+    header
+        .groups
+        .iter()
+        .find(|g| g.block_id as usize == group)
 }
 
 /// 一个 DEF 分组：帧偏移与帧名一一对应（`names[i]` 即 `offsets[i]` 处的 13 字节名字段）。
@@ -37,6 +49,9 @@ struct DefHeader {
 /// 把 `ThCsMag1.21f` 归一成 `THCSMAG1` 再去 pak 查图，见 [`DefReader::frame_name`]。
 #[derive(Debug, Default)]
 struct DefGroup {
+    /// DEF 组号（分组表里的 block id，如 HOLDING=2）。**可能不连续**（原版骑士就没有
+    /// 6/14-19），因此按组号取组必须靠它，不能用 Vec 下标（下标 == 组号只在连续时成立）。
+    block_id: u32,
     offsets: Vec<u32>,
     names: Vec<String>,
 }
@@ -75,6 +90,8 @@ impl<'a> DefReader<'a> {
             return None;
         }
         let def_type = self.read_u32(0);
+        let width = self.read_u32(4);
+        let height = self.read_u32(8);
         let total_blocks = self.read_u32(12);
         let palette = self.data[16..16 + 768].to_vec();
         let file_size = self.data.len();
@@ -156,7 +173,10 @@ impl<'a> DefReader<'a> {
             }
             // 帧名与偏移**同序、同过滤**：`decode_frame_at` 的序号是"过滤后序号"，
             // 帧名必须同口径才能与之一一对应（HD 素材按名查图依赖这一点）。
-            let mut group = DefGroup::default();
+            let mut group = DefGroup {
+                block_id,
+                ..DefGroup::default()
+            };
             for (i, off) in offsets.into_iter().enumerate() {
                 if off >= 32 && off + 32 <= file_size as u32 {
                     group.offsets.push(off);
@@ -164,14 +184,14 @@ impl<'a> DefReader<'a> {
                 }
             }
             if !group.offsets.is_empty() {
-                // block_id 作为分组标识，这里简单用索引维护顺序
                 groups.push(group);
-                let _ = block_id;
             }
         }
 
         Some(DefHeader {
             def_type,
+            width,
+            height,
             total_blocks,
             palette,
             groups,
@@ -388,6 +408,59 @@ impl<'a> DefReader<'a> {
     /// ⚠️ 此前取单帧也走 [`Self::decode_animation`]——把整个动画（DEF 动辄上百帧，
     /// 如 `CPRSMALL` 150+ 帧）全部解码后再挑一帧，实测 `def.decode` 占全量构建数百秒 CPU。
     /// 序号口径与 `decode_animation_full_inner` 一致：解不出 / 尺寸非法的帧不占序号。
+    /// DEF 画布尺寸（帧坐标空间，原版生物 450×400）。
+    pub fn canvas_size(&self) -> Option<(u32, u32)> {
+        let header = self.parse_header()?;
+        Some((header.width, header.height))
+    }
+
+    /// 各分组的**帧包围盒**（画布坐标）：`(组号, (x0, y0, x1, y1))`。
+    ///
+    /// 只读帧头（不解码任何像素），用于「显示窗口自适应」：VCMI 的窗口是固定矩形
+    /// （`clipRect(150|170, 155, 100, 130)`），而部分生物的素材高出窗口（凤凰 HOLDING
+    /// 顶部 y=117 < 155，头会被裁掉 25%）。这里按组给出精确边界，让调用方决定
+    /// 「要不要扩、扩多少」。
+    pub fn group_frame_bounds(&self) -> Vec<(usize, (i64, i64, i64, i64))> {
+        let Some(header) = self.parse_header() else {
+            return Vec::new();
+        };
+        let mut out = Vec::with_capacity(header.groups.len());
+        for g in header.groups.iter() {
+            let mut b: Option<(i64, i64, i64, i64)> = None;
+            for &off in &g.offsets {
+                let Some((_fmt, w, h, _fs, _pad, _pixel, lm, tm)) = self.read_frame(off) else {
+                    continue;
+                };
+                if w == 0 || h == 0 {
+                    continue;
+                }
+                // 画布外的帧是坏帧（部分 mod DEF 尾部有垃圾分组，lm/tm 是随机值）——
+                // 不滤掉会把包围盒撑到整张画布，窗口自适应随之失控。
+                if lm < 0
+                    || tm < 0
+                    || lm as i64 + w as i64 > header.width as i64
+                    || tm as i64 + h as i64 > header.height as i64
+                {
+                    continue;
+                }
+                let rect = (lm as i64, tm as i64, lm as i64 + w as i64, tm as i64 + h as i64);
+                b = Some(match b {
+                    Some((x0, y0, x1, y1)) => (
+                        x0.min(rect.0),
+                        y0.min(rect.1),
+                        x1.max(rect.2),
+                        y1.max(rect.3),
+                    ),
+                    None => rect,
+                });
+            }
+            if let Some(r) = b {
+                out.push((g.block_id as usize, r));
+            }
+        }
+        out
+    }
+
     pub fn decode_frame_at(
         &self,
         group: usize,
@@ -417,7 +490,7 @@ impl<'a> DefReader<'a> {
         special_palette: bool,
     ) -> Option<(u32, u32, Vec<u8>, i32, i32)> {
         let header = self.parse_header()?;
-        let g = &header.groups.get(group)?.offsets;
+        let g = &group_by_id(&header, group)?.offsets;
         // ⚠️ 帧号越界剪枝（2026-10-16）：原实现在 index 越界时会**把整组帧逐个解码一遍**
         // 才发现找不到目标帧（循环里 `decode_pixels` 先于 `k == index` 判定执行）。
         // 建筑图标常引用 DEF 里根本不存在的帧号（实测 299 个，如 `dwellingLvl8` 要
@@ -485,7 +558,7 @@ impl<'a> DefReader<'a> {
     /// "取第 N 帧的名字"指向同一帧。
     pub fn frame_name(&self, group: usize, index: usize) -> Option<String> {
         let header = self.parse_header()?;
-        let g = header.groups.get(group)?;
+        let g = group_by_id(&header, group)?;
         let mut k = 0usize;
         for (i, &off) in g.offsets.iter().enumerate() {
             if !self.frame_usable(off) {
@@ -511,7 +584,7 @@ impl<'a> DefReader<'a> {
     /// 的帧就会画错位置（实测城镇船坞 `TBCSDKNN` 的 tm=53，画到战神像身上）。
     pub fn frame_margins(&self, group: usize, index: usize) -> Option<(i32, i32)> {
         let header = self.parse_header()?;
-        let g = header.groups.get(group)?;
+        let g = group_by_id(&header, group)?;
         let mut k = 0usize;
         for &off in &g.offsets {
             if !self.frame_usable(off) {
@@ -663,9 +736,9 @@ fn render_bgra(rows: &[Vec<u8>], palette: &[u8]) -> Vec<u8> {
 /// 口径与前端 `lib/def/decoder.ts::renderBgra` 的 `SPECIAL_ALPHA` 完全一致 ——
 /// 缺了它，生物战斗帧的阴影（索引 1-4）会被画成调色板里的洋红/金色实体色。
 fn render_bgra_anim(rows: &[Vec<u8>], palette: &[u8]) -> Vec<u8> {
-    // 索引 1-4 → 半透明黑（阴影档位），0 与 5-7 → 全透明。**RGB 必须置 0**：
-    // 这些索引的调色板色是洋红/金色渐变，只改 alpha 会透出洋红（实测农民帧）。
-    const SPECIAL_ALPHA: [u8; 8] = [0, 64, 64, 128, 128, 0, 0, 0];
+    // 索引语义（0/5-7 透明、1-4 阴影黑）由 `infra::image::h3_index_rgba` 单点定义：
+    // 与 VCMI `ScalableImageParameters::setShadowTransparency` 同口径，png 动画帧也走它。
+    // **RGB 必须置 0**：这些索引的调色板色是洋红/金色渐变，只改 alpha 会透出洋红（实测农民帧）。
     let h = rows.len();
     let w = if h > 0 { rows[0].len() } else { 0 };
     let pal: Vec<(u8, u8, u8)> = (0..256)
@@ -684,12 +757,8 @@ fn render_bgra_anim(rows: &[Vec<u8>], palette: &[u8]) -> Vec<u8> {
         let row = &rows[y];
         for x in 0..w {
             let idx = (*row.get(x).unwrap_or(&0)).min(255) as usize;
-            if idx == 0 || (5..=7).contains(&idx) {
-                out.extend_from_slice(&[0, 0, 0, 0]);
-                continue;
-            }
-            if (1..=4).contains(&idx) {
-                out.extend_from_slice(&[0, 0, 0, SPECIAL_ALPHA[idx]]);
+            if let Some(special) = crate::infra::image::h3_index_rgba(idx as u8) {
+                out.extend_from_slice(&special);
                 continue;
             }
             let (r, g, b) = pal[idx];

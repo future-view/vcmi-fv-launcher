@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::vcmi::paths::VcmiPaths;
-use crate::vcmi::scan::{cached_mod_paths, ModEntry};
+use crate::vcmi::scan::ModEntry;
 
 /// 单个 content.zip 的条目索引。
 #[derive(Default)]
@@ -925,20 +925,14 @@ pub(crate) fn strip_ext(p: &str) -> Option<String> {
 /// 取消落盘缓存方案后，动画改为"按需读取 + 前端 TS 直解"，零磁盘占用、无预生成耗时。
 /// Tauri 会把 `Vec<u8>` 作为 `Uint8Array` 传给前端。
 /// 读取 `.def` 资源的原始字节（供前端详情页按需解码播放动画）。
-pub(crate) fn read_def_bytes_inner(
-    paths: &VcmiPaths,
-    mod_id: &str,
-    resource: &str,
-) -> Result<Vec<u8>, String> {
-    let all = cached_mod_paths(paths);
-    // 详情页资源回退同款：让 `resolve_resource_fallback` 也能搜到 `user_data_dir/Data`
-    set_wiki_user_data_dir(&paths.user_dir);
-    // 详情页跨模组资源检索：让 `resolve_resource_fallback` 也能搜到其它已装模组内的素材
-    set_wiki_mod_paths(&all);
-    // 优先请求方自身：详情页动画总是取本模组的资源。
-    // - `core` / `core.<faction>` → 游戏目录 `Mods/vcmi`（原版 DEF 实际所在）
-    // - 其他 → 与 modId 末段同名的模组目录（嵌套子 mod 的 id 末段即磁盘目录名）
-    // 否则会从 600+ 个模组里逐个打开 content.zip 找同一个资源，单次悬停即明显卡顿。
+/// 资源检索的**优先顺序**：请求方 mod 自己 → 其它已装 mod → （调用方再拼游戏根回退）。
+///
+/// - `core` / `core.<faction>` → 游戏目录 `Mods/vcmi`（原版 DEF 实际所在）；
+/// - 其它 → 与 modId 末段同名的 mod 目录（嵌套子 mod 的 id 末段即磁盘目录名）。
+///
+/// 不这么做会从几百个 mod 里逐个开 `content.zip` 找同一个资源，单次悬停即明显卡顿。
+pub(crate) fn ordered_mod_paths(paths: &VcmiPaths, mod_id: &str) -> Vec<PathBuf> {
+    let all = crate::vcmi::scan::cached_mod_paths(paths);
     let leaf = mod_id.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
     let mut ordered: Vec<PathBuf> = Vec::with_capacity(2);
     if mod_id == "core" || mod_id.starts_with("core.") {
@@ -954,7 +948,27 @@ pub(crate) fn read_def_bytes_inner(
             }
         }
     }
-    for mp in ordered.iter().chain(all.iter().map(|(p, _)| p)) {
+    ordered
+}
+
+pub(crate) fn read_def_bytes_inner(
+    paths: &VcmiPaths,
+    mod_id: &str,
+    resource: &str,
+) -> Result<Vec<u8>, String> {
+    let all = crate::vcmi::scan::cached_mod_paths(paths);
+    // 详情页资源回退同款：让 `resolve_resource_fallback` 也能搜到 `user_data_dir/Data`
+    set_wiki_user_data_dir(&paths.user_dir);
+    // 详情页跨模组资源检索：让 `resolve_resource_fallback` 也能搜到其它已装模组内的素材
+    set_wiki_mod_paths(&all);
+    // 优先请求方自身：详情页动画总是取本模组的资源。
+    // - `core` / `core.<faction>` → 游戏目录 `Mods/vcmi`（原版 DEF 实际所在）
+    // - 其他 → 与 modId 末段同名的模组目录（嵌套子 mod 的 id 末段即磁盘目录名）
+    // 否则会从 600+ 个模组里逐个打开 content.zip 找同一个资源，单次悬停即明显卡顿。
+    for mp in ordered_mod_paths(paths, mod_id)
+        .iter()
+        .chain(all.iter().map(|(p, _)| p))
+    {
         // resolve_resource 只搜 mod 自身；原版生物战斗动画（如 CPKMAN.DEF）实际在
         // 游戏根 Data/*.lod 内，故加游戏目录回退，与背景/图标资源一致。
         if let Some((bytes, _ext)) = resolve_resource_fallback(mp, &paths.game_dir, resource) {
@@ -982,6 +996,125 @@ const WIN_H: i64 = 130;
 const WIN_X_SINGLE: i64 = 150;
 const WIN_X_DOUBLE: i64 = 170;
 const WIN_Y: i64 = 155;
+
+/// 窗口布局**只有两种**（用户 2026-10-21 拍板）：
+///
+/// - **A 默认**：`100×130`，位置与 VCMI 完全一致（`clipRect(150|170, 155, 100, 130)`）；
+///   素材越界就**正常裁剪**（游戏本来就这么干）。
+/// - **B 宽幕布**：`(100 + 2·pad) × 130` —— 只在**左右对称**加黑幕，**高度恒定为 130**；
+///   超出幕布的仍然裁掉。
+///
+/// 为什么不做纵向扩展：纵向扩出来的一圈没有背景像素可填（素材本身只有 100×130），
+/// 补天会泛白/条纹、镜像会克隆建筑、模糊会毁细节 —— 三种都被实机否决。
+/// 横向扩之所以可以，是因为两侧本来就是"幕布黑"，不需要伪造地形。
+const WIN_WING_TRIGGER: i64 = 24;
+
+/// 宽幕布档位：**只有一种尺寸**（用户要求"只有两种布局"）。
+///
+/// 100 + 2×50 = 200 宽、高度恒 130；只对"悬停帧横向越出 ≥ [`WIN_WING_TRIGGER`]"的生物启用。
+/// 不再按生物各算各的宽度 —— 那会让每个生物一套黑幕，观感不统一。
+const WIN_WING_WIDTH: i64 = 200;
+
+/// 计算显示窗口：**两种布局之一**（见上方说明）。
+///
+/// `art` = 该生物"最宽姿态"（DEF 用 `MOUSEON` 悬停帧、png 动画用帧的 alpha 包围盒）的
+/// 包围盒；横向越出基准窗口 ≥ [`WIN_WING_TRIGGER`] 时切宽幕布，否则原样返回基准窗口。
+pub(crate) fn two_layout_window(
+    double_wide: bool,
+    canvas: Option<(u32, u32)>,
+    art: Option<(i64, i64, i64, i64)>,
+) -> (i64, i64, i64, i64) {
+    let bx0 = if double_wide { WIN_X_DOUBLE } else { WIN_X_SINGLE };
+    let base = (bx0, WIN_Y, WIN_W, WIN_H);
+    let Some((ax0, _, ax1, _)) = art else {
+        return base;
+    };
+    // 触发条件看"悬停帧横向越界"，但**宽度取固定档位**（只有两种布局）
+    let over = (bx0 - ax0).max(ax1 - (bx0 + WIN_W));
+    if over < WIN_WING_TRIGGER {
+        return base;
+    }
+    // 以基准窗口中心为轴、左右对称展开；夹到画布内（越界部分本来也没有像素）
+    let cw = canvas.map(|(w, _)| w as i64).unwrap_or(450);
+    let center = bx0 + WIN_W / 2;
+    let x0 = (center - WIN_WING_WIDTH / 2).max(0);
+    let x1 = (center + WIN_WING_WIDTH / 2).min(cw);
+    (x0, WIN_Y, (x1 - x0).max(1), WIN_H)
+}
+
+/// 计算若干组的并集包围盒。
+fn union_bounds(
+    def: &crate::infra::def::DefReader,
+    keep: impl Fn(usize) -> bool,
+) -> Option<(i64, i64, i64, i64)> {
+    let mut acc: Option<(i64, i64, i64, i64)> = None;
+    for (g, r) in def.group_frame_bounds() {
+        if !keep(g) {
+            continue;
+        }
+        acc = Some(match acc {
+            Some((x0, y0, x1, y1)) => (x0.min(r.0), y0.min(r.1), x1.max(r.2), y1.max(r.3)),
+            None => r,
+        });
+    }
+    acc
+}
+
+/// 决定"是否需要宽幕布"的组：**移动/悬停/待机/防御** —— 也就是待机与移动状态里
+/// 会反复播放、用户最常看到的姿态。
+///
+/// 实测只看悬停帧会漏掉金龙（悬停不越界，但**防御**帧左探 84px）、大天使/黑龙
+/// （**移动**帧左探 29px），于是它们拿不到宽幕布、一动就被裁。
+/// 攻击/死亡不计入：那些是"前扑/倒地"的瞬间，越界属正常，且算进来会让几乎所有生物都变宽幕布。
+const WING_PROBE_GROUPS: &[usize] = &[0, 1, 2, 4];
+
+/// 显示几何的三层矩形（都是 1x 画布坐标）。
+///
+/// - `win`：**幕布窗口**（两种布局之一，100×130 或 200×130）—— 前端按它确定画框比例，
+///   框外区域就是黑幕；
+/// - `tex`：**裁剪矩形**（`win ∪ 全部组的包围盒`）—— 后端按它裁帧。
+///   必须比 `win` 大：否则头部等超出窗口的像素在**进入前端之前**就被切掉了，
+///   前端再怎么缩放也补不回来（这正是"凤凰头还是被裁"的根因）；
+/// - `fit`：**适配参考矩形**（`win ∪ 除死亡外的组`）—— 前端按它算统一缩放倍数，
+///   让生物完整落在幕布里；死亡姿态摊得很开，不参与缩放计算（越界就正常裁）。
+pub(crate) struct WindowPlan {
+    pub win: (i64, i64, i64, i64),
+    pub tex: (i64, i64, i64, i64),
+    pub fit: (i64, i64, i64, i64),
+}
+
+fn anim_window(def: &crate::infra::def::DefReader, double_wide: bool) -> WindowPlan {
+    let canvas = def.canvas_size();
+    let wing_probe = union_bounds(def, |g| WING_PROBE_GROUPS.contains(&g));
+    // 适配参考只看"站着/走动"的姿态（0/1/2/4）：攻击前扑、死亡摊开的越界属正常裁剪
+    let fit_probe = union_bounds(def, |g| WING_PROBE_GROUPS.contains(&g));
+    let all_probe = union_bounds(def, |_| true);
+    let win = two_layout_window(double_wide, canvas, wing_probe);
+
+    // ⚠️ 包围盒口径是 `(x0, y0, x1, y1)`，窗口口径是 `(x, y, w, h)` —— 必须先统一再并
+    let win_bbox = (win.0, win.1, win.0 + win.2, win.1 + win.3);
+    let union = |a: Option<(i64, i64, i64, i64)>, b: (i64, i64, i64, i64)| -> (i64, i64, i64, i64) {
+        match a {
+            Some((x0, y0, x1, y1)) => (x0.min(b.0), y0.min(b.1), x1.max(b.2), y1.max(b.3)),
+            None => b,
+        }
+    };
+    let clamp = |r: (i64, i64, i64, i64)| -> (i64, i64, i64, i64) {
+        let (mut x0, mut y0, mut x1, mut y1) = r;
+        if let Some((cw, ch)) = canvas {
+            x0 = x0.clamp(0, cw as i64);
+            x1 = x1.clamp(0, cw as i64);
+            y0 = y0.clamp(0, ch as i64);
+            y1 = y1.clamp(0, ch as i64);
+        }
+        (x0, y0, (x1 - x0).max(1), (y1 - y0).max(1))
+    };
+    WindowPlan {
+        win,
+        tex: clamp(union(all_probe, win_bbox)),
+        fit: clamp(union(fit_probe, win_bbox)),
+    }
+}
 
 /// 取某 `.def` 指定分组的动画帧，**高清优先、1x 兜底**，两者都合成进 VCMI 显示窗口。
 ///
@@ -1020,11 +1153,45 @@ pub(crate) fn read_def_group_hd_inner(
             &paths.game_dir,
         );
     }
+    // ── ⓿ sprites-json 动画（VCMI 1.6 png 模式）：帧即整画布，套同一窗口裁剪 ──
+    // 必须先试：这类资源的"字节"是 json，`DefReader` 解析不了。实测 Yokai / HuaXia
+    // 两个 mod 全部生物走这条路径（frames 450×400，与原版 DEF 同坐标空间）。
+    if let Some(anim) = crate::vcmi::anim_json::load_group(paths, mod_id, resource, group, double_wide)
+    {
+        let (jx, jy, jw, jh) = anim.window;
+        // png 动画的帧即整画布：win = 基准窗口，tex = 窗口 ∪ 帧包围盒（实测这类素材多在窗口内）
+        let plan = crate::vcmi::resource::WindowPlan {
+            win: (
+                if double_wide { WIN_X_DOUBLE } else { WIN_X_SINGLE },
+                WIN_Y,
+                WIN_W,
+                WIN_H,
+            ),
+            tex: (jx, jy, jw, jh),
+            fit: (jx, jy, jw, jh),
+        };
+        let _ = &plan;
+        let mut frames: Vec<(i64, i64, u32, u32, Vec<u8>)> = Vec::new();
+        for img in &anim.frames {
+            let (w, h) = (img.width(), img.height());
+            if let Some(f) = encode_window_frame(img.as_raw(), w, h, -jx, -jy, jw, jh) {
+                frames.push(f);
+            }
+        }
+        if frames.is_empty() {
+            return None;
+        }
+        // png 动画没有官方 HD 档位（HD 包只收原版 DEF 的帧名）→ 恒 1x，由前端平滑放大
+        return Some(build_window_json(frames, (jx, jy, jw, jh), 1, &plan));
+    }
+
     let bytes = read_def_bytes_inner(paths, mod_id, resource).ok()?;
     let def = crate::infra::def::DefReader::new(&bytes);
-    let win_x = if double_wide { WIN_X_DOUBLE } else { WIN_X_SINGLE };
     // 目标档位：窗口是 130 源像素，`need` 是这块区域实际要占的物理像素
     let need_scale = need.div_ceil(WIN_W as u32).max(1);
+    // 三层矩形（win 幕布窗口 / tex 裁剪矩形 / fit 适配参考），见 `anim_window`
+    let plan = anim_window(&def, double_wide);
+    let (wx, wy, ww, wh) = plan.tex;
 
     // ── ① 高清：逐帧查 pak，任一帧未命中 → 整组回退 1x（不混档） ──
     let hd_ok = crate::vcmi::hd_edition::source().is_some();
@@ -1064,17 +1231,17 @@ pub(crate) fn read_def_group_hd_inner(
             };
             let (lm, tm) = def.frame_margins(group, idx).unwrap_or((0, 0));
             // 全画布位置 − 窗口左上角，再按档位放大
-            let x = ((lm as i64 - off.0 as i64) - win_x) * s as i64;
-            let y = ((tm as i64 - off.1 as i64) - WIN_Y) * s as i64;
+            let x = ((lm as i64 - off.0 as i64) - wx) * s as i64;
+            let y = ((tm as i64 - off.1 as i64) - wy) * s as i64;
             if let Some(f) =
-                encode_window_frame(&rgba, w, h, x, y, WIN_W * s as i64, WIN_H * s as i64)
+                encode_window_frame(&rgba, w, h, x, y, ww * s as i64, wh * s as i64)
             {
                 frames.push(f);
             }
         }
         if ok && !frames.is_empty() {
             let s = scale.unwrap_or(1);
-            return Some(build_window_json(frames, WIN_W * s as i64, WIN_H * s as i64, s));
+            return Some(build_window_json(frames, (wx, wy, ww * s as i64, wh * s as i64), s, &plan));
         }
     }
 
@@ -1093,15 +1260,15 @@ pub(crate) fn read_def_group_hd_inner(
         for px in rgba.chunks_exact_mut(4) {
             px.swap(0, 2);
         }
-        let (x, y) = (lm as i64 - win_x, tm as i64 - WIN_Y);
-        if let Some(f) = encode_window_frame(&rgba, w, h, x, y, WIN_W, WIN_H) {
+        let (x, y) = (lm as i64 - wx, tm as i64 - wy);
+        if let Some(f) = encode_window_frame(&rgba, w, h, x, y, ww, wh) {
             frames.push(f);
         }
     }
     if frames.is_empty() {
         return None;
     }
-    Some(build_window_json(frames, WIN_W, WIN_H, 1))
+    Some(build_window_json(frames, (wx, wy, ww, wh), 1, &plan))
 }
 
 /// 把一帧**裁进显示窗口**并编码：与窗口无交集的帧直接丢弃（原版 `clipRect` 同样裁掉）。
@@ -1139,18 +1306,40 @@ fn encode_window_frame(
     Some((x.max(0), y.max(0), cw as u32, ch as u32, webp))
 }
 
-/// 组装出参：`w/h` = 窗口尺寸 × 档位。
+/// 组装出参：`w/h` = 窗口尺寸 × 档位；`wx/wy` = 窗口左上角在**动画画布**（450×400）里的坐标。
+///
+/// `wx/wy` 给前端合成宽窗口背景用：生物背景图（`CRBKGCAS` 等）原生就是基准窗口那一块
+/// （100×130，对应画布 `150|170..250|270 × 155..285`），窗口一旦外扩，前端得知道往哪些方向补。
 fn build_window_json(
     frames: Vec<(i64, i64, u32, u32, Vec<u8>)>,
-    win_w: i64,
-    win_h: i64,
+    tex: (i64, i64, i64, i64),
     scale: u32,
+    plan: &crate::vcmi::resource::WindowPlan,
 ) -> Value {
+    let (wx, wy, tex_w, tex_h) = tex;
+    let (winx, winy, winw, winh) = plan.win;
+    let (_, _, fitw, fith) = plan.fit;
     let out: Vec<Value> = frames
         .into_iter()
         .map(|(x, y, w, h, data)| json!({ "x": x, "y": y, "w": w, "h": h, "data": data }))
         .collect();
-    json!({ "w": win_w, "h": win_h, "scale": scale, "frames": out })
+    json!({
+        // 裁剪矩形（帧位图就是这块）—— 前端按 1x 尺寸换算成像素布局
+        "w": tex_w,
+        "h": tex_h,
+        "wx": wx,
+        "wy": wy,
+        "scale": scale,
+        // 幕布窗口（两种布局之一）：前端据此定画框比例、黑幕范围
+        "winX": winx,
+        "winY": winy,
+        "winW": winw,
+        "winH": winh,
+        // 适配参考尺寸（未含死亡姿态）：前端据此算等比缩放
+        "fitW": fitw,
+        "fitH": fith,
+        "frames": out
+    })
 }
 
 /// 把 HD 的**独立阴影切片**合成到本体图里，返回 `(RGBA, 宽, 高)`。

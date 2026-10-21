@@ -145,6 +145,175 @@ fn def_group_hd_creature_smoke() {
     crate::vcmi::hd_edition::set_source(None);
 }
 
+/// 真机冒烟（2026-10-21）：**显示窗口双口径**。
+///
+/// - `game`：默认游戏口径（窗口 = 基准 ∪ 待机帧），悬停越界就裁 —— 构图与游戏一致；
+/// - `wing`：悬停帧横向越界 ≥24px → 左右**对称**扩成宽幕布（黑底），构图仍居中。
+///
+/// 运行：`VCMI_GAME_DIR=<游戏目录> cargo test --lib modcache::smoke_tests::resolve_resource::adaptive_window_smoke -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn adaptive_window_smoke() {
+    let paths = VcmiPaths::detect();
+    // (资源, 双格, 期望) —— 判定看"除死亡外的全部组"，所以宽体龙/天使都走宽幕布
+    for (res, dw, expect) in [
+        ("CPHX.DEF", true, "wing"),    // 凤凰：全组 315×239
+        ("CFBIRD.DEF", true, "wing"),  // 火鸟
+        ("CNDRGN.DEF", true, "wing"),  // 骨龙：全组 240×187
+        ("CHDRGN.DEF", true, "wing"),  // 鬼龙
+        ("CDDRAG.DEF", true, "wing"),  // 金龙：全组 294×226
+        ("CRANGL.DEF", true, "wing"),  // 大天使：全组 181×150
+        ("CBDRGN.DEF", true, "wing"),  // 黑龙：全组 273×221
+        ("CCHAMP.DEF", true, "game"),  // 骑士
+        ("CPEAS.DEF", false, "game"),  // 农民（单格）
+    ] {
+        let Some(v) = crate::vcmi::resource::read_def_group_hd_inner(
+            &paths, "core", res, 2, dw, 270,
+        ) else {
+            println!("{res} → 无帧（跳过）");
+            continue;
+        };
+        let s = v["scale"].as_u64().unwrap_or(1);
+        let (w, h) = (
+            v["w"].as_u64().unwrap_or(0) / s,
+            v["h"].as_u64().unwrap_or(0) / s,
+        );
+        let (winx, winy) = (v["winW"].as_u64().unwrap_or(0), v["winH"].as_u64().unwrap_or(0));
+        let (fitw, fith) = (v["fitW"].as_u64().unwrap_or(0), v["fitH"].as_u64().unwrap_or(0));
+        println!("{res} → 裁剪 {w}x{h} / 幕布 {winx}x{winy} / 适配 {fitw}x{fith}（{expect}）");
+        match expect {
+            // 两种布局：高度**恒为 130**；宽幕布只左右扩
+            // 幕布只有两种尺寸；裁剪矩形可以更大（含超出窗口的素材）
+            "wing" => assert!(
+                winx == 200 && winy == 130 && w >= 200 && h >= 130,
+                "{res} 应走宽幕布 200×130 且裁剪≥幕布（实测 裁剪 {w}x{h} / 幕布 {winx}x{winy}）"
+            ),
+            _ => assert!(
+                winx == 100 && winy == 130 && w >= 100 && h >= 130,
+                "{res} 应走默认 100×130 且裁剪≥幕布（实测 裁剪 {w}x{h} / 幕布 {winx}x{winy}）"
+            ),
+        }
+    }
+}
+
+/// 真机冒烟（2026-10-21）：**sprites-json（png 动画模式）能出帧**。
+///
+/// 实测 `35- Yokai-town` / `HuaXia` 全部生物走 VCMI 1.6 的 png 动画（`xxx.json` +
+/// 450×400 整画布帧），此前只支持 DEF → 这些生物永远静态图。
+///
+/// 2026-10-21 补充 **`images` 写法**（HotA Factory 的沙虫 / 死亡沙虫 / 重型机甲 /
+/// 无畏机甲）：这 4 个生物**没有 `.def`**，配置里的 `graphics.animation` 指向一个不存在
+/// 的 `.def` 基名，动画只在 `X.json` 的 `images[]` 里。请求必须写**配置里的 `.def` 名**
+/// （解析层按去扩展名 key 命中同名 json），这正是详情页真实入参。
+///
+/// 同时守住反向红线：`fix_h3creatures` 也写 `images`（对 core 生物的逐帧覆盖），
+/// **不得**跨模组顶替 core 自己的 DEF 动画。
+///
+/// 运行：`VCMI_GAME_DIR=<游戏目录> cargo test --lib modcache::smoke_tests::resolve_resource::json_anim_group_smoke -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn json_anim_group_smoke() {
+    let game = game_dir();
+    let paths = crate::vcmi::paths::VcmiPaths::detect();
+    // `required`：组必须出帧（缺帧 = 百科回退静态图）。
+    // `images` 方言那 4 条是 2026-10-21 的回归红线：它们没有 `.def` 兜底，只靠 json。
+    // `mod_id` 用**真实 wiki 条目归属**：`hota.factory` 的自身路径 = `Mods/hota/Mods/factory`。
+    let candidates = [
+        ("35- Yokai-town", "x.yokai-town", "yokai/creatures/battle/lv7up2.json", 2u32, false),
+        ("35- Yokai-town", "x.yokai-town", "yokai/creatures/battle/lv7up2.json", 11, false),
+        ("HuaXia", "x.huaxia", "huaXia/creatures/battle/lv1.json", 2, false),
+        // 请求名 = 生物配置里的 `graphics.animation`（那个 `.def` 文件并不存在）
+        ("hota/Mods/factory", "hota.factory", "hota/factory/creatures/battle/CSANDWX.def", 0, true),
+        ("hota/Mods/factory", "hota.factory", "hota/factory/creatures/battle/CDREAD.def", 30, true),
+        ("hota/Mods/factory", "hota.factory", "hota/factory/creatures/battle/COLGOIX.def", 5, true),
+        ("hota/Mods/factory", "hota.factory", "hota/factory/creatures/battle/CJUGGER.def", 2, true),
+    ];
+    let mut hit = false;
+    for (mod_dir, mod_id, res, group, required) in candidates {
+        if !game.join("Mods").join(mod_dir).is_dir() {
+            continue;
+        }
+        let got = crate::vcmi::resource::read_def_group_hd_inner(
+            &paths,
+            mod_id,
+            res,
+            group as usize,
+            true,
+            270,
+        );
+        match got {
+            Some(v) => {
+                let frames = v["frames"].as_array().map(|a| a.len()).unwrap_or(0);
+                println!(
+                    "{mod_dir} {res} g{group} → 窗口 {}x{} 档位 {} 帧数 {frames}",
+                    v["w"], v["h"], v["scale"]
+                );
+                assert!(frames > 0, "png 动画应至少一帧");
+                assert_eq!(v["scale"].as_u64(), Some(1), "png 动画无官方 HD 档位，应恒 1x");
+                hit = true;
+            }
+            None => {
+                println!("{mod_dir} {res} g{group} → 无帧（该组可能不存在）");
+                assert!(!required, "images 方言的动画组必须能解析出帧（不得回退静态图）");
+            }
+        }
+    }
+    if !hit {
+        println!("跳过：未安装 Yokai / HuaXia / hota");
+    }
+
+    // 反向红线：跨模组的 `images` 定义（fix_h3creatures 对 core 生物的覆盖）不得被采用。
+    // 采用与否直接看 json 通道：必须返回 None，让上层落到 core 自己的 DEF。
+    // 色键 / 阴影（2026-10-21）：帧是 **8bpp 索引 PNG**（0=青、1=浅洋红、4=洋红），
+    // 必须按**索引**还原成"0 透明、1/4 半透明黑"，否则百科里就是一块天蓝幕布 + 脚下洋红。
+    if game.join("Mods").join("hota").is_dir() {
+        let res = "hota/factory/creatures/battle/CSANDWX.def";
+        if let Some(anim) =
+            crate::vcmi::anim_json::load_group(&paths, "hota.factory", res, 0, true)
+        {
+            let f = anim.frames.first().expect("至少一帧");
+            let (mut cyan, mut magenta, mut shadow) = (0usize, 0usize, 0usize);
+            for p in f.pixels() {
+                let (r, g, b, a) = (p.0[0], p.0[1], p.0[2], p.0[3]);
+                if a != 0 && (r, g, b) == (0, 255, 255) {
+                    cyan += 1;
+                }
+                if a == 255 && r > 200 && g < 80 && b > 200 {
+                    magenta += 1;
+                }
+                if a > 0 && a < 255 {
+                    shadow += 1;
+                }
+            }
+            println!("{res} 首帧：残留青 {} / 残留洋红 {} / 半透明阴影 {}", cyan, magenta, shadow);
+            assert_eq!(cyan, 0, "色键索引 0 必须还原成透明，不得留下天蓝幕布");
+            assert_eq!(magenta, 0, "阴影索引 1/4 必须是半透明黑，不得画成洋红");
+            assert!(shadow > 0, "生物帧应带脚底阴影（索引 1/4）");
+        }
+    }
+
+    // 反向红线：跨模组的 `images` 定义（fix_h3creatures 对 core 生物的覆盖）不得被采用。
+    let cross_json = game
+        .join("Mods")
+        .join("fix_h3creatures")
+        .join("content")
+        .join("sprites")
+        .join("CAELEM.json");
+    if cross_json.is_file() {
+        let hijack = crate::vcmi::anim_json::load_group(&paths, "core.conflux", "CAELEM.DEF", 2, false);
+        assert!(
+            hijack.is_none(),
+            "跨模组的 images 定义不得顶替 core 生物的 DEF 动画"
+        );
+        let def = crate::vcmi::resource::read_def_group_hd_inner(
+            &paths, "core.conflux", "CAELEM.DEF", 2, false, 270,
+        );
+        assert!(def.is_some(), "core 生物必须仍走 DEF 路径出帧");
+    } else {
+        println!("跳过跨模组守卫：未安装 fix_h3creatures");
+    }
+}
+
 /// 真机冒烟（2026-10-21）：**mod 自带资源必须被归类为 mod 来源**（HD 守卫的前提）。
 ///
 /// 背景：HD 素材按**原版命名空间**匹配。若 mod 自带资源被误判成 `Origin::Game`，

@@ -3454,9 +3454,23 @@ export interface HdDefFrame {
 
 /** 高清动画分组（后端 `read_def_group_hd`；`null` = 该组不可高清化，需回退 1x）。 */
 export interface HdDefGroup {
-  /** 画布尺寸 = DEF 逻辑画布 × 档位 */
+  /** 画布尺寸 = 显示窗口（可能已自适应外扩）× 档位 */
   w: number;
   h: number;
+  /**
+   * 显示窗口左上角在 **DEF 逻辑画布**（原版 450×400）中的坐标。
+   * 背景图（100×130）固定贴在基准窗口 `(150|170, 155)`，前端靠它把两层对齐。
+   */
+  wx?: number;
+  wy?: number;
+  /** 幕布窗口（1x 画布坐标）：两种布局之一，100×130 或 200×130 */
+  winX?: number;
+  winY?: number;
+  winW?: number;
+  winH?: number;
+  /** 适配参考尺寸（`win ∪ 待机/移动/悬停/防御` 的包围盒） */
+  fitW?: number;
+  fitH?: number;
   /** 档位（2 / 3） */
   scale: number;
   frames: HdDefFrame[];

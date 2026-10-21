@@ -22,6 +22,7 @@
 //! - `spell_icons`：法术自身的 `graphics.iconImmune`（`SPELL_IMMUNITY` 能力的图标来源）。
 //! - `inno`：Inno Setup 安装器的只读格式探测（版本 / 头部位置 / 数据区 / 压缩算法）。
 
+pub mod anim_json;
 pub mod bonus;
 /// 历代记（Chronicles）：按官方产物结构生成 Expansion 模组（`chroniclesextractor.cpp` 同款）。
 pub mod chronicles;

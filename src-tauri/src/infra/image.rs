@@ -239,6 +239,87 @@ pub(crate) fn keyed_rgba(img: image::DynamicImage) -> image::RgbaImage {
     rgba
 }
 
+/// H3 索引图的**索引语义**：0 与 5–7 全透明，1–4 是阴影档位（半透明黑）。
+///
+/// 对齐 VCMI `ScalableImageParameters::setShadowTransparency`
+/// （`clientsdl2/render/ScalableImage.cpp:177-203`）：战斗动画按
+/// `EImageBlitMode::WITH_SHADOW*` 加载，**无条件**把调色板 0/1/4 换成
+/// 全透明 / 黑 25%（alpha 64）/ 黑 50%（alpha 128）；2、3 是雾战阴影，同档位处理。
+/// 5–7 是选择框与旗帜色 —— 百科不画选择框，全透明。
+///
+/// ⚠️ 这些索引的**调色板颜色是随意的**（实测 HotA 生物帧：0=青、1=浅洋红、4=洋红），
+/// 所以**只能按索引判定**，不能按颜色：`image` crate 展开成 RGBA 后索引就没了，
+/// 这正是"png 动画带天蓝幕布 + 脚下洋红星"的根因。
+pub(crate) const H3_SPECIAL_ALPHA: [u8; 8] = [0, 64, 64, 128, 128, 0, 0, 0];
+
+/// 索引 → 特殊像素（透明 / 阴影）；`None` = 该索引是普通颜色。
+pub(crate) fn h3_index_rgba(idx: u8) -> Option<[u8; 4]> {
+    match idx {
+        0 | 5..=7 => Some([0, 0, 0, 0]),
+        1..=4 => Some([0, 0, 0, H3_SPECIAL_ALPHA[idx as usize]]),
+        _ => None,
+    }
+}
+
+/// **调色板 PNG**（color type 3）按索引解码为 RGBA，套用 [`h3_index_rgba`] 的索引语义。
+///
+/// 只处理 8bpp 索引（H3 素材的实际情况，实测 HotA 生物战斗帧 450×400 / 8bpp）；
+/// 其它位深或带 `tRNS` 的图返回 `None`，由调用方回退到 `image` 的常规解码：
+/// - 带 `tRNS` 时透明由 alpha 表达（VCMI 的 SDL 端同样会把它展开成带 alpha 的图），
+///   此时不做索引替换，避免把作者显式设成半透明的像素再按阴影重算。
+pub(crate) fn decode_paletted_png(buf: &[u8]) -> Option<image::RgbaImage> {
+    // 先按 PNG 魔数短路：非 PNG（bmp/webp/jpg）不必进解码器
+    if !buf.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
+        return None;
+    }
+    let mut decoder = png::Decoder::new(std::io::Cursor::new(buf));
+    decoder.set_transformations(png::Transformations::IDENTITY);
+    let mut reader = decoder.read_info().ok()?;
+    // 借用 `reader.info()` 期间不能取帧，故一次性把需要的字段拷出来
+    let palette = {
+        let info = reader.info();
+        if info.color_type != png::ColorType::Indexed || info.bit_depth != png::BitDepth::Eight {
+            return None;
+        }
+        if info.trns.is_some() {
+            return None;
+        }
+        info.palette.as_ref()?.to_vec()
+    };
+    let mut indices = vec![0u8; reader.output_buffer_size()];
+    let frame = reader.next_frame(&mut indices).ok()?;
+    let px = (frame.width as usize) * (frame.height as usize);
+    if indices.len() < px {
+        return None;
+    }
+    let mut rgba = Vec::with_capacity(px * 4);
+    for &idx in &indices[..px] {
+        if let Some(special) = h3_index_rgba(idx) {
+            rgba.extend_from_slice(&special);
+            continue;
+        }
+        let o = (idx as usize) * 3;
+        // 越界索引按黑处理（坏文件不应 panic）
+        let r = palette.get(o).copied().unwrap_or(0);
+        let g = palette.get(o + 1).copied().unwrap_or(0);
+        let b = palette.get(o + 2).copied().unwrap_or(0);
+        rgba.extend_from_slice(&[r, g, b, 255]);
+    }
+    image::RgbaImage::from_raw(frame.width, frame.height, rgba)
+}
+
+/// **动画帧**的统一解码入口：索引图走索引语义（阴影/透明），其余走位图色键。
+///
+/// 供 sprites-json（png 动画）等"要把帧叠到别的画面上"的链路使用；
+/// DEF 帧不走这里（它们由 `infra::def` 按同一套索引语义直接渲染 BGRA）。
+pub(crate) fn decode_anim_frame(buf: &[u8]) -> Option<image::RgbaImage> {
+    if let Some(img) = decode_paletted_png(buf) {
+        return Some(img);
+    }
+    let img = image::load_from_memory(buf).ok()?;
+    Some(keyed_rgba(img))
+}
+
 /// 同上，但入口是**字节**：命中色键才返回 `Some`（已抠好的 RGBA），未命中返回 `None`。
 ///
 /// 供"先判断要不要处理、再决定要不要重编码"的调用点使用（如 [`crate::modcache::assets`]
@@ -297,4 +378,82 @@ pub(crate) fn encode_webp_from_bgra(bgra: &[u8], w: u32, h: u32) -> Option<Vec<u
         px.swap(0, 2); // B,G,R,A -> R,G,B,A
     }
     encode_rgba_auto(&rgba, w, h)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{decode_paletted_png, h3_index_rgba};
+
+    /// 索引语义：0 与 5–7 全透明，1–4 是半透明黑阴影，其余是普通颜色。
+    #[test]
+    fn h3_索引语义() {
+        assert_eq!(h3_index_rgba(0), Some([0, 0, 0, 0]));
+        assert_eq!(h3_index_rgba(1), Some([0, 0, 0, 64]));
+        assert_eq!(h3_index_rgba(2), Some([0, 0, 0, 64]));
+        assert_eq!(h3_index_rgba(3), Some([0, 0, 0, 128]));
+        assert_eq!(h3_index_rgba(4), Some([0, 0, 0, 128]));
+        assert_eq!(h3_index_rgba(5), Some([0, 0, 0, 0]));
+        assert_eq!(h3_index_rgba(6), Some([0, 0, 0, 0]));
+        assert_eq!(h3_index_rgba(7), Some([0, 0, 0, 0]));
+        assert_eq!(h3_index_rgba(8), None, "8 起是普通颜色");
+    }
+
+    /// 实测形态：HotA 生物帧的调色板 = [0]=青、(1)=浅洋红、(4)=洋红。
+    /// 索引图必须按**索引**（0 透明、1/4 阴影）还原，而不是照抄 RGB。
+    #[test]
+    fn 调色板png按索引还原透明与阴影() {
+        // 5×1 索引 PNG：0=青（色键）、1=浅洋红（阴影边框）、8=普通红、4=洋红（阴影本体）、5=选择色
+        let mut palette = vec![0u8; 9 * 3];
+        palette[0..3].copy_from_slice(&[0, 255, 255]);
+        palette[3..6].copy_from_slice(&[255, 150, 255]);
+        palette[12..15].copy_from_slice(&[255, 0, 255]);
+        palette[24..27].copy_from_slice(&[255, 0, 0]);
+        let mut out = Vec::new();
+        {
+            let mut enc = png::Encoder::new(&mut out, 5, 1);
+            enc.set_color(png::ColorType::Indexed);
+            enc.set_depth(png::BitDepth::Eight);
+            enc.set_palette(palette);
+            let mut writer = enc.write_header().expect("写 PNG 头");
+            writer
+                .write_image_data(&[0u8, 1, 8, 4, 5])
+                .expect("写像素");
+            writer.finish().expect("收尾");
+        }
+        let img = decode_paletted_png(&out).expect("应识别为索引 PNG");
+        assert_eq!(img.width(), 5);
+        assert_eq!(
+            img.get_pixel(0, 0).0,
+            [0, 0, 0, 0],
+            "索引 0（青）必须透明，而不是留下一块青"
+        );
+        assert_eq!(
+            img.get_pixel(1, 0).0,
+            [0, 0, 0, 64],
+            "索引 1 是阴影边框（黑 25%）"
+        );
+        assert_eq!(
+            img.get_pixel(2, 0).0,
+            [255, 0, 0, 255],
+            "索引起 8 的普通色原样保留"
+        );
+        assert_eq!(img.get_pixel(3, 0).0, [0, 0, 0, 128], "索引 4 是阴影本体");
+        assert_eq!(img.get_pixel(4, 0).0, [0, 0, 0, 0], "索引 5 是选择色，不画");
+    }
+
+    /// 非 PNG（如 webp/bmp）与真彩 PNG 不走索引分支，交给调用方常规解码。
+    #[test]
+    fn 非索引图不进索引分支() {
+        assert!(decode_paletted_png(b"not a png").is_none());
+        let mut out = Vec::new();
+        {
+            let mut enc = png::Encoder::new(&mut out, 1, 1);
+            enc.set_color(png::ColorType::Rgba);
+            enc.set_depth(png::BitDepth::Eight);
+            let mut writer = enc.write_header().expect("写 PNG 头");
+            writer.write_image_data(&[1u8, 2, 3, 4]).expect("写像素");
+            writer.finish().expect("收尾");
+        }
+        assert!(decode_paletted_png(&out).is_none(), "真彩 PNG 不该走索引语义");
+    }
 }

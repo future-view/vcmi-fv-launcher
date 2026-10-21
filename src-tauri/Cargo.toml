@@ -24,6 +24,10 @@ encoding_rs = "0.8"
 # `dds`：H3 高清版（HD Edition）素材是 DXT1/DXT5 的 DDS 图集（见 infra/pak.rs、vcmi/hd_edition.rs）。
 # 只加 feature 不引新 crate —— 自写 DXT 解码是备选方案（见 HD 素材接入方案）。
 image = { version = "0.25.10", features = ["webp", "dds"] }
+# 调色板 PNG 的**索引**解码（见 `infra::image::decode_paletted_png`）：
+# `image` crate 会把索引色 PNG 直接展开成 RGBA，索引语义（0=透明、1/4=阴影）随之丢失，
+# 导致 H3 素材的色键/阴影无法还原。png 0.17 是 image 的既有传递依赖，不引新包。
+png = "0.17"
 # 有损 WebP 编码：image 的 WebPEncoder 仅支持无损（VP8L），
 # 图标类小图改由 libwebp 有损编码，耗时约为无损的 1/3。依赖 libwebp-sys（cc 编 C，无需 cmake）
 webp = "0.3"

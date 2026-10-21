@@ -18,6 +18,7 @@ import {
 } from "./detailShared";
 import {
   MOTION_HOME,
+  buildIdleSimple,
   buildSteps,
   planPatrol,
   type AnimState,
@@ -117,12 +118,23 @@ export function CreatureDetail({
   const [frames, setFrames] = useState<AnimGroup | null>(null);
   // 当前状态（粘性见模块级 `sessionState`）
   const [animState, setAnimState] = useState<AnimState>(sessionState);
+  /**
+   * 实际播放的状态。
+   *
+   * **弹窗（compact）恒为待机**：右键弹窗是"按住偷看"（`mouseup` 即关），可见时长
+   * 通常不到 1 秒；若沿用详情页的选择（移动/攻击/受击），会出现"刚开就关、还带位移
+   * 跑到画框外"的观感，且首开要多载好几个组。详情页保持原有的状态机与粘性。
+   */
+  const runState: AnimState = compact ? "idle" : animState;
   // 画布姿态（位移/镜像/缩放，移动状态用；其它状态回 `MOTION_HOME`）
   const [motion, setMotion] = useState<Motion>(MOTION_HOME);
   // 姿态过渡时长（ms）：行走时跟随本步播放时长，转身/收步为短过渡
   const [motionMs, setMotionMs] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  /** 舞台外层容器：用于读取"这一栏实际可用宽度"（窄屏/弹窗/多列都要自适应） */
+  const stageWrapRef = useRef<HTMLDivElement | null>(null);
+  const [availW, setAvailW] = useState(0);
   const popup = useWikiPopup();
   const triggers = usePopupTriggers();
   // 弹窗态能力列（第三列）的滚动容器：用于判断"还有没有下方内容"，决定底部渐隐提示
@@ -238,12 +250,13 @@ export function CreatureDetail({
       while (!cancelled) {
         let played = 0;
         let steps: AnimStep[];
-        if (animState === "move") {
+        if (runState === "move") {
           const plan = planPatrol(cursor, boxCss, boxH);
           steps = plan.steps;
           cursor = plan.next;
         } else {
-          steps = buildSteps(animState);
+          // 弹窗只播 HOLDING（见 `buildIdleSimple` 的说明），其余走完整状态机
+          steps = compact ? buildIdleSimple() : buildSteps(runState as Exclude<AnimState, "move">);
         }
         for (const step of steps) {
           if (cancelled) return;
@@ -283,7 +296,7 @@ export function CreatureDetail({
       cancelled = true;
       cancelAnimationFrame(raf);
     };
-  }, [battleRes, modId, animState, d.doubleWide, compact]);
+  }, [battleRes, modId, runState, d.doubleWide, compact]);
 
   const name = pickName((d.name as Record<string, string>) ?? {}, lang);
   const desc = pickName((d.description as Record<string, string>) ?? {}, lang);
@@ -526,15 +539,106 @@ export function CreatureDetail({
   const animLabel =
     stateRows.find((r) => r.state === animState)?.label ?? t.wiki.creature.anim.state.idle;
 
+  // ── 三层矩形（都是 1x 画布坐标，后端 `anim_window` 给出）──
+  // - `win`：**幕布窗口**（100×130 或 200×130）→ 决定画框比例与黑幕范围；
+  // - `tex`：**裁剪矩形**（win ∪ 全部组包围盒）→ 帧位图的尺寸；
+  // - `fit`：**适配参考**（win ∪ 待机/移动/悬停/防御）→ 决定等比缩放倍数。
+  //
+  // ⚠️ 必须拆开：早期把"裁剪"和"显示"用同一个矩形，导致头部在**进前端之前**就被切掉，
+  // 前端再怎么缩放也补不回来（实测凤凰/骨龙头顶仍被裁）。
+  const texScale = frames?.scale ?? 1;
+  const texW = frames ? Math.max(1, Math.round(frames.w / texScale)) : 100;
+  const texH = frames ? Math.max(1, Math.round(frames.h / texScale)) : 130;
+  const texX = frames?.wx ?? (d.doubleWide ? 170 : 150);
+  const texY = frames?.wy ?? 155;
+  const curtainW = frames?.winW ?? 100;
+  const curtainH = frames?.winH ?? 130;
+  const curtainX = frames?.winX ?? (d.doubleWide ? 170 : 150);
+  const curtainY = frames?.winY ?? 155;
+  const fitW = frames?.fitW ?? curtainW;
+  const fitH = frames?.fitH ?? curtainH;
+  const baseX = d.doubleWide ? 170 : 150;
+  const baseY = 155;
+
+  // 量一次可用宽度，并在容器变化（窗口缩放/换布局）时更新
+  useEffect(() => {
+    const el = stageWrapRef.current;
+    if (!el) return;
+    const apply = () => {
+      const w = el.getBoundingClientRect().width;
+      if (w > 0) setAvailW(Math.round(w));
+    };
+    apply();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [compact]);
+
+  // 舞台 = 幕布窗口的比例，尺寸按**容器可用宽度**收敛（绝不撑破右侧内容区）。
+  //
+  // - 详情页：按游戏构图 1.8× 起算（宽度够就更大），上限 430×340；
+  // - 弹窗（compact）：VCMI `CStackWindow` 本身就是"大图窗"，这里不再用 100×130 缩略图，
+  //   而是尽量占满弹窗宽度（上限 300×300）—— 之前写死 100×130，在 880px 宽的弹窗里
+  //   会缩成一个小方块（用户实机反馈："弹窗里只有一个很小的生物"）。
+  //
+  // ⚠️ 弹窗（compact）用**固定画框** `200×130`（= 宽幕布档），不跟生物的布局走：
+  // 布局 A(100:130) 竖长、布局 B(200:130) 横长，若画框跟着幕布比例变，弹窗里就会出现
+  // "有的生物预览特别高"（实测枯木战士 280px vs 独角神兽 140px）。固定画框后所有生物
+  // 高度一致，布局 A 的生物居中显示、两侧留黑幕（与详情页的幕布语言一致）。
+  const frameW = compact ? 200 : curtainW;
+  const frameH = compact ? 130 : curtainH;
+  const maxStageW = compact ? 320 : 430;
+  const maxStageH = compact ? 260 : 340;
+  const avail = Math.max(120, availW || maxStageW);
+  let sw = Math.min(compact ? avail : frameW * (180 / 100), avail, maxStageW);
+  let sh = (sw * frameH) / frameW;
+  if (sh > maxStageH) {
+    sh = maxStageH;
+    sw = (sh * frameW) / frameH;
+  }
+  const stageW = Math.max(40, Math.round(sw));
+  const stageH = Math.max(40, Math.round(sh));
+
+  // 统一缩放：让"适配参考矩形"完整落进幕布（≥1 时不放大）
+  const fitK = Math.min(
+    1,
+    curtainW / Math.max(1, fitW),
+    curtainH / Math.max(1, fitH),
+  );
+  const pxPerUnit = stageW / frameW; // 每个 1x 画布单位 = 多少舞台像素
+  const centerX = curtainX + curtainW / 2; // 幕布中心（画布坐标）
+  const groundY = curtainY + curtainH; // 地平线 = 幕布底边
+
+  /**
+   * 把画布坐标里的矩形换算成舞台内的绝对定位（底部对齐地平线 + 水平居中）。
+   *
+   * `scale` 分开传：**生物按 fitK 缩、背景不缩** —— 背景一缩就会在幕布里露出
+   * 上下黑边（用户已明确不接受"顶部一条黑"）；背景保持 1:1 时，垂直方向正好铺满，
+   * 只保留幕布两侧的黑，视觉最干净。
+   */
+  const placeRect = (x0: number, y0: number, w: number, h: number, scale = 1) => {
+    const u = scale * pxPerUnit;
+    return {
+      left: `${stageW / 2 + (x0 - centerX) * u}px`,
+      top: `${stageH - (groundY - y0) * u}px`,
+      width: `${w * u}px`,
+      height: `${h * u}px`,
+    };
+  };
+  // 背景：VCMI 把 creatureBackground(100×130) 钉在基准窗口，跟着同一套变换走
+  const bgBox = placeRect(baseX, baseY, 100, 130, 1);
+  // 生物层：裁剪矩形按 fitK 摆放（帧位图与它同宽高比 → 拉伸即精确对齐）
+  const texBox = placeRect(texX, texY, texW, texH, fitK);
+
   const picBlock = (
-    <div className="space-y-2">
-      {/* 框比与 VCMI 背景图一致（100:130）：背景用 `object-contain` 时不会产生留白，
-          生物在窗口内的位置才与游戏一致（方形框会把背景居中缩小，导致"生物偏左"）。 */}
+    <div ref={stageWrapRef} className="space-y-2">
+      {/* 只有两种布局：A = 与 VCMI 一致的 100×130（无黑幕，超出即裁）；
+          B = 200×130（左右各 50px 黑幕，高度不变）。舞台宽度按容器可用宽度收敛，
+          宽度变了高度跟着按比例走，所以背景始终铺满高度、只在左右出现黑幕。 */}
       <div
-        className={cn(
-          "relative mx-auto overflow-hidden rounded-xl border border-slate-600/60 bg-[#0a0e1a]",
-          compact ? "h-[130px] w-[100px]" : "h-[234px] w-[180px]",
-        )}
+        className="relative mx-auto overflow-hidden rounded-xl border border-slate-600/60 bg-[#0a0e1a]"
+        style={{ width: stageW, height: stageH }}
       >
         {/* VCMI CCreaturePic：阵营 creatureBackground 130px 作底，战斗动画叠在其上。
             ⚠️ 用底层 `<img>` 而非 CSS `background-image`：后者**无法在加载失败时回退**，
@@ -543,32 +647,30 @@ export function CreatureDetail({
           <HdImg
             src={backgroundCandidates}
             alt=""
-            className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+            className="pointer-events-none absolute"
+            style={bgBox}
           />
         )}
         <div className="relative flex h-full w-full items-center justify-center">
           {frames && frames.count > 0 ? (
-            <canvas
-              ref={canvasRef}
-              style={{
-                // 位移 + 水平镜像（向左走 = 向右动画镜像，VCMI `reverse` 同款）+ 纵深缩放。
-                // 顺序：先平移到目标点，再镜像，最后缩放（镜像以元素中心为轴，不影响位置）。
-                transform: `translate(${motion.x}px, ${motion.y}px) scaleX(${
-                  motion.flip ? -1 : 1
-                }) scale(${motion.scale})`,
-                // 行走用 linear（与地面平移一致，匀速）；转身/收步用短 ease-out
-                transition: `transform ${motionMs}ms ${motionMs > 400 ? "linear" : "ease-out"}`,
-              }}
-              className={cn(
-                // ⚠️ 必须用 `h-full w-full`（不是 `max-h/max-w`）：后者只限上限、**不会放大**，
-                // 1x 兜底的画布只有 100×130，会在 180×234 的框里缩成一半（实测雷元素/农民）。
-                // 画布宽高比恒等于框（100:130），拉伸不会变形。
-                // 两条路径都不是整数倍缩放（HD 300→180 下采样 0.6×；1x 100→180 上采样 1.8×），
-                // 用最近邻会出现"有的像素 2px、有的 1px"的不均匀锯齿 → 统一走平滑插值。
-                "h-full w-full",
-                "pixelated-none",
-              )}
-            />
+            // 生物层 = **裁剪矩形**整块，按与背景同一套变换摆放
+            // （等比缩放 fitK + 底部对齐 + 水平居中）；超出幕布的部分由舞台裁掉
+            <div className="absolute" style={texBox}>
+              <canvas
+                ref={canvasRef}
+                style={{
+                  // 位移 + 水平镜像（向左走 = 向右动画镜像，VCMI `reverse` 同款）+ 纵深缩放。
+                  // 顺序：先平移到目标点，再镜像，最后缩放（镜像以元素中心为轴，不影响位置）。
+                  transform: `translate(${motion.x}px, ${motion.y}px) scaleX(${
+                    motion.flip ? -1 : 1
+                  }) scale(${motion.scale})`,
+                  // 行走用 linear（与地面平移一致，匀速）；转身/收步用短 ease-out
+                  transition: `transform ${motionMs}ms ${motionMs > 400 ? "linear" : "ease-out"}`,
+                }}
+                // 位图宽高比 == 裁剪矩形宽高比（后端按同一矩形裁帧）→ 拉伸即精确对齐
+                className="h-full w-full"
+              />
+            </div>
           ) : (
             <HdImg
               src={fullImgCandidates(
@@ -577,7 +679,9 @@ export function CreatureDetail({
                 rate,
               )}
               alt=""
-              // 与动画画布同一口径：`max-*` 不会放大，静态兜底图（多为 128px 级）会显小
+              // ⚠️ 必须 `object-contain`（等比 + 留黑边）：弹窗画框是 200:130 横幅，
+              // 兜底图是 100:130 竖图 —— 用 `cover` 会放大裁切填满，观感就是"被拉伸"
+              // （用户实机反馈）。动画层不受影响（它按裁剪矩形等比摆放）。
               className="h-full w-full object-contain"
               pixelArt
             />

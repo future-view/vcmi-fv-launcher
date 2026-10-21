@@ -109,6 +109,17 @@ export interface HdGroup {
   w: number;
   h: number;
   scale: number;
+  /** 窗口左上角（DEF 逻辑画布坐标） */
+  wx: number;
+  wy: number;
+  /** 幕布窗口（1x 画布坐标） */
+  winX: number;
+  winY: number;
+  winW: number;
+  winH: number;
+  /** 适配参考尺寸（决定等比缩放，不含死亡/攻击的越界） */
+  fitW: number;
+  fitH: number;
   frames: { x: number; y: number; w: number; h: number; img: ImageBitmap }[];
 }
 
@@ -119,9 +130,22 @@ export interface HdGroup {
  * 高清缺失 / 未装 hd-edition / 第三方生物都走 1x，行为与加高清前完全一致。
  */
 export interface AnimGroup {
-  /** 画布宽（像素）：高清时 = DEF 逻辑画布 × 档位，1x 时 = 首帧尺寸 */
+  /** 画布宽（像素）= 显示窗口（可能已自适应外扩）× 档位 */
   w: number;
   h: number;
+  /** 显示窗口左上角在 DEF 逻辑画布中的坐标（背景对齐用，缺省为基准窗口） */
+  wx: number;
+  wy: number;
+  /** 档位（2 / 3；1x 与 TS 兜底恒 1）。`w / scale` = 窗口的 1x 逻辑宽度。 */
+  scale: number;
+  /** 幕布窗口（1x 画布坐标）：两种布局之一，100×130 或 200×130 */
+  winX: number;
+  winY: number;
+  winW: number;
+  winH: number;
+  /** 适配参考尺寸（`win ∪ 待机/移动/悬停/防御`）：决定等比缩放 */
+  fitW: number;
+  fitH: number;
   /** 高清帧（含位置）；`null` = 走 1x */
   hd: HdGroup["frames"] | null;
   /** 1x 帧（BGRA，画在 0,0）；`hd` 非空时为 null */
@@ -148,24 +172,73 @@ export async function getAnimGroup(
   const need = Math.round(boxCss * (await getHdPhys()));
   // 档位不同 → 产物不同，缓存键必须带上 `need`
   const gKey = `${groupKey(modId, resource, groupIndex)}\u0000${need}`;
+  // 1x / TS 兜底都按**基准窗口**画（后端没参与，拿不到自适应窗口）
+  const baseWin = (w: number, h: number) => ({
+    w,
+    h,
+    wx: doubleWide ? 170 : 150,
+    wy: 155,
+    scale: 1,
+    winX: doubleWide ? 170 : 150,
+    winY: 155,
+    winW: 100,
+    winH: 130,
+    fitW: 100,
+    fitH: 130,
+  });
   const hdHit = lruGet(hdCache, gKey);
   if (hdHit) {
-    return { w: hdHit.w, h: hdHit.h, hd: hdHit.frames, raw: null, count: hdHit.frames.length };
+    return {
+      w: hdHit.w,
+      h: hdHit.h,
+      wx: hdHit.wx,
+      wy: hdHit.wy,
+      scale: hdHit.scale,
+      winX: hdHit.winX,
+      winY: hdHit.winY,
+      winW: hdHit.winW,
+      winH: hdHit.winH,
+      fitW: hdHit.fitW,
+      fitH: hdHit.fitH,
+      hd: hdHit.frames,
+      raw: null,
+      count: hdHit.frames.length,
+    };
   }
   const rawHit = lruGet(groupCache, groupKey(modId, resource, groupIndex));
   if (rawHit && rawHit.length > 0) {
-    return { w: rawHit[0].w, h: rawHit[0].h, hd: null, raw: rawHit, count: rawHit.length };
+    return {
+      ...baseWin(rawHit[0].w, rawHit[0].h),
+      hd: null,
+      raw: rawHit,
+      count: rawHit.length,
+    };
   }
   // 1) 后端合成（HD 优先，未收录时后端自己走 1x 同口径窗口）
   const hd = await fetchHdGroup(modId, resource, groupIndex, doubleWide, need);
   if (hd) {
     lruSet(hdCache, gKey, hd, MAX_HD_GROUP_ENTRIES, closeHdGroup);
-    return { w: hd.w, h: hd.h, hd: hd.frames, raw: null, count: hd.frames.length };
+    return {
+      w: hd.w,
+      h: hd.h,
+      wx: hd.wx,
+      wy: hd.wy,
+      scale: hd.scale,
+      winX: hd.winX,
+      winY: hd.winY,
+      winW: hd.winW,
+      winH: hd.winH,
+      fitW: hd.fitW,
+      fitH: hd.fitH,
+      hd: hd.frames,
+      raw: null,
+      count: hd.frames.length,
+    };
   }
   // 2) 最后兜底：前端 TS 解码（命令整体失败时才会走到，构图与后端不完全一致）
   const frames = await getDefGroup(modId, resource, groupIndex);
   if (frames.length === 0) return null;
-  return { w: frames[0].w, h: frames[0].h, hd: null, raw: frames, count: frames.length };
+  return { ...baseWin(frames[0].w, frames[0].h), hd: null, raw: frames, count: frames.length };
 }
 
 /**
@@ -213,7 +286,20 @@ async function fetchHdGroup(
     frames.forEach((f) => f.img.close());
     return null;
   }
-  return { w: g.w, h: g.h, scale: g.scale ?? 1, frames };
+  return {
+    w: g.w,
+    h: g.h,
+    scale: g.scale ?? 1,
+    wx: g.wx ?? (doubleWide ? 170 : 150),
+    wy: g.wy ?? 155,
+    winX: g.winX ?? (doubleWide ? 170 : 150),
+    winY: g.winY ?? 155,
+    winW: g.winW ?? 100,
+    winH: g.winH ?? 130,
+    fitW: g.fitW ?? 100,
+    fitH: g.fitH ?? 130,
+    frames,
+  };
 }
 
 /** 清空缓存（切换领域/游戏目录后源数据可能变化时使用）。 */
