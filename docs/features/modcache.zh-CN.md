@@ -34,6 +34,22 @@
 
 `prep` 不属于任何页面的 `deps`（不参与撤除判定），只要后端报过就始终显示；多批调用（阶段二/三）只对**未命中成本缓存**的 mod 上报，故不会出现"572/572 → 20/20"的倒退。
 
+### 启动预检期的就绪判定（首次运行不再"先空页、后跳蒙层"）
+
+启动编排第 4 步 `ensureWikiCacheBuilt()` 先做**预检**（`readLauncherConfig` → `scanRealMods` → `probeWikiCacheState`，与真实构建同源判定），**刻意不置 `busy`** —— 既定设计是"全部命中时页面用现有 `index.json` 立即渲染，不被蒙层整页阻塞"。
+
+但**无索引可渲染**时（首次运行 / 缓存被清空）该设计会暴露体验问题：预检可达数秒~数十秒（首次 `scan_mods` 全量扫 572 个 mod 目录 + 逐 mod 算 source hash），期间 `busy=false` 被 `useWikiStagesDone` 判为"已完成" → 百科页直接渲染，而 `index.json` 不存在 → **分类全 0 + "未找到匹配条目"**（用户读作"没有数据"），直到预检结束置 `busy` 才跳进"正在生成模组缓存"蒙层 —— 即"卡在空页，过一会才显示正在生成"。
+
+**判定规则**（`status.ts` + `shared/WikiBuildOverlay.tsx`，宿主零改动）：
+
+| 场景 | `preparing` | `indexReady` | 页面行为 |
+|---|---|---|---|
+| 老用户增量重建（有索引） | true | true | **放行** —— 用现有索引立即渲染（设计 C 不变） |
+| 首次运行 / 缓存被清空 | true | false | **等待态** —— 预检期即显示蒙层（spinner + 标题 + 提示，无 0% 三条），预检结束置 `busy` 无缝接力真实进度条 |
+| 预检完成（无需构建 / 开始构建 / 异常） | false | — | 恢复原语义（`busy` 按阶段完成度判定） |
+
+`indexReady` 由前端在预检开始时**直读一次索引**得出（~ms 级，与后端 `wiki_cache_state` 出参同口径），不拖长预检；预检标志在 `finally` 无条件清除（否则残留 `preparing + indexReady=false` 会令蒙层永驻）。`StageGate`（领域编辑器区块）同步按 `preparing` 隐藏 0% 进度行。
+
 ## 3. 产物
 
 ```

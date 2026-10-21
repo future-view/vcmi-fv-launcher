@@ -5,6 +5,7 @@
 import { buildModsWikiBatch, cancelWikiBuild, fetchWikiBuildProgress, isTauri, probeWikiCacheState, readLauncherConfig, releaseWikiCaches, scanRealMods } from "@/lib/tauri";
 import { logInfo } from "@/lib/log";
 import { clearHdMissing, getHdPhys, getHdRate } from "@/lib/hd";
+import { loadWikiIndex } from "./index";
 import { buildCoreEntries, flattenTree, toBatchPayload } from "./buildTargets";
 
 interface WikiBuildStatus {
@@ -45,6 +46,26 @@ interface WikiBuildStatus {
    * 用户一开始就知道总共要经历几段，而不是等到高清阶段突然多出一条。
    */
   hdEnabled?: boolean;
+  /**
+   * **启动预检中**（`readLauncherConfig` + `scanRealMods` + `probeWikiCacheState`）。
+   *
+   * 预检期**刻意不置 `busy`**（既定设计：全部命中时页面用现有 `index.json` 立即渲染，
+   * 不被"生成模组缓存"的重型蒙层整页阻塞）。但**无索引可渲染**时（首次运行 /
+   * 缓存被清空）不能放行页面：那会先渲染一段"分类全 0 + 未找到匹配条目"的空百科
+   * （用户读作"没有数据"），直到预检结束才跳进蒙层 —— 观感是"卡在空页，过一会
+   * 才显示正在生成"。
+   *
+   * 故预检期由 `useWikiStagesDone` 结合 `indexReady` 决定是否挡页面；
+   * 预检结束（无需构建 / 置 `busy` / 异常）时本标志与 `indexReady` 一并清除。
+   */
+  preparing?: boolean;
+  /**
+   * 预检期读取的**本地索引是否可用**（`index.json` 存在且 `mods` 非空）。
+   *
+   * 与后端 `wiki_cache_state` 出参的 `indexReady` 同口径，但**预检开始时就已知**
+   * （前端直读一次，~ms 级，无需等后端）—— 正是"无索引 → 预检期即挡页面"的判据。
+   */
+  indexReady?: boolean;
 }
 
 /**
@@ -126,6 +147,18 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
   cancelRequested = false;
   let lastEmit = 0;
   try {
+    // 预检开始即广播 `preparing`：让"无索引可渲染"的宿主（首次运行的百科页等）
+    // 立刻进入等待态，而不是先渲染一段空列表（详见字段注释）。
+    // ⚠️ 必须放在 try 内：`loadWikiIndex` 若抛异常，靠下方 finally 清 `probing`，
+    // 否则并发入口（`if (status.busy || probing) return`）会被永久挡住。
+    status = { ...status, preparing: true };
+    emit();
+    // 预检期先直读一次索引（一次 IPC，~ms 级）：有索引 → 老用户的增量重建照常
+    // 放行页面（既定设计 C）；无索引 → 宿主显示等待蒙层，直到预检结束置 `busy`
+    // 无缝接力，不再出现"先空列表、后跳蒙层"的闪断。
+    const idx = await loadWikiIndex();
+    status = { ...status, indexReady: !!(idx && idx.mods.length > 0) };
+    emit();
     const cfg = await readLauncherConfig();
     const gameDir = cfg?.gameDir ?? "";
     const mods = (await scanRealMods()) as Record<string, unknown>[];
@@ -154,7 +187,8 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
       return;
     }
     // 有活要干：**此刻才置 `busy`**（蒙层才出现），随后进入既有两阶段构建。
-    status = { busy: true, progress: { done: 0, total: 0 } };
+    // `preparing` / `indexReady` 到此使命结束，显式清除（预检 → 构建无缝接力）。
+    status = { busy: true, preparing: false, progress: { done: 0, total: 0 } };
     emit();
     // 前端侧唯一的构建起点日志（后端只有批次汇总行）：与 `[boot]` 一起构成
     // "启动 → 预检 → 准备 → 构建" 的完整时间线，排查"卡在 0%"时不用猜。
@@ -362,7 +396,9 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
     status = { ...status, progress: null };
   } finally {
     probing = false;
-    status = { ...status, busy: false };
+    // 无论"无需构建直接返回 / 构建完成 / 异常"，预检标志都必须清除：
+    // 残留 `preparing` + `indexReady=false` 会让宿主永远判为未就绪（蒙层永驻）。
+    status = { ...status, busy: false, preparing: false };
     emit();
   }
 }

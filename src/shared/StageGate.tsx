@@ -3,6 +3,7 @@ import { useI18n } from "@/i18n";
 import {
   stageReadyHint,
   StageRows,
+  useWikiPreparing,
   useWikiStagesDone,
   type BuildStage,
 } from "@/shared/WikiBuildOverlay";
@@ -43,10 +44,12 @@ export function StageGate({
 }) {
   const { t } = useI18n();
   const done = useWikiStagesDone(deps);
+  const preparing = useWikiPreparing();
   if (done) return <>{children}</>;
   return (
     <div className="flex min-h-[200px] w-full flex-col items-center justify-center gap-3 rounded-xl border border-slate-800/60 bg-slate-900/40 p-6">
-      <StageRows stages={deps} />
+      {/* 预检期无真实阶段进度（`stages` 全 0/0）→ 不渲染进度行，只留提示文案 */}
+      {!preparing && <StageRows stages={deps} />}
       <p className="text-center text-xs text-slate-400">{hint ?? stageReadyHint(t, deps)}</p>
     </div>
   );

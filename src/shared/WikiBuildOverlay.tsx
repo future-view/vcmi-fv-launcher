@@ -86,27 +86,40 @@ export function useWikiStageDone(stage: BuildStage): boolean {
  *
  * 与 [`useWikiStageDone`] 一样返回 boolean 快照（进度数字变化不触发重渲染）。
  * 空数组 = 无依赖 → 视为完成（不阻塞）。
+ *
+ * 除"构建中按阶段完成度"外，还有一类**未就绪**：**预检中且本地无可用索引**
+ * （首次运行 / 缓存被清空，见 `status.ts` 的 `preparing` / `indexReady` 注释）。
+ * 该场景若不挡住，宿主会先渲染一段空列表（百科 = "分类全 0 + 未找到匹配条目"，
+ * 用户读作"没有数据"），直到预检结束置 `busy` 才跳进蒙层 —— 观感即
+ * "卡在空页，过一会才显示正在生成"。反之**有索引**时放行：老用户的增量
+ * 重建不被蒙层整页阻塞（既定设计，见 `status.ts` 预检段注释）。
  */
 export function useWikiStagesDone(deps: readonly BuildStage[]): boolean {
   return useSyncExternalStore(
     subscribeWikiStatus,
     () => {
       const s = getWikiStatus();
-      if (!s.busy) return true;
-      return deps.every((d) => {
-        const p = s.stages?.[d];
-        return !!p && p.total > 0 && p.done >= p.total;
-      });
+      if (s.busy) {
+        return deps.every((d) => {
+          const p = s.stages?.[d];
+          return !!p && p.total > 0 && p.done >= p.total;
+        });
+      }
+      // 空数组 = 无依赖 → 始终不阻塞（先于预检分支，勿让预检挡住"无依赖"宿主）
+      if (deps.length === 0) return true;
+      // 预检中且本地无可用索引 → 未就绪（宿主应显示等待态，而非空列表）
+      if (s.preparing === true && !s.indexReady) return false;
+      return true;
     },
     () => false,
   );
 }
 
-/** 只订阅「是否正在构建」（进度数字变化**不**触发 re-render） */
-export function useWikiBuilding(): boolean {
+/** 只订阅「启动预检中」（`ensureWikiCacheBuilt` 的 scan/probe 阶段，详见 `status.ts`） */
+export function useWikiPreparing(): boolean {
   return useSyncExternalStore(
     subscribeWikiStatus,
-    () => getWikiStatus().busy,
+    () => getWikiStatus().preparing === true,
     () => false,
   );
 }
@@ -200,9 +213,12 @@ export function WikiBuildOverlay({
   onExit?: () => void;
 }) {
   const { t } = useI18n();
-  const busy = useWikiBuilding();
+  const preparing = useWikiPreparing();
   const done = useWikiStagesDone(deps);
-  if (!busy || done) return null;
+  // 显示条件 = `done` 取反（而非 `busy && !done`）：预检期无索引时 `busy` 仍为 false，
+  // 但 `useWikiStagesDone` 已把该场景判为未就绪 —— 蒙层在预检期即接管，
+  // 预检结束置 `busy` 后无缝接力，不出现"先空列表、后跳蒙层"的闪断。
+  if (done) return null;
   return (
     <LoadingOverlay
       title={t.wiki.generating}
@@ -213,7 +229,9 @@ export function WikiBuildOverlay({
       exitLabel={t.common.back}
       blocking={blocking}
     >
-      <StageRows stages={deps} />
+      {/* 预检期没有真实阶段进度（`stages` 全 0/0）→ 只留 spinner，
+          不渲染三条 0%（那会读作"卡死在 0%"）。预检结束即有真实进度。 */}
+      {!preparing && <StageRows stages={deps} />}
       {/* ⚠️ 刻意**不提供「暂停构建」**：构建是整批后台任务，"暂停"只会让本页需要的那一步
           停在原地（缓存保留但进度不前进），对用户没有收益 —— 各页面都在**自己所需的阶段**
           完成时就放行，用户不需要也不应该操心后台任务。
