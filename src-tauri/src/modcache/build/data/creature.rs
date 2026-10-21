@@ -129,6 +129,12 @@ fn neutral_creature_background(
     cache_root: &Path,
     game_dir: &Path,
 ) -> Option<Value> {
+    // 已经在 `core` 里提取过（`core/images/town/neutral-creature-bg.webp`）→ **直接引用**，
+    // 不再给每个含中立生物的 mod 各复制一份（去重口径与城镇幕布一致）。
+    let canonical = "core/images/town/neutral-creature-bg.webp";
+    if cache_root.join("core").join("images").join("town").join("neutral-creature-bg.webp").is_file() {
+        return Some(Value::String(canonical.to_string()));
+    }
     let cfg = crate::vcmi::town::parse_town_config_file(
         &game_dir.join("config").join("factions").join("neutral.json"),
     );

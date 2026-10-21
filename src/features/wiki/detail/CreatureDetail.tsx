@@ -94,9 +94,19 @@ export function CreatureDetail({
   const battleRes = (d.animation as string) ?? "";
   /** 高清素材倍率：兵种大图在本页会被**放大**显示，高清收益最明显的一处 */
   const rate = useHdRate();
-  const backgroundCandidates = d.creatureBackground
-    ? fullImgCandidates(cacheDir ?? null, d.creatureBackground as string, rate)
-    : [];
+  // 生物窗背景（VCMI `CCreaturePic` 的 creatureBackground）。
+  //
+  // 很多扩展 mod **只加生物、不定义阵营**（如 forgotten-field / tides-of-war 的城堡扩展、
+  // wake-of-gods 的 T8），它们的 `factions` 是空的 → 构建期查不到背景、只能黑底。
+  // 这里按 `faction` 从**全局索引**取该阵营的 `creatureBackground` 路径 ——
+  // 只引用既有文件、**不复制**（与城镇幕布去重的口径一致：同一张图只有一份）。
+  const factionId = String(d.faction ?? "");
+  const factionBg = factionId
+    ? ((getEntry?.("factions", factionId)?.data as Record<string, unknown> | undefined)
+        ?.creatureBackground as string | undefined)
+    : undefined;
+  const bgRel = (d.creatureBackground as string | undefined) || factionBg;
+  const backgroundCandidates = bgRel ? fullImgCandidates(cacheDir ?? null, bgRel, rate) : [];
   // 只持有**当前播放分组**的帧：大型战斗 DEF 含十几个分组数百帧，
   // 一次性全解会在主线程同步执行、打开页面时掉帧（设计 §13.1）。
   // 按需只解当前动作，并带字节级/分组级 LRU 缓存（§13.2）。
@@ -133,9 +143,11 @@ export function CreatureDetail({
     }
     let cancelled = false;
     let raf = 0;
-    // 切状态即复位姿态（离开移动状态后不残留位移/缩放）
+    // 切状态即归位（离开移动状态不残留位移/缩放）。
+    // ⚠️ 用 260ms 过渡而不是瞬移：位置归零与缩放回 1 同步插值，过程中不会出框，
+    // 观感是"从走位处滑回中央"，直接 `setMotionMs(0)` 会看到生硬的空间跳跃。
     setMotion(MOTION_HOME);
-    setMotionMs(0);
+    setMotionMs(260);
     const doubleWide = d.doubleWide === true;
     // 传**宽度**（窗口 100 源像素宽）；后端据此算档位
     const boxCss = compact ? 100 : 180;

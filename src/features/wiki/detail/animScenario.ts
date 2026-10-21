@@ -80,6 +80,17 @@ const rnd = (n: number) => Math.floor(Math.random() * n);
 const between = (a: number, b: number) => a + rnd(b - a + 1);
 const pick = <T,>(xs: readonly T[]): T => xs[rnd(xs.length)];
 
+/**
+ * 方向加权：**正前 50%、上/下各 25%**。
+ *
+ * 战斗里多数目标在正前方（VCMI `ATTACK_FRONT` 用得最多），均匀随机会让"总是朝上/朝下打"，
+ * 观感不自然。
+ */
+function weightedDir(up: number, front: number, down: number): number {
+  const r = Math.random();
+  return r < 0.5 ? front : r < 0.75 ? up : down;
+}
+
 /** 纵深缩放：y 为负（偏上）→ 略小（远），为正 → 略大（近） */
 function depthScale(y: number, boxH: number): number {
   return Math.round(MOVE_ZOOM * (1 + (y / Math.max(1, boxH)) * 0.36) * 1000) / 1000;
@@ -92,18 +103,23 @@ function depthScale(y: number, boxH: number): number {
  * 改为"站立—反应—站立"的连贯节奏。
  */
 export function buildIdle(): AnimStep[] {
-  return [
+  const steps: AnimStep[] = [
     { group: ANIM.HOLDING, loops: between(2, 4), holdMs: 0 },
     { group: pick([ANIM.DEFENCE, ANIM.MOUSEON]), loops: 1, holdMs: 260 },
-    { group: ANIM.HOLDING, loops: between(1, 2), holdMs: 0 },
   ];
+  // 12% 插入一次原地"换重心/挪步"（`MOVE_START` 单圈，不位移），避免待机只有两种动作
+  if (Math.random() < 0.12) {
+    steps.push({ group: ANIM.MOVE_START, loops: 1, holdMs: 80 });
+  }
+  steps.push({ group: ANIM.HOLDING, loops: between(1, 2), holdMs: 0 });
+  return steps;
 }
 
 /**
  * 移动状态（巡逻）：走到一侧 → 停一下 → 走到另一侧，可带纵向偏移形成斜向。
  *
  * 生成一整轮步骤并返回**新的光标**，由调用方（播放器）跨轮保存。
- * 走位越远圈数越多（`PX_PER_LOOP`），并让位移过渡与播放时长同步。
+ * 走位越远播放越久（[`WALK_SPEED`] 换算成 `wantMs`），并让位移过渡与播放时长同步。
  */
 export function planPatrol(
   cur: Motion,
@@ -112,6 +128,25 @@ export function planPatrol(
 ): { steps: AnimStep[]; next: Motion } {
   const maxX = Math.max(12, Math.round(boxW * MOVE_X_PCT));
   const maxY = Math.max(12, Math.round(boxH * MOVE_Y_PCT));
+
+  // 10%：原地转身（不移动）—— 打散"左右匀速穿梭"的机械感
+  if (Math.random() < 0.1) {
+    const flip = !cur.flip;
+    const here: Motion = { x: cur.x, y: cur.y, flip, scale: depthScale(cur.y, boxH) };
+    return {
+      steps: [
+        {
+          group: flip ? ANIM.TURN_L : ANIM.TURN_R,
+          loops: 1,
+          holdMs: 80,
+          motion: { ...here, scale: MOVE_ZOOM },
+        },
+        { group: ANIM.HOLDING, loops: 1, holdMs: between(250, 550), motion: here },
+      ],
+      next: here,
+    };
+  }
+
   // 巡逻逻辑：靠近中间 → 随机挑一侧；已在某一侧 → 走到另一侧（"走过去再走回来"）
   const nearCenter = Math.abs(cur.x) < maxX * 0.4;
   const goLeft = nearCenter ? Math.random() < 0.5 : cur.x > 0;
@@ -144,14 +179,39 @@ export function planPatrol(
     });
   }
   steps.push({ group: ANIM.MOVE_START, loops: 1, holdMs: 0, motion: { ...here, scale: MOVE_ZOOM } });
-  steps.push({
-    group: ANIM.MOVING,
-    loops: 2, // 兜底；实际圈数由 `wantMs` 换算
-    holdMs: 0,
-    motion: there,
-    syncMotion: true,
-    wantMs,
-  });
+  // 15%：中途停一下再走（打破"一口气走到底"）
+  const midStop = Math.random() < 0.15;
+  if (midStop) {
+    const mx = Math.round((cur.x + tx) / 2);
+    const my = Math.round((cur.y + ty) / 2);
+    const mid: Motion = { x: mx, y: my, flip, scale: depthScale(my, boxH) };
+    steps.push({
+      group: ANIM.MOVING,
+      loops: 2,
+      holdMs: 0,
+      motion: mid,
+      syncMotion: true,
+      wantMs: Math.round(Math.hypot(mx - cur.x, my - cur.y) / WALK_SPEED),
+    });
+    steps.push({ group: ANIM.HOLDING, loops: 1, holdMs: between(300, 600), motion: mid });
+    steps.push({
+      group: ANIM.MOVING,
+      loops: 2,
+      holdMs: 0,
+      motion: there,
+      syncMotion: true,
+      wantMs: Math.round(Math.hypot(tx - mx, ty - my) / WALK_SPEED),
+    });
+  } else {
+    steps.push({
+      group: ANIM.MOVING,
+      loops: 2, // 兜底；实际圈数由 `wantMs` 换算
+      holdMs: 0,
+      motion: there,
+      syncMotion: true,
+      wantMs,
+    });
+  }
   steps.push({ group: ANIM.MOVE_END, loops: 1, holdMs: 120, motion: there });
   // 到位后站一会儿（玩家能看清"停在了一侧"）
   steps.push({ group: ANIM.HOLDING, loops: 1, holdMs: between(300, 700), motion: there });
@@ -160,35 +220,50 @@ export function planPatrol(
 }
 
 /**
- * 主动攻击状态：攻击（随机方向）→ 顿一下 → 射击/施法（随机方向）→ 顿一下。
+ * 主动攻击状态：攻击 ×2（加权方向）→ 射击 → 施法。
  *
- * ⚠️ 「施法」不是独立组：H3 用 `SHOOT_*`(14/15/16) 兼作施法（法师实测只有 14-16），
- * `SPECIAL_*`(17-19) 原版 DEF 基本不存在 —— 因此**只排攻击 + 射击两段**，
- * 由播放器按"该生物有没有这个组"自动跳过（近战只剩攻击段）。
+ * 三段动作语义（实测 + VCMI 枚举）：
+ * - 攻击 `ATTACK_UP/FRONT/DOWN`(11/12/13)：原版全族都有，**打两段**让近战也有节奏
+ *   （只打一段时，缺射击的近战会剩下两段空停顿）；
+ * - 射击 `SHOOT_*`(14/15/16)：远程专用；**原版法师的"施法"就是这一组**（实测 `CMAGE`
+ *   只有 14-16，没有 30-32）；
+ * - 施法 `CAST_*`(30/31/32)：VCMI 新版组，只有 png/sprites-json 动画的 mod 生物才有。
+ *   原版 DEF 里不存在 → 播放器探测失败后跳过（记入 `missingGroups`，不重复付代价）。
+ *
+ * 因此**不要**把"施法"放回待机：施法是有目标的主动行为；且原版施法已由 SHOOT 覆盖，
+ * 待机里另有 `MOUSEON` 承担"悬停反应"。
  */
 export function buildAttack(): AnimStep[] {
-  const dirs = [ANIM.ATTACK_UP, ANIM.ATTACK_FRONT, ANIM.ATTACK_DOWN];
-  const shoot = [ANIM.SHOOT_UP, ANIM.SHOOT_FRONT, ANIM.SHOOT_DOWN];
   return [
-    { group: pick(dirs), loops: 1, holdMs: 200 },
-    { group: ANIM.HOLDING, loops: 1, holdMs: 200 },
-    { group: pick(shoot), loops: 1, holdMs: 350 },
-    { group: ANIM.HOLDING, loops: 1, holdMs: 200 },
+    { group: weightedDir(ANIM.ATTACK_UP, ANIM.ATTACK_FRONT, ANIM.ATTACK_DOWN), loops: 1, holdMs: 200 },
+    { group: ANIM.HOLDING, loops: 1, holdMs: 150 },
+    { group: weightedDir(ANIM.ATTACK_UP, ANIM.ATTACK_FRONT, ANIM.ATTACK_DOWN), loops: 1, holdMs: 220 },
+    { group: ANIM.HOLDING, loops: 1, holdMs: 150 },
+    { group: weightedDir(ANIM.SHOOT_UP, ANIM.SHOOT_FRONT, ANIM.SHOOT_DOWN), loops: 1, holdMs: 300 },
+    { group: ANIM.HOLDING, loops: 1, holdMs: 150 },
+    { group: weightedDir(ANIM.CAST_UP, ANIM.CAST_FRONT, ANIM.CAST_DOWN), loops: 1, holdMs: 350 },
   ];
 }
 
 /**
- * 受到攻击状态：站立 → 受伤 ×2~4（每次顿一下）→ 死亡（播一次停末帧）→ 停留后回站立。
+ * 受到攻击状态：站立 → 受伤 ×N →（70%）死亡 /（30%）回站立。
  *
- * 死亡是**一次性**动画（`once`）：循环播放会反复"倒下"，与战斗语义不符。
+ * - 受伤次数：致命路线 2~4 次，非致命路线 1~3 次；
+ * - `70%` 死亡：战斗里"被打死"是低概率事件，恒为死亡会让这段循环显得最不自然；
+ * - 死亡是**一次性**动画（`once`）：播完停在尸体帧 1.6s，再回到站立。
  */
 export function buildHurt(): AnimStep[] {
+  const fatal = Math.random() < 0.7;
+  const hits = fatal ? between(2, 4) : between(1, 3);
   const steps: AnimStep[] = [{ group: ANIM.HOLDING, loops: 1, holdMs: 120 }];
-  const hits = between(2, 4);
   for (let i = 0; i < hits; i++) {
     steps.push({ group: ANIM.HITTED, loops: 1, holdMs: 220 });
   }
-  steps.push({ group: ANIM.DEATH, loops: 1, holdMs: 1600, once: true });
+  if (fatal) {
+    steps.push({ group: ANIM.DEATH, loops: 1, holdMs: 1600, once: true });
+  } else {
+    steps.push({ group: ANIM.HOLDING, loops: between(1, 2), holdMs: 400 });
+  }
   return steps;
 }
 

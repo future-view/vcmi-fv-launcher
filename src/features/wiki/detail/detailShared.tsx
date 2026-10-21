@@ -34,6 +34,11 @@ export const ANIM = {
   SPECIAL_DOWN: 19,
   MOVE_START: 20,
   MOVE_END: 21,
+  // VCMI 新版「施法」组（`ECreatureAnimType::CAST_*`）：**原版 DEF 没有**（原版施法用 SHOOT_*），
+  // 只有 png/sprites-json 动画的 mod 生物才有 —— 探测不到时播放器会自动跳过。
+  CAST_UP: 30,
+  CAST_FRONT: 31,
+  CAST_DOWN: 32,
 } as const;
 
 /** 预览循环动作表（client/widgets/Images.cpp:492-505 loopPreview） */
