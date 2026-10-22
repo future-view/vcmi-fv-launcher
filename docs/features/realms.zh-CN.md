@@ -106,6 +106,10 @@ VCMI 会把**游戏目录的 `Maps/`** 与用户目录的 `Maps/` 同时挂载�
 - 播放策略（`lib/realm/intro.ts`）：有内容且距上次 >24h 才播。
 - `RealmIntroOverlay`：视频铺满（带声播放，被拦截则静音重试）> 壁纸 > 渐变；介绍音频**仅无视频时**播放；无视频则文本滚动（窄窗 <720px 改静态）；ESC / 右下角跳过（受 `intro.skipable`），淡出 200ms。
 - `import_realm_asset` 复制素材到 `assets/<[sub/]>stem.<ext>`，`kind ∈ {wallpaper, cover, video, music, introMusic}`；`sub` / `stem` 做路径净化并清理同名异扩展名旧文件。
+- **媒体素材语言无关**（壁纸 / 封面 / 音乐 / 介绍音频 / 介绍视频）：只存顶层 `assets` 一份，
+  `i18n.<lang>.assets` 只承载介绍文本 `introText`。文件名由 kind 固定 → 分语言存不下；
+  读取侧由 `meta.rs::normalize_realm_assets` 把旧数据的媒体上提到顶层（只改内存、不写盘），
+  运行时取值 `realmAsset()` 与发布推导封面 `plan_publish` 都只读顶层。
 - BGM 由 `RealmShell` 用 `assets.music` 循环播放，`bgmMuted` 时 pause；巡礼复用同一开关。
 
 ## 10. 界面

@@ -36,11 +36,21 @@ export interface RealmMods {
   depIgnores?: string[];
 }
 
-/** 领域素材（路径相对 `{realm-dir}`）。字段名对齐设计 §6。 */
+/**
+ * 领域**媒体素材**（路径相对 `{realm-dir}`）。字段名对齐设计 §6。
+ *
+ * 媒体是**语言无关**的：只存一份、放在顶层 `assets`，不进 `i18n.<lang>.assets`。
+ * 两条硬理由：
+ * - 存储层就存不下——`import_realm_asset` 按 kind 固定文件名（`assets/wallpaper.<ext>` 等，
+ *   见 `persona.rs`），分语言上传会互相覆盖（异扩展名还会删掉前一个文件，留下悬空引用）；
+ * - 发布推导封面（`plan_publish`）只读顶层 `assets`，配在非默认语言的素材会**静默丢失**。
+ *
+ * 真正分语言的只有**介绍文本**（见 `RealmI18nAssets`）——它是纯文本、无实体文件。
+ */
 export interface RealmAssets {
   /** 壁纸图片：领域界面 / 登场演出背景（设计 §6 的 `wallpaper`） */
   wallpaper?: string;
-  /** 封面图片：切换领域列表显示。未配置时用壁纸图片缩放生成（设计 §6 的 `cover`） */
+  /** 封面图片：切换领域列表显示。未配置时发布侧直接用壁纸图（设计 §6 的 `cover`） */
   cover?: string;
   /** 背景音乐：领域主界面播放（设计 §6 的 `music`） */
   music?: string;
@@ -48,7 +58,15 @@ export interface RealmAssets {
   introMusic?: string;
   /** 介绍视频：领域登场演出 */
   introVideo?: string;
-  /** 介绍文本（默认语言）：领域界面 / 登场演出显示，最大 1000 字 */
+  /** 介绍文本（**仅旧数据兜底**）：拆分前默认语言的文本写在顶层，新数据一律写
+   * `i18n.<lang>.assets.introText`，编辑器不再写这里。读取见 `realmIntroText`。 */
+  introText?: string;
+}
+
+/** 单语言覆盖里的**文本类**素材（设计 §6 的 `i18n.<lang>.assets`）。
+ * 只有介绍文本分语言；媒体字段见 `RealmAssets`（语言无关，只存顶层）。 */
+export interface RealmI18nAssets {
+  /** 介绍文本：领域界面 / 登场演出显示，最大 1000 字 */
   introText?: string;
 }
 
@@ -89,7 +107,7 @@ export interface RealmIntro {
 }
 
 /** 单语言覆盖（设计 §6 的 `i18n.<lang>`）：按启动器语言覆盖顶层同名字段。
- * `assets` 可只写需要覆盖的项，从而支持「不同语言不同封面/介绍视频」。 */
+ * `assets` 只承载**分语言的文本**（`introText`）；媒体字段语言无关、只存顶层 `assets`。 */
 export interface RealmI18nEntry {
   name?: string;
   description?: string;
@@ -97,7 +115,7 @@ export interface RealmI18nEntry {
    * **键存在即声明**：空数组 = 「该语言无标签」的显式声明（发布时覆盖索引）；
    * 缺键 = 未声明（保留索引既有值）。编辑器保存时只会对有内容的语言条目写入本键。 */
   tags?: string[];
-  assets?: RealmAssets;
+  assets?: RealmI18nAssets;
 }
 
 /** 战役场景条目（H3C 头部内嵌场景表）。 */
@@ -360,7 +378,9 @@ export interface Realm {
   /** 顶层 `name` / `description` / `assets.introText` 所属语言（VCMI 语言标识）。
    * 它不是设计 §6 的字段，但编辑器需要它来判断"顶层字段属于哪个语言"。 */
   defaultLang?: string;
-  /** 领域资源（默认语言） */
+  /** 领域**媒体**资源（**语言无关**：壁纸 / 封面 / 音乐 / 介绍音频 / 介绍视频）。
+   * 这是媒体的唯一真相源——不再镜像 `i18n[defaultLang].assets`，也不按语言覆盖。
+   * 分语言的介绍文本见 `i18n.<lang>.assets.introText`。 */
   assets?: RealmAssets;
   /** 是否显示游戏名称前缀（默认 false，§6）。
    * 开启后领域主界面与登场演出的领域标题带「游戏名：」前缀，游戏名按启动器界面语言取。 */

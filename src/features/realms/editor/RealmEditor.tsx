@@ -23,11 +23,13 @@ import {
   type ModConflict,
 } from "@/lib/tauri";
 import { updateRealmSafe, setRealmMapsBlockedSafe } from "@/lib/realm/store";
+import { REALM_MEDIA_ASSET_KEYS, realmMediaAssets } from "@/lib/realm/intro";
 import type {
   Realm,
   RealmAssets,
   RealmBackgroundFilter,
   RealmDirs,
+  RealmI18nAssets,
   RealmI18nEntry,
   RealmMapEntry,
   RealmShowcase,
@@ -97,9 +99,10 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
     description: editing.i18n?.[editing.defaultLang ?? lang]?.description ?? editing.description ?? "",
     // 标签：i18n[defaultLang] 优先、顶层兜底（与 name/description 同款回退；恒写语义见 pruneI18n）
     tags: editing.i18n?.[editing.defaultLang ?? lang]?.tags ?? editing.tags ?? [],
+    // 只承接**文本类**素材：媒体是语言无关的（见下方 `media`），不再进 i18n，
+    // 否则保存时会把媒体写进语言块、发布推导封面（只读顶层）拿不到 → 静默丢封面。
     assets: {
-      ...(editing.assets ?? {}),
-      ...(editing.i18n?.[editing.defaultLang ?? lang]?.assets ?? {}),
+      introText: editing.i18n?.[editing.defaultLang ?? lang]?.assets?.introText ?? editing.assets?.introText,
     },
   };
   const [i18nMap, setI18nMap] = useState<Record<string, RealmI18nEntry>>(() => {
@@ -116,13 +119,29 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
   const baseEntry: RealmI18nEntry = i18nMap[defaultLang] ?? {};
   const baseName = baseEntry.name ?? "";
   const baseDesc = baseEntry.description ?? "";
-  const baseAssets: RealmAssets = baseEntry.assets ?? {};
-  /** 非默认语言下，未覆盖的资源**回退显示**默认语言值——与运行时 `realmAsset()` 的
-   * 回退链（i18n 覆盖 → 默认语言 → 顶层）保持一致，避免"资源其实会生效、编辑器却显示未配置"。 */
-  const curAssets: RealmAssets = { ...baseAssets, ...(curEntry.assets ?? {}) };
-  /** 某项是否来自默认语言回退（用于显示「跟随默认语言」标记） */
-  const isFallbackAsset = (k: keyof RealmAssets) =>
-    !isBaseLang && !(curEntry.assets?.[k] ?? "") && !!(baseAssets[k] ?? "");
+  /**
+   * 媒体素材（**语言无关**）：壁纸 / 封面 / 音乐 / 介绍音频 / 介绍视频只存一份、写顶层 `assets`。
+   *
+   * 拆分前它们跟着「当前编辑语言」写进 `i18n.<lang>.assets`，而发布推导封面只读顶层
+   * （`plan_publish`），于是"只在非默认语言配过封面"会静默丢封面；且 `import_realm_asset`
+   * 按 kind 固定文件名，分语言根本存不下（后传覆盖先传）。故改为单一真相源。
+   * 初值走 `realmMediaAssets`：旧形状（媒体仍在语言块）也能读回来，不至于一保存就抹掉。
+   */
+  const [media, setMedia] = useState<RealmAssets>(() => realmMediaAssets(editing));
+  /** 媒体写入：patch 里空串 = 清除该项（删除键，不写空值） */
+  const patchMedia = (patch: RealmAssets) => {
+    setMedia((m) => {
+      const next: RealmAssets = { ...m };
+      for (const [k, v] of Object.entries(patch)) {
+        const key = k as keyof RealmAssets;
+        if (!v) delete next[key];
+        else next[key] = v;
+      }
+      return next;
+    });
+  };
+  /** 当前编辑语言的介绍文本（唯一分语言的素材） */
+  const curIntroText = curEntry.assets?.introText ?? "";
   /** 写入当前编辑语言的某字段（默认语言与非默认语言统一写入 i18nMap[curLang]） */
   const setCur = (patch: RealmI18nEntry) => {
     setI18nMap((m) => ({
@@ -130,15 +149,11 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
       [curLang]: { ...(m[curLang] ?? {}), ...patch },
     }));
   };
-  const setCurAssets = (patch: RealmAssets) => {
-    // 基于**该语言自己的覆盖项**合并（而非回退后的 `curAssets`），保证覆盖里只存差异项；
-    // patch 中值为空串表示「清除」——删除该键，从而回退显示默认语言的值。
-    const next: RealmAssets = { ...(curEntry.assets ?? {}) };
-    for (const [k, v] of Object.entries(patch)) {
-      const key = k as keyof RealmAssets;
-      if (!v) delete next[key];
-      else next[key] = v;
-    }
+  /** 写入当前编辑语言的介绍文本：空值删除该键，从而回退显示默认语言的文本 */
+  const setIntroText = (v: string) => {
+    const next: RealmI18nAssets = { ...(curEntry.assets ?? {}) };
+    if (v) next.introText = v;
+    else delete next.introText;
     setCur({ assets: next });
   };
 
@@ -195,7 +210,8 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
   const [author, setAuthor] = useState((editing.author as string) ?? "");
 
   // 登场演出（§5.4 / §5.5）：是否登场由是否配置素材决定（§9.6.1 核对点 3），故无主开关。
-  // 素材（wallpaper/cover/introVideo/introText）位于 `assets`，可随语言覆盖，见上方 curAssets。
+  // 素材分两类：媒体（wallpaper/cover/music/introMusic/introVideo）语言无关、见上方 `media`；
+  // 介绍文本（introText）随语言覆盖、见 `curIntroText`。
   const [introSeconds, setIntroSeconds] = useState(
     editing.intro?.durationMs ? editing.intro.durationMs / 1000 : 5,
   );
@@ -304,15 +320,19 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
     setDefaultLang(v);
     setCurLang(v);
   };
-  /** 去掉空字符串，避免把空值（如 `{"cover":""}`）写进 realm.json */
-  const pruneAssets = (a: RealmAssets): RealmAssets | undefined => {
+  /** 去掉空字符串，避免把空值（如 `{"cover":""}`）写进 realm.json。**只处理媒体字段**
+   * （语言无关，落顶层 `assets`；介绍文本见 `pruneI18nAssets`）。 */
+  const pruneMedia = (a: RealmAssets): RealmAssets | undefined => {
     const out: RealmAssets = {};
-    for (const k of ["wallpaper", "cover", "music", "introMusic", "introVideo", "introText"] as const) {
+    for (const k of REALM_MEDIA_ASSET_KEYS) {
       const v = (a[k] ?? "").trim();
       if (v) out[k] = v;
     }
     return Object.keys(out).length ? out : undefined;
   };
+  /** 语言块内的素材只剩「介绍文本」：媒体一律归顶层（见 `RealmI18nAssets`） */
+  const pruneI18nAssets = (a: RealmI18nAssets): RealmI18nAssets | undefined =>
+    (a.introText ?? "").trim() ? { introText: a.introText } : undefined;
   /** 只保留有实际内容的语言条目；每个 entry 内也只保留非空字段。
    * 默认语言（defaultLang）也在 i18n 中落盘（新模型），故不再跳过；无内容则不强写（顶层已兜底）。
    * 标签例外：条目一旦保留（有其他内容，或 tags 本身有值）就**恒写** `tags`（含空数组）——
@@ -323,7 +343,7 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
       const entry: RealmI18nEntry = {};
       const name = (e.name ?? "").trim();
       const desc = (e.description ?? "").trim();
-      const assets = e.assets ? pruneAssets(e.assets) : undefined;
+      const assets = e.assets ? pruneI18nAssets(e.assets) : undefined;
       const tags = Array.isArray(e.tags) ? e.tags : [];
       if (name) entry.name = name;
       if (desc) entry.description = desc;
@@ -355,7 +375,9 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
   const signatureOf = () =>
     JSON.stringify({
       defaultLang,
-      baseName, baseDesc, baseAssets: JSON.stringify(baseAssets),
+      baseName, baseDesc,
+      // 媒体素材（语言无关）单独计入：改壁纸 / 封面也要能触发保存
+      media: JSON.stringify(media),
       i18n: JSON.stringify(i18nMap),
       version, author, blockMaps, dirs: JSON.stringify(dirs),
       borrowed: [...borrowed].sort(),
@@ -883,9 +905,10 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
     );
     if (!p) return;
     // 领域目录已在创建时建立，素材可直接复制进 `{realm-dir}/assets/`（无需保存后再补写）。
-    // 写入**当前编辑语言**的 assets，从而实现分语言素材（设计 §6 的 i18n.<lang>.assets）。
+    // 媒体**语言无关**：一律写顶层 `assets`（`media`），不随当前编辑语言分家——
+    // 文件名本就按 kind 固定（`assets/wallpaper.<ext>`），分语言存不下且发布推导只认顶层。
     const rel = await importRealmAsset(currentId, p, pickKind);
-    setCurAssets({ [kind]: rel });
+    patchMedia({ [kind]: rel });
   };
 
   /**
@@ -929,7 +952,8 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
         defaultLang,
         version: version.trim() || undefined,
         author: author.trim() || undefined,
-        assets: pruneAssets(baseAssets),
+        // 媒体素材（语言无关）：只写顶层，不进 i18n
+        assets: pruneMedia(media),
         // §6 `showGameName`：领域主界面与登场演出的标题带游戏名前缀
         showGameName,
         // §6 `main`：领域主界面配置
@@ -1067,7 +1091,7 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
     name: baseName,
     description: baseDesc,
     defaultLang,
-    assets: pruneAssets(baseAssets),
+    assets: pruneMedia(media),
     showGameName,
     main: { loopMusic, maskOpacity, background },
     intro: {
@@ -1209,14 +1233,16 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
 
   const introTabProps: IntroTabProps = {
     t,
-    curAssets,
+    // 媒体（语言无关）与介绍文本（分语言）分开传：前者只写顶层，后者写 i18n[curLang]
+    media,
+    patchMedia,
+    introText: curIntroText,
+    setIntroText,
     curLang,
     langLabel,
     isBaseLang,
-    isFallbackAsset,
     assetPreview,
     pickAsset,
-    setCurAssets,
     introSeconds,
     setIntroSeconds,
     introSkippable,

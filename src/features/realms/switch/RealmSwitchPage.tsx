@@ -117,7 +117,8 @@ export function RealmSwitchPage({ onEnter, onNew, onImport, onRemote, onEdit, sh
   const nameOf = (r: Realm) => realmName(r, lang);
   const descOf = (r: Realm) => realmDescription(r, lang);
   /** 卡片封面：缩略图优先，缺失时回退封面图（§9.4） */
-  const coverOf = (r: Realm) => realmAsset(r, "cover", lang) || realmAsset(r, "wallpaper", lang);
+  // 媒体语言无关：封面 / 壁纸都只存顶层一份，无需按界面语言取值
+  const coverOf = (r: Realm) => realmAsset(r, "cover") || realmAsset(r, "wallpaper");
 
   /**
    * 进程守卫（§4.4 **分级**）：只有**游戏本体**（client / server / mapeditor）在运行时

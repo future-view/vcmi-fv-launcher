@@ -16,7 +16,7 @@
 | 标签 | 内容 |
 |---|---|
 | **basic** | id（只读）、版本、作者、多语言名称与描述、标签（每语言 ≤6 个，单标签 ≤16 字） |
-| **intro** | 壁纸 / 封面 / 主题曲 / 介绍视频 / 介绍音乐 / 时长 / 可跳过 / 显示领域名 / `showGameName` / `loopMusic` / 遮罩 |
+| **intro** | 壁纸 / 封面 / 主题曲 / 介绍视频 / 介绍音乐（**媒体语言无关**，见 §5）/ 介绍文本（分语言）/ 时长 / 可跳过 / 显示领域名 / `showGameName` / `loopMusic` / 遮罩 |
 | **mods** | 视图 A：预设条 + `ModBrowser`；视图 B：`RealmModManagerPanel`（已实装 / 可引用 / 可下载 / 可更新） |
 | **maps** | 三栏：目录树 / 列表 / 详情；引入 / 上传 / 移动 / 删除 / 屏蔽阀门 / 语言过滤 |
 | **showcase** | 牌组（自动 / 手动）、城镇与英雄幻灯片、音频 |
@@ -38,6 +38,12 @@
 
 - 保存走 `update_realm`：**深合并**，`id` 不可改，内容无变化则不写盘、不刷 `updatedAt`。
 - 预设由编辑器整体接管时走 `write_realm_presets`。
+- **媒体素材语言无关**：壁纸 / 封面 / 主题曲 / 介绍视频 / 介绍音乐只写顶层 `assets` 一份，
+  不进 `i18n.<lang>.assets`（后者只剩介绍文本 `introText`）。
+  理由有二：`import_realm_asset` 的文件名由 kind 固定（`assets/wallpaper.<ext>`），分语言存不下
+  （后传覆盖先传、异扩展名还会删掉旧文件）；发布推导封面（`plan_publish`）只读顶层 `assets`，
+  配在非默认语言的封面会**静默丢失**。旧数据由后端 `read_realm_meta` 在读取时上提
+  （`normalize_realm_assets`，只改内存不写盘），编辑器打开旧领域也不会显示成「未配置」。
 
 ## 6. 边界与容错
 

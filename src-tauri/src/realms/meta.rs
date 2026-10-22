@@ -20,6 +20,15 @@ use crate::infra::links::{self, is_link};
 use crate::state::AppPaths;
 use crate::vcmi::paths::VcmiPaths;
 
+/// 语言无关的**媒体**素材字段（壁纸 / 封面 / 音乐 / 介绍音频 / 介绍视频）。
+///
+/// 其余（如 `introText`）属**文本**，按语言覆盖，留在 `i18n.<lang>.assets`。
+/// 媒体只认顶层 `assets`，两条硬理由：
+/// - 存储层就存不下分语言：`import_realm_asset` 按 kind 固定文件名（`assets/wallpaper.<ext>`），
+///   后传的会覆盖先传的，异扩展名还会删掉旧文件 → 另一语言块留下悬空引用；
+/// - 发布推导封面（`plan_publish`）只读顶层 `assets`，配在非默认语言的素材会**静默丢失**。
+const REALM_MEDIA_ASSET_KEYS: [&str; 5] = ["wallpaper", "cover", "music", "introMusic", "introVideo"];
+
 pub fn read_realm_meta(id: &str) -> Option<Value> {
     let p = realm_meta_path(id)?;
     if !p.is_file() {
@@ -27,7 +36,98 @@ pub fn read_realm_meta(id: &str) -> Option<Value> {
     }
     let text = fs::read_to_string(&p).ok()?;
     // 宽容解析（JSON5 子集）：realm.json 可能被手工编辑（注释 / 尾逗号）
-    crate::infra::json::parse_json_lenient(&text).ok()
+    let mut realm = crate::infra::json::parse_json_lenient(&text).ok()?;
+    normalize_realm_assets(&mut realm);
+    Some(realm)
+}
+
+/// 把旧形状（媒体写在 `i18n.<lang>.assets`）归一成「媒体只在顶层 `assets`」。
+///
+/// **只改内存、不写盘**：归并在读取入口做，UI / 导出 / 发布共用同一份数据，
+/// 因此无需强制迁移写盘；真正落盘发生在下次保存（`update_realm`）。导入的只读领域
+/// （无 `lock`、不会保存）磁盘上仍是旧形状，但读取已归一，导出与展示不受影响。
+///
+/// 取值优先级：顶层已有值（已是新形状，唯一真相源）> 默认语言 > 其余语言（按语言名字典序，稳定）。
+/// 各语言块里的媒体字段一律剥离，空掉的 `assets` 键一并移除。
+fn normalize_realm_assets(realm: &mut Value) {
+    let Some(obj) = realm.as_object_mut() else {
+        return;
+    };
+    let default_lang = obj
+        .get("defaultLang")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+
+    // 先只读收集，再一次性改写（避免借用冲突）
+    let mut has_top: Vec<String> = Vec::new();
+    if let Some(a) = obj.get("assets").and_then(|v| v.as_object()) {
+        for (k, v) in a {
+            if v.as_str().map(|s| !s.trim().is_empty()).unwrap_or(false) {
+                has_top.push(k.clone());
+            }
+        }
+    }
+    let mut langs: Vec<(String, serde_json::Map<String, Value>)> = Vec::new();
+    if let Some(m) = obj.get("i18n").and_then(|v| v.as_object()) {
+        for (lang, entry) in m {
+            if let Some(a) = entry.get("assets").and_then(|v| v.as_object()) {
+                langs.push((lang.clone(), a.clone()));
+            }
+        }
+    }
+    langs.sort_by(|a, b| a.0.cmp(&b.0)); // 语言顺序稳定，保证同一份数据归并结果唯一
+
+    // 1) 上提：顶层缺该媒体字段时，从语言块里找回（默认语言优先）
+    let mut lifted: Vec<(String, String)> = Vec::new();
+    for key in REALM_MEDIA_ASSET_KEYS {
+        if has_top.iter().any(|k| k == key) {
+            continue;
+        }
+        let mut found: Option<String> = None;
+        if let Some((_, a)) = langs.iter().find(|(l, _)| l == &default_lang) {
+            found = a.get(key).and_then(|v| v.as_str()).map(|s| s.to_string());
+        }
+        if found.is_none() {
+            for (_, a) in &langs {
+                if let Some(s) = a.get(key).and_then(|v| v.as_str()) {
+                    found = Some(s.to_string());
+                    break;
+                }
+            }
+        }
+        if let Some(s) = found.filter(|s| !s.trim().is_empty()) {
+            lifted.push((key.to_string(), s));
+        }
+    }
+    if !lifted.is_empty() {
+        let top = obj
+            .entry("assets")
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        if let Some(top) = top.as_object_mut() {
+            for (k, v) in lifted {
+                top.insert(k, Value::String(v));
+            }
+        }
+    }
+
+    // 2) 剥离：语言块不再承载媒体字段（空掉的 assets 键一并移除）
+    if let Some(m) = obj.get_mut("i18n").and_then(|v| v.as_object_mut()) {
+        for (_, entry) in m.iter_mut() {
+            let mut drop_assets = false;
+            if let Some(a) = entry.get_mut("assets").and_then(|v| v.as_object_mut()) {
+                for key in REALM_MEDIA_ASSET_KEYS {
+                    a.remove(key);
+                }
+                drop_assets = a.is_empty();
+            }
+            if drop_assets {
+                if let Some(o) = entry.as_object_mut() {
+                    o.remove("assets");
+                }
+            }
+        }
+    }
 }
 
 /// 写入领域元数据：始终补齐 `id`，剥离导出包专用的 `checksum`。
@@ -381,7 +481,7 @@ pub fn rename_realm(old_id: String, new_id: String) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::realm_update_is_noop;
+    use super::{normalize_realm_assets, realm_update_is_noop};
     use serde_json::json;
 
     #[test]
@@ -392,6 +492,58 @@ mod tests {
         // 前端回传本地状态里的旧 updateAt（与磁盘不同）同样视为无变化
         let after_old_ts = json!({ "id": "demo", "name": "A", "updateAt": "2026-09-01" });
         assert!(realm_update_is_noop(&before, &after_old_ts));
+    }
+
+    /// 旧形状（媒体写在非默认语言块）→ 读取时上提到顶层，并从语言块剥离
+    #[test]
+    fn legacy_media_assets_are_lifted_to_top_level() {
+        let mut realm = json!({
+            "id": "heroes-chronicles",
+            "defaultLang": "english",
+            "assets": { "introText": "top text" },
+            "i18n": {
+                "english": { "assets": { "introText": "en text" } },
+                "chinese": { "assets": { "wallpaper": "assets/wallpaper.webp", "music": "assets/music.ogg", "introText": "中文" } }
+            }
+        });
+        normalize_realm_assets(&mut realm);
+        assert_eq!(realm["assets"]["wallpaper"], json!("assets/wallpaper.webp"));
+        assert_eq!(realm["assets"]["music"], json!("assets/music.ogg"));
+        // 文本不动：仍是分语言，顶层只保留原有兜底值
+        assert_eq!(realm["assets"]["introText"], json!("top text"));
+        assert_eq!(realm["i18n"]["chinese"]["assets"]["introText"], json!("中文"));
+        // 媒体字段已从语言块剥离
+        assert!(realm["i18n"]["chinese"]["assets"]["wallpaper"].is_null());
+        assert!(realm["i18n"]["chinese"]["assets"]["music"].is_null());
+    }
+
+    /// 新形状（顶层已有值）优先：不被语言块的同名值覆盖
+    #[test]
+    fn top_level_media_wins_over_legacy_language_entries() {
+        let mut realm = json!({
+            "id": "demo",
+            "defaultLang": "english",
+            "assets": { "wallpaper": "assets/new.webp" },
+            "i18n": { "chinese": { "assets": { "wallpaper": "assets/old.webp" } } }
+        });
+        normalize_realm_assets(&mut realm);
+        assert_eq!(realm["assets"]["wallpaper"], json!("assets/new.webp"));
+        // 语言块被清空的 assets 键一并移除
+        assert!(realm["i18n"]["chinese"]["assets"].is_null());
+    }
+
+    /// 幂等：归并两次结果一致（读时归一化会被反复调用）
+    #[test]
+    fn normalize_is_idempotent() {
+        let mut realm = json!({
+            "id": "demo",
+            "defaultLang": "english",
+            "i18n": { "chinese": { "assets": { "cover": "assets/cover.webp" } } }
+        });
+        normalize_realm_assets(&mut realm);
+        let once = realm.clone();
+        normalize_realm_assets(&mut realm);
+        assert_eq!(once, realm);
     }
 
     #[test]

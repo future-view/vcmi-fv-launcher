@@ -45,10 +45,10 @@ export function RealmIntroOverlay({ realm, root, onFinish, preview }: Props) {
 
   const intro = realm.intro;
   const lang = t.uiLang;
-  // 素材支持分语言覆盖（`i18n.<lang>.assets`），取值走统一回退链
-  const videoSrc = realmAssetUrl(root, realmAsset(realm, "introVideo", lang));
-  const coverSrc = realmAssetUrl(root, realmAsset(realm, "wallpaper", lang));
-  const musicSrc = realmAssetUrl(root, realmAsset(realm, "introMusic", lang));
+  // 媒体素材**语言无关**（只存顶层 `assets`）；分语言的只有介绍文本（下取 `lang`）
+  const videoSrc = realmAssetUrl(root, realmAsset(realm, "introVideo"));
+  const coverSrc = realmAssetUrl(root, realmAsset(realm, "wallpaper"));
+  const musicSrc = realmAssetUrl(root, realmAsset(realm, "introMusic"));
   const text = realmIntroText(realm, lang);
   // §6 `showGameName`：开启后标题带游戏名前缀，游戏名按界面语言取
   const name = realmTitle({

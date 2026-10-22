@@ -1056,7 +1056,9 @@ fn plan_publish(
             None => (None, URL_SOURCE_NONE),
         },
     };
-    // 封面名：默认语言 `assets.cover`（回退 `wallpaper`）；实体文件不在就不承诺写封面
+    // 封面名：顶层 `assets.cover`（回退 `wallpaper`）；实体文件不在就不承诺写封面。
+    // 媒体素材**语言无关**、只存顶层（`normalize_realm_assets` 保证），故无需按语言回退
+    // —— 早先只认默认语言块，配在其它语言的封面会静默丢失。
     let cover_name = realm
         .get("assets")
         .and_then(|a| a.get("cover").or_else(|| a.get("wallpaper")))
@@ -1564,8 +1566,8 @@ fn publish_realm_to_repo(
         }
     }
 
-    // 3) 封面：默认语言的 `assets.cover`（回退 `wallpaper`）落 `realms/<id>/cover.<ext>`。
-    //    没配封面就不写 `cover` 字段 —— 合入时保留既有条目的封面值。
+    // 3) 封面：顶层 `assets.cover`（回退 `wallpaper`）落 `realms/<id>/cover.<ext>`。
+    //    媒体语言无关、只存顶层；没配封面就不写 `cover` 字段 —— 合入时保留既有条目的封面值。
     let mut cover_path: Option<PathBuf> = None;
     if let Some(cover_name) = &plan.cover_name {
         let rel = realm

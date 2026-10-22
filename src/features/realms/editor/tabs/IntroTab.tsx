@@ -7,15 +7,18 @@ import type { LangDict } from "@/i18n/types";
 
 export interface IntroTabProps {
   t: LangDict;
-  /** 当前编辑语言的资源（已按「默认语言回退」合并后的结果） */
-  curAssets: RealmAssets;
+  /** 媒体素材（**语言无关**：壁纸 / 封面 / 音乐 / 介绍音频 / 介绍视频），落顶层 `assets` */
+  media: RealmAssets;
+  /** 写入媒体素材：空串 = 清除该项 */
+  patchMedia: (patch: RealmAssets) => void;
+  /** 介绍文本（**唯一分语言**的素材），取当前编辑语言的值 */
+  introText: string;
+  setIntroText: (v: string) => void;
   curLang: string;
   langLabel: (v: string) => string;
   isBaseLang: boolean;
-  isFallbackAsset: (k: keyof RealmAssets) => boolean;
   assetPreview: (rel?: string) => string;
   pickAsset: (kind: "wallpaper" | "cover" | "music" | "introMusic" | "introVideo", pickKind: "video" | "cover" | "wallpaper" | "music" | "introMusic") => Promise<void>;
-  setCurAssets: (patch: RealmAssets) => void;
   introSeconds: number;
   setIntroSeconds: React.Dispatch<React.SetStateAction<number>>;
   introSkippable: boolean;
@@ -45,7 +48,7 @@ export interface IntroTabProps {
  * - 登场演出：介绍视频 / 介绍音频 / 演出秒数 / 允许跳过。
  */
 export function IntroTab(props: IntroTabProps) {
-  const { t, curAssets, curLang, langLabel, isBaseLang, isFallbackAsset, assetPreview, pickAsset, setCurAssets, introSeconds, setIntroSeconds, introSkippable, setIntroSkippable, introShowName, setIntroShowName, showGameName, setShowGameName, loopMusic, setLoopMusic, maskOpacity, setMaskOpacity, background, setBackground, appearanceOpen, setAppearanceOpen } = props;
+  const { t, media, patchMedia, introText, setIntroText, curLang, langLabel, isBaseLang, assetPreview, pickAsset, introSeconds, setIntroSeconds, introSkippable, setIntroSkippable, introShowName, setIntroShowName, showGameName, setShowGameName, loopMusic, setLoopMusic, maskOpacity, setMaskOpacity, background, setBackground, appearanceOpen, setAppearanceOpen } = props;
   return (
     <>
       {/* 标签页说明：三组的分工 */}
@@ -58,12 +61,13 @@ export function IntroTab(props: IntroTabProps) {
           <p className="mt-1 text-xs text-muted">{t.realm.introCommonHint}</p>
         </div>
 
-        {/* 壁纸图片（§9.6.1：预览 + 上传；用于领域界面 / 登场演出背景，对应设计 §6 的 `wallpaper`）。素材按当前编辑语言存放。 */}
+        {/* 壁纸图片（§9.6.1：预览 + 上传；用于领域界面 / 登场演出背景，对应设计 §6 的 `wallpaper`）。
+            媒体**语言无关**：任何编辑语言下上传都写同一份顶层 `assets.wallpaper`。 */}
         <Field label={t.realm.introCover}>
           <div className="flex items-center gap-3">
-            {assetPreview(curAssets.wallpaper) && (
+            {assetPreview(media.wallpaper) && (
               <img
-                src={assetPreview(curAssets.wallpaper)}
+                src={assetPreview(media.wallpaper)}
                 alt=""
                 className="h-16 w-16 shrink-0 rounded object-contain"
                 draggable={false}
@@ -82,17 +86,12 @@ export function IntroTab(props: IntroTabProps) {
                 {t.realm.introPickCover}
               </button>
               <span className="min-w-0 flex-1 truncate text-xs text-muted">
-                {curAssets.wallpaper || t.realm.introNoCover}
+                {media.wallpaper || t.realm.introNoCover}
               </span>
-              {isFallbackAsset("wallpaper") && (
-                <span className="shrink-0 rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-400">
-                  {t.realm.followDefault}
-                </span>
-              )}
-              {curAssets.wallpaper && (
+              {media.wallpaper && (
                 <button
                   type="button"
-                  onClick={() => setCurAssets({ wallpaper: "" })}
+                  onClick={() => patchMedia({ wallpaper: "" })}
                   className="shrink-0 text-xs text-red-400 hover:underline"
                 >
                   {t.realm.introClear}
@@ -103,12 +102,13 @@ export function IntroTab(props: IntroTabProps) {
           <p className="mt-1 text-xs text-muted">{t.realm.introCoverHint}</p>
         </Field>
 
-        {/* 封面图片（可选：用于切换领域列表；不上传时自动用壁纸图片生成，对应设计 §6 的 `cover`，§9.6.1/§9.6.2）。素材按当前编辑语言存放。 */}
+        {/* 封面图片（可选：用于切换领域列表与领域仓库索引；未配置时发布侧直接用壁纸图，
+            对应设计 §6 的 `cover`，§9.6.1/§9.6.2）。与壁纸同为语言无关的媒体。 */}
         <Field label={t.realm.introThumb}>
           <div className="flex items-center gap-3">
-            {assetPreview(curAssets.cover) && (
+            {assetPreview(media.cover) && (
               <img
-                src={assetPreview(curAssets.cover)}
+                src={assetPreview(media.cover)}
                 alt=""
                 className="h-16 w-16 shrink-0 rounded object-contain"
                 draggable={false}
@@ -127,17 +127,12 @@ export function IntroTab(props: IntroTabProps) {
                 {t.realm.introPickThumb}
               </button>
               <span className="min-w-0 flex-1 truncate text-xs text-muted">
-                {curAssets.cover || t.realm.introNoThumb}
+                {media.cover || t.realm.introNoThumb}
               </span>
-              {isFallbackAsset("cover") && (
-                <span className="shrink-0 rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-400">
-                  {t.realm.followDefault}
-                </span>
-              )}
-              {curAssets.cover && (
+              {media.cover && (
                 <button
                   type="button"
-                  onClick={() => setCurAssets({ cover: "" })}
+                  onClick={() => patchMedia({ cover: "" })}
                   className="shrink-0 text-xs text-red-400 hover:underline"
                 >
                   {t.realm.introClear}
@@ -152,13 +147,13 @@ export function IntroTab(props: IntroTabProps) {
             严格按界面语言显示，缺失时隐藏。 */}
         <Field label={`${t.realm.introText}（${langLabel(curLang)}）`}>
           <textarea
-            value={curAssets.introText ?? ""}
-            onChange={(e) => setCurAssets({ introText: e.target.value })}
+            value={introText ?? ""}
+            onChange={(e) => setIntroText(e.target.value)}
             placeholder={t.realm.introTextPh}
             rows={6}
             className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
           />
-          {!isBaseLang && !(curAssets.introText ?? "").trim() && (
+          {!isBaseLang && !(introText ?? "").trim() && (
             <p className="mt-1.5 text-xs text-amber-400/90">
               {t.realm.introTextFallbackHint.replace("{lang}", langLabel(curLang))}
             </p>
@@ -193,7 +188,7 @@ export function IntroTab(props: IntroTabProps) {
       <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
         <div className="text-sm font-medium text-foreground">{t.realm.realmHome}</div>
 
-        {/* 背景音乐（`assets.music`）：覆盖层根部常驻播放，切二级页不中断 */}
+        {/* 背景音乐（`assets.music`，语言无关）：覆盖层根部常驻播放，切二级页不中断 */}
         <Field label={t.realm.music}>
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -204,17 +199,12 @@ export function IntroTab(props: IntroTabProps) {
               {t.realm.pickMusic}
             </button>
             <span className="min-w-0 flex-1 truncate text-xs text-muted">
-              {curAssets.music || t.realm.noMusic}
+              {media.music || t.realm.noMusic}
             </span>
-            {isFallbackAsset("music") && (
-              <span className="shrink-0 rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-400">
-                {t.realm.followDefault}
-              </span>
-            )}
-            {curAssets.music && (
+            {media.music && (
               <button
                 type="button"
-                onClick={() => setCurAssets({ music: "" })}
+                onClick={() => patchMedia({ music: "" })}
                 className="shrink-0 text-xs text-red-400 hover:underline"
               >
                 {t.realm.introClear}
@@ -285,9 +275,9 @@ export function IntroTab(props: IntroTabProps) {
         {/* 介绍视频（§9.6.1：预览 + 上传；§9.6.2 玩家文案） */}
         <Field label={t.realm.introVideo}>
           <div className="flex items-center gap-3">
-            {assetPreview(curAssets.introVideo) && (
+            {assetPreview(media.introVideo) && (
               <video
-                src={assetPreview(curAssets.introVideo)}
+                src={assetPreview(media.introVideo)}
                 muted
                 className="h-16 w-28 shrink-0 rounded object-contain"
               />
@@ -301,17 +291,12 @@ export function IntroTab(props: IntroTabProps) {
                 {t.realm.introPickVideo}
               </button>
               <span className="min-w-0 flex-1 truncate text-xs text-muted">
-                {curAssets.introVideo || t.realm.introNoVideo}
+                {media.introVideo || t.realm.introNoVideo}
               </span>
-              {isFallbackAsset("introVideo") && (
-                <span className="shrink-0 rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-400">
-                  {t.realm.followDefault}
-                </span>
-              )}
-              {curAssets.introVideo && (
+              {media.introVideo && (
                 <button
                   type="button"
-                  onClick={() => setCurAssets({ introVideo: "" })}
+                  onClick={() => patchMedia({ introVideo: "" })}
                   className="shrink-0 text-xs text-red-400 hover:underline"
                 >
                   {t.realm.introClear}
@@ -322,7 +307,7 @@ export function IntroTab(props: IntroTabProps) {
           <p className="mt-1 text-xs text-muted">{t.realm.introVideoHint}</p>
         </Field>
 
-        {/* 介绍音频（§6 `assets.introMusic`）：无介绍视频时随登场演出播放 */}
+        {/* 介绍音频（§6 `assets.introMusic`，语言无关）：无介绍视频时随登场演出播放 */}
         <Field label={t.realm.introMusic}>
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -333,17 +318,12 @@ export function IntroTab(props: IntroTabProps) {
               {t.realm.pickIntroMusic}
             </button>
             <span className="min-w-0 flex-1 truncate text-xs text-muted">
-              {curAssets.introMusic || t.realm.noIntroMusic}
+              {media.introMusic || t.realm.noIntroMusic}
             </span>
-            {isFallbackAsset("introMusic") && (
-              <span className="shrink-0 rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] text-slate-400">
-                {t.realm.followDefault}
-              </span>
-            )}
-            {curAssets.introMusic && (
+            {media.introMusic && (
               <button
                 type="button"
-                onClick={() => setCurAssets({ introMusic: "" })}
+                onClick={() => patchMedia({ introMusic: "" })}
                 className="shrink-0 text-xs text-red-400 hover:underline"
               >
                 {t.realm.introClear}

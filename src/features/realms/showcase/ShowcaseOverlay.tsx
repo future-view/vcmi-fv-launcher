@@ -1263,7 +1263,7 @@ export function ShowcaseOverlay({
   const assetRoot = root || selfRoot;
 
   // ── 交叉淡入（§7.8）：阵营音乐 ↔ 领域 BGM 两路 volume rAF 渐变 ──
-  const bgmSrc = assetRoot ? realmAssetUrl(assetRoot, realmAsset(realm, "music", lang)) : "";
+  const bgmSrc = assetRoot ? realmAssetUrl(assetRoot, realmAsset(realm, "music")) : "";
   // 每张可覆盖的音乐参数（音乐来源仍由后端按 musicTheme 解析，这里只调怎么播）
   // 音乐细项**只在每个城镇抽屉里逐张可调**（领域级默认值已删：没有界面入口 = 幽灵字段）
   const effMusicOffsetMs = deckEntry?.musicOffsetMs ?? 0;

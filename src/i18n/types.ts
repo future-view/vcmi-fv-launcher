@@ -1262,7 +1262,6 @@ export interface LangDict {
     langAllAdded: string;
     langRemove: string;
     langRemoveConfirm: string;
-    followDefault: string;
     importDupMods: string;
     presetNew: string;
     presetDelete: string;

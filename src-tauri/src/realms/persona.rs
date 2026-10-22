@@ -73,6 +73,11 @@ pub fn set_bgm_muted(realm_id: String, muted: bool) -> Result<(), String> {
 /// `kind` ∈ {"wallpaper", "cover", "video", "music", "introMusic"}；返回相对领域目录的路径
 /// （wallpaper→`assets/wallpaper.<ext>`、cover→`assets/cover.<ext>`、video→`assets/intro.<ext>`）。
 ///
+/// ⚠️ **媒体素材语言无关**：文件名只由 kind（或 `stem`）决定，不含语言，故同一领域
+/// 每种媒体磁盘上只有一份，路径统一写入顶层 `assets`（`i18n.<lang>.assets` 只承载文本
+/// `introText`；旧数据由 `normalize_realm_assets` 在读取时上提）。这也意味着"分语言封面"
+/// 在存储层就不成立——后传的会覆盖先传的。
+///
 /// `sub` / `stem` 是**可选的命名覆盖**，为「阵营巡礼的自定义底图」而加：
 /// 每个阵营各要一张底图，不能都落到同一个扁平 `assets/<kind stem>.<ext>`（会互相覆盖），
 /// 故允许指定 `sub`（assets 下的子目录，如 `showcase`）与 `stem`（该素材的唯一名）。

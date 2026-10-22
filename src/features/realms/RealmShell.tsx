@@ -378,12 +378,12 @@ export function RealmShell({
 
   // 壁纸渲染在覆盖层根部（铺满整个窗口，含顶部控件区），而非 HomePage 内部——
   // 否则 body 的 pt-10 让位区会露出一条黑边。仅领域主界面显示。
-  const wallpaperSrc = realm ? realmAssetUrl(root, realmAsset(realm, "wallpaper", t.uiLang)) : "";
+  const wallpaperSrc = realm ? realmAssetUrl(root, realmAsset(realm, "wallpaper")) : "";
 
   // 背景音乐（§6 `assets.music` / `main.loopMusic`）：提升到覆盖层根部常驻渲染。
   // 领域信息 / 设置等二级页会替换掉 HomePage，若 audio 留在 HomePage 内会随其卸载而中断；
   // 背景音乐不属于某个页面，而属于整个领域覆盖层——切页不中断，回到主界面继续播放。
-  const musicUrl = realm ? realmAssetUrl(root, realmAsset(realm, "music", t.uiLang)) : "";
+  const musicUrl = realm ? realmAssetUrl(root, realmAsset(realm, "music")) : "";
   const loopMusic = realm?.main?.loopMusic !== false;
   // 玩家运行时开关：仅对当前领域有效、不随 realm 导出走，状态存于点文件 `.bgmMuted`。
   // 进入/切换领域时从当前启动器读取（本地状态，避免 realm.json 被用户态污染）。

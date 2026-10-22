@@ -1,5 +1,5 @@
 import { getIntroState } from "@/lib/tauri";
-import type { Realm } from "./types";
+import type { Realm, RealmAssets, RealmI18nAssets } from "./types";
 
 /** 24 小时（毫秒）——§9.1 的登场演出重复播放间隔 */
 export const INTRO_REPLAY_INTERVAL_MS = 24 * 3600 * 1000;
@@ -121,19 +121,58 @@ export function realmIntroText(r: Realm | undefined | null, uiLang: string): str
   return t.trim();
 }
 
-/** 领域素材路径（多语言回退：`i18n.<lang>.assets` 可覆盖封面/视频/音乐，实现分语言素材） */
-export function realmAsset(
-  r: Realm | undefined | null,
-  kind: "wallpaper" | "cover" | "music" | "introMusic" | "introVideo",
-  uiLang: string,
-): string {
-  if (!r) return "";
-  return pickRealmText({
-    base: r.assets?.[kind],
-    i18n: mapI18n(r, (e) => e.assets?.[kind]),
-    defaultLang: r.defaultLang,
-    uiLang,
-  });
+/** 语言无关的媒体素材字段（其余字段如 `introText` 属**文本**，按语言覆盖）。 */
+export const REALM_MEDIA_ASSET_KEYS = [
+  "wallpaper",
+  "cover",
+  "music",
+  "introMusic",
+  "introVideo",
+] as const;
+
+export type RealmMediaKey = (typeof REALM_MEDIA_ASSET_KEYS)[number];
+
+/** 旧数据形状：拆分前媒体也写在 `i18n.<lang>.assets`（读取侧兜底合并，见 `realmMediaAssets`）。 */
+type LegacyI18nAssets = RealmI18nAssets & Partial<Record<RealmMediaKey, string>>;
+
+/** 领域媒体素材路径（**语言无关**，只读顶层 `assets`）。
+ *
+ * 媒体只存顶层一份：`i18n.<lang>.assets` 不再承载媒体字段。旧数据由后端
+ * `read_realm_meta` 在读取时上提（`normalize_realm_assets`），故这里无需回退。 */
+export function realmAsset(r: Realm | undefined | null, kind: RealmMediaKey): string {
+  return r?.assets?.[kind] ?? "";
+}
+
+/**
+ * 领域媒体素材全集（**语言无关**）：顶层 `assets` 为唯一真相源。
+ *
+ * 编辑器用它做表单初值：磁盘上若还是旧形状（媒体写在 `i18n.<lang>.assets`），
+ * 这里兜底合并进来（默认语言优先、其次任意语言），避免打开旧领域时显示成「未配置」
+ * —— 否则一保存就会把素材路径抹掉。真正落盘由编辑器统一写回顶层。
+ */
+export function realmMediaAssets(r: Realm | undefined | null): RealmAssets {
+  const out: RealmAssets = {};
+  if (!r) return out;
+  const fromLang = (lang: string, k: RealmMediaKey): string => {
+    const a = r.i18n?.[lang]?.assets as LegacyI18nAssets | undefined;
+    return a?.[k] ?? "";
+  };
+  for (const k of REALM_MEDIA_ASSET_KEYS) {
+    const top = r.assets?.[k] ?? "";
+    if (top) {
+      out[k] = top;
+      continue;
+    }
+    const dl = r.defaultLang ?? "";
+    const legacy =
+      fromLang(dl, k) ||
+      Object.keys(r.i18n ?? {})
+        .map((l) => fromLang(l, k))
+        .find((v) => !!v) ||
+      "";
+    if (legacy) out[k] = legacy;
+  }
+  return out;
 }
 
 /** 把 `realm.i18n` 映射成 `Record<lang, 某字段>` 供回退链使用。 */
