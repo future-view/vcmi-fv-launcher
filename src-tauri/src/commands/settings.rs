@@ -166,6 +166,15 @@ pub async fn write_launcher_config(
     if let Some(src) = copy_from {
         // 「目标已存在则不复制」由 migrate 内部判定；这里只排除"源不存在"这种无需开工的情况
         if src.is_dir() && !user_data_dir.exists() {
+            // 结构闸门：源不是 VCMI 用户数据目录（游戏目录 / mod 目录 / 压缩包
+            // 解压的中间层）⇒ 一个字节都不复制。与第 ③ 步 `ensure_supported_source`
+            // 同款"后端防绕过"定位；前端只做路径关系校验（无目录读取能力）。
+            if !crate::vcmi::paths::looks_like_vcmi_user_data(&src) {
+                return Err(be_err(
+                    "setup_userdata_source_invalid",
+                    &src.to_string_lossy(),
+                ));
+            }
             let emitter = app.clone();
             let dst = user_data_dir.clone();
             let res = tauri::async_runtime::spawn_blocking(move || {

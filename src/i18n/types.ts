@@ -946,7 +946,17 @@ export interface LangDict {
     next: string;
     prev: string;
     syncData: string;
-    syncSource: string;
+    /** 同步区功能说明：复制什么 / 到哪 / 不复制则从空目录开始 */
+    syncAreaHint: string;
+    /** 来源行前缀：探测源 / 手动指定源（后者可「恢复默认」） */
+    syncSourceLabel: string;
+    syncSourceLabelManual: string;
+    copySourceReset: string;
+    /** 选源即时校验（纯路径关系，无需 IO）：源=目标 / 目标在源内部 */
+    copySourceSameTarget: string;
+    copySourceContainsTarget: string;
+    /** 目录选择框标题（选同步来源） */
+    copyConfigTitle: string;
     syncDone: string;
     /** 第 3 步：原版数据文件（硬闸门） */
     h3Title: string;

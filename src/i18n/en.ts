@@ -735,8 +735,15 @@ export const en: LangDict = {
     next: "Next",
     prev: "Back",
     // Explicit “sync data” button (saving no longer copies implicitly); generic label, source on its own line
-    syncData: "Sync existing user data",
-    syncSource: "Source: {arg}",
+    syncData: "Sync data",
+    syncAreaHint:
+      "Copies existing user data (presets / mods / saves) from the source directory to the directory above; skip to start with an empty directory.",
+    syncSourceLabel: "Source:",
+    syncSourceLabelManual: "Source (manual):",
+    copySourceReset: "Restore default",
+    copySourceSameTarget: "Source cannot be the same as the target directory",
+    copySourceContainsTarget: "Source directory cannot contain the target directory",
+    copyConfigTitle: "Select a VCMI user data directory (containing config / Mods)",
     syncDone: "Synced {arg}",
     derived: "Auto-derived from user data directory (no manual setup needed)",
     /** Custom user data directory: isolates from  Documents\My Games\vcmi shared by distributions */
@@ -2119,6 +2126,8 @@ export const en: LangDict = {
     vcmi_userdata_dir_create_failed: "Failed to create userdata directory: {arg}",
     setup_copy_cancelled: "User data copy skipped",
     setup_userdata_invalid: "Invalid user data directory: {arg}",
+    setup_userdata_source_invalid:
+      "The selected directory is not a VCMI user data directory (no config / Mods / Saves found): {arg}",
     setup_userdata_move_failed: "Could not move the copied directory into place: {arg}",
     setup_h3_data_dir_missing: "No original data directory specified",
     setup_h3_data_dir_invalid: "This directory contains no original data (Data/H3Bitmap.lod): {arg}",

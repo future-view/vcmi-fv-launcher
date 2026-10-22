@@ -747,8 +747,15 @@ export const de: LangDict = {
     next: "Weiter",
     prev: "Zurück",
     // Explizite Schaltfläche „Daten synchronisieren“ (Speichern kopiert nicht mehr implizit); generischer Text, Quelle in eigener Zeile
-    syncData: "Vorhandene Benutzerdaten synchronisieren",
-    syncSource: "Quelle: {arg}",
+    syncData: "Daten synchronisieren",
+    syncAreaHint:
+      "Kopiert vorhandene Benutzerdaten (Voreinstellungen / Mods / Spielstände) aus dem Quellverzeichnis in das Verzeichnis oben; überspringen, um mit einem leeren Verzeichnis zu starten.",
+    syncSourceLabel: "Quelle:",
+    syncSourceLabelManual: "Quelle (manuell):",
+    copySourceReset: "Standard",
+    copySourceSameTarget: "Quelle darf nicht mit dem Zielverzeichnis identisch sein",
+    copySourceContainsTarget: "Quellverzeichnis darf das Zielverzeichnis nicht enthalten",
+    copyConfigTitle: "VCMI-Benutzerdatenverzeichnis auswählen (mit config / Mods)",
     syncDone: "Synchronisiert: {arg}",
     derived: "Automatisch aus dem Benutzerdaten-Verzeichnis abgeleitet (keine manuelle Einrichtung nötig)",
     /** Eigenes Benutzerdaten-Verzeichnis: Trennung von Dokumente\My Games\vcmi */
@@ -2133,6 +2140,8 @@ export const de: LangDict = {
     vcmi_userdata_dir_create_failed: "userdata-Verzeichnis erstellen fehlgeschlagen: {arg}",
     setup_copy_cancelled: "Kopieren der Benutzerdaten übersprungen",
     setup_userdata_invalid: "Ungültiges Benutzerdaten-Verzeichnis: {arg}",
+    setup_userdata_source_invalid:
+      "Das ausgewählte Verzeichnis ist kein VCMI-Benutzerdatenverzeichnis (keine config / Mods / Saves gefunden): {arg}",
     setup_userdata_move_failed: "Kopiertes Verzeichnis konnte nicht verschoben werden: {arg}",
     setup_h3_data_dir_missing: "Kein Verzeichnis mit Originaldaten angegeben",
     setup_h3_data_dir_invalid: "Dieses Verzeichnis enthält keine Originaldaten (Data/H3Bitmap.lod): {arg}",

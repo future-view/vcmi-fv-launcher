@@ -747,8 +747,15 @@ export const pl: LangDict = {
     next: "Dalej",
     prev: "Wstecz",
     // Jawny przycisk „Synchronizuj dane” (zapis nie kopiuje już niejawnie); ogólna etykieta, źródło w osobnej linii
-    syncData: "Synchronizuj dane użytkownika",
-    syncSource: "Źródło: {arg}",
+    syncData: "Synchronizuj dane",
+    syncAreaHint:
+      "Kopiuje istniejące dane użytkownika (ustawienia / mody / zapisy) z katalogu źródłowego do katalogu powyżej; pomiń, aby rozpocząć z pustym katalogiem.",
+    syncSourceLabel: "Źródło:",
+    syncSourceLabelManual: "Źródło (ręczne):",
+    copySourceReset: "Przywróć domyślne",
+    copySourceSameTarget: "Źródło nie może być takie samo jak katalog docelowy",
+    copySourceContainsTarget: "Katalog źródłowy nie może zawierać katalogu docelowego",
+    copyConfigTitle: "Wybierz katalog danych użytkownika VCMI (zawierający config / Mods)",
     syncDone: "Zsynchronizowano: {arg}",
     derived: "Automatycznie wywiedzione z katalogu danych użytkownika (bez ręcznej konfiguracji)",
     /** Własny katalog danych: izolacja od Dokumenty\Moje gry\vcmi */
@@ -2133,6 +2140,8 @@ export const pl: LangDict = {
     vcmi_userdata_dir_create_failed: "Nie udało się utworzyć katalogu userdata: {arg}",
     setup_copy_cancelled: "Pominięto kopiowanie danych użytkownika",
     setup_userdata_invalid: "Nieprawidłowy katalog danych użytkownika: {arg}",
+    setup_userdata_source_invalid:
+      "Wybrany katalog nie jest katalogiem danych użytkownika VCMI (nie znaleziono config / Mods / Saves): {arg}",
     setup_userdata_move_failed: "Nie udało się przenieść skopiowanego katalogu: {arg}",
     setup_h3_data_dir_missing: "Nie podano katalogu z oryginalnymi danymi",
     setup_h3_data_dir_invalid: "Ten katalog nie zawiera oryginalnych danych (Data/H3Bitmap.lod): {arg}",

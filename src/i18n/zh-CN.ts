@@ -740,9 +740,18 @@ export const zhCN: LangDict = {
     step: "第 {arg} / 4 步",
     next: "下一步",
     prev: "上一步",
-    // 「同步数据」显式按钮（不再随保存隐式复制）；按钮名通用，来源路径单列一行
-    syncData: "同步既有用户数据",
-    syncSource: "来源：{arg}",
+    // 「同步数据」显式按钮（不再随保存隐式复制）；按钮名中性：来源可手动切换，
+    // 不再限定"既有"；来源路径内联显示（truncate + title），manual 态标注并可恢复默认
+    syncData: "同步数据",
+    /** 同步区说明：说清"复制什么、到哪、不复制会怎样"——否则用户只看到来源行与按钮，
+     *  无法理解这个区域的功能（实测截图反馈）。同步仅在首启提供，不同步的后果必须写明。 */
+    syncAreaHint: "从来源目录复制既有用户数据（预设 / 模组 / 存档）到上方目录；不复制则从空目录开始。",
+    syncSourceLabel: "来源：",
+    syncSourceLabelManual: "来源（手动指定）：",
+    copySourceReset: "恢复默认",
+    copySourceSameTarget: "来源不能与目标目录相同",
+    copySourceContainsTarget: "来源目录不能包含目标目录",
+    copyConfigTitle: "选择 VCMI 用户数据目录（含 config / Mods）",
     syncDone: "已同步 {arg}",
     derived: "由用户数据目录自动推导（无需手动设置）",
     /** 自定义用户数据目录：隔离多个发行版共用的 文档\My Games\vcmi */
@@ -2102,6 +2111,7 @@ export const zhCN: LangDict = {
     vcmi_userdata_dir_create_failed: "创建用户数据目录失败: {arg}",
     setup_copy_cancelled: "已跳过复制用户数据",
     setup_userdata_invalid: "用户数据目录无效：{arg}",
+    setup_userdata_source_invalid: "所选目录不是 VCMI 用户数据目录（未找到 config / Mods / Saves）：{arg}",
     setup_userdata_move_failed: "复制完成的目录无法就位：{arg}",
     setup_h3_data_dir_missing: "未指定原版数据目录",
     setup_h3_data_dir_invalid: "该目录不含原版数据文件（Data/H3Bitmap.lod）：{arg}",

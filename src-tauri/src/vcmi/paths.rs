@@ -297,7 +297,7 @@ impl VcmiPaths {
         })
     }
 
-    /// 领域隔离目录（设计 §3.1）：exe 目录 / .vcmi-fv-launcher/realms/<id>/vcmi
+/// 领域隔离目录（设计 §3.1）：exe 目录 / .vcmi-fv-launcher/realms/<id>/vcmi
     /// 5 个真实 dirs.json key 全部指向这里的子目录，从而把用户目录与游戏目录分离。
     pub fn realm_vcmi_dir(id: &str) -> Option<PathBuf> {
         Self::launcher_data_dir().map(|d| {
@@ -794,6 +794,39 @@ impl VcmiPaths {
     }
 }
 
+/// VCMI 用户数据目录的标准成员：**任一存在**即认为该目录"像"用户数据目录。
+///
+/// 集合取自 [`VcmiPaths::ensure_user_data_dir`] 的创建清单（VCMI 自建
+/// `cache`/`config`/`logs`/`Saves`，启动器补 `Mods`/`Maps`，见 vcmi-dirs 硬事实 7）。
+/// `config` 由 VCMI 首次运行即创建 ⇒ 合法用户数据目录必然命中，不会误杀。
+/// `cache`/`logs`/`Maps` 单独存在时**不**作充分条件：单独复制它们无价值，
+/// 且更可能是误选（如下载目录）。
+const USER_DATA_MEMBERS: &[&str] = &["config", "Mods", "Saves"];
+
+/// 游戏目录标记：含此可执行文件的一律视为游戏目录，而非用户数据目录。
+const GAME_EXE_MARKER: &str = "VCMI_client.exe";
+
+/// 「从任意目录迁移 VCMI 用户数据」前的**结构闸门**（判据的单一来源，前端无副本）。
+///
+/// 与 [`VcmiPaths::migrate_user_data_dir`] 的三条静默跳过规则互补：那些规则回答
+/// "要不要复制"（目标已存在 / 源不存在 / 同路径），本函数回答"这个源是不是
+/// VCMI 用户数据目录"——选错目录必须**在任何字节复制之前**拒绝。
+///
+/// 判据：
+/// - 拒绝：存在 `VCMI_client.exe`（**游戏目录同样含 `config`/`Mods`**——
+///   `config/dirs.json` 与发行版自带 mod，而首启向导第 ① 步刚选过游戏目录，
+///   误选概率最高；不放行才能避免把整个游戏目录（含 `Data` 数 GB）搬进 userdata）；
+/// - 通过：`config` / `Mods` / `Saves` 任一子目录存在；
+/// - 拒绝：以上均无（mod 目录 / 压缩包解压的中间层 / 空目录）。
+pub fn looks_like_vcmi_user_data(dir: &Path) -> bool {
+    if dir.join(GAME_EXE_MARKER).is_file() {
+        return false;
+    }
+    USER_DATA_MEMBERS
+        .iter()
+        .any(|m| dir.join(m).is_dir())
+}
+
 /// VCMI 官方默认用户数据目录：`文档\My Games\vcmi`。
 ///
 /// 两个用途：dirs.json 未接管时的解析回退；首启向导「从既有目录复制」的**源目录**。
@@ -884,4 +917,63 @@ pub(crate) fn expand_env(raw: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tmp(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("vcmi-fv-paths-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).expect("临时目录应可创建");
+        d
+    }
+
+    #[test]
+    fn user_data_gate_cases() {
+        let d = tmp("user-data-gate");
+
+        // 合法用户数据目录：config 由 VCMI 自建 ⇒ 必然命中
+        let user = d.join("vcmi");
+        std::fs::create_dir_all(user.join("config")).unwrap();
+        assert!(looks_like_vcmi_user_data(&user), "标准用户数据目录应放行");
+
+        // 只有 Mods / Saves 的目录同样放行（备份型目录常见）
+        let mods_only = d.join("mods-only");
+        std::fs::create_dir_all(mods_only.join("Mods")).unwrap();
+        assert!(looks_like_vcmi_user_data(&mods_only));
+        let saves_only = d.join("saves-only");
+        std::fs::create_dir_all(saves_only.join("Saves")).unwrap();
+        assert!(looks_like_vcmi_user_data(&saves_only));
+
+        // 游戏目录：同样含 config/Mods，但有 VCMI_client.exe ⇒ 必须拒绝
+        // （否则会把整个游戏目录含 Data 数 GB 搬进 userdata）
+        let game = d.join("game");
+        std::fs::create_dir_all(game.join("config")).unwrap();
+        std::fs::create_dir_all(game.join("Mods")).unwrap();
+        std::fs::write(game.join("VCMI_client.exe"), b"MZ").unwrap();
+        assert!(
+            !looks_like_vcmi_user_data(&game),
+            "游戏目录必须拒绝（config/Mods 与用户数据目录同构，只能靠 exe 标记区分）"
+        );
+
+        // mod 目录（有 mod.json/content，无标准成员）⇒ 拒绝
+        let mod_dir = d.join("hota");
+        std::fs::create_dir_all(mod_dir.join("content")).unwrap();
+        std::fs::write(mod_dir.join("mod.json"), b"{}").unwrap();
+        assert!(!looks_like_vcmi_user_data(&mod_dir));
+
+        // 压缩包解压的中间层 / 空目录 ⇒ 拒绝
+        let empty = d.join("empty");
+        std::fs::create_dir_all(&empty).unwrap();
+        assert!(!looks_like_vcmi_user_data(&empty));
+
+        // 只有 cache 的目录 ⇒ 拒绝（缓存单独复制无价值，且易是误选）
+        let cache_only = d.join("cache-only");
+        std::fs::create_dir_all(cache_only.join("cache")).unwrap();
+        assert!(!looks_like_vcmi_user_data(&cache_only));
+
+        let _ = std::fs::remove_dir_all(&d);
+    }
 }

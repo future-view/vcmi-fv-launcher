@@ -26,7 +26,7 @@ import {
   type VcmiDirs,
 } from "@/lib/tauri";
 import { DEFAULT_GITHUB_MIRROR_PREFIX, githubMirrorRule } from "@/lib/mirrorRules";
-import { backendErrorText } from "@/lib/backendError";
+import { backendErrorCode, backendErrorText } from "@/lib/backendError";
 import { logWarn } from "@/lib/log";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
@@ -138,6 +138,21 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const [syncNote, setSyncNote] = useState("");
   const [syncDone, setSyncDone] = useState<{ files: number; bytes: number } | null>(null);
+  /**
+   * 同步来源两层模型：探测源 `probeSource`（随游戏目录的 dirs.json 解析结果更新——
+   * 增强版指向 `My Games\vcmi_enhancement` 等；此前不同步更新，来源行会错显
+   * `My Games\vcmi`）+ 手动指定源 `customSource`（第 ② 步「选择…」切换，
+   * 覆盖只在此处发生）。生效源 = `customSource || probeSource`。
+   */
+  const [probeSource, setProbeSource] = useState("");
+  const [probeSourceExists, setProbeSourceExists] = useState(false);
+  const [customSource, setCustomSource] = useState("");
+  /** 选源/同步的框内红字：A 类路径关系校验（即时）与 B 类后端结构闸门（点同步时） */
+  const [syncPickError, setSyncPickError] = useState("");
+  /** 生效源被后端判定结构不合法 ⇒ 禁用「同步数据」，直到换源 / 恢复默认 */
+  const [sourceInvalid, setSourceInvalid] = useState(false);
+  /** 「选择…」对话框打开期间防重入 */
+  const [choosingSource, setChoosingSource] = useState(false);
   const [progress, setProgress] = useState<CopyProgressState>(IDLE_PROGRESS);
   // 网络：清单不可达（仅 GitHub 时才建议开镜像；汇总步展示）
   const [netUnreachable, setNetUnreachable] = useState(false);
@@ -192,14 +207,13 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
 
   const portableDir = detected?.portableUserDataDir ?? "";
   const portableExists = !!detected?.portableUserDataDirExists;
-  const systemDir = detected?.systemUserDataDir ?? "";
-  const systemExists = !!detected?.systemUserDataDirExists;
   /**
-   * 同步源：优先用**解析出的**用户目录（`dirs.json` 可能指向别处，如增强版），
-   * 否则退回官方默认目录。切回默认目录时也以它回填表单。
+   * 生效同步源：手动指定优先，否则用探测源。
+   * 探测源在 detect 回调 / 选游戏目录 / 自动探测三处更新（见下）。
    */
-  const sourceDir = detected?.userDir?.trim() || systemDir;
-  const sourceExists = sourceDir === systemDir ? systemExists : !!detected?.userDirExists;
+  const effectiveSource = customSource || probeSource;
+  /** 手动源来自目录选择器（必然存在）；探测源的存在性以 detect / suggest 结果为准 */
+  const sourceExists = customSource ? true : probeSourceExists;
   /** 是否展示「GitHub 镜像」建议：探测与语言无关，但建议只给有需要的语言 */
   const mirrorHintAllowed = uiLangFeature(lang, "githubMirrorHint");
   /** 同步进行中：锁定一切（路径 / 开关 / 上一步 / 下一步） */
@@ -221,6 +235,11 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
     detectVcmiPaths().then((d) => {
       if (d) {
         setDetected(d);
+        // 同步探测源：dirs.json 解析出的用户目录优先（增强版 → vcmi_enhancement），
+        // 无 dirs.json 时回退官方默认目录（My Games\vcmi）
+        const ps = (d.userDir ?? "").trim();
+        setProbeSource(ps || d.systemUserDataDir || "");
+        setProbeSourceExists(ps ? !!d.userDirExists : !!d.systemUserDataDirExists);
         // 自动探测默认触发：探测到有效路径即回填表单（仅填充，不产生任何磁盘副作用），
         // 等待用户走完向导点"保存并进入启动器"后才落盘 launcher.json / 提取城镇图
         if (d.detected) {
@@ -275,15 +294,21 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
   };
 
   /**
-   * 同步区**可见性联动**：仅当目标目录 ≠ 同步源时才有意义 ——
-   * 开了专属目录（数据从零开始），或手动选了非默认目录。
-   * 维持默认目录（= 源本身）时隐藏，并给一句说明，避免"开关开了却什么都没有"的困惑。
+   * 同步区**可见性联动**：仅当目标目录 ≠ 生效源时才有意义 ——
+   * 开了专属目录（数据从零开始）、手动选了非默认目标，或手动切换了来源。
+   * 目标 = 生效源（数据本来就在那儿）时隐藏，并给一句说明，
+   * 避免"开关开了却什么都没有"的困惑。
    */
-  const showSync = !!gameDir.trim() && normPath(userDataDir) !== normPath(sourceDir);
+  const showSync = !!gameDir.trim() && normPath(userDataDir) !== normPath(effectiveSource);
 
-  // 同步区隐藏时，未完成的同步状态一并作废（目标已切回默认目录）
+  // 同步区隐藏时，未完成的同步状态与手动来源一并作废（目标已等于来源）
   useEffect(() => {
-    if (!showSync) resetSync();
+    if (!showSync) {
+      resetSync();
+      setCustomSource("");
+      setSourceInvalid(false);
+      setSyncPickError("");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showSync]);
 
@@ -403,9 +428,17 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
     setError("");
     // 换游戏目录 ⇒ 同步源可能变了，已同步结果作废
     resetSync();
+    setCustomSource("");
+    setSourceInvalid(false);
+    setSyncPickError("");
     const suggested = await suggestUserDataDir(path);
     if (suggested) {
       setUserDataDir(suggested.userDataDir);
+      // 探测源跟随游戏目录：dirs.json 可能把用户目录指向别处（增强版 →
+      // vcmi_enhancement）。不同步更新就会拿 My Games\vcmi 当来源，
+      // 而该目录里并没有这个发行版的数据（实测截图 bug）。
+      setProbeSource(suggested.userDataDir || "");
+      setProbeSourceExists(!!suggested.exists);
       if (!suggested.exists) setError(t.setup.missingUserData);
     }
   };
@@ -417,14 +450,71 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
     setError("");
   };
 
+  /**
+   * 选源即时校验（**纯路径关系，不碰 IO**；后端 fs 探测能力前端没有）。
+   *
+   * - 源 = 目标：不能写入来源行——`showSync` 会因"目标=来源"隐藏同步区，
+   *   红字将无处显示（UI 状态矛盾）；
+   * - 目标在源内部：后端 `migrate_user_data_dir` 直接拒绝
+   *   （`setup_userdata_invalid`，复制会自我递归），提前拦一道。
+   */
+  const pickSourceError = (src: string): string => {
+    const s = normPath(src);
+    const d = normPath(userDataDir);
+    if (!s || !d) return "";
+    if (s === d) return t.setup.copySourceSameTarget;
+    if (d.startsWith(`${s}\\`)) return t.setup.copySourceContainsTarget;
+    return "";
+  };
+
+  /**
+   * 「选择…」：手动指定同步来源（发行版把游戏与配置分成不同压缩包时，
+   * 配置目录在任意位置，探测源猜不到）。**只换源、不开跑**——
+   * 导入的唯一触发入口是「同步数据」按钮；选错目录在执行前即可更正。
+   *
+   * A 类硬非法 ⇒ 不写入来源行（保持上一个生效值）+ 红字一次性提示；
+   * 通过 ⇒ 设为手动源，并清掉旧同步状态（旧结论对新源无效）。
+   */
+  const handleChooseSource = async () => {
+    if (choosingSource) return;
+    setChoosingSource(true);
+    try {
+      const path = await pickDirectory(t.setup.copyConfigTitle);
+      if (!path) return;
+      const err = pickSourceError(path);
+      if (err) {
+        setSyncPickError(err);
+        return;
+      }
+      setCustomSource(path);
+      setSourceInvalid(false);
+      setSyncPickError("");
+      resetSync();
+    } finally {
+      setChoosingSource(false);
+    }
+  };
+
+  /** 「恢复默认」：放弃手动来源回到探测源。显式出口——不做静默回退 */
+  const handleResetSource = () => {
+    setCustomSource("");
+    setSourceInvalid(false);
+    setSyncPickError("");
+    resetSync();
+  };
+
   /** 切换「启动器专属用户数据目录」：开 → 填 exe 同目录 userdata；关 → 回到解析出的用户目录 */
   const toggleCustomUserData = (on: boolean) => {
     setCustomUserData(on);
     resetSync();
+    setCustomSource("");
+    setSourceInvalid(false);
+    setSyncPickError("");
     if (on) {
       if (portableDir) setUserDataDir(portableDir);
     } else {
-      setUserDataDir(sourceDir || userDataDir);
+      // 关开关回探测源（customSource 此刻正被清空，不能用 effectiveSource 的旧闭包值）
+      setUserDataDir(probeSource || userDataDir);
     }
   };
 
@@ -435,12 +525,19 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
     setUserDataDir(detected.userDir || "");
     setCustomUserData(false);
     resetSync();
+    // 探测源一并恢复为 detect 结果（用户可能先手动选过游戏目录改过它）
+    const ps = (detected.userDir ?? "").trim();
+    setProbeSource(ps || detected.systemUserDataDir || "");
+    setProbeSourceExists(ps ? !!detected.userDirExists : !!detected.systemUserDataDirExists);
+    setCustomSource("");
+    setSourceInvalid(false);
+    setSyncPickError("");
     setError("");
   };
 
   /** 显式同步：只迁移数据、不写任何配置（保存按钮不再隐式复制） */
   const handleSync = async () => {
-    const src = sourceDir.trim();
+    const src = effectiveSource.trim();
     const dst = userDataDir.trim();
     if (!src || !dst) {
       setError(t.setup.error);
@@ -468,7 +565,14 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
     } catch (e: any) {
       setProgress(IDLE_PROGRESS);
       setSyncState("idle");
-      setError(backendErrorText(e) || t.setup.error);
+      // B 类：后端结构闸门拒绝（源不是 VCMI 用户数据目录）⇒ 框内红字 +
+      // 「同步数据」禁用，来源路径保留供重选 / 恢复默认；其余错误走全局 error
+      if (backendErrorCode(e) === "setup_userdata_source_invalid") {
+        setSourceInvalid(true);
+        setSyncPickError(backendErrorText(e, t) || t.setup.error);
+      } else {
+        setError(backendErrorText(e) || t.setup.error);
+      }
     }
   };
 
@@ -783,8 +887,8 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
               disabled={syncing || syncLocked}
             />
 
-            {/* 数据同步：显式按钮（保存不再隐式复制）；仅当目标 ≠ 同步源时显示，
-                三种状态在同一框内原地切换。目标即来源时给一句说明，避免"开关开了却什么都没有"。 */}
+            {/* 数据同步：显式按钮（保存不再隐式复制）；三种状态在同一框内原地切换。
+                目标 = 生效源（数据本来就在那儿）时隐藏，给一句说明。 */}
             {showSync ? (
               <div className="mb-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
                 {syncing ? (
@@ -830,28 +934,82 @@ export function SetupWizard({ onReady }: SetupWizardProps) {
                     </div>
                   </>
                 ) : syncDone ? (
-                  <p className="break-words text-xs text-emerald-400">
-                    {t.setup.syncDone.replace("{arg}", fmtBytes(syncDone.bytes))}
-                    {" · "}
-                    {t.setup.copyFiles.replace("{arg}", String(syncDone.files))}
-                  </p>
+                  <>
+                    {/* 已同步：来源行只读保留——数据来自哪个目录，事后仍可核对 */}
+                    <p className="flex items-baseline gap-1.5 text-xs text-slate-500">
+                      <span className="shrink-0">
+                        {customSource ? t.setup.syncSourceLabelManual : t.setup.syncSourceLabel}
+                      </span>
+                      <span className="min-w-0 truncate" title={effectiveSource}>
+                        {effectiveSource || "—"}
+                      </span>
+                    </p>
+                    <p className="mt-1.5 break-words text-xs text-emerald-400">
+                      {t.setup.syncDone.replace("{arg}", fmtBytes(syncDone.bytes))}
+                      {" · "}
+                      {t.setup.copyFiles.replace("{arg}", String(syncDone.files))}
+                    </p>
+                  </>
                 ) : (
-                  <div className="flex items-center gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => void handleSync()}
-                      disabled={!sourceExists}
-                      className="shrink-0 border-slate-700 text-slate-300 hover:bg-slate-800"
-                    >
-                      {t.setup.syncData}
-                    </Button>
-                    <span className="min-w-0 flex-1 break-words text-xs text-slate-500">
-                      {!sourceExists
-                        ? t.setup.copySourceMissing
-                        : syncNote || t.setup.syncSource.replace("{arg}", sourceDir || "—")}
-                    </span>
-                  </div>
+                  <>
+                    {/* 区域说明：说清"复制什么、到哪、不复制会怎样"——缺了它，
+                        用户只看到来源行与按钮，看不懂这个区域的功能（实测截图反馈）。
+                        同步仅在首启提供，"从空目录开始"的后果必须写明。 */}
+                    <p className="mb-2 break-words text-xs text-slate-500">
+                      {t.setup.syncAreaHint}
+                    </p>
+                    {/* 来源行：前缀 + 路径（truncate + title）+ 选择…；
+                        手动指定态附「恢复默认」。「选择…」只换源、不开跑——
+                        导入的唯一触发入口是下方的「同步数据」。 */}
+                    <div className="flex items-center gap-2">
+                      <span className="shrink-0 text-xs text-slate-500">
+                        {customSource ? t.setup.syncSourceLabelManual : t.setup.syncSourceLabel}
+                      </span>
+                      <span
+                        className="min-w-0 flex-1 truncate text-sm text-slate-200"
+                        title={effectiveSource}
+                      >
+                        {effectiveSource || "—"}
+                      </span>
+                      {customSource && (
+                        <button
+                          type="button"
+                          onClick={handleResetSource}
+                          className="shrink-0 text-xs text-sky-400 hover:text-sky-300 hover:underline"
+                        >
+                          {t.setup.copySourceReset}
+                        </button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void handleChooseSource()}
+                        disabled={choosingSource}
+                        className="shrink-0 border-slate-700 text-slate-300 hover:bg-slate-800"
+                      >
+                        {t.setup.choose}
+                      </Button>
+                    </div>
+                    {/* 唯一触发入口：以生效源（探测源或手动源）开跑 */}
+                    <div className="mt-2 flex items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void handleSync()}
+                        disabled={!sourceExists || sourceInvalid}
+                        className="shrink-0 border-slate-700 text-slate-300 hover:bg-slate-800"
+                      >
+                        {t.setup.syncData}
+                      </Button>
+                      <span className="min-w-0 flex-1 break-words text-xs text-slate-500">
+                        {!sourceExists ? t.setup.copySourceMissing : syncNote}
+                      </span>
+                    </div>
+                    {/* 框内红字：A 类选源即时拒绝 / B 类后端结构闸门拒绝（路径均保留） */}
+                    {syncPickError && (
+                      <p className="mt-1.5 break-words text-xs text-red-400">{syncPickError}</p>
+                    )}
+                  </>
                 )}
               </div>
             ) : (
