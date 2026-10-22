@@ -5,21 +5,61 @@ See [How to write this file](docs/guides/release.zh-CN.md#changelog-syntax) for 
 ## v0.1.0
 
 ### english
-- **Mod view**: split panel with town backgrounds — left gallery with search & category, right panel groups selected mods by type; dependencies auto-checked, conflicts flagged red
-- **Preset manager**: searchable dropdown to switch presets, save-on-change, and a "more" menu (new with inherit / rename / import-export VCMI native format / delete / Markdown enable report)
-- **Wiki**: offline browsable reference with per-category detail pages (buildings, creatures, heroes, factions, artifacts, spells, skills, mods, terrains)
-- **Realms**: isolated mod-combo environments that separate the user-data `Mods/` from the game directory
-- **Launcher auto-update**: in-app update checks and one-click upgrade
-- **Settings**: official 12-section schema rendered as a searchable panel with sticky search
-- **Multi-language UI**: launcher in 5 languages (zh / en / ru / pl / de); mod text resolved by VCMI language id
-- **Portable single-folder deployment**: all data lives in `.vcmi-fv-launcher/` next to the exe
+- **Realms** (headline feature): each realm is a self-contained world with its own mods, saves and settings — several mod combos can live side by side without ever interfering, so switching combos no longer means uninstalling and reinstalling mods; a realm can also hide the maps bundled with the game
+- **Mod view**: choose the mods you want on one screen — dependencies are ticked for you and conflicting mods turn red, so you can tell whether a combo will run before starting the game
+- **Presets**: save a combo that works as a preset and switch between combos in one click; presets can also be exported and shared
+- **Wiki**: look up factions, towns, creatures, heroes, artifacts, spells, skills and terrains — with images, without launching the game
+- **Settings**: every VCMI option in one searchable panel — no more editing config files by hand
+- **Also included**: interface in 5 languages (zh / en / ru / pl / de), one-click in-app update, and a portable install where all data lives beside the launcher
 
 ### chinese
-- **模组视图**：带城镇背景图的左右分栏——左侧画廊（搜索/分类），右侧按类型分组已选模组；依赖自动勾选、冲突标红
-- **预设管理**：可搜索下拉切换预设、遇变动即保存，更多菜单（新建含继承 / 重命名 / 导入导出 VCMI 原生格式 / 删除 / Markdown 启用报告）
-- **百科**：离线可浏览参考，按类别分发详情页（建筑/生物/英雄/城镇/神器/法术/技能/Mod/地形）
-- **领域系统**：隔离用户目录 `Mods/` 的模组组合环境
-- **启动器自动更新**：应用内检查更新、一键升级
-- **设置面板**：官方 12 节 schema，可搜索、搜索栏置顶
-- **多语言界面**：启动器支持 5 种语言（中/英/俄/波/德），模组文本按 VCMI 语言标识取词
-- **便携单文件夹部署**：全部数据位于 exe 同级的 `.vcmi-fv-launcher/`
+- **领域系统**（核心能力）：一个领域就是一套独立的世界，模组、存档、设置各归各的——多套模组组合可以并存且互不干扰，换组合再也不用反复装卸模组；还能按领域单独屏蔽游戏自带地图
+- **模组视图**：一屏挑选要用的模组——依赖自动帮你勾上、互相冲突的模组标红，开游戏前就能看出这套组合能不能跑
+- **预设管理**：把一套能跑的模组存成预设，随时一键切换；也可以导出分享给别人
+- **百科**：不开游戏也能查城镇、建筑、生物、英雄、神器、法术、技能等资料，带图
+- **设置面板**：VCMI 的设置项全部搬进界面、支持搜索，不用再手改配置文件
+- **其他能力**：5 种界面语言（中/英/俄/波/德）、一键检查更新升级、单文件夹便携部署（数据都在启动器旁边）
+
+## v0.2.0
+
+### english
+
+**Improve the first-time startup wizard**:
+ - One-click switching and importing of exclusive user data directories to avoid configuration conflicts with other game versions
+ - It is more convenient to import original game files
+ - More convenient for importing HD footage
+ - It is more convenient to import battles from historical records
+
+**Improve the encyclopedia**:
+ - Supports the brand-new 'biological animation' effect, and supports new action combinations such as standby and free patrol
+ - Supports a brand-new "wide screen" for a better viewing experience of creature animations, and supports a "neutral creature" screen, adapting to more third-party creature animations
+ - Support for 'sorted categorical data', providing a more user-friendly data display
+ - Support "category memory" to record the last viewed position
+ - Support for the `Vocabulary` category and improvement of the display effect for the `All Modules` category
+ - Improve support for 'HD materials', enabling high-definition display of more images
+ - Generate cache faster, with more user-friendly real-time progress feedback for cache generation
+
+**Fix**:
+ - Fixed the issue where the hero's specialties were not displayed in the third-party module "Heroes"
+ - Clear outdated configurations in `persistentStorage.json` before running the game to avoid causing it to crash
+
+### chinese
+
+**改进首次启动向导**：
+  - 一键切换与导入专属用户数据目录，避免跟其他游戏版本出现配置冲突
+  - 更方便导入原版游戏文件
+  - 更方便导入HD高清素材
+  - 更方便导入历代记战役
+
+**改进百科**：
+  - 支持全新`生物动画`效果，支持待机、自由巡逻等全新动作组合
+  - 支持全新`宽幕布`，能更好查看生物动画，支持`中立生物`幕布，适配更多第三方生物动画
+  - 支持`分类数据排序`, 更友好的数据展示
+  - 支持`分类记忆`，记录上次看到的位置
+  - 支持`词汇表`分类与改进`所有模组`分类显示效果
+  - 改进`高清素材`支持，覆盖更多图片高清显示
+  - 更快地生成缓存，更友好的缓存生成实时进度反馈
+
+**修复**：
+  - 修复第三方模组`英雄`没有显示英雄特长
+  - 运行游戏前清理`persistentStorage.json`过时的配置避免导致游戏奔溃

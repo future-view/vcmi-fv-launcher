@@ -21,7 +21,9 @@
         "manifest_url": "https://raw.githubusercontent.com/future-view/vcmi-fv-launcher/main/releases/update/{platform}.json"
       },
       "realms": {
-        "repository_urls": ["https://raw.githubusercontent.com/future-view/vcmi-fv-launcher-realms/main/index.json"]
+        "repository_urls": [
+          "https://raw.githubusercontent.com/future-view/vcmi-fv-launcher-realms/main/index.json"
+        ]
       }
     },
     "flavors": {
@@ -38,8 +40,86 @@
   },
   "product": "VCMI-FV-Launcher",
   "channel": "stable",
-  "latest": "0.1.0",
+  "latest": "0.2.0",
   "releases": [
+    {
+      "release": "0.2.0",
+      "platform": "windows-x86_64",
+      "title": "VCMI-FV-Launcher 0.2.0",
+      "tag": "v0.2.0",
+      "target": "main",
+      "commit": "880bba4f6fd0a4c409f1c8d406d593fbae34d63b",
+      "page": "https://github.com/future-view/vcmi-fv-launcher/releases/tag/v0.2.0",
+      "updateVersion": "0.2.0",
+      "prerelease": false,
+      "publishedAt": "2026-10-23",
+      "critical": false,
+      "notesSource": "changelog",
+      "notes": {
+        "english": [
+          "One-click switching and importing of exclusive user data directories to avoid configuration conflicts with other game versions",
+          "It is more convenient to import original game files",
+          "More convenient for importing HD footage",
+          "It is more convenient to import battles from historical records",
+          "Supports the brand-new 'biological animation' effect, and supports new action combinations such as standby and free patrol",
+          "Supports a brand-new \"wide screen\" for a better viewing experience of creature animations, and supports a \"neutral creature\" screen, adapting to more third-party creature animations",
+          "Support for 'sorted categorical data', providing a more user-friendly data display",
+          "Support \"category memory\" to record the last viewed position",
+          "Support for the `Vocabulary` category and improvement of the display effect for the `All Modules` category",
+          "Improve support for 'HD materials', enabling high-definition display of more images",
+          "Generate cache faster, with more user-friendly real-time progress feedback for cache generation",
+          "Fixed the issue where the hero's specialties were not displayed in the third-party module \"Heroes\"",
+          "Clear outdated configurations in `persistentStorage.json` before running the game to avoid causing it to crash"
+        ],
+        "chinese": [
+          "一键切换与导入专属用户数据目录，避免跟其他游戏版本出现配置冲突",
+          "更方便导入原版游戏文件",
+          "更方便导入HD高清素材",
+          "更方便导入历代记战役",
+          "支持全新`生物动画`效果，支持待机、自由巡逻等全新动作组合",
+          "支持全新`宽幕布`，能更好查看生物动画，支持`中立生物`幕布，适配更多第三方生物动画",
+          "支持`分类数据排序`, 更友好的数据展示",
+          "支持`分类记忆`，记录上次看到的位置",
+          "支持`词汇表`分类与改进`所有模组`分类显示效果",
+          "改进`高清素材`支持，覆盖更多图片高清显示",
+          "更快地生成缓存，更友好的缓存生成实时进度反馈",
+          "修复第三方模组`英雄`没有显示英雄特长",
+          "运行游戏前清理`persistentStorage.json`过时的配置避免导致游戏奔溃"
+        ]
+      },
+      "notesMd": {
+        "english": "**Improve the first-time startup wizard**:\n - One-click switching and importing of exclusive user data directories to avoid configuration conflicts with other game versions\n - It is more convenient to import original game files\n - More convenient for importing HD footage\n - It is more convenient to import battles from historical records\n**Improve the encyclopedia**:\n - Supports the brand-new 'biological animation' effect, and supports new action combinations such as standby and free patrol\n - Supports a brand-new \"wide screen\" for a better viewing experience of creature animations, and supports a \"neutral creature\" screen, adapting to more third-party creature animations\n - Support for 'sorted categorical data', providing a more user-friendly data display\n - Support \"category memory\" to record the last viewed position\n - Support for the `Vocabulary` category and improvement of the display effect for the `All Modules` category\n - Improve support for 'HD materials', enabling high-definition display of more images\n - Generate cache faster, with more user-friendly real-time progress feedback for cache generation\n**Fix**:\n - Fixed the issue where the hero's specialties were not displayed in the third-party module \"Heroes\"\n - Clear outdated configurations in `persistentStorage.json` before running the game to avoid causing it to crash",
+        "chinese": "**改进首次启动向导**：\n  - 一键切换与导入专属用户数据目录，避免跟其他游戏版本出现配置冲突\n  - 更方便导入原版游戏文件\n  - 更方便导入HD高清素材\n  - 更方便导入历代记战役\n**改进百科**：\n  - 支持全新`生物动画`效果，支持待机、自由巡逻等全新动作组合\n  - 支持全新`宽幕布`，能更好查看生物动画，支持`中立生物`幕布，适配更多第三方生物动画\n  - 支持`分类数据排序`, 更友好的数据展示\n  - 支持`分类记忆`，记录上次看到的位置\n  - 支持`词汇表`分类与改进`所有模组`分类显示效果\n  - 改进`高清素材`支持，覆盖更多图片高清显示\n  - 更快地生成缓存，更友好的缓存生成实时进度反馈\n**修复**：\n  - 修复第三方模组`英雄`没有显示英雄特长\n  - 运行游戏前清理`persistentStorage.json`过时的配置避免导致游戏奔溃"
+      },
+      "assets": [
+        {
+          "name": "portable_0.2.0_20261023-02_windows-x86_64.zip",
+          "role": "update",
+          "path": "download/v0.2.0/portable_0.2.0_20261023-02_windows-x86_64.zip",
+          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.2.0/portable_0.2.0_20261023-02_windows-x86_64.zip",
+          "size": 10430276,
+          "sha256": "ca5a0461dacae2290c67731c51d4d7f343e5df204a85e310d32ca1a4af77473c"
+        },
+        {
+          "name": "vcmi-fv-launcher.exe",
+          "role": "binary",
+          "path": "download/v0.2.0/vcmi-fv-launcher.exe",
+          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.2.0/vcmi-fv-launcher.exe",
+          "size": 26684416,
+          "sha256": "2c8c8132c8c0cb1565a1290006e2ad3a3b1cf318bd60f57aa89ec0667b715eb0"
+        }
+      ],
+      "preset": {
+        "file": "launcher.patch.json",
+        "sha256": "61c8c268bff1dde1d1c8d2119ce3c142fd0741f8a272d471f222e3b159864683"
+      },
+      "pack": {
+        "dir": "0.2.0_20261023-02_windows-x86_64",
+        "profile": "release",
+        "flavor": null,
+        "builtAt": "2026-10-22T18:38:52.444Z"
+      }
+    },
     {
       "release": "0.1.0",
       "platform": "windows-x86_64",
