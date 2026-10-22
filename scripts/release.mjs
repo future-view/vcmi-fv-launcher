@@ -19,7 +19,7 @@
  *   1. **索引只由 publish 追加版本条目**；pack 最多自举 repo/download/preset 配置区块。
  *   2. **更新源是 per-target 清单**（ADR 0008 D5）：`releases/update/<platform>.json`，由 publish 写、
  *      提交进 git；`releases/index.json` 降级为浏览数据（`versions[]` 投影已退役）。
- *   3. `releases[].notes` 派生自 `ChangeLog.md`。
+ *   3. `releases[].notesMd`（完整 Markdown）与 `releases[].notes`（行数组，旧客户端兼容）都派生自 `ChangeLog.md`。
  *   3. **契约版本必须等于 exe 编译版本**（`Cargo.toml`）；`--version` 只是发行标识（tag / Release title）。
  *      两者不一致时只有 `--no-update-chain`（不进更新链）一条出路。
  *   4. token 只从环境变量 / `.env.local` / `--token-file` 读，**绝不落盘**，输出一律脱敏。
@@ -641,17 +641,21 @@ function normalizeVersionToken(token) {
 }
 
 /**
- * 解析 ChangeLog（严格语法，§5.6.3）：
- *   `## <版本>` 节 → `### <lang>` 块 → `- ` 条目
- * 版本节内出现其它非空行 / 语言块内出现非列表行 → **报错**（避免「写了却没生效」）。
- * 返回 { sections: Map<version, { langs, raw, order }> }
+ * 解析 ChangeLog（语法见 docs/guides/release.zh-CN.md §2）：
+ *   `## <版本>` 节 → `### <lang>` 块 → 块内**自由 Markdown**（标题 / 列表 / 表格 / 引用 / 代码块…）
+ * 每个语言块产出**两份**说明：
+ *   - `langsMd[lang]`：块内 Markdown 原文（更新弹窗完整渲染 + GitHub Release 正文同源）
+ *   - `langs[lang]`：由正文派生的行数组（**旧客户端兼容**：只认识行数组的 0.1.x 仍能看到条目）
+ * 硬校验只保留两条（避免「写了却没生效」）：
+ *   版本节内出现语言块之外的正文 → 报错；语言块内没有任何有效文本 → 报错。
+ * 返回 { sections: Map<version, { langs, langsMd, raw, order }> }
  */
 function parseChangeLog(text, fromFile) {
   const lines = String(text).replace(/\r\n?/g, "\n").split("\n");
   const sections = new Map();
-  let cur = null; // { version, langs, rawLines }
+  let cur = null; // { version, langs, langsMd, rawLines }
   let curLang = null;
-  let curRaw = null;
+  let curMd = null;
 
   const where = (i) => `${fromFile}:${i + 1}`;
 
@@ -660,53 +664,73 @@ function parseChangeLog(text, fromFile) {
     const h2 = line.match(/^##\s+(.+?)\s*$/);
     const h3 = line.match(/^###\s+(.+?)\s*$/);
     if (h2) {
-      cur = { version: normalizeVersionToken(h2[1]), langs: {}, rawLines: [], order: sections.size };
+      cur = { version: normalizeVersionToken(h2[1]), langs: {}, langsMd: {}, rawLines: [], order: sections.size };
       if (!cur.version) die(`${where(i)}：版本节标题为空`);
       if (sections.has(cur.version)) die(`${where(i)}：版本节 ${cur.version} 重复`);
       sections.set(cur.version, cur);
       curLang = null;
-      curRaw = null;
+      curMd = null;
       continue;
     }
     if (h3) {
       if (!cur) die(`${where(i)}：语言块出现在任何 "## <版本>" 节之前`);
       const lang = normalizeLang(h3[1]);
       if (!lang) die(`${where(i)}：语言标识非法 "${h3[1]}"（用 VCMI 标识，如 chinese / english）`);
-      if (cur.langs[lang]) die(`${where(i)}：版本 ${cur.version} 内语言块 ${lang} 重复`);
-      cur.langs[lang] = [];
+      if (cur.langsMd[lang]) die(`${where(i)}：版本 ${cur.version} 内语言块 ${lang} 重复`);
+      cur.langsMd[lang] = [];
       curLang = lang;
+      curMd = cur.langsMd[lang];
       cur.rawLines.push(line);
       continue;
     }
     if (!cur) continue; // 文件头部（标题 / 说明）不属任何版本节，忽略
-    if (!line.trim()) {
-      if (curLang) cur.langs[curLang].push(""); // 占位，稍后过滤
+    // 语言块之外的**空行**放行（节标题与首个 `### <lang>` 之间的空行是排版习惯，无语义）
+    if (!curLang && !line.trim()) {
       cur.rawLines.push(line);
       continue;
     }
     if (!curLang) {
       die(
-        `${where(i)}：版本 ${cur.version} 节内出现非语言块内容："${line.trim().slice(0, 40)}"\n` +
-          "  版本节只允许 `### <lang>` 块与其内的列表项；自由文本/表格请用 --body-file。",
+        `${where(i)}：版本 ${cur.version} 节内出现语言块之外的正文："${line.trim().slice(0, 40)}"\n` +
+          "  版本节只允许 `### <lang>` 块与其内的 Markdown 正文。",
       );
     }
-    const item = line.match(/^\s*(?:[-*]|\d+[.)])\s+(.+?)\s*$/);
-    if (!item) {
-      die(`${where(i)}：语言块 ${curLang} 内出现非列表行："${line.trim().slice(0, 40)}"（列表项请用 "- " 开头）`);
-    }
-    cur.langs[curLang].push(item[1]);
+    curMd.push(line);
     cur.rawLines.push(line);
   }
   for (const s of sections.values()) {
-    for (const [lang, arr] of Object.entries(s.langs)) {
-      const clean = arr.map((x) => x.trim()).filter(Boolean);
-      if (!clean.length) delete s.langs[lang];
-      else s.langs[lang] = clean;
+    for (const [lang, mdLines] of Object.entries(s.langsMd)) {
+      // 语言块的**有效性**只看有没有非空白内容（写成标题 + 表格也成立，不强求列表）
+      const md = mdLines.join("\n").replace(/^\n+/, "").replace(/\s+$/, "");
+      if (!md.trim()) die(`版本 ${s.version} 的语言块 ${lang} 内没有任何说明内容`);
+      s.langsMd[lang] = md;
+      const derived = deriveNoteLines(md);
+      if (derived.length) s.langs[lang] = derived;
     }
     s.raw = s.rawLines.join("\n").trim();
     delete s.rawLines;
   }
   return { sections };
+}
+
+/** 列表项行：捕获前导缩进（用于判顶层）与正文（列表标记 `-` / `*` / `+` / `1.` / `1)` 一律支持） */
+const LIST_ITEM_RE = /^(\s*)(?:[-*+]|\d+[.)])\s+(.+?)\s*$/;
+
+/**
+ * 由 Markdown 正文派生「行数组」说明（旧客户端兼容）：
+ * 优先取**顶层**列表项（缩进 < 2 空格），正文里没有顶层项时才退回取任意缩进的列表项。
+ */
+function deriveNoteLines(md) {
+  const all = [];
+  const top = [];
+  for (const raw of String(md).split("\n")) {
+    const m = raw.match(LIST_ITEM_RE);
+    if (!m) continue;
+    const text = m[2].trim();
+    all.push(text);
+    if (m[1].replace(/\t/g, "  ").length < 2) top.push(text);
+  }
+  return top.length ? top : all;
 }
 
 /** 取某版本的说明：先按发行标识，再按契约版本 */
@@ -724,20 +748,27 @@ function splitNotes(text) {
     .filter(Boolean);
 }
 
+/** 行数组 → Markdown 正文（`- ` 列表）：供 --notes / --notes-file(JSON) 这类**只有行数组**的来源派生 notesMd */
+function notesToMd(lines) {
+  return lines.map((x) => `- ${x}`).join("\n");
+}
+
 /**
  * 解析更新说明（§5.6.4 优先级）：
  *   1. --notes（最高优先级；语言由 --notes-lang 指定）
  *   2. --notes-file（.md 走本解析器；.json 直接给 map）
  *   3. ChangeLog.md 对应版本节
  *   4. 都没有 → 报错（--allow-empty-notes 放行）
+ *
+ * 同时产出 `notes`（行数组，旧客户端兼容）与 `notesMd`（完整 Markdown，弹窗/正文同源）。
  */
 function resolveNotes(opts, ctx) {
   // `ctx.allowMissing`：不进更新链的包（测试/预发行）缺说明只告警 —— 它们不会出现在更新弹窗里
   const empty = opts.allowEmptyNotes || !!ctx.allowMissing;
   if (opts.notes) {
-    const notes = { [opts.notesLang]: splitNotes(opts.notes) };
-    if (!notes[opts.notesLang].length && !empty) die("--notes 内容为空");
-    return { notes, source: "cli", section: null };
+    const lines = splitNotes(opts.notes);
+    if (!lines.length && !empty) die("--notes 内容为空");
+    return { notes: { [opts.notesLang]: lines }, notesMd: { [opts.notesLang]: notesToMd(lines) }, source: "cli", section: null };
   }
   if (opts.notesFile) {
     const p = abs(opts.notesFile);
@@ -752,24 +783,26 @@ function resolveNotes(opts, ctx) {
         if (clean.length) notes[normalizeLang(lang) ?? lang.toLowerCase()] = clean;
       }
       if (!Object.keys(notes).length && !empty) die("--notes-file(JSON) 里没有任何条目");
-      return { notes, source: "file", section: null };
+      const notesMd = {};
+      for (const [lang, arr] of Object.entries(notes)) notesMd[lang] = notesToMd(arr);
+      return { notes, notesMd, source: "file", section: null };
     }
     const cl = parseChangeLog(text, opts.notesFile);
     const sec = pickSection(cl, ctx.release, ctx.contractVersion);
-    if (!sec || !Object.keys(sec.langs).length) {
-      if (empty) return { notes: {}, source: "file", section: null };
+    if (!sec || !Object.keys(sec.langsMd).length) {
+      if (empty) return { notes: {}, notesMd: {}, source: "file", section: null };
       die(`--notes-file 里没有 ${ctx.release}（或 ${ctx.contractVersion}）的说明节`);
     }
-    return { notes: sec.langs, source: "file", section: sec };
+    return { notes: sec.langs, notesMd: sec.langsMd, source: "file", section: sec };
   }
   const clPath = opts.changelog ? abs(opts.changelog) : DEFAULT_CHANGELOG;
   if (fs.existsSync(clPath)) {
     const sec = pickSection(parseChangeLog(fs.readFileSync(clPath, "utf8"), path.relative(ROOT, clPath)), ctx.release, ctx.contractVersion);
-    if (sec && Object.keys(sec.langs).length) {
-      return { notes: sec.langs, source: "changelog", section: sec };
+    if (sec && Object.keys(sec.langsMd).length) {
+      return { notes: sec.langs, notesMd: sec.langsMd, source: "changelog", section: sec };
     }
   }
-  if (empty) return { notes: {}, source: "changelog", section: null };
+  if (empty) return { notes: {}, notesMd: {}, source: "changelog", section: null };
   die(
     `没有可用的更新说明：请任选其一\n` +
       `  ① 在 ${path.relative(ROOT, clPath)} 里加一节 "## v${ctx.release}"（推荐）\n` +
@@ -781,7 +814,7 @@ function resolveNotes(opts, ctx) {
   );
 }
 
-function buildBody(opts, notes, section) {
+function buildBody(opts, notes, notesMd, section) {
   if (opts.bodyFile) {
     const p = abs(opts.bodyFile);
     if (!fs.existsSync(p)) die(`--body-file 不存在：${opts.bodyFile}`);
@@ -789,14 +822,17 @@ function buildBody(opts, notes, section) {
   }
   if (opts.bodyLang) {
     const lang = normalizeLang(opts.bodyLang) ?? opts.bodyLang;
+    if (notesMd?.[lang]) return `### ${lang}\n\n${notesMd[lang]}`;
     const lines = notes[lang];
     if (!lines) die(`--body-lang ${opts.bodyLang} 在说明里不存在（可用：${Object.keys(notes).join(" / ") || "无"}）`);
-    return `### ${lang}\n\n${lines.map((x) => `- ${x}`).join("\n")}`;
+    return `### ${lang}\n\n${notesToMd(lines)}`;
   }
   if (section?.raw) return section.raw;
+  const mdLangs = Object.keys(notesMd ?? {});
+  if (mdLangs.length) return mdLangs.map((lang) => `### ${lang}\n\n${notesMd[lang]}`).join("\n\n");
   const langs = Object.keys(notes);
   if (!langs.length) return "";
-  return langs.map((lang) => `### ${lang}\n\n${notes[lang].map((x) => `- ${x}`).join("\n")}`).join("\n\n");
+  return langs.map((lang) => `### ${lang}\n\n${notesToMd(notes[lang])}`).join("\n\n");
 }
 
 /* ────────────────────────────── 产物提取（原 package-release.mjs） ────────────────────────────── */
@@ -1449,7 +1485,7 @@ function cmdPack(opts) {
   //    ChangeLog 重跑要重新编译一遍）。
   //    不进更新链的包（--test / 预发行）缺说明只告警：它们不会出现在更新弹窗里。
   const notesRes = resolveNotes(opts, { release: releaseId, contractVersion, allowMissing: noChain });
-  if (!Object.keys(notesRes.notes).length) {
+  if (!Object.keys(notesRes.notesMd).length) {
     warn(`没有更新说明（ChangeLog.md 里没有 "${releaseId}" 节）—— 本包不进更新链，按测试/预发行处理`);
   }
 
@@ -1538,6 +1574,7 @@ function cmdPack(opts) {
     critical: !!opts.critical,
     notesSource: notesRes.source,
     notes: notesRes.notes,
+    notesMd: notesRes.notesMd,
     assets: assets.map(({ _dir, _label, ...rest }) => rest),
     preset: { file: path.basename(presetPath), sha256: presetSha },
     pack: { dir: ex.dirName, profile, flavor: opts.flavor || null, builtAt: info.builtAt },
@@ -1576,7 +1613,7 @@ function cmdPack(opts) {
   for (const a of entry.assets) {
     log(`  ${a.role.padEnd(9)} ${a.name}  ${humanSize(a.size)}  ${a.sha256.slice(0, 12)}…`);
   }
-  log(`说明来源：${entry.notesSource}（语言：${Object.keys(entry.notes).join(" / ") || "无"}）`);
+  log(`说明来源：${entry.notesSource}（语言：${Object.keys(entry.notesMd ?? entry.notes).join(" / ") || "无"}）`);
   log(`随包预置：${entry.preset.file}  ${presetSha.slice(0, 12)}…  ${opts.flavor === "ai" ? "（含 AI 默认启用配置）" : ""}`);
   if (noChain) {
     warn("不进更新链（--no-update-chain / --test）：只作 GitHub 发行 + 索引档案，用户不会收到更新提示");
@@ -1752,12 +1789,15 @@ async function cmdPublish(opts) {
 
   // 说明（若来源是 ChangeLog，md 改了就跟着更新）
   const notesRes = resolveNotes(opts, { release: releaseId, contractVersion: entry.updateVersion || fragment.release.updateVersion });
-  if (JSON.stringify(notesRes.notes) !== JSON.stringify(entry.notes)) {
-    log(`更新说明已刷新（来源 ${notesRes.source}）：语言 ${Object.keys(notesRes.notes).join(" / ") || "无"}`);
+  const notesChanged = JSON.stringify(notesRes.notes) !== JSON.stringify(entry.notes ?? {});
+  const notesMdChanged = JSON.stringify(notesRes.notesMd) !== JSON.stringify(entry.notesMd ?? {});
+  if (notesChanged || notesMdChanged) {
+    log(`更新说明已刷新（来源 ${notesRes.source}）：语言 ${Object.keys(notesRes.notesMd).join(" / ") || "无"}`);
     entry.notes = notesRes.notes;
+    entry.notesMd = notesRes.notesMd;
     entry.notesSource = notesRes.source;
   }
-  if (!Object.keys(entry.notes || {}).length && !opts.allowEmptyNotes) {
+  if (!Object.keys(entry.notesMd || {}).length && !Object.keys(entry.notes || {}).length && !opts.allowEmptyNotes) {
     die("更新说明为空。请补 ChangeLog.md 或传 --notes / --allow-empty-notes");
   }
 
@@ -1774,7 +1814,7 @@ async function cmdPublish(opts) {
     for (const line of dirty.split("\n").slice(0, 10)) warn(`  ${line}`);
   }
 
-  const body = buildBody(opts, entry.notes, notesRes.section);
+  const body = buildBody(opts, entry.notes, entry.notesMd, notesRes.section);
   if (opts.dryRun) {
     log("--dry-run：不联网、不写盘。Release 正文预览：");
     console.log("────────────");
@@ -2022,6 +2062,8 @@ async function cmdPublish(opts) {
         critical: !!entry.critical,
         publishedAt: entry.publishedAt || todayLocal(),
         notes: { ...(entry.notes ?? {}) },
+        // 完整 Markdown（新增字段，缺省时旧客户端回退到 notes 行数组）
+        ...(Object.keys(entry.notesMd ?? {}).length ? { notesMd: { ...entry.notesMd } } : {}),
       },
       pendingMinSupported,
     );
@@ -2151,6 +2193,7 @@ async function cmdPreview(opts) {
             critical: !!entry.critical,
             publishedAt: entry.publishedAt || todayLocal(),
             notes: { ...(entry.notes ?? {}) },
+            ...(Object.keys(entry.notesMd ?? {}).length ? { notesMd: { ...entry.notesMd } } : {}),
           },
         ]
       : [],
@@ -2369,7 +2412,9 @@ async function cmdVerify(opts) {
           missing++;
           continue;
         }
-        if (!deepEqual(sec.langs, r.notes)) {
+        if (r.notesMd && !deepEqual(sec.langsMd, r.notesMd)) {
+          err(`releases[${r.release}].notesMd 与 ChangeLog.md 不一致（跑 \`release:verify --fix\` 或重新 publish）`);
+        } else if (!r.notesMd && !deepEqual(sec.langs, r.notes)) {
           err(`releases[${r.release}].notes 与 ChangeLog.md 不一致（跑 \`release:verify --fix\` 或重新 publish）`);
         }
       }
@@ -2479,8 +2524,9 @@ async function cmdVerify(opts) {
         for (const r of index.releases) {
           if (r.notesSource !== "changelog") continue;
           const sec = pickSection(cl, r.release, r.updateVersion);
-          if (sec && !deepEqual(sec.langs, r.notes)) {
+          if (sec && ((r.notesMd && !deepEqual(sec.langsMd, r.notesMd)) || (!r.notesMd && !deepEqual(sec.langs, r.notes)))) {
             r.notes = sec.langs;
+            r.notesMd = sec.langsMd;
             fixedNotes++;
           }
         }

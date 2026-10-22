@@ -41,8 +41,19 @@ pub struct ManifestEntry {
     #[serde(default)]
     pub critical: bool,
     /// 多语言更新说明（语言 id → 条目列表）；取词由前端按 ui_lang 做，english 兜底。
+    ///
+    /// ⚠️ 这是**旧格式**（行数组）：只认识它的 0.1.x 客户端仍靠它显示说明；
+    /// 新客户端优先用 `notes_md`，缺省时才回退到这里。
     #[serde(default)]
     pub notes: HashMap<String, Vec<String>>,
+    /// 多语言更新说明的**完整 Markdown 原文**（语言 id → md 文本）。
+    ///
+    /// 新增字段（缺省 = 旧清单），与 `notes` 同源派生自 `ChangeLog.md`：
+    /// `notes` 只取顶层列表项（兼容老客户端），这里保留标题 / 表格 / 引用 / 代码块等全部块级语法，
+    /// 供更新弹窗完整渲染（GitHub Release 正文亦取同一段原文）。
+    // 清单 JSON 里写作 `notesMd`（与 `publishedAt` / `updateMode` 同款显式 camelCase 重命名）
+    #[serde(default, rename = "notesMd", skip_serializing_if = "Option::is_none")]
+    pub notes_md: Option<HashMap<String, String>>,
     /// 更新包形态：`exe`（缺省，兼容旧清单）或 `zip`（便携包）。
     ///
     /// zip 形态的价值：① 一次可替换**多个文件**（含 `.vcmi-fv-launcher/runtime/**` 组件）；
@@ -120,6 +131,9 @@ pub struct UpdateInfo {
     pub published_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes_i18n: Option<HashMap<String, Vec<String>>>,
+    /// 多语言更新说明的**完整 Markdown 原文**（`notes_md` 的前端投影，缺省 = 旧清单）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes_md_i18n: Option<HashMap<String, String>>,
     /// idle | available | downloading | downloaded | error
     pub state: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -183,6 +197,7 @@ fn base_info() -> UpdateInfo {
         size: None,
         published_at: None,
         notes_i18n: None,
+        notes_md_i18n: None,
         state: "idle",
         error: None,
         cached: None,
@@ -500,6 +515,7 @@ pub fn check_update(force: bool) -> UpdateInfo {
                     info.size = entry.size;
                     info.published_at = entry.published_at.clone();
                     info.notes_i18n = Some(entry.notes.clone()).filter(|m| !m.is_empty());
+                    info.notes_md_i18n = entry.notes_md.clone().filter(|m| !m.is_empty());
                     info.kind = entry.kind.clone();
                     info.update_mode = Some(entry.mode().as_str().to_string());
                     info.download_url = Some(entry.download.clone());
@@ -637,4 +653,38 @@ pub fn check_update(force: bool) -> UpdateInfo {
         }
     }
     info
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ManifestEntry;
+
+    /// `notesMd` 是新增字段：新清单带它 → 解析进 `notes_md`；旧清单没有 → 缺省 None（不破坏旧清单）。
+    #[test]
+    fn notes_md_is_optional_and_camel_case() {
+        let with_md = r#"{
+            "version": "0.2.0",
+            "download": "https://example.test/a.zip",
+            "sha256": "abc",
+            "notes": { "chinese": ["一行一条"] },
+            "notesMd": { "chinese": "**改进百科**\n- 支持 `生物动画`" }
+        }"#;
+        let e: ManifestEntry = serde_json::from_str(with_md).unwrap();
+        assert_eq!(
+            e.notes_md.as_ref().and_then(|m| m.get("chinese")).map(String::as_str),
+            Some("**改进百科**\n- 支持 `生物动画`")
+        );
+        assert_eq!(e.notes.get("chinese").map(Vec::as_slice), Some(["一行一条".to_string()].as_slice()));
+
+        // 旧清单（0.1.x）：没有 notesMd → 解析成功且为 None，前端回退到 notes 行数组
+        let legacy = r#"{
+            "version": "0.1.0",
+            "download": "https://example.test/b.zip",
+            "sha256": "def",
+            "notes": { "chinese": ["旧格式说明"] }
+        }"#;
+        let old: ManifestEntry = serde_json::from_str(legacy).unwrap();
+        assert!(old.notes_md.is_none());
+        assert_eq!(old.notes.get("chinese").map(Vec::as_slice), Some(["旧格式说明".to_string()].as_slice()));
+    }
 }

@@ -11,9 +11,9 @@ import { cn } from "@/lib/utils";
  * 2. 输出为 React 元素 → 天然无法注入脚本，等价于 VCMI 的 `MarkdownNoHTML` 渲染模式；
  * 3. 项目当前无 Markdown 依赖，为一个摘要/详情展示场景引入运行时 + 消毒器不划算。
  *
- * 支持的语法：`# ~ ######` 标题、`- ` 无序列表、`1. ` 有序列表、`> ` 引用、
- * `---` 分隔线、`| a | b |` 表格、**粗体**、*斜体*、`` `代码` ``、`[文本](链接)`，
- * 其余按段落处理。
+ * 支持的语法：`# ~ ######` 标题、`- ` 无序列表（**支持缩进嵌套**）、`1. ` 有序列表、`> ` 引用、
+ * `---` 分隔线、`| a | b |` 表格、``` 围栏代码块、**粗体**、*斜体*、`` `代码` ``、
+ * `[文本](链接)`、`![说明](图片)`，其余按段落处理。
  *
  * 表格来源：模组预设报告（`lib/presetReport.ts`）与作者手写的 Markdown 描述。
  * mod 描述的 HTML 路径（`htmlToMarkdown`）会剥掉表格结构，因此表格解析不影响既有内容。
@@ -42,13 +42,50 @@ export function Markdown({ source, className }: MarkdownProps) {
 
 /* ----------------------------- 块级解析 ----------------------------- */
 
+/** 列表项节点：`children` 非空 = 有缩进子列表（渲染时嵌套一层 `<ul>` / `<ol>`） */
+interface ListItem {
+  text: string;
+  children: ListItem[];
+}
+
 type Block =
   | { kind: "heading"; level: number; text: string }
-  | { kind: "list"; ordered: boolean; items: string[] }
+  | { kind: "list"; ordered: boolean; items: ListItem[] }
   | { kind: "quote"; text: string }
   | { kind: "hr" }
+  | { kind: "code"; text: string }
   | { kind: "table"; headers: string[]; rows: string[][]; width: number }
   | { kind: "para"; text: string };
+
+/** 列表项行：前导缩进用于判层级（制表符按 2 空格折算），标记支持 `-` / `*` / `+` / `1.` / `1)` */
+const LIST_ITEM_RE = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
+
+/** 缩进宽度：制表符折 2 空格，与缩进嵌套的判定口径一致 */
+function indentWidth(s: string): number {
+  return s.replace(/\t/g, "  ").length;
+}
+
+/** 是否为"新块起点"（标题 / 引用 / 围栏 / 表格）——用于判断列表项的续行该不该并入上一项 */
+function isBlockStart(line: string): boolean {
+  return /^\s{0,3}(#{1,6}\s|>|```|\|)/.test(line);
+}
+
+/**
+ * 由"缩进列表行"构树：缩进更大 → 成为上一项的子项；缩进相同或更小 → 回退到对应层级。
+ * 例：`- a`(0) / `  - b`(2) / `  - c`(2) / `- d`(0) → a 的子项是 b、c，d 与 a 同级。
+ */
+function buildListTree(raw: { indent: number; text: string }[]): ListItem[] {
+  const root: ListItem[] = [];
+  const stack: { indent: number; node: ListItem }[] = [];
+  for (const it of raw) {
+    const node: ListItem = { text: it.text, children: [] };
+    while (stack.length && it.indent <= stack[stack.length - 1].indent) stack.pop();
+    if (stack.length) stack[stack.length - 1].node.children.push(node);
+    else root.push(node);
+    stack.push({ indent: it.indent, node });
+  }
+  return root;
+}
 
 /** 表格分隔行：只由 `| - : 空白` 组成，且至少含一段 `--`（如 `| --- | :--: |`） */
 function isTableSep(line: string): boolean {
@@ -87,6 +124,19 @@ function parseBlocks(src: string): Block[] {
       continue;
     }
 
+    // 围栏代码块（``` [\n…\n] ```）：内容原样保留，不做行内解析
+    if (/^\s{0,3}```/.test(line)) {
+      const buf: string[] = [];
+      i++;
+      while (i < lines.length && !/^\s{0,3}```\s*$/.test(lines[i])) {
+        buf.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++; // 吞掉收尾围栏
+      out.push({ kind: "code", text: buf.join("\n") });
+      continue;
+    }
+
     // 表格：表头行 + 分隔行（`| --- | --- |`），数据行直到空行或非表格行
     if (line.includes("|") && i + 1 < lines.length && isTableSep(lines[i + 1])) {
       const headers = splitRow(line);
@@ -120,25 +170,32 @@ function parseBlocks(src: string): Block[] {
       continue;
     }
 
-    // 列表（合并连续项；空行或下一个非列表项结束）
-    const ul = line.match(/^\s{0,3}[-*+]\s+(.*)$/);
-    const ol = line.match(/^\s{0,3}\d+[.)]\s+(.*)$/);
-    if (ul || ol) {
-      const ordered = !!ol && !ul;
-      const items: string[] = [];
+    // 列表（合并连续项；**按缩进构多级嵌套**；空行或下一个非列表项结束）
+    const listStart = line.match(LIST_ITEM_RE);
+    if (listStart) {
+      const ordered = /\d/.test(listStart[2]);
+      const raw: { indent: number; text: string }[] = [];
       while (i < lines.length) {
-        const m = ordered
-          ? lines[i].match(/^\s{0,3}\d+[.)]\s+(.*)$/)
-          : lines[i].match(/^\s{0,3}[-*+]\s+(.*)$/);
-        if (!m) break;
-        items.push(m[1].trim());
-        i++;
+        const m = lines[i].match(LIST_ITEM_RE);
+        if (m) {
+          // m[1]=缩进 / m[2]=列表标记（`-` / `1.`）/ m[3]=正文 —— 此处要的是正文
+          raw.push({ indent: indentWidth(m[1]), text: m[3].trim() });
+          i++;
+          continue;
+        }
+        // 列表项的续行（缩进 ≥2、非空、且不是新块起点）→ 并入上一项，避免散成段落
+        if (raw.length && lines[i].trim() && /^\s{2,}/.test(lines[i]) && !isBlockStart(lines[i])) {
+          raw[raw.length - 1].text += ` ${lines[i].trim()}`;
+          i++;
+          continue;
+        }
+        break;
       }
-      out.push({ kind: "list", ordered, items });
+      out.push({ kind: "list", ordered, items: buildListTree(raw) });
       continue;
     }
 
-    // 段落（合并到空行）
+    // 段落（合并到空行）；⚠️ 必须在 ``` 处停：否则围栏行被吞进段落，反引号会被行内码误匹配
     const buf: string[] = [];
     while (
       i < lines.length &&
@@ -146,7 +203,8 @@ function parseBlocks(src: string): Block[] {
       !/^\s{0,3}(#{1,6})\s+/.test(lines[i]) &&
       !/^\s{0,3}[-*+]\s+/.test(lines[i]) &&
       !/^\s{0,3}\d+[.)]\s+/.test(lines[i]) &&
-      !/^\s{0,3}>\s?/.test(lines[i])
+      !/^\s{0,3}>\s?/.test(lines[i]) &&
+      !/^\s{0,3}```/.test(lines[i])
     ) {
       buf.push(lines[i].trim());
       i++;
@@ -169,6 +227,12 @@ function BlockNode({ block }: { block: Block }) {
     }
     case "hr":
       return <hr className="border-slate-700/60" />;
+    case "code":
+      return (
+        <pre className="overflow-x-auto rounded bg-slate-800/80 p-2.5 text-[12px] leading-relaxed text-slate-200">
+          <code>{block.text}</code>
+        </pre>
+      );
     case "table":
       return (
         <div className="overflow-x-auto">
@@ -207,30 +271,46 @@ function BlockNode({ block }: { block: Block }) {
         </blockquote>
       );
     case "list":
-      return block.ordered ? (
-        <ol className="list-decimal space-y-0.5 pl-5">
-          {block.items.map((it, i) => (
-            <li key={i}>{renderInline(it)}</li>
-          ))}
-        </ol>
-      ) : (
-        <ul className="list-disc space-y-0.5 pl-5">
-          {block.items.map((it, i) => (
-            <li key={i}>{renderInline(it)}</li>
-          ))}
-        </ul>
-      );
+      return <ListNode items={block.items} ordered={block.ordered} depth={0} />;
     case "para":
     default:
       return <p>{renderInline(block.text)}</p>;
   }
 }
 
+/** 列表渲染（递归）：每一层缩进换一种标记形状，嵌套层级一眼可辨 */
+function ListNode({ items, ordered, depth }: { items: ListItem[]; ordered: boolean; depth: number }) {
+  const marker = ordered
+    ? depth === 0
+      ? "list-decimal"
+      : depth === 1
+        ? "list-[lower-alpha]"
+        : "list-[lower-roman]"
+    : depth === 0
+      ? "list-disc"
+      : depth === 1
+        ? "list-[circle]"
+        : "list-[square]";
+  const Tag = ordered ? "ol" : "ul";
+  return (
+    <Tag className={cn("space-y-0.5 pl-5", marker)}>
+      {items.map((it, i) => (
+        <li key={i}>
+          {renderInline(it.text)}
+          {it.children.length ? (
+            <ListNode items={it.children} ordered={ordered} depth={depth + 1} />
+          ) : null}
+        </li>
+      ))}
+    </Tag>
+  );
+}
+
 /* ----------------------------- 行内解析 ----------------------------- */
 
-// 链接 → 双星粗体 → 下划线粗体 → 单星斜体 → 下划线斜体 → 反引号代码
+// 图片 → 链接 → 双星粗体 → 下划线粗体 → 单星斜体 → 下划线斜体 → 反引号代码
 const INLINE_RE =
-  /(\[[^\]\n]*\]\([^)\s]*\))|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(\*[^*\n]+\*)|(_[^_\n]+_)|(`[^`\n]+`)/g;
+  /(!\[[^\]\n]*\]\([^)\s]*\))|(\[[^\]\n]*\]\([^)\s]*\))|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(\*[^*\n]+\*)|(_[^_\n]+_)|(`[^`\n]+`)/g;
 
 /** 行内 Markdown → React 元素（供列表项等场景复用，与 `Markdown` 组件口径一致） */
 export function renderInline(text: string): ReactNode[] {
@@ -243,7 +323,24 @@ export function renderInline(text: string): ReactNode[] {
     if (m.index > last) out.push(text.slice(last, m.index));
     const tok = m[0];
 
-    if (tok.startsWith("[")) {
+    if (tok.startsWith("![")) {
+      const im = tok.match(/^!\[([^\]]*)\]\(([^)\s]*)\)$/);
+      const alt = im?.[1] ?? "";
+      const src = im?.[2] ?? "";
+      if (src && SAFE_PROTOCOL.test(src)) {
+        out.push(
+          <img
+            key={key++}
+            src={src}
+            alt={alt}
+            loading="lazy"
+            className="my-1 max-h-64 max-w-full rounded border border-slate-700/60"
+          />,
+        );
+      } else {
+        out.push(alt || src);
+      }
+    } else if (tok.startsWith("[")) {
       const lm = tok.match(/^\[([^\]]*)\]\(([^)\s]*)\)$/);
       const label = lm?.[1] ?? "";
       const href = lm?.[2] ?? "";

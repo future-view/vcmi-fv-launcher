@@ -12,8 +12,8 @@ import { cn } from "@/lib/utils";
 import brandIcon from "@/assets/brand-icon.png";
 import { useI18n } from "@/i18n";
 import type { UpdateInfo } from "@/lib/tauri";
-import { formatBytes, pickNotes, progressPercent } from "@/lib/updater";
-import { renderInline } from "@/shared/Markdown";
+import { formatBytes, pickNotesMarkdown, progressPercent } from "@/lib/updater";
+import { Markdown } from "@/shared/Markdown";
 import { useUpdateFlow } from "./updateFlow";
 
 interface Props {
@@ -24,7 +24,8 @@ interface Props {
 export function ForcedUpdateOverlay({ info, onExit }: Props) {
   const { lang, t } = useI18n();
   const flow = useUpdateFlow(info, true);
-  const notes = pickNotes(info, lang);
+  // 更新说明：优先取清单里的完整 Markdown（ChangeLog 语言块原文），旧清单回退到行数组重铸的列表
+  const notesMd = pickNotesMarkdown(info, lang);
   const pct = flow.progress ? progressPercent(flow.progress.received, flow.progress.total) : null;
   const busy = flow.ui === "downloading" || flow.ui === "applying" || flow.ui === "restarting";
   // manual 模式（ADR 0008 D7）：应用内替换不可用 → 阻断层改为引导手动下载
@@ -36,7 +37,8 @@ export function ForcedUpdateOverlay({ info, onExit }: Props) {
       {/* 顶部拖拽区（领域模式之外唯一拖拽区由本层承担，保证窗口可拖动） */}
       <div data-tauri-drag-region className="absolute inset-x-0 top-0 h-10 cursor-move" />
 
-      <div className="flex w-full max-w-md flex-col items-center text-center">
+      {/* 说明区加宽到 2xl：表格 / 引用等块级语法需要横向空间；高度上限 35vh 兼顾 640 最小窗高 */}
+      <div className="flex w-full max-w-2xl flex-col items-center text-center">
         <div className="h-16 w-16 overflow-hidden rounded-2xl shadow-lg shadow-blue-600/30">
           <img src={brandIcon} alt="VCMI" className="h-full w-full object-cover" draggable={false} />
         </div>
@@ -52,16 +54,13 @@ export function ForcedUpdateOverlay({ info, onExit }: Props) {
           </span>
         </div>
 
-        {/* 更新说明 */}
-        {notes.length > 0 && (
-          <ul className="mt-5 max-h-[30vh] space-y-1.5 overflow-y-auto text-left">
-            {notes.map((n, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
-                <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-blue-400/70" />
-                <span className="min-w-0">{renderInline(n)}</span>
-              </li>
-            ))}
-          </ul>
+        {/* 更新说明（完整 Markdown；卡片化，避免表格 / 引用贴边无边界） */}
+        {notesMd && (
+          <div className="mt-5 w-full rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-left">
+            <div className="max-h-[35vh] overflow-y-auto">
+              <Markdown source={notesMd} />
+            </div>
+          </div>
         )}
 
         {/* 下载进度 */}

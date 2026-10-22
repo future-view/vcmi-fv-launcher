@@ -3608,6 +3608,9 @@ export interface UpdateInfo {
   publishedAt?: string;
   /** 多语言更新说明：按 ui_lang 取词（`pickNotes`），english 兜底 */
   notesI18n?: Record<string, string[]>;
+  /** 多语言更新说明的**完整 Markdown 原文**（`notesMd` 投影；缺省 = 旧清单，
+   *  展示层回退到 `notesI18n` 的行数组，见 `pickNotesMarkdown`） */
+  notesMdI18n?: Record<string, string>;
   state: "idle" | "available" | "downloading" | "downloaded" | "error";
   error?: string;
   /** 本次结果来自 24h 内清单缓存 */

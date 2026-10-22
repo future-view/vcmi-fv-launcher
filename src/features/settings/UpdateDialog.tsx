@@ -12,8 +12,8 @@ import {
   setUpdatePref,
   type UpdateInfo,
 } from "@/lib/tauri";
-import { formatBytes, pickNotes, progressPercent } from "@/lib/updater";
-import { renderInline } from "@/shared/Markdown";
+import { formatBytes, pickNotesMarkdown, progressPercent } from "@/lib/updater";
+import { Markdown } from "@/shared/Markdown";
 import { DialogFooter } from "@/shared/DialogFooter";
 import { useUpdateFlow } from "./updateFlow";
 
@@ -46,7 +46,8 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
 
   if (!open) return null;
 
-  const notes = pickNotes(info, lang);
+  // 更新说明：优先取清单里的完整 Markdown（ChangeLog 语言块原文），旧清单回退到行数组重铸的列表
+  const notesMd = pickNotesMarkdown(info, lang);
   const pct = flow.progress ? progressPercent(flow.progress.received, flow.progress.total) : null;
   const busy = flow.ui === "downloading" || flow.ui === "applying" || flow.ui === "restarting";
   // 已下载态：安装包已落地，跳过语义弱化为「暂不应用」，避免"包都下好了还永久跳过"的违和
@@ -78,9 +79,10 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl">
+      {/* 说明区是唯一滚动区：头部 / 进度 / 操作区固定，说明再长也不会顶掉按钮 */}
+      <div className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl">
         {/* 头部 */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3.5">
+        <div className="flex flex-none items-center justify-between border-b border-slate-800 px-5 py-3.5">
           <h3 className="text-base font-semibold text-slate-100">{t.update.title}</h3>
           <button
             type="button"
@@ -93,9 +95,9 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
           </button>
         </div>
 
-        <div className="px-5 py-4">
+        <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
           {/* 版本对比 + 日期 + 重要徽标 */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-none flex-wrap items-center gap-2.5">
             <span className="font-mono text-lg font-semibold text-slate-300">
               {info.currentVersion}
             </span>
@@ -120,25 +122,18 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
             )}
           </div>
 
-          {/* 更新说明 */}
-          <div className="mt-3 max-h-[40vh] overflow-y-auto pr-1">
-            {!info.hasUpdate ? null : notes.length === 0 ? (
+          {/* 更新说明（完整 Markdown：标题 / 多级列表 / 表格 / 引用 / 代码块） */}
+          <div className="mt-3 min-h-[120px] flex-1 overflow-y-auto pr-1">
+            {!info.hasUpdate ? null : !notesMd ? (
               <p className="text-sm text-slate-500">{t.update.notesEmpty}</p>
             ) : (
-              <ul className="space-y-1.5">
-                {notes.map((n, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
-                    <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-blue-400/70" />
-                    <span className="min-w-0">{renderInline(n)}</span>
-                  </li>
-                ))}
-              </ul>
+              <Markdown source={notesMd} />
             )}
           </div>
 
-          {/* 下载进度 */}
+          {/* 下载进度（说明区之外 → 始终可见） */}
           {flow.ui === "downloading" && flow.progress && (
-            <div className="mt-4">
+            <div className="mt-4 flex-none">
               <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-200"
@@ -156,25 +151,25 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
             </div>
           )}
 
-          {/* 状态 / 错误反馈 */}
+          {/* 状态 / 错误反馈（同样固定在说明区之外） */}
           {flow.ui === "downloaded" && (
-            <p className="mt-3 text-sm text-emerald-400">✓ {t.update.readyRestart}</p>
+            <p className="mt-3 flex-none text-sm text-emerald-400">✓ {t.update.readyRestart}</p>
           )}
           {flow.ui === "restarting" && (
-            <p className="mt-3 text-sm text-blue-400">{t.update.restarting}</p>
+            <p className="mt-3 flex-none text-sm text-blue-400">{t.update.restarting}</p>
           )}
           {/* 已下载态提示：安装包已落地保留，跳过只是「暂不应用」而非删除 */}
           {downloaded && (
-            <p className="mt-3 text-xs text-slate-500">{t.update.downloadedNote}</p>
+            <p className="mt-3 flex-none text-xs text-slate-500">{t.update.downloadedNote}</p>
           )}
           {/* 纯配置更新包：已就地应用，不关窗 */}
           {flow.ui === "applied" && (
-            <p className="mt-3 text-sm text-emerald-400">✓ {t.update.appliedNoRestart}</p>
+            <p className="mt-3 flex-none text-sm text-emerald-400">✓ {t.update.appliedNoRestart}</p>
           )}
           {/* manual 模式：该平台请手动下载新版本 */}
-          {manual && <p className="mt-3 text-sm text-amber-300">{t.update.manualHint}</p>}
+          {manual && <p className="mt-3 flex-none text-sm text-amber-300">{t.update.manualHint}</p>}
           {flow.ui === "error" && (
-            <div className="mt-3">
+            <div className="mt-3 flex-none">
               <p className="text-sm text-red-400">
                 {t.update.failed}
                 {flow.err ? `：${flow.err}` : ""}
@@ -187,7 +182,7 @@ export function UpdateDialog({ info, open, onClose, onInfoChange, onSkip }: Prop
         </div>
 
         {/* 操作区 */}
-        <DialogFooter>
+        <DialogFooter className="flex-none">
           <div className="me-auto flex flex-wrap items-center gap-2">
             {!info.hasUpdate ? null : flow.ui === "error" ? (
               <button
