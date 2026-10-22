@@ -670,15 +670,12 @@ pub(crate) fn generate_town_preview_inner(
 ) -> Value {
     let sid = sanitize_id(mod_id);
     let mod_json_path = cache_root.join(format!("{}/cache.json", sid));
-    let mut mod_json: Value = match fs::read_to_string(&mod_json_path)
-        .ok()
-        .and_then(|t| serde_json::from_str(&t).ok())
-    {
-        Some(v) => v,
-        None => return json!({ "ok": false, "error": "notcached" }),
+    // 走解析结果缓存：同一份 cache.json（最大 1.7 MB / 33 ms）被详情页、弹窗、城镇预览反复读取
+    let Some(cached) = crate::modcache::read_cached_json_path(&mod_json_path) else {
+        return json!({ "ok": false, "error": "notcached" });
     };
-    // 0) 幂等：已合成且文件存在 → 直接返回
-    if let Some(fa) = mod_json
+    // 0) 幂等：已合成且文件存在 → 直接返回（只读判断，不克隆）
+    if let Some(fa) = cached
         .get("factions")
         .and_then(|f| f.as_array())
         .and_then(|arr| {
@@ -692,6 +689,9 @@ pub(crate) fn generate_town_preview_inner(
             }
         }
     }
+    // 合成后要把 preview 写回 cache.json（见本函数末尾），故这里取一份**可变副本**；
+    // 解析结果本身来自缓存，只付一次 clone（3~5ms，远小于 33ms 的重新解析）。
+    let mut mod_json: Value = (*cached).clone();
     // 还原 modPath 的 base：优先 launcher.json 权威配置，缺失则退回 detect()
     let launcher_data_dir =
         VcmiPaths::launcher_data_dir().unwrap_or_else(|| cache_root.to_path_buf());

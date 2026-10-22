@@ -14,7 +14,7 @@ use crate::modcache::batch::{
     WIKI_BUILD_DONE, WIKI_BUILD_PREP_DONE, WIKI_BUILD_PREP_TOTAL, WIKI_BUILD_TOTAL,
 };
 use crate::modcache::build::{probe_mod_cache, ModCacheState};
-use crate::modcache::index::{build_all_wiki_inner, read_mod_wiki_inner};
+use crate::modcache::index::{build_all_wiki_inner, read_mod_wiki_text};
 use crate::modcache::preview::generate_town_preview_inner;
 use crate::state::AppPaths;
 use crate::vcmi::paths::VcmiPaths;
@@ -23,14 +23,22 @@ use crate::vcmi::scan::cached_mod_paths;
 
 /// 读取单个城镇 mod 的 Wiki 缓存 JSON（命中缓存时不再解析原始 mod）。
 ///
+/// 返回 **JSON 原文**（不是解析后的对象）：后端零解析、零深拷贝，前端 `JSON.parse`
+/// 是本来就必需的一步。`Value` 方案的深拷贝与重新解析等价（1.7 MB 约 33 ms，实测）。
+///
 /// ⚠️ `async` + `spawn_blocking`：读整份 `cache.json` 是重 IO，且列表页会并发调用数百次，
 /// 同步命令会冻结 WebView 消息循环（见 `docs/features/startup-responsiveness.zh-CN.md`）。
 #[tauri::command]
-pub async fn read_mod_cache(_state: State<'_, AppPaths>, mod_id: String) -> Result<Value, String> {
-    tauri::async_runtime::spawn_blocking(move || -> Result<Value, String> {
+pub async fn read_mod_cache(
+    _state: State<'_, AppPaths>,
+    mod_id: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
         let cache_root = VcmiPaths::mods_cache_dir()
             .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));
-        Ok(read_mod_wiki_inner(&cache_root, &mod_id))
+        read_mod_wiki_text(&cache_root, &mod_id)
+            .map(|t| (*t).clone())
+            .ok_or_else(|| be_err("cmd_read_failed", &mod_id))
     })
     .await
     .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?

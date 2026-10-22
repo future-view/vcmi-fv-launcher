@@ -64,25 +64,39 @@ impl LodArchive {
         })
     }
 
-    /// 实际解析：读取整个 lod 并重建目录表（每次调用都是一次全文件读取，故必须缓存）。
+    /// 实际解析：**只读文件头 + 目录表**（`0x5c + count × 32` 字节），不读整个 lod。
+    ///
+    /// 目录表就在文件头部，而 `H3bitmap.lod` 有 **116MB**、`H3sprite.lod` 66MB、
+    /// `H3ab_bmp.lod` 44MB —— 旧实现为了拿目录表 `fs::read` 整个文件。构建结束
+    /// [`release_caches`] 会清空目录表缓存，于是**详情页第一次**点开原版生物就要重付
+    /// 一次全文件读取（机械硬盘上 1~3 秒），这正是"头一两次点生物特别慢、之后就快"的根因。
+    /// 改成按需 seek + 读几十 KB 后，首次打开只剩毫秒级。
     fn parse_entries(path: &Path) -> Option<HashMap<String, LodEntry>> {
-        let data = fs::read(path).ok()?;
-        crate::infra::metrics::bytes("lod.open.bytes", data.len() as u64);
-        if data.len() < 0x5c {
+        use std::io::{Read, Seek, SeekFrom};
+        let mut f = fs::File::open(path).ok()?;
+        let file_len = f.metadata().ok()?.len() as usize;
+        if file_len < 0x5c {
             return None;
         }
-        let total = u32::from_le_bytes([data[8], data[9], data[10], data[11]]) as usize;
+        let mut header = [0u8; 0x5c];
+        f.read_exact(&mut header).ok()?;
+        let declared = u32::from_le_bytes([header[8], header[9], header[10], header[11]]) as usize;
+        // 容忍损坏文件：目录表不可能超出文件剩余长度（旧实现遇到越界是 break 提前结束）
+        let total = declared.min((file_len - 0x5c) / 32);
+        crate::infra::metrics::bytes("lod.open.bytes", (0x5c + total * 32) as u64);
+        let mut table = vec![0u8; total * 32];
+        if total > 0 {
+            f.seek(SeekFrom::Start(0x5c)).ok()?;
+            f.read_exact(&mut table).ok()?;
+        }
         let mut entries = HashMap::with_capacity(total);
-        let mut pos = 0x5cusize;
-        for _ in 0..total {
-            if pos + 32 > data.len() {
-                break;
-            }
-            let name_bytes = &data[pos..pos + 16];
+        for i in 0..total {
+            let pos = i * 32;
+            let name_bytes = &table[pos..pos + 16];
             let name_end = name_bytes.iter().position(|&b| b == 0).unwrap_or(16);
             let name = String::from_utf8_lossy(&name_bytes[..name_end]).to_uppercase();
             let rd_u32 = |off: usize| {
-                u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]])
+                u32::from_le_bytes([table[off], table[off + 1], table[off + 2], table[off + 3]])
             };
             let offset = rd_u32(pos + 16);
             let full_size = rd_u32(pos + 20);
@@ -97,7 +111,6 @@ impl LodArchive {
                     },
                 );
             }
-            pos += 32;
         }
         Some(entries)
     }

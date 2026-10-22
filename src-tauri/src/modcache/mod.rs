@@ -39,11 +39,71 @@ pub(crate) fn assets_enabled() -> bool {
     WIKI_ASSETS_ENABLED.with(|c| c.get())
 }
 
-/// 读取已构建缓存里的**模组元数据**（`cache.json` 的 `modMeta`：多语言名/描述 + 作者/版本/类型/依赖）。
+/// 已解析的 `cache.json` 小缓存：`key = 路径|mtime|len` → `Arc<Value>`。
+///
+/// 详情页、右键弹窗、城镇卡片、城镇预览都会读**同一份** `cache.json`
+/// （最大 1.7 MB，整份解析实测 33 ms）。缓存后重复访问只付一次 `Value::clone`。
+/// 容量由 `infra::cache::CFG_CACHE_CAP`（4）决定：单份解析后约 5~8 MB，4 份 ≈ 30 MB。
+static CACHE_JSON_LRU: std::sync::OnceLock<
+    std::sync::Mutex<Vec<(String, std::sync::Arc<Value>)>>,
+> = std::sync::OnceLock::new();
+
+/// 读并解析 `cache.json`（按 `(路径, mtime, len)` 缓存解析结果）。
+///
+/// 返回 `None` = 文件不存在 / 读取失败；解析失败返回 `Value::Null` 的 Arc（调用方按空对象处理）。
+pub(crate) fn read_cached_json_path(path: &std::path::Path) -> Option<std::sync::Arc<Value>> {
+    let md = std::fs::metadata(path).ok()?;
+    let mt = md
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let key = format!("{}|{}|{}", path.display(), mt, md.len());
+    Some(crate::infra::cache::cfg_cache_get(
+        &CACHE_JSON_LRU,
+        key,
+        || match std::fs::read_to_string(path) {
+            Ok(t) => crate::infra::json::parse_vcmi_json(&t),
+            Err(_) => Value::Null,
+        },
+    ))
+}
+
+/// `cache.json` **原文**的缓存：`key = 路径|mtime|len` → `Arc<String>`。
+///
+/// 为什么单独缓存文本而不复用 `Arc<Value>`：`Value` 的深拷贝（1.7 MB 的 cache.json
+/// 实测约 33 ms）与重新解析**等价**，缓存 Value 毫无收益。原文缓存则让后端零解析，
+/// 命令层只把字符串传给前端（前端反正要 `JSON.parse`）。
+static CACHE_TEXT_LRU: std::sync::OnceLock<
+    std::sync::Mutex<Vec<(String, std::sync::Arc<String>)>>,
+> = std::sync::OnceLock::new();
+
+/// 读文件原文（带 `(路径, mtime, len)` 缓存）。
+pub(crate) fn read_cached_text(path: &std::path::Path) -> Option<std::sync::Arc<String>> {
+    let md = std::fs::metadata(path).ok()?;
+    let mt = md
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let key = format!("{}|{}|{}", path.display(), mt, md.len());
+    Some(crate::infra::cache::cfg_cache_get(
+        &CACHE_TEXT_LRU,
+        key,
+        || std::fs::read_to_string(path).unwrap_or_default(),
+    ))
+}
+
+/// 读取已构建缓存里的**模组元数据**（`modMeta`：多语言名/描述 + 作者/版本/类型/依赖）。
 ///
 /// 供 `list_installed_mods`（**mods / realms 页面**）复用——此前这两处只能拿到
 /// VCMI `mod.json` 的**英文原文**（见 `src/lib/tauri.ts` 的 InstalledMod.desc 注释），
 /// 现在可按界面语言显示中文名/描述。缓存缺失时返回 None（不影响既有字段）。
+///
+/// 优先读构建期落盘的**独立小文件** `<modId>/meta.json`（几 KB）；旧缓存没有该文件时
+/// 回退整份 `cache.json`（最大 1.7 MB / 33 ms）—— 兼容升级前已建好的缓存。
 pub(crate) fn cached_mod_meta(
     cache_root: &std::path::Path,
     mod_id: &str,
@@ -51,21 +111,37 @@ pub(crate) fn cached_mod_meta(
     if cache_root.as_os_str().is_empty() || mod_id.is_empty() {
         return None;
     }
-    let dir: String = mod_id
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    let text = std::fs::read_to_string(cache_root.join(dir).join("cache.json")).ok()?;
+    // ⚠️ 目录名必须与落盘口径一致（`sanitize_id`）：旧实现另写一套 sanitize 规则，
+    // modId 含空格时落盘目录保留空格、这里却替换成 `_`，导致 meta 永远读不到。
+    let dir = cache_root.join(sanitize_id(mod_id));
+    if let Some(m) = read_meta_file(&dir) {
+        return Some(m);
+    }
+    let text = std::fs::read_to_string(dir.join("cache.json")).ok()?;
     let v = crate::infra::json::parse_vcmi_json(&text);
     let meta = v.get("modMeta")?.clone();
     if meta.is_object() {
+        // 惰性迁移：旧缓存没有 `meta.json`，首次读到就顺手落盘（下次直接读小文件）
+        write_meta_file(&dir, &meta);
         Some(meta)
+    } else {
+        None
+    }
+}
+
+/// 把 `modMeta` 落成 `<modId>/meta.json`（构建期与惰性迁移共用）。
+fn write_meta_file(dir: &std::path::Path, meta: &Value) {
+    if let Ok(text) = serde_json::to_string(meta) {
+        let _ = std::fs::write(dir.join("meta.json"), text);
+    }
+}
+
+/// 读 `<modId>/meta.json`（构建期从 `cache.json` 的 `modMeta` 落盘的小文件）。
+fn read_meta_file(dir: &std::path::Path) -> Option<Value> {
+    let text = std::fs::read_to_string(dir.join("meta.json")).ok()?;
+    let v = crate::infra::json::parse_vcmi_json(&text);
+    if v.is_object() {
+        Some(v)
     } else {
         None
     }
@@ -114,11 +190,20 @@ pub(crate) fn cached_mod_metas(cache_root: &std::path::Path, mod_ids: &[String])
         let Some(dir) = resolve_cache_dir(&idx, mid) else {
             continue;
         };
-        let Ok(text) = std::fs::read_to_string(cache_root.join(dir).join("cache.json")) else {
+        // 优先独立小文件（几 KB / 亚毫秒）；旧缓存回退整份解析。
+        // 577 份 cache.json 合计 58.5 MB，逐份整读实测 785ms —— 这是领域页首屏的主开销。
+        let dirp = cache_root.join(&dir);
+        if let Some(meta) = read_meta_file(&dirp) {
+            metas.insert(mid.clone(), meta);
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(dirp.join("cache.json")) else {
             continue;
         };
         let v = crate::infra::json::parse_vcmi_json(&text);
         if let Some(meta) = v.get("modMeta").filter(|m| m.is_object()) {
+            // 惰性迁移（同 `cached_mod_meta`）：读到就落盘，下次直接读小文件
+            write_meta_file(&dirp, meta);
             metas.insert(mid.clone(), meta.clone());
         }
     }
@@ -141,10 +226,10 @@ pub(crate) fn cached_town_cards(cache_root: &std::path::Path, mod_ids: &[String]
         let Some(dir) = resolve_cache_dir(&idx, mid) else {
             continue;
         };
-        let Ok(text) = std::fs::read_to_string(cache_root.join(dir).join("cache.json")) else {
+        // 走解析缓存：领域页一次要读几十份 cache.json，重复进入时不再重复解析
+        let Some(v) = read_cached_json_path(&cache_root.join(dir).join("cache.json")) else {
             continue;
         };
-        let v = crate::infra::json::parse_vcmi_json(&text);
         let Some(factions) = v.get("factions").and_then(|x| x.as_array()) else {
             continue;
         };

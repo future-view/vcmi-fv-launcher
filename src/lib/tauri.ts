@@ -1525,7 +1525,11 @@ export async function readModWikiCache(modId: string): Promise<WikiReadResult | 
   // 浏览器自测模式：直接读 mock 缓存目录的 cache.json
   if (!isTauri()) return fetchMockCacheJson(`${modId}/cache.json`);
   try {
-    return await invoke<WikiReadResult>("read_mod_cache", { modId });
+    // 后端返回 **JSON 原文**（不在 Rust 侧解析）：省掉一次整份解析（1.7 MB ≈ 33 ms），
+    // 且后端可缓存原文、命令层只传字符串。`JSON.parse` 本来就不可避免。
+    const text = await invoke<string>("read_mod_cache", { modId });
+    if (!text) return null;
+    return { ok: true, data: JSON.parse(text) as Record<string, unknown> } as WikiReadResult;
   } catch {
     return null;
   }
@@ -3490,19 +3494,60 @@ export async function readDefGroupHd(
   group: number,
   doubleWide: boolean,
   need: number,
+  kind?: string | null,
 ): Promise<HdDefGroup | null> {
   if (!isTauri()) return null;
   try {
-    return await invoke<HdDefGroup | null>("read_def_group_hd", {
+    // 后端以**二进制**回传（`[4B LE 元数据长度][元数据 JSON][帧体...]`）：
+    // 帧字节不再走 JSON 数字数组，省掉 3~4 倍载荷膨胀与逐元素转 `Uint8Array` 的开销。
+    const buf = await invoke<ArrayBuffer>("read_def_group_hd", {
       modId,
       resource,
       group,
       doubleWide,
       need,
+      kind: kind ?? null,
     });
+    return unpackHdGroup(buf);
   } catch {
     return null;
   }
+}
+
+/**
+ * 解开后端二进制分组载荷：`[4B LE 元数据长度][元数据 JSON][帧体...]`。
+ *
+ * 元数据 `frames[i]` 只含 `{x,y,w,h,len}`，帧字节紧跟在元数据之后 —— 这里只做
+ * `Uint8Array` 视图切片（零拷贝），不再逐字节拼数组。`frames[i]` 的字节交给
+ * `Blob`/`createImageBitmap` 时会被固化，视图生命周期没有问题。
+ */
+function unpackHdGroup(buf: ArrayBuffer | Uint8Array): HdDefGroup | null {
+  // `invoke` 对二进制响应通常给 `ArrayBuffer`；某些运行时给 `Uint8Array`，两者都接受。
+  const ab: ArrayBuffer =
+    buf instanceof Uint8Array
+      ? (buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer)
+      : buf;
+  if (!ab || ab.byteLength < 4) return null;
+  const dv = new DataView(ab);
+  const metaLen = dv.getUint32(0, true);
+  if (metaLen === 0 || 4 + metaLen > ab.byteLength) return null;
+  let meta: HdDefGroup & { frames?: { x: number; y: number; w: number; h: number; len: number }[] };
+  try {
+    meta = JSON.parse(new TextDecoder().decode(new Uint8Array(ab, 4, metaLen)));
+  } catch {
+    return null;
+  }
+  const list = meta.frames ?? [];
+  if (list.length === 0) return null;
+  let off = 4 + metaLen;
+  const frames: HdDefFrame[] = [];
+  for (const f of list) {
+    const len = f.len | 0;
+    if (len <= 0 || off + len > ab.byteLength) return null;
+    frames.push({ x: f.x, y: f.y, w: f.w, h: f.h, data: new Uint8Array(ab, off, len) });
+    off += len;
+  }
+  return { ...meta, frames };
 }
 
 /* ----------------------------- 启动器自动更新（命令契约见 commands/updater.rs） ----------------------------- */

@@ -744,6 +744,9 @@ pub(crate) fn build_creatures(
         };
         let morale = stat_val("MORALE");
         let luck = stat_val("LUCK");
+        // 详情页动画指针：构建期就把"这个 animation 资源到底在哪、是什么类型"算好，
+        // 运行期不再在 500+ 个模组里实时检索（见 `anim_json::locate` / `resource::resolve_core`）。
+        let anim_ptr = probe_animation(p, game_dir, mod_id, anim.as_deref());
         creatures.push(json!({
             "id": id,
             "name": name_obj,
@@ -773,6 +776,11 @@ pub(crate) fn build_creatures(
             "upgrades": upgrades,
             "abilities": abilities,
             "animation": anim,
+            // 动画指针 `{owner, resource, kind}`：
+            // - `owner`：承载该 `animation` 文件的模组（`core` = 原版 / 游戏根）；
+            // - `kind`：`def` / `json` / `other`；`unknown` = 本模组与游戏根都没找到
+            //   （可能跨模组引用，交给详情页旧逻辑实时定位）。
+            "anim": anim_ptr,
             "mapAnimation": anim_map,
             "mapAttackFromLeft": anim_attack_l,
             "mapAttackFromRight": anim_attack_r,
@@ -836,6 +844,64 @@ pub(crate) fn build_creatures(
     }
 
     creatures
+}
+
+/// 构建期为生物登记**动画指针** `{owner, resource, kind}`。
+///
+/// 目的：详情页播放动画时不必在 500+ 个模组里实时检索（实测 569 模组下首次定位
+/// 需扫 569 次资源解析，冷索引时还要先建 14 万文件的目录清单）。指针在构建期算好，
+/// 运行期直接按 `owner` 读文件。本发行版实测 3769 个生物，本函数**只解析路径不读字节**
+/// （[`crate::vcmi::resource::resolve_resource_ext`]），增量成本为毫秒级。
+///
+/// 解析范围刻意只到「本模组 + 游戏根」：
+/// - ① 本模组：绝大多数第三方生物；
+/// - ② 游戏根 / 用户数据：原版生物的战斗 DEF 都在 `Data/*.lod`；
+/// - ③ 两者都没有 → `kind: "unknown"`，交给详情页原有实时定位（`anim_json::locate`
+///   带结果缓存）。**不在这里做跨模组全扫**：数千生物 × 数百模组会显著拖慢构建，
+///   而真正的跨模组引用是少数，首次多付一次 400ms 即可。
+fn probe_animation(
+    mod_path: &Path,
+    game_dir: &Path,
+    mod_id: &str,
+    res: Option<&str>,
+) -> Value {
+    let Some(res) = res.map(str::trim).filter(|s| !s.is_empty()) else {
+        return json!({ "kind": "none" });
+    };
+    let owner_self = if crate::vcmi::h3core::parse_core_mod(mod_id).0 {
+        "core".to_string()
+    } else {
+        mod_id.to_string()
+    };
+    // ① 本模组
+    if let Some(ext) = crate::vcmi::resource::resolve_resource_ext(mod_path, res) {
+        return anim_ptr_json(&ext, res, Some(owner_self));
+    }
+    // ② 游戏根 / 用户数据（原版素材统一归属 `core`）
+    if crate::vcmi::resource::read_game_resource_fallback(game_dir, res).is_some() {
+        return json!({ "owner": "core", "resource": res, "kind": "def" });
+    }
+    // ③ 未在「本模组 + 游戏根」找到 → 详情页沿用原有实时定位
+    json!({ "resource": res, "kind": "unknown" })
+}
+
+/// 展平指针：`kind` 只保留取值域内的语义，未知扩展名原样带回（详情页按"非 def"处理）。
+fn anim_ptr_json(ext: &str, res: &str, owner: Option<String>) -> Value {
+    let kind = match ext {
+        "def" => "def",
+        // png 动画定义（sprites-json）：`kind` 只用于跳过 DEF 读取，
+        // 定位仍由详情页的 `anim_json::locate` 完成（其跨模组 `images` 限制不能简化）
+        "json" => "json",
+        "" => "unknown",
+        other => other,
+    };
+    let mut v = json!({ "resource": res, "kind": kind });
+    if matches!(kind, "def" | "json") {
+        if let Some(o) = owner {
+            v["owner"] = Value::String(o);
+        }
+    }
+    v
 }
 
 #[cfg(test)]

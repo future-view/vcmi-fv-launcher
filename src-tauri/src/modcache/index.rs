@@ -68,21 +68,30 @@ pub(crate) fn dedup_index_mods(v: &mut Value) -> usize {
     removed
 }
 
-/// 读取单个城镇 mod 的 Wiki 缓存 JSON（命中缓存时不再解析原始 mod，核心逻辑）。
+/// 读取单个 mod 的缓存 JSON **原文**（带文本缓存，见 `modcache::read_cached_text`）。
+///
+/// 为什么返回原文而不是 `Value`：`Value` 的深拷贝（1.7 MB 的 cache.json 实测约 33 ms）
+/// 与重新解析等价 —— 缓存解析结果毫无收益。返回原文后后端零解析、零深拷贝，
+/// 前端 `JSON.parse` 是本来就必需的一步（它要拿对象）。
+pub(crate) fn read_mod_wiki_text(
+    cache_root: &Path,
+    mod_id: &str,
+) -> Option<std::sync::Arc<String>> {
+    crate::modcache::read_cached_text(&cache_root.join(format!("{}/cache.json", sanitize_id(mod_id))))
+}
+
+/// [`read_mod_wiki_text`] 的 `{ok, data}` 包装版（**会解析整份 JSON**）。
+///
+/// 仅供低频调用方（展示页 `showcase`）与测试使用；详情页命令走文本版，
+/// 避免为 1.7 MB 的 cache.json 付一次 33 ms 解析。
 pub(crate) fn read_mod_wiki_inner(cache_root: &Path, mod_id: &str) -> Value {
-    let p = cache_root.join(format!("{}/cache.json", sanitize_id(mod_id)));
-    if !p.is_file() {
+    let Some(text) = read_mod_wiki_text(cache_root, mod_id) else {
         return json!({ "ok": false, "error": "notcached" });
+    };
+    match serde_json::from_str::<Value>(&text) {
+        Ok(v) => json!({ "ok": true, "data": v }),
+        Err(_) => json!({ "ok": false, "error": "parse" }),
     }
-    let text = match fs::read_to_string(&p) {
-        Ok(t) => t,
-        Err(_) => return json!({ "ok": false, "error": "io" }),
-    };
-    let v: Value = match serde_json::from_str(&text) {
-        Ok(v) => v,
-        Err(_) => return json!({ "ok": false, "error": "parse" }),
-    };
-    json!({ "ok": true, "data": v })
 }
 
 /// 原版伪模组（`core` / `core.<faction>`）的**多语言显示名**；非 core 模组返回 `None`。

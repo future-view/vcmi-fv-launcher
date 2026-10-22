@@ -15,7 +15,7 @@ use tauri::State;
 use crate::infra::berror::be_err;
 use crate::state::AppPaths;
 use crate::vcmi::paths::VcmiPaths;
-use crate::vcmi::resource::{read_def_bytes_inner, read_def_group_hd_inner};
+use crate::vcmi::resource::{pack_group_binary, read_def_bytes_inner, read_def_group_hd_inner};
 use crate::vcmi::scan::{push_installed_mod, scan_user_mods_dir};
 
 /// 扫描真实 Mods 目录，返回顶层 mod 清单（含子 mod 树），与前端 ModInfo 对齐。
@@ -166,19 +166,24 @@ pub async fn read_def_group_hd(
     group: u32,
     double_wide: bool,
     need: u32,
-) -> Result<Option<Value>, String> {
+    kind: Option<String>,
+) -> Result<tauri::ipc::Response, String> {
     // 打开 pak + 逐帧解 DDS + webp 编码全是 CPU 活 —— 同 `read_def_bytes` 下沉阻塞线程池。
-    tauri::async_runtime::spawn_blocking(move || {
+    let out = tauri::async_runtime::spawn_blocking(move || {
         let paths = VcmiPaths::detect();
-        Ok(read_def_group_hd_inner(
+        read_def_group_hd_inner(
             &paths,
             &mod_id,
             &resource,
             group as usize,
             double_wide,
             need,
-        ))
+            kind.as_deref(),
+        )
     })
     .await
-    .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?
+    .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?;
+    // 二进制回传：帧字节走 `[4B 长度][元数据 JSON][帧体...]`，避免 JSON 数字数组的 3~4 倍膨胀。
+    // 前端收到 `ArrayBuffer`；0 字节 = 该组没有可播放帧。
+    Ok(tauri::ipc::Response::new(pack_group_binary(out)))
 }

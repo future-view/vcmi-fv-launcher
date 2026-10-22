@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import type { LangDict } from "@/i18n/types";
 import type { WikiCategory, WikiEntry, WikiLinkTarget } from "@/lib/modcache";
 import { fullImgCandidates, fullImgUrl, pickName } from "@/lib/modcache";
-import { getAnimGroup, type AnimGroup } from "@/lib/def/animationCache";
+import { getAnimCacheGen, getAnimGroup, type AnimGroup } from "@/lib/def/animationCache";
 import { HdIcon } from "@/shared/HdIcon";
 import { HdImg } from "@/shared/HdImg";
 import { useHdRate } from "@/shared/useHdRate";
@@ -92,7 +92,14 @@ export function CreatureDetail({
   //   背景 = 阵营 creatureBackground 130px；动画 = creature.animDefName（战斗动画），
   //   startPreview() 循环播放预览动作，帧间隔 100ms（Images.cpp:482）。
   // VCMI 生物窗没有静态图模式，也没有"启用动画"开关 —— 始终播放动画。
-  const battleRes = (d.animation as string) ?? "";
+  // 构建期登记的**动画指针**（见 `modcache/build/data/creature.rs::probe_animation`）：
+  // - `owner`：承载该 `animation` 文件的模组，直接当读取命令的 `modId`（跨模组引用也能命中）；
+  // - `kind`：`def` / `json` / `unknown` / `none`。`def` 让后端跳过 sprites-json 探测，
+  //   `none` 表示本模组与游戏根都没有该资源 → 不必发注定失败的请求。
+  const animPtr = (d.anim ?? {}) as { owner?: string; kind?: string };
+  const animOwner = typeof animPtr.owner === "string" && animPtr.owner ? animPtr.owner : modId;
+  const animKind = typeof animPtr.kind === "string" ? animPtr.kind : undefined;
+  const battleRes = animKind === "none" ? "" : ((d.animation as string) ?? "");
   /** 高清素材倍率：兵种大图在本页会被**放大**显示，高清收益最明显的一处 */
   const rate = useHdRate();
   // 生物窗背景（VCMI `CCreaturePic` 的 creatureBackground）。
@@ -201,6 +208,12 @@ export function CreatureDetail({
             resolve();
             return;
           }
+          // 缓存被整体释放（切领域 / 空闲回收）→ 手里的位图已被 close()，本步作废，
+          // 交给 `run` 的下一轮重新取（`getAnimGroup` 此时会重新请求/解码）。
+          if (g.gen !== getAnimCacheGen()) {
+            resolve();
+            return;
+          }
           if (now - last >= ANIM_FRAME_MS) {
             last = now;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -261,7 +274,14 @@ export function CreatureDetail({
         for (const step of steps) {
           if (cancelled) return;
           if (missingGroups.get(missKey)?.has(step.group)) continue;
-          const g = await getAnimGroup(modId, battleRes, step.group, doubleWide, boxCss);
+          const g = await getAnimGroup(
+            animOwner,
+            battleRes,
+            step.group,
+            doubleWide,
+            boxCss,
+            animKind,
+          );
           if (cancelled) return;
           if (!g || g.count === 0) {
             const set = missingGroups.get(missKey) ?? new Set<number>();
@@ -291,12 +311,26 @@ export function CreatureDetail({
         }
       }
     };
+    // 预热当前状态的**全部组**：播放循环是"按步骤串行 `await getAnimGroup`"的，
+    // 首轮要依次等 2~5 次后端往返。这里先并发展开（`getAnimGroup` 自带 inflight 去重，
+    // 下面 `run` 再请求同一组时共用同一次往返）。上限 8 组，避免一次打满线程池。
+    {
+      const warmSteps =
+        runState === "move"
+          ? planPatrol(MOTION_HOME, boxCss, boxH).steps
+          : compact
+            ? buildIdleSimple()
+            : buildSteps(runState as Exclude<AnimState, "move">);
+      const groups = [...new Set(warmSteps.map((s: AnimStep) => s.group))].slice(0, 8);
+      for (const g of groups)
+        void getAnimGroup(animOwner, battleRes, g, doubleWide, boxCss, animKind);
+    }
     void run();
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
     };
-  }, [battleRes, modId, runState, d.doubleWide, compact]);
+  }, [battleRes, animOwner, animKind, runState, d.doubleWide, compact]);
 
   const name = pickName((d.name as Record<string, string>) ?? {}, lang);
   const desc = pickName((d.description as Record<string, string>) ?? {}, lang);

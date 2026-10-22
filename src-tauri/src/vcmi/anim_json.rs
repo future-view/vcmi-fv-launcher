@@ -186,8 +186,21 @@ fn alpha_bbox(img: &image::RgbaImage) -> Option<(i64, i64, i64, i64)> {
     Some((x0, y0, x1 + 1, y1 + 1))
 }
 
-/// 定位动画 json：**请求方 mod 优先 → 其它已装 mod → 游戏根**（与 DEF 同款顺序，
-/// 避免从几百个 mod 里逐个开 zip）。返回 `(json 文本, 帧资源归属目录)`。
+/// `locate` 的结果缓存：`(modId, resource)` → 定位结果（`None` = 确认不是 sprites-json 定义）。
+///
+/// 为什么必须缓存：动画的**每个动作分组**都会调 `locate`，而结果与分组无关。不缓存则每组都要
+/// 把 500+ 个模组重扫一遍（实测 567 模组 ≈ 240ms/组，一个四态工作集累计 1~2 秒）。
+/// 负结果同样重要：绝大多数生物根本没有 json 定义，每个生物只会付出一次扫描。
+///
+/// 失效：`WIKI_MOD_PATHS_GEN` 变化（换模组 / 切领域 / 重扫目录）时整体作废。
+static LOCATE_CACHE: Mutex<Option<(u64, HashMap<(String, String), Option<(String, PathBuf)>>)>> =
+    Mutex::new(None);
+
+/// 定位动画 json（带结果缓存）：**请求方 mod 优先 → 其它已装 mod**。
+/// 返回 `(json 文本, 帧资源归属目录)`。
+///
+/// 定位结论只取决于 `(mod_id, resource)` 与模组集合，与动作分组无关 —— 故在同一生物切动作时
+/// 只有第一次真扫模组，后续全命中内存（见 [`LOCATE_CACHE`]）。
 ///
 /// ## 跨模组命中的限制（仅 `images` 方言）
 ///
@@ -201,42 +214,108 @@ fn locate(
     mod_id: &str,
     resource: &str,
 ) -> Option<(String, PathBuf)> {
+    // 先让全局上下文就绪（集合未变时这两步都是空操作，不会清缓存）
     crate::vcmi::resource::set_wiki_user_data_dir(&paths.user_dir);
     let all = crate::vcmi::scan::cached_mod_paths(paths);
     crate::vcmi::resource::set_wiki_mod_paths(&all);
+    let gen = crate::vcmi::resource::wiki_mod_paths_gen();
+    let key = (mod_id.to_string(), resource.to_string());
+    {
+        let mut guard = match LOCATE_CACHE.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let slot = guard.get_or_insert_with(|| (gen, HashMap::new()));
+        if slot.0 != gen {
+            *slot = (gen, HashMap::new());
+        }
+        if let Some(v) = slot.1.get(&key) {
+            return v.clone();
+        }
+    }
+    let found = locate_scan(paths, &all, mod_id, resource);
+    {
+        let mut guard = match LOCATE_CACHE.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let slot = guard.get_or_insert_with(|| (gen, HashMap::new()));
+        if slot.0 == gen {
+            slot.1.insert(key, found.clone());
+        }
+    }
+    found
+}
+
+/// 真正的模组扫描（`locate` 的无缓存实现）。
+fn locate_scan(
+    paths: &crate::vcmi::paths::VcmiPaths,
+    all: &[crate::vcmi::scan::ModEntry],
+    mod_id: &str,
+    resource: &str,
+) -> Option<(String, PathBuf)> {
     let own = crate::vcmi::resource::ordered_mod_paths(paths, mod_id);
-    for mp in own.iter().chain(all.iter().map(|(p, _)| p)) {
-        let is_own = own.iter().any(|p| p == mp);
+
+    // ① 请求方自己优先：保留完整三级回退（含游戏根），语义与改造前一致。
+    for mp in &own {
         if let Some((buf, _ext, origin)) =
             crate::vcmi::resource::resolve_resource_origin(mp, &paths.game_dir, resource)
         {
-            // 只认"长得像动画定义"的 json：`basepath` 必须有，组描述是
-            // `sequences`（整组）或 `images`（逐帧覆盖）**任一**即可。
-            //
-            // ⚠️ 非 UTF-8 / 非 JSON 的命中要 `continue` 而不是 `?`：同一资源名在不同
-            // mod 里可能是**真正的 `.def`**（二进制），一个二进制命中就把整个函数判死，
-            // 会让排在后面的 json 定义永远读不到（跨 mod 覆盖场景必踩）。
-            let Ok(text) = String::from_utf8(buf) else { continue };
-            let Ok(v) = serde_json::from_str::<Value>(&text) else { continue };
-            let has_sequences = v.get("sequences").and_then(|x| x.as_array()).is_some();
-            let has_images = v.get("images").and_then(|x| x.as_array()).is_some();
-            if v.get("basepath").and_then(|x| x.as_str()).is_none()
-                || !(has_sequences || has_images)
-            {
-                continue;
-            }
-            // 只有 `images`、又是别的模组的定义 → 不采用（理由见函数文档）
-            if has_images && !has_sequences && !is_own {
-                continue;
-            }
             let owner = match origin {
                 crate::vcmi::resource::Origin::Game => paths.game_dir.clone(),
                 _ => mp.clone(),
             };
-            return Some((text, owner));
+            if let Some(hit) = as_definition(buf, owner, true) {
+                return Some(hit);
+            }
+        }
+    }
+
+    // ② 其余已装模组：**只查模组自身**的 `Content/` / `content.zip`（O(1) 索引查询）。
+    //
+    // ⚠️ 这里绝不能再用 `resolve_resource_origin`：它在本模组未命中后会先做游戏根 LOD
+    // 回退、再跨模组全遍历，而本循环本身就在遍历全部模组 ⇒ O(N²)。实测 569 模组、
+    // 单次动画分组请求放大到 24.8 万次资源解析 / 16 秒（本函数是头号元凶）。
+    // 跨模组 json 定义（`sequences` 方言）仍能命中 —— 就是本循环在做跨模组检索。
+    for (mp, _) in all.iter() {
+        if own.iter().any(|p| p == mp) {
+            continue;
+        }
+        let Some((buf, _ext)) = crate::vcmi::resource::resolve_resource(mp, resource) else {
+            continue;
+        };
+        if let Some(hit) = as_definition(buf, mp.clone(), false) {
+            return Some(hit);
         }
     }
     None
+}
+
+/// 判断一份资源字节是否是 VCMI 的 sprites-json 动画定义，是则返回 `(json 文本, 帧资源归属目录)`。
+///
+/// 只认"长得像动画定义"的 json：`basepath` 必须有，组描述是 `sequences`（整组）或
+/// `images`（逐帧覆盖）**任一**即可。
+///
+/// ⚠️ 非 UTF-8 / 非 JSON 只返回 `None`，由调用方 `continue`：同一资源名在不同 mod 里可能
+/// 是**真正的 `.def`**（二进制），一个二进制命中就把整个函数判死，会让排在后面的 json 定义
+/// 永远读不到（跨 mod 覆盖场景必踩）。
+fn as_definition(
+    buf: Vec<u8>,
+    owner: PathBuf,
+    is_own: bool,
+) -> Option<(String, PathBuf)> {
+    let text = String::from_utf8(buf).ok()?;
+    let v: Value = serde_json::from_str(&text).ok()?;
+    let has_sequences = v.get("sequences").and_then(|x| x.as_array()).is_some();
+    let has_images = v.get("images").and_then(|x| x.as_array()).is_some();
+    if v.get("basepath").and_then(|x| x.as_str()).is_none() || !(has_sequences || has_images) {
+        return None;
+    }
+    // 只有 `images`、又是别的模组的定义 → 不采用（理由见函数文档）
+    if has_images && !has_sequences && !is_own {
+        return None;
+    }
+    Some((text, owner))
 }
 
 /// 取一帧：`basepath + 帧名`，附 `Sprites/` 前缀变体（VCMI 会给自己补 `SPRITES/`）。

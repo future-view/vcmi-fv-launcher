@@ -424,7 +424,29 @@ pub(crate) fn str_arr(v: Option<&Value>) -> Vec<String> {
 }
 
 /// 扫描单个 Mods 目录的顶层 mod（供扫描 fallback 合并用）
+/// 单目录模组扫描结果缓存：`key = 目录路径|mtime`。
+///
+/// 567 个 mod 时一次实扫要 `read_dir` + 逐个解析 `mod.json`（数百毫秒，HDD 更久），
+/// 而 `scan_mods` / `list_installed_mods` / `collect_mod_paths` 都会调用它。
+static USER_MODS_SCAN_CACHE: std::sync::OnceLock<
+    Mutex<Vec<(String, std::sync::Arc<Vec<Value>>)>>,
+> = std::sync::OnceLock::new();
+
+/// 扫一个 Mods 目录（**带指纹缓存**，见 [`USER_MODS_SCAN_CACHE`]）。
 pub(crate) fn scan_user_mods_dir(user_mods_dir: &Path) -> Vec<Value> {
+    let key = format!(
+        "{}|{}",
+        user_mods_dir.display(),
+        dir_mtime_key(user_mods_dir)
+    );
+    let arc = cfg_cache_get(&USER_MODS_SCAN_CACHE, key, || {
+        scan_user_mods_dir_uncached(user_mods_dir)
+    });
+    arc.as_ref().clone()
+}
+
+/// [`scan_user_mods_dir`] 的无缓存实现（真正读盘 + 解析 `mod.json`）。
+fn scan_user_mods_dir_uncached(user_mods_dir: &Path) -> Vec<Value> {
     let mut root_mods: Vec<Value> = vec![];
     if user_mods_dir.is_dir() {
         if let Ok(entries) = fs::read_dir(user_mods_dir) {
@@ -590,10 +612,41 @@ pub(crate) static MOD_PATHS_CACHE: std::sync::OnceLock<
 > = std::sync::OnceLock::new();
 
 pub(crate) fn cached_mod_paths(paths: &VcmiPaths) -> std::sync::Arc<Vec<ModEntry>> {
+    // ⚠️ key **必须**带两个 Mods 目录的 mtime 指纹，不能只有路径：
+    // 否则启动器运行期间新装 / 删除的模组永远不生效（官方启动器把 mod 装到
+    // `userDataPath/Mods`，用户也可能手工放进 `游戏目录/Mods`），
+    // 连带 `CROSSMOD_MISS`（"这个资源哪都没有"）的负结论也不会失效。
     let key = format!(
-        "{}|{}",
+        "{}|{}|{}|{}",
         paths.game_mods_dir().display(),
-        paths.user_mods_dir().display()
+        paths.user_mods_dir().display(),
+        dir_mtime_key(&paths.game_mods_dir()),
+        dir_mtime_key(&paths.user_mods_dir()),
     );
     cfg_cache_get(&MOD_PATHS_CACHE, key, || collect_mod_paths(paths))
+}
+
+/// 目录 mtime 指纹（纳秒字符串；目录不存在 → `"none"`）。
+///
+/// 只取 mtime、**不数子项**是刻意的：新增/删除子目录必然改变父目录 mtime（NTFS 可靠），
+/// 而 `read_dir().count()` 在 567 个 mod 时每次要几毫秒，本函数却会被详情页的每个资源
+/// 请求调用两次（`read_def_bytes` + `anim_json::locate`）。
+pub(crate) fn dir_mtime_key(dir: &Path) -> String {
+    fs::metadata(dir)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_nanos().to_string())
+        .unwrap_or_else(|| "none".to_string())
+}
+
+/// 强制作废模组相关缓存（安装 / 卸载模组、手动重扫、切换领域后调用）。
+///
+/// 平时靠 [`cached_mod_paths`] / [`scan_user_mods_dir`] 的目录 mtime 指纹自动失效；
+/// 本函数用于 mtime 不可靠（网络盘 / 某些虚拟文件系统）或调用方明确知道集合变了、
+/// 要**立刻**生效的场合。
+pub(crate) fn invalidate_mod_paths() {
+    crate::infra::cache::cfg_cache_clear(&MOD_PATHS_CACHE);
+    crate::infra::cache::cfg_cache_clear(&USER_MODS_SCAN_CACHE);
+    crate::vcmi::resource::clear_crossmod_caches();
 }

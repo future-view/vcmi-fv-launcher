@@ -1089,6 +1089,15 @@ pub(crate) fn build_mod_wiki_once(
     if !ok {
         return json!({ "ok": false, "error": "io" });
     }
+    // `modMeta` 独立小文件：mods / realms 页只为拿多语言名，却要逐份读整份 cache.json
+    // （577 份 / 58.5 MB / 实测 785ms）。落成几 KB 的小文件后降到毫秒级；
+    // 旧缓存没有该文件时消费端回退整份（见 `modcache::cached_mod_meta`）。
+    if let Some(meta) = mod_json.get("modMeta") {
+        let meta_out = cache_root.join(format!("{}/meta.json", sanitize_id(mod_id)));
+        if let Ok(text) = serde_json::to_string(meta) {
+            let _ = fs::write(&meta_out, text);
+        }
+    }
     // 提取协议审计结果落盘（仅发现未登记字段/缺口时产出，供人工复查；见 modcache/audit.rs）
     if let Some(rep) = audit_report {
         let audit_out = cache_root.join(format!("{}/audit.json", sanitize_id(mod_id)));

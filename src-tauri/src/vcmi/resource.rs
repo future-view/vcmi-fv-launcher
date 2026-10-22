@@ -169,8 +169,14 @@ fn read_file_cached(p: &Path) -> std::io::Result<Vec<u8>> {
 
 /// 释放资源解析侧的进程级缓存（构建全部结束后调用；见 [`crate::infra::cache_gc`]）。
 ///
-/// 只清**可重建**的派生缓存：目录索引 / zip 索引 / 文件字节 / 负结果 / 载体探测。
+/// 只清**可重建**的派生缓存：zip 索引 / 文件字节 / 正负结果 / 载体探测。
 /// 它们都按「路径 + 指纹」自失效，清掉只会让下次构建多付一次扫描代价，不影响正确性。
+///
+/// ⚠️ **刻意保留目录索引**（`DIR_INDEX_CACHE`）：它是"每个模组 `Content/` 的递归清单"，
+/// 569 模组 / 14 万文件。`anim.kind = def` 只覆盖"资源在自己模组里"的常规生物；
+/// 跨模组引用 / 旧缓存 / 完全未命中的资源仍会走 `resolve_core` 的兜底链，
+/// 索引一清就要重建全部清单 —— 实测完全未命中的资源首次 9.05s（其中 7.9s 是重建索引）。
+/// 索引常驻约 20~40MB，这个交换明显划算。
 pub(crate) fn release_caches() {
     // 通用：清空「Mutex<集合>」并收缩底层容器
     macro_rules! clear_and_shrink {
@@ -184,9 +190,9 @@ pub(crate) fn release_caches() {
         };
     }
     clear_and_shrink!(ZIP_INDEX_CACHE);
-    clear_and_shrink!(DIR_INDEX_CACHE);
     clear_and_shrink!(MOD_KIND_CACHE);
     clear_and_shrink!(CROSSMOD_MISS);
+    clear_and_shrink!(CROSSMOD_HIT);
     clear_and_shrink!(H3_DATA_PRESENT_CACHE);
     // 字节缓存是 `SizedCache`（自建结构，`clear()` 内部已收缩）
     if let Some(c) = FILE_BYTES_CACHE.get() {
@@ -204,6 +210,17 @@ pub(crate) fn release_caches() {
 /// 失效：随 [`set_wiki_mod_paths`]（模组集合变化——新装模组 / 切换领域）整体清空，
 /// 否则新装的模组里的资源会被永久误判为"不存在"。
 static CROSSMOD_MISS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
+/// 跨模组回退的**命中结果缓存**：资源 key → 上次命中的 `(模组磁盘路径, modId)`。
+///
+/// 为什么必须有：跨模组检索是「按 modId 字典序遍历，首个命中即返回」。对"资源确实躺在某个
+/// 模组里"的请求（第三方兵种 DEF 全是这种），每次解析都要重新扫到那个模组才命中；而
+/// `anim_json::locate` 又会为"这是不是 sprites-json 定义"逐个模组调解析 → 命中不写负缓存
+/// ⇒ O(N²)（实测 569 模组 = 单次动画分组请求 24.8 万次解析 / 16 秒）。
+///
+/// 失效口径与 [`CROSSMOD_MISS`] 完全一致（模组集合变化时清空）：命中归属由遍历顺序决定，
+/// 只有集合本身变了才可能改变。
+static CROSSMOD_HIT: OnceLock<Mutex<HashMap<String, (PathBuf, String)>>> = OnceLock::new();
 
 /// 构建目录索引：走 [`crate::infra::dirscan::dir_listing`]（每个目录只递归一次，
 /// 与配置收集共用同一份清单），不再自己 `read_dir`。
@@ -521,6 +538,33 @@ pub(crate) fn resolve_resource(mod_path: &Path, resource: &str) -> Option<(Vec<u
     crate::infra::metrics::scope("res.resolve", || resolve_resource_inner(mod_path, resource))
 }
 
+/// 只解析资源的**实际扩展名**，不读文件字节（构建期登记动画指针用）。
+///
+/// 与 [`resolve_resource`] 同口径（同一套目录 / zip 索引与命中顺序），只是跳过读字节：
+/// 构建期为数千个生物登记 `graphics.animation` 指针时，若每个都读几百 KB 的 DEF，
+/// 会额外付出 GB 级 IO —— 而这里只需要回答"有没有、是什么扩展名"。
+pub(crate) fn resolve_resource_ext(mod_path: &Path, resource: &str) -> Option<String> {
+    let resource = resource.trim();
+    if resource.is_empty() {
+        return None;
+    }
+    let (key, key_with_ext) = resource_keys(resource);
+    let content_dir = mod_path.join("Content");
+    if content_dir.is_dir() {
+        if let Ok(found) = find_in_dir(&content_dir, &key, &key_with_ext) {
+            return Some(
+                found
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("")
+                    .to_ascii_lowercase(),
+            );
+        }
+    }
+    let i = zip_resource_index(mod_path, resource)?;
+    zip_entry_ext(mod_path, i)
+}
+
 /// 资源引用 → `(去扩展名 key, 含扩展名 key)`，与磁盘/zip 索引**同一归一口径**。
 ///
 /// 抽出来是为了让 `resolve_resource_fallback` 的负结果缓存能用**完全相同**的 key 记账，
@@ -708,6 +752,21 @@ fn resolve_core(
                 }
             }
         }
+        // 正缓存：上次命中的模组直接复用。**必须**：命中时下面不会写负缓存，而详情页
+        // 每个动画分组请求都会为"这是不是 json 定义"逐个模组做解析（见 `CROSSMOD_HIT`）。
+        {
+            let hit = CROSSMOD_HIT.get_or_init(|| Mutex::new(HashMap::new()));
+            let cached = hit
+                .lock()
+                .ok()
+                .and_then(|g| g.get(&miss_key).cloned());
+            if let Some((mp, mid)) = cached {
+                if let Some((b, e)) = resolve_resource(&mp, res) {
+                    crate::infra::metrics::count("res.hit.cached", 1);
+                    return Some((b, e, Origin::Mod(mid)));
+                }
+            }
+        }
         for (mp, mid) in all.iter() {
             if mp.as_path() == mod_path {
                 continue; // 本模组已查过
@@ -718,6 +777,13 @@ fn resolve_core(
             }
             if let Some((b, e)) = resolve_resource(mp, res) {
                 crate::infra::metrics::count("res.hit.crossmod", 1);
+                // 记下命中归属：同一资源的后续解析（如逐分组取动画帧）直接短路到该模组
+                if let Ok(mut g) = CROSSMOD_HIT
+                    .get_or_init(|| Mutex::new(HashMap::new()))
+                    .lock()
+                {
+                    g.insert(miss_key.clone(), (mp.clone(), mid.clone()));
+                }
                 // 归属直接取命中模组的 modId（无需调用方事后反查路径→id）
                 return Some((b, e, Origin::Mod(mid.clone())));
             }
@@ -778,24 +844,64 @@ pub(crate) fn wiki_user_data_dir() -> Option<PathBuf> {
 /// 用 `Arc<Vec<ModEntry>>` 存储：读取时仅原子增引用，避免每次解析都克隆整条列表。
 static WIKI_MOD_PATHS: Mutex<Option<Arc<Vec<ModEntry>>>> = Mutex::new(None);
 
+/// 模组集合版本号：集合**实际变化**（见 [`set_wiki_mod_paths`]）时 +1。
+///
+/// 供上层派生缓存自失效：`anim_json::locate` 的结果只取决于 (modId, resource) 与模组集合，
+/// 用本版本号做缓存键即可在换模组 / 切领域后立即失效，无需让 `resource` 层反向依赖上层。
+static WIKI_MOD_PATHS_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// 当前模组集合版本号（见 [`WIKI_MOD_PATHS_GEN`]）。
+pub(crate) fn wiki_mod_paths_gen() -> u64 {
+    WIKI_MOD_PATHS_GEN.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// 设置当前构建的全部模组条目（见 `WIKI_MOD_PATHS`）。
 ///
-/// 同时清空 [`CROSSMOD_MISS`]：模组集合变了（新装模组 / 切换领域 / 重扫目录），
-/// 之前"全部模组都没有"的结论就不再成立，必须重新探测，否则新模组的资源会被永久漏掉。
+/// **集合未变时直接返回**（不清任何缓存、不重建 Arc）：详情页每取一个动画分组都会调用本函数
+/// （`read_def_bytes_inner` / `anim_json::locate` 各一次），若每次都清 [`CROSSMOD_MISS`] /
+/// [`CROSSMOD_HIT`]，跨模组检索的结论永远留不住 —— 实测 569 模组下单次分组请求会因此
+/// 重复解析 24.8 万次资源（16 秒）。集合按 `(磁盘路径, modId)` 逐项比较，569 项比较为微秒级。
+///
+/// 集合变了（新装模组 / 切换领域 / 重扫目录）才清空负缓存与命中缓存：之前"全部模组都没有"
+/// 和"命中归属某模组"的结论都不再成立。
 pub(crate) fn set_wiki_mod_paths(paths: &[ModEntry]) {
+    if let Ok(g) = WIKI_MOD_PATHS.lock() {
+        if let Some(prev) = g.as_ref() {
+            if prev.len() == paths.len()
+                && prev.iter().zip(paths.iter()).all(|(a, b)| a.0 == b.0 && a.1 == b.1)
+            {
+                return;
+            }
+        }
+    }
     if let Ok(mut g) = WIKI_MOD_PATHS.lock() {
         *g = Some(Arc::new(paths.to_vec()));
     }
-    if let Ok(mut g) = CROSSMOD_MISS
-        .get_or_init(|| Mutex::new(HashSet::new()))
-        .lock()
-    {
-        g.clear();
-    }
+    WIKI_MOD_PATHS_GEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    clear_crossmod_caches();
     // `bonus_graphics_map` / `spell_immune_icons` 的缓存键只含「游戏目录 + 参与扫描的目录数」，
     // 模组集合变化（数量恰好相同时）无法自失效 → 在此显式清空，与 [`CROSSMOD_MISS`] 同理。
     crate::vcmi::bonus::release_caches();
     crate::vcmi::spell_icons::release_caches();
+}
+
+/// 清空跨模组**正/负结果**缓存（[`CROSSMOD_MISS`] / [`CROSSMOD_HIT`]）。
+///
+/// 模组集合变化时（安装 / 卸载 / 手动重扫，见 `scan::invalidate_mod_paths`）必须清：
+/// "全部模组都没有"与"命中归属某模组"的两个结论都以**当时那份模组表**为前提。
+pub(crate) fn clear_crossmod_caches() {
+    if let Some(c) = CROSSMOD_MISS.get() {
+        if let Ok(mut g) = c.lock() {
+            g.clear();
+            g.shrink_to_fit();
+        }
+    }
+    if let Some(c) = CROSSMOD_HIT.get() {
+        if let Ok(mut g) = c.lock() {
+            g.clear();
+            g.shrink_to_fit();
+        }
+    }
 }
 
 /// 读取当前构建的全部模组条目（未设置则返回 None，跨模组搜索退化为仅本模组 + 游戏根）。
@@ -961,14 +1067,23 @@ pub(crate) fn read_def_bytes_inner(
     set_wiki_user_data_dir(&paths.user_dir);
     // 详情页跨模组资源检索：让 `resolve_resource_fallback` 也能搜到其它已装模组内的素材
     set_wiki_mod_paths(&all);
-    // 优先请求方自身：详情页动画总是取本模组的资源。
+    // 只从「请求方自身」开始：
     // - `core` / `core.<faction>` → 游戏目录 `Mods/vcmi`（原版 DEF 实际所在）
     // - 其他 → 与 modId 末段同名的模组目录（嵌套子 mod 的 id 末段即磁盘目录名）
-    // 否则会从 600+ 个模组里逐个打开 content.zip 找同一个资源，单次悬停即明显卡顿。
-    for mp in ordered_mod_paths(paths, mod_id)
-        .iter()
-        .chain(all.iter().map(|(p, _)| p))
-    {
+    //
+    // ⚠️ **不得再 `chain(all)`**：`resolve_resource_fallback` 内部已经是
+    // 「本 mod → 游戏根/用户数据 LOD → 跨模组全遍历」。外层再遍历全表是语义冗余 ——
+    // 每个未命中资源会因此多付 568 次 `is_dir` stat + 568 次解析（实测 808ms，
+    // 缓存刚释放时首次还要重建 870 个目录索引 ≈ 9s）。跨模组能力由内层提供，不会丢。
+    let own = ordered_mod_paths(paths, mod_id);
+    // 目录名与 modId 末段不一致（人工改名）时 `own` 为空 → 用全表首个作为起点，
+    // 让 `resolve_core` 的跨模组段照常覆盖全表（能命中，只是不享受"自己优先"的短路）。
+    let start: Vec<PathBuf> = if own.is_empty() {
+        all.iter().take(1).map(|(p, _)| p.clone()).collect()
+    } else {
+        own
+    };
+    for mp in start.iter() {
         // resolve_resource 只搜 mod 自身；原版生物战斗动画（如 CPKMAN.DEF）实际在
         // 游戏根 Data/*.lod 内，故加游戏目录回退，与背景/图标资源一致。
         if let Some((bytes, _ext)) = resolve_resource_fallback(mp, &paths.game_dir, resource) {
@@ -1144,7 +1259,8 @@ pub(crate) fn read_def_group_hd_inner(
     group: usize,
     double_wide: bool,
     need: u32,
-) -> Option<Value> {
+    known_kind: Option<&str>,
+) -> Option<GroupOut> {
     // 详情链路（非构建批次）没有注入 HD 来源 → 按配置探测一次。
     // `off` / 未装 hd-edition 时注入结果为 None，下方 `source()` 判空即走回退。
     if crate::vcmi::hd_edition::source().is_none() {
@@ -1156,8 +1272,14 @@ pub(crate) fn read_def_group_hd_inner(
     // ── ⓿ sprites-json 动画（VCMI 1.6 png 模式）：帧即整画布，套同一窗口裁剪 ──
     // 必须先试：这类资源的"字节"是 json，`DefReader` 解析不了。实测 Yokai / HuaXia
     // 两个 mod 全部生物走这条路径（frames 450×400，与原版 DEF 同坐标空间）。
-    if let Some(anim) = crate::vcmi::anim_json::load_group(paths, mod_id, resource, group, double_wide)
-    {
+    //
+    // 构建期登记的指针（`anim.kind`）已确认是 DEF 时**跳过**这次探测：`locate` 要在
+    // 模组索引里按资源名定位，省掉它对每个动作分组的固定开销（见 `anim_json::LOCATE_CACHE`）。
+    let probe_json = known_kind != Some("def");
+    if probe_json {
+        if let Some(anim) =
+            crate::vcmi::anim_json::load_group(paths, mod_id, resource, group, double_wide)
+        {
         let (jx, jy, jw, jh) = anim.window;
         // png 动画的帧即整画布：win = 基准窗口，tex = 窗口 ∪ 帧包围盒（实测这类素材多在窗口内）
         let plan = crate::vcmi::resource::WindowPlan {
@@ -1183,6 +1305,7 @@ pub(crate) fn read_def_group_hd_inner(
         }
         // png 动画没有官方 HD 档位（HD 包只收原版 DEF 的帧名）→ 恒 1x，由前端平滑放大
         return Some(build_window_json(frames, (jx, jy, jw, jh), 1, &plan));
+        }
     }
 
     let bytes = read_def_bytes_inner(paths, mod_id, resource).ok()?;
@@ -1306,6 +1429,41 @@ fn encode_window_frame(
     Some((x.max(0), y.max(0), cw as u32, ch as u32, webp))
 }
 
+/// 一个动作分组的出参（**二进制封装前的中间形态**）。
+///
+/// 帧字节不再塞进 `serde_json::Value`：那样会以"数字数组"过 IPC（载荷膨胀 3~4 倍，
+/// 前端还要逐元素写回 `Uint8Array`）。这里保留原始 `Vec<u8>`，由命令层拼成二进制载荷。
+pub(crate) struct GroupOut {
+    /// 元数据（`w/h/wx/wy/scale/win*/fit*`），不含帧
+    pub meta: Value,
+    pub frames: Vec<FrameOut>,
+}
+
+pub(crate) struct FrameOut {
+    pub x: i64,
+    pub y: i64,
+    pub w: u32,
+    pub h: u32,
+    pub data: Vec<u8>,
+}
+
+impl GroupOut {
+    /// 旧结构的 JSON 形态（**仅供测试**；会把帧字节展开成数字数组）。
+    #[cfg(test)]
+    pub(crate) fn to_value(&self) -> Value {
+        let mut v = self.meta.clone();
+        let frames: Vec<Value> = self
+            .frames
+            .iter()
+            .map(|f| {
+                json!({ "x": f.x, "y": f.y, "w": f.w, "h": f.h, "data": f.data })
+            })
+            .collect();
+        v["frames"] = Value::Array(frames);
+        v
+    }
+}
+
 /// 组装出参：`w/h` = 窗口尺寸 × 档位；`wx/wy` = 窗口左上角在**动画画布**（450×400）里的坐标。
 ///
 /// `wx/wy` 给前端合成宽窗口背景用：生物背景图（`CRBKGCAS` 等）原生就是基准窗口那一块
@@ -1315,15 +1473,11 @@ fn build_window_json(
     tex: (i64, i64, i64, i64),
     scale: u32,
     plan: &crate::vcmi::resource::WindowPlan,
-) -> Value {
+) -> GroupOut {
     let (wx, wy, tex_w, tex_h) = tex;
     let (winx, winy, winw, winh) = plan.win;
     let (_, _, fitw, fith) = plan.fit;
-    let out: Vec<Value> = frames
-        .into_iter()
-        .map(|(x, y, w, h, data)| json!({ "x": x, "y": y, "w": w, "h": h, "data": data }))
-        .collect();
-    json!({
+    let meta = json!({
         // 裁剪矩形（帧位图就是这块）—— 前端按 1x 尺寸换算成像素布局
         "w": tex_w,
         "h": tex_h,
@@ -1337,9 +1491,43 @@ fn build_window_json(
         "winH": winh,
         // 适配参考尺寸（未含死亡姿态）：前端据此算等比缩放
         "fitW": fitw,
-        "fitH": fith,
-        "frames": out
-    })
+        "fitH": fith
+    });
+    GroupOut {
+        meta,
+        frames: frames
+            .into_iter()
+            .map(|(x, y, w, h, data)| FrameOut { x, y, w, h, data })
+            .collect(),
+    }
+}
+
+/// 打包成 IPC 二进制载荷：`[4B LE 元数据长度][元数据 JSON][帧体...]`。
+///
+/// 元数据里 `frames[i]` 只含 `{x,y,w,h,len}`，第 i 帧字节紧跟在元数据之后、按 `len` 依次排布。
+/// 返回空 `Vec`（0 字节）= 该组没有可播放帧（前端据此回退）。
+pub(crate) fn pack_group_binary(out: Option<GroupOut>) -> Vec<u8> {
+    let Some(out) = out else {
+        return Vec::new();
+    };
+    let frames_meta: Vec<Value> = out
+        .frames
+        .iter()
+        .map(|f| {
+            json!({ "x": f.x, "y": f.y, "w": f.w, "h": f.h, "len": f.data.len() })
+        })
+        .collect();
+    let mut meta = out.meta;
+    meta["frames"] = Value::Array(frames_meta);
+    let meta_bytes = serde_json::to_vec(&meta).unwrap_or_default();
+    let body_len: usize = out.frames.iter().map(|f| f.data.len()).sum();
+    let mut buf = Vec::with_capacity(4 + meta_bytes.len() + body_len);
+    buf.extend_from_slice(&(meta_bytes.len() as u32).to_le_bytes());
+    buf.extend_from_slice(&meta_bytes);
+    for f in out.frames {
+        buf.extend_from_slice(&f.data);
+    }
+    buf
 }
 
 /// 把 HD 的**独立阴影切片**合成到本体图里，返回 `(RGBA, 宽, 高)`。
@@ -1399,6 +1587,29 @@ fn blend_over(src: [u8; 4], dst: [u8; 4]) -> [u8; 4] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 二进制分组载荷的格式自洽：`[4B 元数据长度][元数据][帧体...]`，
+    /// 帧体按元数据里的 `len` 依次排布，总长度必须严丝合缝。
+    #[test]
+    fn pack_group_binary_layout_is_self_consistent() {
+        let out = GroupOut {
+            meta: json!({ "w": 300, "h": 390, "scale": 3 }),
+            frames: vec![
+                FrameOut { x: 0, y: 0, w: 300, h: 390, data: vec![1, 2, 3] },
+                FrameOut { x: 1, y: 2, w: 10, h: 20, data: vec![4; 5] },
+            ],
+        };
+        let buf = pack_group_binary(Some(out));
+        let meta_len = u32::from_le_bytes(buf[0..4].try_into().unwrap()) as usize;
+        let meta: Value = serde_json::from_slice(&buf[4..4 + meta_len]).unwrap();
+        let frames = meta["frames"].as_array().expect("frames 必须是数组");
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0]["len"].as_u64(), Some(3));
+        assert_eq!(frames[1]["len"].as_u64(), Some(5));
+        assert_eq!(meta["scale"].as_u64(), Some(3));
+        assert_eq!(buf.len(), 4 + meta_len + 3 + 5, "帧体必须紧跟在元数据之后");
+        assert!(pack_group_binary(None).is_empty(), "无帧必须是空载荷");
+    }
 
     /// `strip_ext` 只剥**末段**的扩展名（中间段的点不是扩展名）。
     #[test]

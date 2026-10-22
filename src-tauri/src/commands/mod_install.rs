@@ -49,6 +49,9 @@ pub fn install_local_mod(
         paths.user_mods_dir()
     };
     let out = mod_install::install(Path::new(&zip_path), &mods_dir, overwrite)?;
+    // 新模组落地 → 立刻作废模组表 / 扫描缓存 / 跨模组正负结果，
+    // 否则本次运行期间资源定位仍按旧表走（新 mod 的素材找不到）。
+    crate::vcmi::scan::invalidate_mod_paths();
     tracing::info!(
         target: "mods",
         "安装本地模组 {} → {}（{} 个文件，覆盖={}）",

@@ -32,7 +32,9 @@ pub fn release_build_caches() {
     crate::infra::lod::release_caches();
 
     // ── vcmi ──
-    // 资源解析：目录索引 / zip 索引 / 文件字节 / 跨模组负结果 / 载体探测
+    // 资源解析：zip 索引 / 文件字节 / 跨模组正负结果 / 载体探测
+    // （**保留目录索引**，理由见 `resource::release_caches`：兜底/跨模组路径仍依赖它，
+    //   清掉后完全未命中的资源首次要重建 870 个索引 ≈ 7.9s）
     crate::vcmi::resource::release_caches();
     // 单 mod 翻译表（容量 128，每份是一张完整 I18nMap）
     crate::vcmi::i18n::release_caches();

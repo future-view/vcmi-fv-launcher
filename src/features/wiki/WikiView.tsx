@@ -23,6 +23,7 @@ import {
 import { useWikiStagesDone, WikiBuildOverlay } from "@/shared/WikiBuildOverlay";
 import { LoadingOverlay } from "@/shared/LoadingOverlay";
 import { EntryDetail } from "@/features/wiki/detail/EntryDetail";
+import { releaseDefAnimationCache } from "@/lib/def/animationCache";
 import { WikiPopupProvider } from "@/features/wiki/detail/WikiPopup";
 import { useWikiPopup, usePopupTriggers } from "@/features/wiki/detail/WikiPopupContext";
 import { HdIcon } from "@/shared/HdIcon";
@@ -333,6 +334,22 @@ export function WikiView() {
     void applyIndex().catch(() => {});
   }, [applyIndex]);
 
+  /**
+   * 离开百科时释放动画位图（`ImageBitmap` 不受 GC 管辖，只能显式 `close()`）。
+   *
+   * **切分类 / 切到后台都不在此释放**：
+   * - 同分类内频繁点选时保留缓存才有意义；
+   * - 后台标签页的 rAF 只是暂停，恢复后播放器仍要 `drawImage` 这些位图，
+   *   提前 `close()` 会让恢复后第一帧抛错。
+   * 残留由 `animationCache` 的 60s 前台空闲定时器兜底。
+   */
+  useEffect(
+    () => () => {
+      releaseDefAnimationCache();
+    },
+    [],
+  );
+
   // 就绪（**data + assets 都完成**）后才加载索引 —— 不跟进度数字刷新。
   // ⚠️ 刻意不在 data 完成时就先加载一次：那时用户仍看不到内容（蒙层在等 assets），
   // 多加载一次只会白跑一遍解析与首屏渲染，随后又被丢弃。
@@ -345,6 +362,8 @@ export function WikiView() {
   const reloadAll = useCallback(async () => {
     // 构建完成后丢弃内存里的旧 mod 缓存（阶段一对象图片字段为 null），强制重新读取
     cacheRef.current.clear();
+    // 缓存重建 / 切换领域后源数据可能已变 → 动画位图一并作废（并释放显存）
+    releaseDefAnimationCache();
     setEpoch((n) => n + 1);
     await applyIndex();
   }, [applyIndex]);

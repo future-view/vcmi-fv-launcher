@@ -437,6 +437,9 @@ export async function ensureWikiCacheBuilt(): Promise<void> {
           1,
           hdOpt,
         );
+        // 城镇批已落盘 → 先清一次"已知无高清"记忆，让**已经渲染**的图立刻升级到 @Nx，
+        // 不必等剩余批跑完（用户在构建期间就可能已经在浏览百科）。
+        clearHdMissing();
         const rHdRest = await buildModsWikiBatch(
           gameDir,
           restBatch,

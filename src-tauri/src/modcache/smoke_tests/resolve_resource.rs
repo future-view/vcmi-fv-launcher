@@ -106,7 +106,9 @@ fn def_group_hd_creature_smoke() {
             2,    // HOLDING
             true, // doubleWide
             270,
-        );
+            None,
+        )
+        .map(|g| g.to_value());
         match got {
             Some(v) => {
                 let frames = v["frames"].as_array().map(|a| a.len()).unwrap_or(0);
@@ -116,8 +118,19 @@ fn def_group_hd_creature_smoke() {
                     v["w"], v["h"], scale
                 );
                 assert!(frames > 0, "命中时必须至少一帧");
-                assert_eq!(v["w"].as_u64(), Some(100 * scale), "窗口宽 = 100 × 档位");
-                assert_eq!(v["h"].as_u64(), Some(130 * scale), "窗口高 = 130 × 档位");
+                // 2026-10-21 起窗口是"两种布局"之一：基准 100×130，或左右对称外扩的宽幕布
+                // （高度恒 130、宽 200，见 `resource::two_layout_window`）。
+                // `w/h` 是**裁剪矩形**（幕布窗口 ∪ 全部组包围盒）× 档位，只会 ≥ 幕布窗口。
+                let win_w = v["winW"].as_u64().unwrap_or(0);
+                let win_h = v["winH"].as_u64().unwrap_or(0);
+                assert!(
+                    v["w"].as_u64().unwrap_or(0) >= win_w * scale,
+                    "裁剪宽应 ≥ 幕布窗口宽 × 档位"
+                );
+                assert!(
+                    v["h"].as_u64().unwrap_or(0) >= win_h * scale,
+                    "裁剪高应 ≥ 幕布窗口高 × 档位"
+                );
                 if expect_hd {
                     assert!(
                         scale >= 2,
@@ -125,8 +138,11 @@ fn def_group_hd_creature_smoke() {
                     );
                 } else {
                     assert_eq!(scale, 1, "{res} 未被 HD 收录，应走 1x 兜底");
-                    assert_eq!(v["w"].as_u64(), Some(100), "1x 窗口应为 100×130");
-                    assert_eq!(v["h"].as_u64(), Some(130));
+                    assert!(
+                        win_w == 100 || win_w == 200,
+                        "1x 幕布窗口只有两种布局（100 或 200 宽），实际 {win_w}"
+                    );
+                    assert_eq!(win_h, 130, "幕布高度两种布局都恒为 130");
                 }
             }
             None => {
@@ -138,7 +154,7 @@ fn def_group_hd_creature_smoke() {
     }
     // 不存在的动作组 → None（前端据此把该项置灰）
     assert!(
-        crate::vcmi::resource::read_def_group_hd_inner(&paths, "core.castle", "CGRIFF.DEF", 99, true, 270)
+        crate::vcmi::resource::read_def_group_hd_inner(&paths, "core.castle", "CGRIFF.DEF", 99, true, 270, None)
             .is_none(),
         "不存在的组应返回 None"
     );
@@ -167,9 +183,9 @@ fn adaptive_window_smoke() {
         ("CCHAMP.DEF", true, "game"),  // 骑士
         ("CPEAS.DEF", false, "game"),  // 农民（单格）
     ] {
-        let Some(v) = crate::vcmi::resource::read_def_group_hd_inner(
-            &paths, "core", res, 2, dw, 270,
-        ) else {
+         let Some(v) = crate::vcmi::resource::read_def_group_hd_inner(
+            &paths, "core", res, 2, dw, 270, None,
+        ).map(|g| g.to_value()) else {
             println!("{res} → 无帧（跳过）");
             continue;
         };
@@ -240,7 +256,9 @@ fn json_anim_group_smoke() {
             group as usize,
             true,
             270,
-        );
+            None,
+        )
+        .map(|g| g.to_value());
         match got {
             Some(v) => {
                 let frames = v["frames"].as_array().map(|a| a.len()).unwrap_or(0);
@@ -306,7 +324,7 @@ fn json_anim_group_smoke() {
             "跨模组的 images 定义不得顶替 core 生物的 DEF 动画"
         );
         let def = crate::vcmi::resource::read_def_group_hd_inner(
-            &paths, "core.conflux", "CAELEM.DEF", 2, false, 270,
+            &paths, "core.conflux", "CAELEM.DEF", 2, false, 270, None,
         );
         assert!(def.is_some(), "core 生物必须仍走 DEF 路径出帧");
     } else {
@@ -527,3 +545,9 @@ fn crossmod_fallback_no_paths_is_safe() {
     assert!(got.is_none());
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+
+
+
+
+
