@@ -3050,6 +3050,26 @@ export interface RealmInstalledMod {
   metaOk: boolean;
 }
 
+/**
+ * 领域语言包候选（`realm_lang_pack_candidates` 产物，`scan_mod_dir` 元数据子集 + source）。
+ * 只含「`modType=Translation` + `language` 匹配当前 VCMI 语言」的**顶层**模组。
+ */
+export interface RealmLangPackCandidate {
+  id: string;
+  name?: string;
+  /** mod.json 多语言块（名称按语言选词） */
+  i18n?: Record<string, { name?: string; description?: string } | null>;
+  /** mod.json 的 modType 原文（判定必须用真值，不用推断的 type） */
+  rawType?: string | null;
+  /** 翻译类模组的基准语言 */
+  language?: string | null;
+  isSubmod?: boolean;
+  /** 是否为基础游戏语言包（提供 VCMI 基础翻译作用域文件的硬签名） */
+  baseTranslation?: boolean;
+  /** 来源：realm = 领域位置；game = 游戏目录（天然可见）；user = 全局用户目录（仅未隔离时返回） */
+  source: "realm" | "game" | "user";
+}
+
 /** 领域引用 / 取消引用逐条结果。 */
 export interface RealmRefResult {
   id: string;
@@ -3139,11 +3159,35 @@ export async function ensureRealmLangVisible(
     id?: string;
     source?: "realm" | "user" | "game";
     linked?: boolean;
-  }>("ensure_realm_lang_visible", { realmId, vcmiLang });
+  }  >("ensure_realm_lang_visible", { realmId, vcmiLang });
 }
 
-/** 整合（复制本体到领域 Mods）。`force=true` 跳过 game / diverged 冲突检测（用户在确认框选择继续）。 */
-export async function realmModBundle(
+/**
+ * 领域语言包候选（**只读**，三源扫描：领域自带 / 游戏目录 / 全局 user[未隔离时]）——
+ * 启动前预检与语言同步的发现源。
+ *
+ * ⚠️ 为什么不能用 `listRealmMods`：那只汇总「领域 Mods 目录物理条目 + `realm.json` 台账
+ * 登记的引用」，**游戏目录 `Mods/` 下未登记的 game 源语言包完全不可见**——游戏目录明明
+ * 装着中文包却报"未找到"（2026-10-22 实测坑）。本命令按 VCMI 实际可见性扫描，与后端
+ * `ensure_realm_lang_visible` 共用同一收集口径（`collect_lang_cands`），两处永不分裂。
+ *
+ * 领域隔离（`dataPath=realm`，默认）时**不含**全局 user 源候选：它要经
+ * `ensureRealmLangVisible` 建临时联接后才对 VCMI 可见，提前报"已安装"会把读不到的
+ * id 写进预设。该场景由 ensure 的 `linked` 结果另行并入（见 `syncLanguageMods`）。
+ */
+export async function realmLangPackCandidates(
+  realmId: string,
+  vcmiLang: string,
+): Promise<RealmLangPackCandidate[]> {
+  if (!isTauri()) return [];
+  const r = await invoke<{ candidates: RealmLangPackCandidate[] }>(
+    "realm_lang_pack_candidates",
+    { realmId, vcmiLang },
+  );
+  return r.candidates ?? [];
+}
+
+/** 整合（复制本体到领域 Mods）。`force=true` 跳过 game / diverged 冲突检测（用户在确认框选择继续）。 */export async function realmModBundle(
   realmId: string,
   modId: string,
   force = false,

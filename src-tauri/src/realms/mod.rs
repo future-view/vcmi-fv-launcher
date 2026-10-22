@@ -59,8 +59,8 @@ pub use meta::{
     realm_config_dir, realm_versions, rename_realm, update_realm, write_realm_meta,
 };
 pub use mod_manage::{
-    ensure_realm_lang_visible, list_realm_mods, realm_mod_bundle, realm_mod_delete,
-    realm_mod_import, realm_mod_ref, realm_mod_unref,
+    ensure_realm_lang_visible, list_realm_mods, realm_lang_pack_candidates, realm_mod_bundle,
+    realm_mod_delete, realm_mod_import, realm_mod_ref, realm_mod_unref,
 };
 pub use persona::{
     get_bgm_muted, get_intro_state, import_realm_asset, mark_intro_played, realm_dir, set_bgm_muted,

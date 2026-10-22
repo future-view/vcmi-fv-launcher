@@ -1,11 +1,11 @@
 import {
   fetchModIndex,
   isTauri,
-  listRealmMods,
   patchPresetLangMods,
   readModSettingsJson,
   readVcmiSettings,
   realmConfigDir,
+  realmLangPackCandidates,
   scanRealMods,
   setVcmiLanguage,
   ensureRealmLangVisible,
@@ -103,7 +103,7 @@ export function sessionAutoEnabled(): boolean {
 /** VCMI 官方基础语言包命名契约：mod id 形如 `<language>-translation`。 */
 const BASE_TRANSLATION_ID = /(?:^|[-_\s])translation(?:[-_\s]|$)/i;
 
-/** 语言包候选最小字段集（`scanRealMods` 的 `ModInfo` 与 `listRealmMods` 的 `RealmInstalledMod` 公共部分）。 */
+/** 语言包候选最小字段集（`scanRealMods` 的 `ModInfo` 与 `realmLangPackCandidates` 的 `RealmLangPackCandidate` 公共部分）。 */
 export interface LangPackCandidate {
   id: string;
   name?: string;
@@ -122,7 +122,7 @@ function isBaseGameLangPack(m: LangPackCandidate): boolean {
 
 /**
  * 按「类型+语言」筛出语言包 id（基础语言包优先，否则退回宽松集合）。
- * 全局 `scanRealMods` 与领域 `listRealmMods` 两个数据源**同口径**，避免两处判定分叉。
+ * 全局 `scanRealMods` 与领域 `realmLangPackCandidates` 两个数据源**同口径**，避免两处判定分叉。
  */
 export function pickLangPacks(vcmiLang: string, list: LangPackCandidate[]): string[] {
   const cands = list.filter(
@@ -138,19 +138,25 @@ export function translationModsForLang(vcmiLang: string, installed: ModInfo[]): 
 }
 
 /**
- * 语言包发现源（**领域感知**）：
- * - 领域模式用 `list_realm_mods`：它含领域自带（`bundled` 复制 / `pinned` 私有副本）、借用联接
- *   与 game 源，是「VCMI 在领域内实际能看到什么」的权威口径；
- *   ⚠️ **不能用 `scanRealMods`**——它按 `AppPaths` 只扫「全局 user + 游戏目录」，看不到领域自身
- *   Mods，会把领域自带的语言包误判为缺失、反复催促安装并重复装一份全局包。
+ * 语言包发现源（**领域感知**，口径 = 「VCMI 在该上下文里实际能看到什么」）：
+ * - 领域模式用 `realmLangPackCandidates`（后端 `realm_lang_pack_candidates`）：三源只读扫描——
+ *   领域自带（`bundled` 复制 / `pinned` 私有副本 / 借用联接）、**游戏目录 `Mods/`（game 源，
+ *   VCMI 硬编码同时挂载，天然可见）**，以及领域未隔离时的全局 user 目录。
+ *   ⚠️ **不能用 `listRealmMods`**：它只汇总「领域目录物理条目 + `realm.json` 台账登记的引用」，
+ *   游戏目录下未登记的 game 源语言包完全不可见——2026-10-22 实测：游戏目录装着
+ *   `simplified-chinese-translation`，预检却报"未找到语言包"（根因即此）。
+ *   ⚠️ 领域隔离（默认）时**不含**全局 user 源候选：它要经 `ensureRealmLangVisible` 建临时
+ *   联接后才对 VCMI 可见，提前计入会把读不到的 id 写进预设；该场景由 ensure 的 `linked`
+ *   结果在 `syncLanguageMods` 里另行并入。
  * - 全局模式用 `scanRealMods`（全局 user + 游戏目录）。
  */
 async function discoverLangPacks(
   realmId: string | null | undefined,
+  vcmiLang: string,
 ): Promise<LangPackCandidate[]> {
   if (realmId) {
     try {
-      return await listRealmMods(realmId);
+      return await realmLangPackCandidates(realmId, vcmiLang);
     } catch {
       return [];
     }
@@ -239,7 +245,7 @@ export async function syncLanguageMods(opts: SyncLangModsOptions): Promise<SyncL
 
   // 发现匹配语言包（领域感知：领域模式含领域自带/借用/game 源；全局模式为全局 user + game。
   // 仅已装模组，故 add 一定存在于对应 mod 目录，不会触发 missing）。
-  let add = pickLangPacks(opts.vcmiLang, await discoverLangPacks(opts.realmId));
+  let add = pickLangPacks(opts.vcmiLang, await discoverLangPacks(opts.realmId, opts.vcmiLang));
 
   try {
     let configDir: string | undefined;
@@ -287,6 +293,15 @@ export async function syncLanguageMods(opts: SyncLangModsOptions): Promise<SyncL
     // 启动时的 Tier 3 检查会给出「已安装但未启用，是否启用并启动？」的建议。
     // `force` 表示用户在弹窗里明确点了启用；「以后自动启用」则让本会话内都按此处理。
     // `newlyVisibleId` 例外：该包本轮才刚对本领域可见，不存在"用户显式关闭"。
+    //
+    // ⚠️ 2026-10-22 评估（配套「game 源语言包漏检」修复）：**刻意不放宽本闸门做"首次自动
+    // 播种"**。预检发现源修好后（`realmLangPackCandidates` 三源扫描含 game 源），状态会
+    // 正确报 `installed-disabled`，用户点一次「启用并启动」即写入生效预设、此后 status=ok
+    // 不再提示——并不存在"每次进领域都要手动点"。而自动播种需要区分"从未配置过"与"用户
+    // 显式关闭过"（领域编辑器 ModBrowser 可取消勾选语言包），磁盘上无可靠持久化信号
+    // （VCMI 关闭模组后仍保留其 settings 区块），强行播种会在用户关闭后下次启动偷偷加回，
+    // 违背本闸门的设计初衷。如未来确需首次自动播种，应在领域编辑器勾选路径记录进程内
+    // 关闭集合（`noteUserDisabledLangPack`），而非在此处无条件放宽。
     if (!languageChanged && !opts.force && !sessionAutoEnabled() && !newlyVisibleId) {
       return { ok: true, skipped: true, target, missing: [], respected: true };
     }
@@ -403,9 +418,9 @@ export async function scanLangPack(
   // 本会话内用户已选择「直接启动」或「以后自动启用」→ 不再预检，直接放行
   if (!isTauri() || shouldSkipLangCheck()) return empty;
 
-  // 领域感知发现：领域自带（bundled/pinned）的语言包必须算"已有"，否则会被误判缺失、
-  // 每次启动都催促安装（而领域其实已经能翻译）。
-  const discovered = await discoverLangPacks(opts.realmId);
+  // 领域感知发现：领域自带（bundled/pinned/借用联接）与**游戏目录（game 源）**的语言包
+  // 都必须算"已有"，否则会被误判缺失、每次启动都催促安装（而 VCMI 其实已经能翻译）。
+  const discovered = await discoverLangPacks(opts.realmId, opts.vcmiLang);
   const matching = pickLangPacks(opts.vcmiLang, discovered);
   // 生成「名称（id）」展示串：让用户清楚到底会启用哪个语言包（常见仅 1 项）
   const matchingLabels = matching.map((id) => {

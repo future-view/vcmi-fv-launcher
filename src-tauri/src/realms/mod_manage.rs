@@ -393,52 +393,10 @@ pub fn ensure_realm_lang_visible(
     // 1) 收集候选：**必须先看领域自身 Mods**——领域自带（bundled 复制 / pinned 私有副本）的语言包
     //    对全局扫描不可见，漏掉会把自带的包误判成"缺失"并重复安装一份全局包。
     //    rank：0 = 无需借用（领域自带真实目录 / 已借用联接 / game 源天然可见）；1 = 需借用（全局 user）。
-    struct Cand {
-        id: String,
-        base: bool,
-        rank: u8,
-        source: &'static str,
-    }
-    let mut cands: Vec<Cand> = Vec::new();
-    let collect = |dir: &Path, src: &'static str, rank: u8, in_realm: bool, out: &mut Vec<Cand>| {
-        for m in scan::scan_user_mods_dir(dir) {
-            if m.get("rawType").and_then(|v| v.as_str()) != Some("Translation") {
-                continue;
-            }
-            if m.get("language").and_then(|v| v.as_str()).unwrap_or("") != vcmi_lang {
-                continue;
-            }
-            let Some(mid) = m
-                .get("id")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-            else {
-                continue;
-            };
-            // 领域目录内：联接 = 借用（user 源，已可见）；真实目录 = 领域自带（已可见）
-            let (source, rank) = if in_realm {
-                if is_link(&dir.join(mid)) {
-                    ("user", 0u8)
-                } else {
-                    ("realm", 0u8)
-                }
-            } else {
-                (src, rank)
-            };
-            out.push(Cand {
-                id: mid.to_string(),
-                base: m
-                    .get("baseTranslation")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false),
-                rank,
-                source,
-            });
-        }
-    };
-    collect(&env.realm_mods, "realm", 0, true, &mut cands);
-    collect(&env.game_mods, "game", 0, false, &mut cands);
-    collect(&env.user_mods, "user", 1, false, &mut cands);
+    let mut cands: Vec<LangCand> = Vec::new();
+    collect_lang_cands(&env.realm_mods, "realm", 0, true, &vcmi_lang, &mut cands);
+    collect_lang_cands(&env.game_mods, "game", 0, false, &vcmi_lang, &mut cands);
+    collect_lang_cands(&env.user_mods, "user", 1, false, &vcmi_lang, &mut cands);
 
     if cands.is_empty() {
         return Ok(json!({ "found": false }));
@@ -471,6 +429,130 @@ pub fn ensure_realm_lang_visible(
         "source": source,
         "linked": linked,
     }))
+}
+
+/* ----------------------------- 语言包候选（只读发现） ----------------------------- */
+
+/// 语言包候选条目（`collect_lang_cands` 产物）。
+struct LangCand {
+    id: String,
+    /// 是否为基础游戏语言包（`content/translation/{game,campaigns,maps,chronicles}.json` 硬签名）
+    base: bool,
+    /// 0 = 对领域无需借用即可见（领域自带 / 已借用联接 / game 源天然可见）；1 = 需借用（全局 user）
+    rank: u8,
+    source: &'static str,
+    /// `scan_mod_dir` 完整元数据（`realm_lang_pack_candidates` 透传给前端选词展示）
+    meta: Value,
+}
+
+/// 从一个 Mods 目录收集「`modType=Translation` + `language` 匹配」的**顶层**语言包。
+///
+/// `in_realm=true` 表示该目录即领域隔离目录：联接 = user 源引用（已可见）、
+/// 真实目录 = 领域位置（自带副本 / pinned，已可见）——故 rank 归 0。
+///
+/// ⚠️ **只认父模组**（`isSubmod` 过滤）：与前端 `pickLangPacks` 同口径——一个父语言包的
+/// 翻译能力常由子模组提供，只把父 id 写进预设，子模组交给 VCMI 依赖解析带入。
+fn collect_lang_cands(
+    dir: &Path,
+    src: &'static str,
+    rank: u8,
+    in_realm: bool,
+    vcmi_lang: &str,
+    out: &mut Vec<LangCand>,
+) {
+    for m in scan::scan_user_mods_dir(dir) {
+        if m.get("rawType").and_then(|v| v.as_str()) != Some("Translation") {
+            continue;
+        }
+        if m.get("language").and_then(|v| v.as_str()).unwrap_or("") != vcmi_lang {
+            continue;
+        }
+        if m.get("isSubmod").and_then(|v| v.as_bool()).unwrap_or(false) {
+            continue;
+        }
+        let Some(mid) = m
+            .get("id")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+        else {
+            continue;
+        };
+        // 领域目录内：联接 = 借用（user 源，已可见）；真实目录 = 领域自带（已可见）
+        let (source, rank) = if in_realm {
+            if is_link(&dir.join(mid)) {
+                ("user", 0u8)
+            } else {
+                ("realm", 0u8)
+            }
+        } else {
+            (src, rank)
+        };
+        out.push(LangCand {
+            id: mid.to_string(),
+            base: m
+                .get("baseTranslation")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
+            rank,
+            source,
+            meta: m,
+        });
+    }
+}
+
+/// 领域语言包候选（**只读**扫描，无任何写盘/建链副作用）——启动前预检的语言包发现源。
+///
+/// 修复的坑（2026-10-22）：预检原先用 `list_realm_mods` 发现语言包，而那只汇总
+/// 「领域 Mods 目录物理条目 + `realm.json` 台账登记的引用」——**游戏目录 `Mods/` 下
+/// 未登记的 game 源语言包完全不可见**，于是"游戏目录明明装着简体中文包"却报
+/// "未找到语言包"，把用户误导去仓库重复下载。本命令改按 **VCMI 实际可见性**三源扫描
+/// （与 `ensure_realm_lang_visible` 共用 `collect_lang_cands`，两口径永不分裂）：
+/// - `realm` 源：领域 `Mods/` 物理条目（自带副本 / 借用联接）——已可见；
+/// - `game` 源：游戏目录 `Mods/`（VCMI 硬编码与 userDataPath 同时挂载）——**已可见**；
+/// - `user` 源：全局用户 `Mods/`——**仅领域未隔离（`dirs.dataPath=global`）时可见**；
+///   隔离时它要经 `ensure_realm_lang_visible` 建临时联接后才可见，故此处不返回
+///   （避免把 VCMI 此刻读不到的 id 报成"已安装"、写进预设后反成 missing）。
+///
+/// 返回 `{candidates: [{...scan_mod_dir 元数据, source: "realm"|"game"|"user"}]}`；
+/// 按 `baseTranslation` 优先、其次 rank（免借用优先）稳定排序，同 id 先去重
+/// （realm > game > user）。
+#[tauri::command]
+pub fn realm_lang_pack_candidates(
+    state: State<AppPaths>,
+    realm_id: String,
+    vcmi_lang: String,
+) -> Result<Value, String> {
+    let id = VcmiPaths::sanitize_realm_id(&realm_id);
+    let env = RealmModEnv::resolve(&state, &id)?;
+    // 数据隔离是否生效（`dirs.dataPath=realm`，默认）：隔离时全局 user 目录对 VCMI 不可见
+    let isolated = get_realm(&id)?
+        .get("dirs")
+        .and_then(|d| d.get("dataPath"))
+        .and_then(|v| v.as_str())
+        != Some("global");
+
+    let mut cands: Vec<LangCand> = Vec::new();
+    collect_lang_cands(&env.realm_mods, "realm", 0, true, &vcmi_lang, &mut cands);
+    collect_lang_cands(&env.game_mods, "game", 0, false, &vcmi_lang, &mut cands);
+    if !isolated {
+        collect_lang_cands(&env.user_mods, "user", 1, false, &vcmi_lang, &mut cands);
+    }
+
+    // 去重（小写 id，保留先出现者 = 高优先级）后排序（稳定：同键维持收集顺序）
+    let mut seen: HashSet<String> = HashSet::new();
+    cands.retain(|c| seen.insert(c.id.to_lowercase()));
+    cands.sort_by_key(|c| (!c.base, c.rank));
+
+    let out: Vec<Value> = cands
+        .into_iter()
+        .map(|mut c| {
+            if let Some(obj) = c.meta.as_object_mut() {
+                obj.insert("source".to_string(), json!(c.source));
+            }
+            c.meta
+        })
+        .collect();
+    Ok(json!({ "candidates": out }))
 }
 
 /* ----------------------------- 整合 / 删除 ----------------------------- */
@@ -721,4 +803,115 @@ pub fn realm_mod_import(
         }
     }
     Ok(json!({ "results": results }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 造一个最小 mod 目录（`modType` / `language` 可缺省）。
+    fn write_lang_mod(dir: &Path, mod_type: Option<&str>, language: Option<&str>) {
+        fs::create_dir_all(dir).unwrap();
+        let mut obj = serde_json::Map::new();
+        obj.insert(
+            "name".into(),
+            json!(dir.file_name().unwrap().to_string_lossy().to_string()),
+        );
+        if let Some(mt) = mod_type {
+            obj.insert("modType".into(), json!(mt));
+        }
+        if let Some(l) = language {
+            obj.insert("language".into(), json!(l));
+        }
+        fs::write(
+            dir.join("mod.json"),
+            serde_json::to_vec_pretty(&Value::Object(obj)).unwrap(),
+        )
+        .unwrap();
+    }
+
+    /// 语言包候选收集口径：类型+语言+顶层三过滤，source/rank 按目录语义归位。
+    /// 锁死 2026-10-21「game 源语言包漏检」修复的核心行为。
+    #[test]
+    fn collect_lang_cands_filters_by_type_language_and_top_level() {
+        let root = std::env::temp_dir().join(format!(
+            "vcmi_fv_collect_lang_cands_{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        let mods = root.join("Mods");
+        // 基础语言包（带 VCMI 基础翻译作用域文件硬签名）
+        write_lang_mod(&mods.join("simplified-chinese-translation"), Some("Translation"), Some("chinese"));
+        fs::create_dir_all(
+            mods.join("simplified-chinese-translation")
+                .join("Content")
+                .join("translation"),
+        )
+        .unwrap();
+        fs::write(
+            mods.join("simplified-chinese-translation")
+                .join("Content")
+                .join("translation")
+                .join("game.json"),
+            b"{}",
+        )
+        .unwrap();
+        // 内容汉化包：同类型同语言，但无 base 签名
+        write_lang_mod(&mods.join("new-chinese-mods"), Some("Translation"), Some("chinese"));
+        // 其它语言：不匹配当前语言，排除
+        write_lang_mod(&mods.join("russian-translation"), Some("Translation"), Some("russian"));
+        // 普通模组：无 modType，排除（绝不能按名字猜）
+        write_lang_mod(&mods.join("chinese-style-ui"), None, None);
+        // 父子模组：只认父，子模组即使标了 Translation+chinese 也不收
+        write_lang_mod(&mods.join("zh-parent"), Some("Translation"), Some("chinese"));
+        write_lang_mod(
+            &mods.join("zh-parent").join("Mods").join("zh-child"),
+            Some("Translation"),
+            Some("chinese"),
+        );
+
+        let mut out: Vec<LangCand> = Vec::new();
+        collect_lang_cands(&mods, "game", 0, false, "chinese", &mut out);
+        // read_dir 顺序不保证 → 按 id 集合断言（排序由调用方负责）
+        let mut ids: Vec<&str> = out.iter().map(|c| c.id.as_str()).collect();
+        ids.sort_unstable();
+        assert_eq!(ids, vec!["new-chinese-mods", "simplified-chinese-translation", "zh-parent"]);
+        // base 签名只认结构，不认名字
+        let base_of = |id: &str| out.iter().find(|c| c.id == id).unwrap().base;
+        assert!(base_of("simplified-chinese-translation"));
+        assert!(!base_of("new-chinese-mods") && !base_of("zh-parent"));
+        // 非领域目录：source/rank 原样透传
+        assert!(out.iter().all(|c| c.source == "game" && c.rank == 0));
+
+        // 语言不匹配 → 空
+        let mut en_out: Vec<LangCand> = Vec::new();
+        collect_lang_cands(&mods, "game", 0, false, "english", &mut en_out);
+        assert!(en_out.is_empty());
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// 领域隔离目录内的真实目录 → source 归 `realm`、rank 归 0（已可见，无需借用）。
+    #[test]
+    fn collect_lang_cands_realm_dir_real_entry_is_realm_source() {
+        let root = std::env::temp_dir().join(format!(
+            "vcmi_fv_collect_lang_cands_realm_{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        let realm_mods = root.join("realm").join("Mods");
+        write_lang_mod(
+            &realm_mods.join("bundled-zh"),
+            Some("Translation"),
+            Some("chinese"),
+        );
+
+        let mut out: Vec<LangCand> = Vec::new();
+        collect_lang_cands(&realm_mods, "realm", 0, true, "chinese", &mut out);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].source, "realm");
+        assert_eq!(out[0].rank, 0);
+
+        let _ = fs::remove_dir_all(&root);
+    }
 }
