@@ -38,6 +38,16 @@ let sessionState: AnimState = "idle";
 /** H3 固定 100ms/帧（`Images.cpp`，与战斗速度无关） */
 const ANIM_FRAME_MS = 100;
 
+/**
+ * 缩放下限：适配参考再大，生物也不缩到 70% 以下（超出幕布的部分正常裁掉）。
+ *
+ * 依据（2026-10-22 全量 3331 个第三方动画实测）：适配包围盒改用 p10–p90 分位后，
+ * `fitK < 0.70` 只剩 3.9%，且全是超规格素材（青璃龙女 `fitW=419`、黄金黑暗魔龙 379…）。
+ * 不设下限时这些会缩到 0.24~0.53，观感就是"迷你"；裁边与 VCMI 游戏内 `clipRect`
+ * 同源，属于素材本身超出窗口时的正常表现。
+ */
+const FIT_MIN_SCALE = 0.7;
+
 /** 把某帧画到 canvas（高清=位图按 x/y 贴；1x=BGRA 逐像素） */
 function drawAnimFrame(ctx: CanvasRenderingContext2D, g: AnimGroup, idx: number) {
   if (g.hd) {
@@ -634,11 +644,11 @@ export function CreatureDetail({
   const stageW = Math.max(40, Math.round(sw));
   const stageH = Math.max(40, Math.round(sh));
 
-  // 统一缩放：让"适配参考矩形"完整落进幕布（≥1 时不放大）
-  const fitK = Math.min(
-    1,
-    curtainW / Math.max(1, fitW),
-    curtainH / Math.max(1, fitH),
+  // 统一缩放：让"适配参考矩形"完整落进幕布（≥1 时不放大），并受 [`FIT_MIN_SCALE`] 兜底。
+  // 适配参考本身已是 p10–p90 分位包围盒（后端 `plan_from_bounds`），离群帧不参与缩放。
+  const fitK = Math.max(
+    FIT_MIN_SCALE,
+    Math.min(1, curtainW / Math.max(1, fitW), curtainH / Math.max(1, fitH)),
   );
   const pxPerUnit = stageW / frameW; // 每个 1x 画布单位 = 多少舞台像素
   const centerX = curtainX + curtainW / 2; // 幕布中心（画布坐标）

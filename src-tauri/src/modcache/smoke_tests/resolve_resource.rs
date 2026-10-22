@@ -161,27 +161,30 @@ fn def_group_hd_creature_smoke() {
     crate::vcmi::hd_edition::set_source(None);
 }
 
-/// 真机冒烟（2026-10-21）：**显示窗口双口径**。
+/// 真机冒烟（2026-10-21，2026-10-22 改口径）：**显示窗口双口径**。
 ///
-/// - `game`：默认游戏口径（窗口 = 基准 ∪ 待机帧），悬停越界就裁 —— 构图与游戏一致；
-/// - `wing`：悬停帧横向越界 ≥24px → 左右**对称**扩成宽幕布（黑底），构图仍居中。
+/// - `game`：默认游戏口径（窗口 = 基准 ∪ 适配组分位包围盒），超出就裁 —— 构图与游戏一致；
+/// - `wing`：**适配组宽度需求 ≥ 幕布宽 × 105%** → 左右对称扩成宽幕布（黑底）。
+///
+/// 判定只看宽度（不看高度、不看"越界多少 px"），原版素材里宽体生物（龙/天使/骑士）
+/// 都会走宽幕布；只有宽度 ≤ 104 的（农民 103）保持标准幕布。
 ///
 /// 运行：`VCMI_GAME_DIR=<游戏目录> cargo test --lib modcache::smoke_tests::resolve_resource::adaptive_window_smoke -- --ignored --nocapture`
 #[test]
 #[ignore]
 fn adaptive_window_smoke() {
     let paths = VcmiPaths::detect();
-    // (资源, 双格, 期望) —— 判定看"除死亡外的全部组"，所以宽体龙/天使都走宽幕布
+    // (资源, 双格, 期望) —— 判定看适配组(0/1/2/4)的 p10–p90 分位包围盒宽度
     for (res, dw, expect) in [
-        ("CPHX.DEF", true, "wing"),    // 凤凰：全组 315×239
+        ("CPHX.DEF", true, "wing"),    // 凤凰：适配 200×174
         ("CFBIRD.DEF", true, "wing"),  // 火鸟
-        ("CNDRGN.DEF", true, "wing"),  // 骨龙：全组 240×187
+        ("CNDRGN.DEF", true, "wing"),  // 骨龙
         ("CHDRGN.DEF", true, "wing"),  // 鬼龙
-        ("CDDRAG.DEF", true, "wing"),  // 金龙：全组 294×226
-        ("CRANGL.DEF", true, "wing"),  // 大天使：全组 181×150
-        ("CBDRGN.DEF", true, "wing"),  // 黑龙：全组 273×221
-        ("CCHAMP.DEF", true, "game"),  // 骑士
-        ("CPEAS.DEF", false, "game"),  // 农民（单格）
+        ("CDDRAG.DEF", true, "wing"),  // 金龙
+        ("CRANGL.DEF", true, "wing"),  // 大天使
+        ("CBDRGN.DEF", true, "wing"),  // 黑龙
+        ("CCHAMP.DEF", true, "wing"),  // 骑士：适配 200×130（旧口径 24px 时为 game）
+        ("CPEAS.DEF", false, "game"),  // 农民（单格，宽度需求 103 < 105）
     ] {
          let Some(v) = crate::vcmi::resource::read_def_group_hd_inner(
             &paths, "core", res, 2, dw, 270, None,
@@ -396,6 +399,114 @@ fn neutral_faction_bg_smoke() {
         crate::vcmi::resource::resolve_resource_fallback(&game, &game, &bg).expect("资源应可读");
     println!("resolved {} bytes, ext={ext}", buf.len());
     assert!(buf.len() > 1000, "背景图不应为空");
+}
+
+/// 真机冒烟（2026-10-22）：**png 动画的头部/脚底不得在进入前端之前被裁**。
+///
+/// 背景：sprites-json 路径早先把 `tex = fit = 基准窗口(170,155,100×130)`，
+/// 实测 HuaXia「云南蛊女」(lv7) 待机组 alpha bbox 顶在 y=118（比窗口上沿高 37px）
+/// → 头部整块消失（用户报"没有头部"）。修复后 png 与 DEF 共用 `plan_from_bounds`：
+/// `tex = 幕布 ∪ 全部已见组`、`fit = 幕布 ∪ 适配组`。
+///
+/// 运行：`VCMI_GAME_DIR=<游戏目录> cargo test --lib modcache::smoke_tests::resolve_resource::json_anim_window_keeps_head -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn json_anim_window_keeps_head() {
+    let game = game_dir();
+    if !game.join("Mods").join("HuaXia").is_dir() {
+        println!("跳过：未安装 HuaXia");
+        return;
+    }
+    let paths = crate::vcmi::paths::VcmiPaths::detect();
+    let v = crate::vcmi::resource::read_def_group_hd_inner(
+        &paths,
+        "x.huaxia",
+        "huaXia/creatures/battle/lv7.json",
+        0,
+        true,
+        270,
+        None,
+    )
+    .map(|g| g.to_value())
+    .expect("lv7 待机组应能出帧");
+    let n = |k: &str| v[k].as_i64().unwrap_or(0);
+    println!(
+        "lv7 g0 → 裁剪 {}x{} @({}, {}) / 幕布 {}x{} / 适配 {}x{}",
+        n("w"),
+        n("h"),
+        n("wx"),
+        n("wy"),
+        n("winW"),
+        n("winH"),
+        n("fitW"),
+        n("fitH")
+    );
+    assert!(n("wy") <= 130, "裁剪矩形上沿必须包住头部（实测 wy={}）", n("wy"));
+    assert!(
+        n("fitH") > n("winH"),
+        "适配参考必须按素材包围盒放大（否则头部只能被硬裁）"
+    );
+}
+
+/// 真机冒烟（2026-10-22）：**json 动画的幕布宽度必须一次定档，不随请求组漂移**。
+///
+/// 回归背景：`fit` 早先"按请求组累计 + 空池用当前组兜底"，导致两种弹跳：
+/// 1. 待机标准幕布 → 看过移动/攻击组后跨过 105% → 永久变宽；
+/// 2. 状态是会话粘性的，在"主动攻击"下首开先按攻击组变宽，随后 HOLDING 步并入
+///    待机帧 → 又缩回标准幕布（宽↔窄来回一次）。
+///
+/// 现在首个请求即按适配组抽样定档，故"攻击组先请求、待机组后请求"必须得到同一窗口。
+///
+/// 运行：`VCMI_GAME_DIR=<游戏目录> cargo test --lib modcache::smoke_tests::resolve_resource::json_anim_window_is_stable -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn json_anim_window_is_stable() {
+    let game = game_dir();
+    if !game.join("Mods").join("29- Jadelake-town").is_dir() {
+        println!("跳过：未安装 29- Jadelake-town");
+        return;
+    }
+    let paths = crate::vcmi::paths::VcmiPaths::detect();
+    let res = "jadelake/creatures/battle/lv5.json";
+    // 先攻击组（会话粘性下"主动攻击"状态的首个请求），再待机组
+    let first = crate::vcmi::resource::read_def_group_hd_inner(
+        &paths,
+        "29- jadelake-town",
+        res,
+        11,
+        false,
+        270,
+        None,
+    )
+    .map(|g| g.to_value());
+    let second = crate::vcmi::resource::read_def_group_hd_inner(
+        &paths,
+        "29- jadelake-town",
+        res,
+        0,
+        false,
+        270,
+        None,
+    )
+    .map(|g| g.to_value());
+    let (Some(a), Some(b)) = (first, second) else {
+        println!("跳过：该模组缺少 json 动画帧");
+        return;
+    };
+    println!(
+        "攻击组 → 幕布 {}x{} / 适配 {}x{}、待机组 → 幕布 {}x{} / 适配 {}x{}",
+        a["winW"], a["winH"], a["fitW"], a["fitH"], b["winW"], b["winH"], b["fitW"], b["fitH"]
+    );
+    assert_eq!(
+        a["winW"].as_u64(),
+        b["winW"].as_u64(),
+        "幕布宽度不得随请求组变化（否则会来回弹跳）"
+    );
+    assert_eq!(
+        a["fitW"].as_u64(),
+        b["fitW"].as_u64(),
+        "适配参考必须一次定档"
+    );
 }
 
 /// 回归守卫：当游戏根 `Data/` 无原版 LOD（便携运行场景），原版数据放在 `user_data_dir/Data` 时，

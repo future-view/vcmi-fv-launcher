@@ -36,22 +36,60 @@ use std::sync::Mutex;
 
 use serde_json::Value;
 
-/// 载入结果：帧 + 该生物的**自适应显示窗口**。
+/// 载入结果：帧 + 该生物的**显示几何**（与 DEF 路径同一套 `WindowPlan`）。
 pub(crate) struct JsonAnim {
     pub frames: Vec<image::RgbaImage>,
-    /// `(x, y, w, h)`（1x 画布坐标）。跨组只增不减，避免切动作时窗口跳动。
-    pub window: (i64, i64, i64, i64),
+    /// 幕布窗口 / 裁剪矩形 / 适配参考（见 [`crate::vcmi::resource::plan_from_bounds`]）。
+    pub plan: crate::vcmi::resource::WindowPlan,
 }
 
-/// 每生物累计见过的最大的自适应窗口：`(mod_id, resource)` → 窗口。
-///
-/// png 动画没有 DEF 那种"读帧头就知道边界"的便宜渠道，只能解码后算 alpha 包围盒；
-/// 而按组算会让窗口随动作变化（待机小、攻击大）→ 动画跳动。这里**只增不减**地累计，
-/// 用户看过几个动作后窗口即稳定，且永远不会比已见过的任何一帧小。
-static WINDOW_CACHE: Mutex<Option<HashMap<(String, String), (i64, i64, i64, i64)>>> =
-    Mutex::new(None);
+/// 画布坐标矩形 `(x0, y0, x1, y1)`。
+type Rect = (i64, i64, i64, i64);
 
-/// 载入某分组的全部帧（**整画布 RGBA**）及其自适应窗口。组不存在 / 任一帧读不到 → `None`。
+/// 每生物的显示几何缓存：`(全部组逐帧矩形, 适配组抽样矩形, 已并入组, 是否已定档)`。
+///
+/// - `all`：所有请求过的组的逐帧矩形 → 并集做裁剪矩形（保头保尾，随浏览**持续累计**）；
+/// - `fit`：适配组 `[0,1,2,4]` 的**抽样帧**矩形 → 并集做缩放与宽幕布判定。
+///   **只在首个请求时填一次**（见 [`probe_indices`]），之后不再变；
+/// - `seen`：已并入 `all` 的组号 —— 同一组被重复请求（缓存淘汰后重取）时不得重复计入；
+/// - `probed`：`fit` 是否已定档。
+///
+/// ## 为什么 `fit` 必须一次定死（2026-10-22）
+///
+/// 早先是"按请求组累计 + 分位"，结果是**窗口随浏览漂移**：待机组只有 100 宽
+/// （标准幕布），看过移动/攻击组后累计到越界帧（风翎卫移动帧 x=129..290）→ 跨过
+/// 105% 阈值变宽幕布，且只增不减，回不到标准幕布；首次请求若正好是攻击组
+/// （状态是会话粘性的），还会先宽后窄来回弹跳。
+///
+/// 现在改为首次请求就把 4 个适配组各抽 3 帧（首/中/末）算 bbox，取**并集**定档：
+/// 窗口与请求顺序、浏览过程完全无关，布局不再跳。
+#[derive(Clone, Default)]
+struct Bounds {
+    all: Vec<Rect>,
+    fit: Vec<Rect>,
+    seen: Vec<usize>,
+    probed: bool,
+}
+
+/// 每生物的显示几何缓存（进程内）：`(mod_id, resource)` → [`Bounds`]。
+///
+/// png 动画没有 DEF 那种"读帧头就知道边界"的便宜渠道，只能解码后算 alpha 包围盒。
+static WINDOW_CACHE: Mutex<Option<HashMap<(String, String), Bounds>>> = Mutex::new(None);
+
+/// 适配组抽样下标：首 / 中 / 末（组内 ≤3 帧时全取）。
+///
+/// 成本实测（450×400 png，热缓存）：12 帧 ≈ 20~40ms，而 HuaXia 这类单生物适配帧
+/// 可达 48~100 帧（首开全解 100~300ms）。3 帧足以覆盖循环动画的幅度 —— 风翎卫移动组
+/// 的越界极值（x=290）就在中帧，只抽首末会漏掉。
+fn probe_indices(n: usize) -> Vec<usize> {
+    match n {
+        0 => Vec::new(),
+        1..=3 => (0..n).collect(),
+        _ => vec![0, n / 2, n - 1],
+    }
+}
+
+/// 载入某分组的全部帧（**整画布 RGBA**）及其显示几何。组不存在 / 任一帧读不到 → `None`。
 pub(crate) fn load_group(
     paths: &crate::vcmi::paths::VcmiPaths,
     mod_id: &str,
@@ -65,42 +103,60 @@ pub(crate) fn load_group(
     let base = v.get("basepath").and_then(|x| x.as_str()).unwrap_or("");
     let names = group_frame_names(&v, group)?;
     let mut out = Vec::with_capacity(names.len());
-    let mut bbox: Option<(i64, i64, i64, i64)> = None;
+    let mut rects: Vec<Rect> = Vec::with_capacity(names.len());
     for name in &names {
         let img = load_frame(&owner, &paths.game_dir, base, name)?;
         if let Some(r) = alpha_bbox(&img) {
-            bbox = Some(match bbox {
-                Some((x0, y0, x1, y1)) => (x0.min(r.0), y0.min(r.1), x1.max(r.2), y1.max(r.3)),
-                None => r,
-            });
+            rects.push(r);
         }
         out.push(img);
     }
     if out.is_empty() {
         return None;
     }
-    // 与 DEF 同款：基准窗口 ∪ 包围盒（封顶外扩 + 最小留白），再按生物累计取最大
+    // 与 DEF 同款的三层几何：`fit` 一次定档、`all` 持续累计
     let key = (mod_id.to_string(), resource.to_string());
     let canvas = Some((out[0].width(), out[0].height()));
-    let win = crate::vcmi::resource::two_layout_window(double_wide, canvas, bbox);
-    let merged = {
+    let bounds = {
         let mut guard = match WINDOW_CACHE.lock() {
             Ok(g) => g,
             Err(p) => p.into_inner(),
         };
         let map = guard.get_or_insert_with(HashMap::new);
-        let prev = map.get(&key).copied();
-        let m = match prev {
-            Some(p) => (p.0.min(win.0), p.1.min(win.1), p.2.max(win.2), p.3.max(win.3)),
-            None => win,
-        };
-        map.insert(key.clone(), m);
-        m
+        let b = map.entry(key).or_default();
+        // 同一组可能因缓存淘汰被重复请求：只并入一次，否则同一批帧被重复计入（等于加权）
+        if !b.seen.contains(&group) {
+            b.seen.push(group);
+            b.all.extend_from_slice(&rects);
+        }
+        // 首个请求：把 4 个适配组各抽 3 帧算 bbox，**并集**后一次定档。
+        // 之后无论再请求什么组都不再改 `fit` —— 这是"幕布切换/布局弹跳"的根治点。
+        //
+        // ⚠️ 用并集而不是分位：抽样最多 12 帧（≥8 会走 p10–p90），而分位会剔除
+        // "只有 1 帧的极值"，风翎卫移动组 x=290 恰好只有 1 帧 —— 正是决定宽度的帧。
+        if !b.probed {
+            b.probed = true;
+            for g in crate::vcmi::resource::WING_PROBE_GROUPS {
+                let Some(g_names) = group_frame_names(&v, *g) else {
+                    continue;
+                };
+                for idx in probe_indices(g_names.len()) {
+                    let Some(img) = load_frame(&owner, &paths.game_dir, base, &g_names[idx]) else {
+                        continue;
+                    };
+                    if let Some(r) = alpha_bbox(&img) {
+                        b.fit.push(r);
+                    }
+                }
+            }
+        }
+        b.clone()
     };
-    Some(JsonAnim {
-        frames: out,
-        window: merged,
-    })
+    // 适配参考 = 适配组抽样帧并集（固定）；`tex` 仍用全量累计并集（保头保尾）。
+    let fit_ref = crate::vcmi::resource::union_rects(&bounds.fit);
+    let all_ref = crate::vcmi::resource::union_rects(&bounds.all);
+    let plan = crate::vcmi::resource::plan_from_bounds(double_wide, canvas, fit_ref, all_ref);
+    Some(JsonAnim { frames: out, plan })
 }
 
 /// 某分组的帧文件名，**两种写法都认**（与 VCMI `RenderHandler::initFromJson` 同口径）：

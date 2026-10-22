@@ -414,19 +414,24 @@ impl<'a> DefReader<'a> {
         Some((header.width, header.height))
     }
 
-    /// 各分组的**帧包围盒**（画布坐标）：`(组号, (x0, y0, x1, y1))`。
+    /// **逐帧**包围盒（画布坐标）：`(组号, (x0, y0, x1, y1))`。
     ///
-    /// 只读帧头（不解码任何像素），用于「显示窗口自适应」：VCMI 的窗口是固定矩形
-    /// （`clipRect(150|170, 155, 100, 130)`），而部分生物的素材高出窗口（凤凰 HOLDING
-    /// 顶部 y=117 < 155，头会被裁掉 25%）。这里按组给出精确边界，让调用方决定
-    /// 「要不要扩、扩多少」。
-    pub fn group_frame_bounds(&self) -> Vec<(usize, (i64, i64, i64, i64))> {
+    /// 只读帧头（不解码任何像素），用于「显示窗口/缩放自适应」：VCMI 的窗口是固定矩形
+    /// （`clipRect(150|170, 155, 100, 130)`），而部分生物的素材高出/宽出窗口
+    /// （凤凰 HOLDING 顶部 y=117 < 155，头会被裁掉 25%）。
+    ///
+    /// 返回**帧级**而不按组合并：调用方要按组取 p10–p90 分位剔除离群帧。第三方素材常见
+    /// 单帧把整幅画布当帧 / 混入特效帧，并集会被撑大 5~20 倍，整组跟着缩到 0.2~0.4
+    /// （实测 `巨角鼠` 21 倍、`Invisible Man` 23 倍）。需要组级并集时调用方自行合并。
+    ///
+    /// 坏帧过滤：越画布 / 负 margin 一律丢弃（部分 mod DEF 尾部有垃圾分组，lm/tm 随机）。
+    pub fn frame_rects_by_group(&self) -> Vec<(usize, (i64, i64, i64, i64))> {
         let Some(header) = self.parse_header() else {
             return Vec::new();
         };
-        let mut out = Vec::with_capacity(header.groups.len());
+        let mut out = Vec::new();
         for g in header.groups.iter() {
-            let mut b: Option<(i64, i64, i64, i64)> = None;
+            let gid = g.block_id as usize;
             for &off in &g.offsets {
                 let Some((_fmt, w, h, _fs, _pad, _pixel, lm, tm)) = self.read_frame(off) else {
                     continue;
@@ -443,19 +448,10 @@ impl<'a> DefReader<'a> {
                 {
                     continue;
                 }
-                let rect = (lm as i64, tm as i64, lm as i64 + w as i64, tm as i64 + h as i64);
-                b = Some(match b {
-                    Some((x0, y0, x1, y1)) => (
-                        x0.min(rect.0),
-                        y0.min(rect.1),
-                        x1.max(rect.2),
-                        y1.max(rect.3),
-                    ),
-                    None => rect,
-                });
-            }
-            if let Some(r) = b {
-                out.push((g.block_id as usize, r));
+                out.push((
+                    gid,
+                    (lm as i64, tm as i64, lm as i64 + w as i64, tm as i64 + h as i64),
+                ));
             }
         }
         out

@@ -1122,31 +1122,46 @@ const WIN_Y: i64 = 155;
 /// 为什么不做纵向扩展：纵向扩出来的一圈没有背景像素可填（素材本身只有 100×130），
 /// 补天会泛白/条纹、镜像会克隆建筑、模糊会毁细节 —— 三种都被实机否决。
 /// 横向扩之所以可以，是因为两侧本来就是"幕布黑"，不需要伪造地形。
-const WIN_WING_TRIGGER: i64 = 24;
+///
+/// ## 宽幕布判定：**只看宽度**（2026-10-22 拍板）
+///
+/// 阈值 = 幕布宽的 **105%**：`win ∪ 适配包围盒` 的宽度 ≥ 105 就切宽幕布。
+/// - 不再看"横向越界多少 px"（旧口径 24px）：那个阈值对单格生物与双格生物语义不同，
+///   且素材稍微宽一点（金宝 107）就永远进不了宽幕布、还要被压小 6%；
+/// - **高度不参与判定**：竖长素材只要宽度够宽同样切宽幕布（宽度是唯一诉求）。
+///   代价是"高度受限"的生物在窄栏下会略小（舞台从 180×234 变 320×208），已接受；
+/// - 留 5% 余量（而不是 100）：包围盒会随分位/跨组累计抖动 ±1~2px，
+///   贴着 100 判定会让同一生物在两种布局间来回切。
+const WIN_WING_WIDTH_PCT: i64 = 105;
 
 /// 宽幕布档位：**只有一种尺寸**（用户要求"只有两种布局"）。
 ///
-/// 100 + 2×50 = 200 宽、高度恒 130；只对"悬停帧横向越出 ≥ [`WIN_WING_TRIGGER`]"的生物启用。
-/// 不再按生物各算各的宽度 —— 那会让每个生物一套黑幕，观感不统一。
+/// 100 + 2×50 = 200 宽、高度恒 130。全量 3331 个第三方动画实测：`fitW > 200` 的只有
+/// 2.4%（79 个），其中 >250 的仅 23 个 —— 加第三档（250/300）只能把 1:1 比例从 63.7%
+/// 提到 63.8%，不值得破坏构图统一。
 const WIN_WING_WIDTH: i64 = 200;
+
+/// 画布坐标矩形 `(x0, y0, x1, y1)`。
+type Rect = (i64, i64, i64, i64);
 
 /// 计算显示窗口：**两种布局之一**（见上方说明）。
 ///
-/// `art` = 该生物"最宽姿态"（DEF 用 `MOUSEON` 悬停帧、png 动画用帧的 alpha 包围盒）的
-/// 包围盒；横向越出基准窗口 ≥ [`WIN_WING_TRIGGER`] 时切宽幕布，否则原样返回基准窗口。
+/// `art` = 该生物适配组的包围盒（DEF 用 0/1/2/4 组的分位包围盒、png 动画用帧的
+/// alpha 分位包围盒）；**宽度**（`win ∪ art`）达到幕布宽的 [`WIN_WING_WIDTH_PCT`]% 时
+/// 切宽幕布，否则原样返回基准窗口。
 pub(crate) fn two_layout_window(
     double_wide: bool,
     canvas: Option<(u32, u32)>,
-    art: Option<(i64, i64, i64, i64)>,
-) -> (i64, i64, i64, i64) {
+    art: Option<Rect>,
+) -> Rect {
     let bx0 = if double_wide { WIN_X_DOUBLE } else { WIN_X_SINGLE };
     let base = (bx0, WIN_Y, WIN_W, WIN_H);
     let Some((ax0, _, ax1, _)) = art else {
         return base;
     };
-    // 触发条件看"悬停帧横向越界"，但**宽度取固定档位**（只有两种布局）
-    let over = (bx0 - ax0).max(ax1 - (bx0 + WIN_W));
-    if over < WIN_WING_TRIGGER {
+    // 与 `plan_from_bounds` 里 `fit` 的宽度同口径：基准窗口 ∪ 素材包围盒
+    let fit_w = ax1.max(bx0 + WIN_W) - ax0.min(bx0);
+    if fit_w * 100 < WIN_W * WIN_WING_WIDTH_PCT {
         return base;
     }
     // 以基准窗口中心为轴、左右对称展开；夹到画布内（越界部分本来也没有像素）
@@ -1157,22 +1172,52 @@ pub(crate) fn two_layout_window(
     (x0, WIN_Y, (x1 - x0).max(1), WIN_H)
 }
 
-/// 计算若干组的并集包围盒。
-fn union_bounds(
-    def: &crate::infra::def::DefReader,
-    keep: impl Fn(usize) -> bool,
-) -> Option<(i64, i64, i64, i64)> {
-    let mut acc: Option<(i64, i64, i64, i64)> = None;
-    for (g, r) in def.group_frame_bounds() {
-        if !keep(g) {
-            continue;
-        }
-        acc = Some(match acc {
-            Some((x0, y0, x1, y1)) => (x0.min(r.0), y0.min(r.1), x1.max(r.2), y1.max(r.3)),
-            None => r,
-        });
+/// 帧池 → **并集**包围盒。
+pub(crate) fn union_rects(rects: &[Rect]) -> Option<Rect> {
+    let mut it = rects.iter();
+    let first = *it.next()?;
+    Some(it.fold(first, |(x0, y0, x1, y1), r| {
+        (x0.min(r.0), y0.min(r.1), x1.max(r.2), y1.max(r.3))
+    }))
+}
+
+/// 分位口径的最小帧数：少于它时退回并集（小样本分位会被单帧带偏）。
+pub(crate) const QUANTILE_MIN_FRAMES: usize = 8;
+
+/// 逐坐标取分位（要求入参已排序）。
+fn quantile(sorted: &[i64], p: f64) -> i64 {
+    let idx = ((sorted.len() - 1) as f64 * p).round() as usize;
+    sorted[idx.min(sorted.len() - 1)]
+}
+
+/// 帧池 → **适配包围盒**：帧数 ≥ [`QUANTILE_MIN_FRAMES`] 时逐坐标取 **p10–p90**，
+/// 否则退回并集。
+///
+/// 为什么不用并集：第三方素材普遍有**单帧离群**（一帧把整幅画布当帧、混入特效帧、
+/// 或动作幅度极大），并集会被这一帧撑大 5~20 倍，整组跟着缩到 0.2~0.4 ——
+/// 用户看到的却是"待机动作明明不大，生物却很小"。全量 3331 个第三方动画实测：
+/// 10.2% 的素材并集/分位面积比 ≥ 1.5，分位让 54.3% 的生物 `fitK` 提升 > 2%
+/// （极端样本 `Invisible Man` 0.22 → 0.97、`巨角鼠` 0.37 → 1.00）。
+///
+/// 剔除的是"两端各 10% 的帧"，不是"最大帧"：正常动作幅度仍参与适配，
+/// 只有真正离谱的少数帧会被当作"越界、正常裁切"。
+pub(crate) fn bounds_from_rects(rects: &[Rect]) -> Option<Rect> {
+    if rects.is_empty() {
+        return None;
     }
-    acc
+    if rects.len() < QUANTILE_MIN_FRAMES {
+        return union_rects(rects);
+    }
+    let mut xs0: Vec<i64> = rects.iter().map(|r| r.0).collect();
+    let mut ys0: Vec<i64> = rects.iter().map(|r| r.1).collect();
+    let mut xs1: Vec<i64> = rects.iter().map(|r| r.2).collect();
+    let mut ys1: Vec<i64> = rects.iter().map(|r| r.3).collect();
+    for v in [&mut xs0, &mut ys0, &mut xs1, &mut ys1] {
+        v.sort_unstable();
+    }
+    let (x0, y0) = (quantile(&xs0, 0.10), quantile(&ys0, 0.10));
+    let (x1, y1) = (quantile(&xs1, 0.90), quantile(&ys1, 0.90));
+    Some((x0.min(x1), y0.min(y1), x0.max(x1), y0.max(y1)))
 }
 
 /// 决定"是否需要宽幕布"的组：**移动/悬停/待机/防御** —— 也就是待机与移动状态里
@@ -1181,7 +1226,15 @@ fn union_bounds(
 /// 实测只看悬停帧会漏掉金龙（悬停不越界，但**防御**帧左探 84px）、大天使/黑龙
 /// （**移动**帧左探 29px），于是它们拿不到宽幕布、一动就被裁。
 /// 攻击/死亡不计入：那些是"前扑/倒地"的瞬间，越界属正常，且算进来会让几乎所有生物都变宽幕布。
-const WING_PROBE_GROUPS: &[usize] = &[0, 1, 2, 4];
+pub(crate) const WING_PROBE_GROUPS: &[usize] = &[0, 1, 2, 4];
+
+/// 该动作组是否参与"适配参考"（`fit`）与宽幕布判定 —— 见 [`WING_PROBE_GROUPS`]。
+///
+/// 公开给 sprites-json 动画用：png 动画的包围盒要逐组解码才知道，无法像 DEF 那样一次读全，
+/// 只能按同样的组集合**累计**（见 `vcmi::anim_json`），否则两条路径的缩放口径会分叉。
+pub(crate) fn is_fit_probe_group(group: usize) -> bool {
+    WING_PROBE_GROUPS.contains(&group)
+}
 
 /// 显示几何的三层矩形（都是 1x 画布坐标）。
 ///
@@ -1198,13 +1251,24 @@ pub(crate) struct WindowPlan {
     pub fit: (i64, i64, i64, i64),
 }
 
-fn anim_window(def: &crate::infra::def::DefReader, double_wide: bool) -> WindowPlan {
-    let canvas = def.canvas_size();
-    let wing_probe = union_bounds(def, |g| WING_PROBE_GROUPS.contains(&g));
-    // 适配参考只看"站着/走动"的姿态（0/1/2/4）：攻击前扑、死亡摊开的越界属正常裁剪
-    let fit_probe = union_bounds(def, |g| WING_PROBE_GROUPS.contains(&g));
-    let all_probe = union_bounds(def, |_| true);
-    let win = two_layout_window(double_wide, canvas, wing_probe);
+/// **统一的显示几何计算**：DEF 与 sprites-json 两条动画路径共用此入口。
+///
+/// 素材格式不可控（第三方 mod 的生物可能比原版窗口大 2 倍、站得偏左半个身位），
+/// 但"怎么摆"必须只有一套规则 —— 这里只接受**包围盒**，不关心它来自 DEF 帧头还是 png 的
+/// alpha 扫描。任何新的动画来源（png / webp 序列 / 将来的矢量）都应当归一到
+/// `(fit_bounds, all_bounds)` 再调进来，不要在调用处另写一套窗口逻辑。
+///
+/// - `fit_bounds`：**适配参考**（待机/移动/悬停/防御组的 p10–p90 分位包围盒，
+///   见 [`bounds_from_rects`]）—— 决定宽幕布与缩放倍数；
+/// - `all_bounds`：**全部已知组的并集** —— 决定裁剪矩形 `tex`（保头保尾；
+///   这里刻意不用分位，否则被剔除的那几帧的像素在进前端之前就没了）。
+pub(crate) fn plan_from_bounds(
+    double_wide: bool,
+    canvas: Option<(u32, u32)>,
+    fit_bounds: Option<(i64, i64, i64, i64)>,
+    all_bounds: Option<(i64, i64, i64, i64)>,
+) -> WindowPlan {
+    let win = two_layout_window(double_wide, canvas, fit_bounds);
 
     // ⚠️ 包围盒口径是 `(x0, y0, x1, y1)`，窗口口径是 `(x, y, w, h)` —— 必须先统一再并
     let win_bbox = (win.0, win.1, win.0 + win.2, win.1 + win.3);
@@ -1226,9 +1290,26 @@ fn anim_window(def: &crate::infra::def::DefReader, double_wide: bool) -> WindowP
     };
     WindowPlan {
         win,
-        tex: clamp(union(all_probe, win_bbox)),
-        fit: clamp(union(fit_probe, win_bbox)),
+        tex: clamp(union(all_bounds, win_bbox)),
+        fit: clamp(union(fit_bounds, win_bbox)),
     }
+}
+
+fn anim_window(def: &crate::infra::def::DefReader, double_wide: bool) -> WindowPlan {
+    // 一次解析拿全部逐帧包围盒，再按组分成"适配池"（分位 → fit）与"全量池"（并集 → tex）
+    let rects = def.frame_rects_by_group();
+    let fit_rects: Vec<Rect> = rects
+        .iter()
+        .filter(|(g, _)| is_fit_probe_group(*g))
+        .map(|(_, r)| *r)
+        .collect();
+    let all_rects: Vec<Rect> = rects.iter().map(|(_, r)| *r).collect();
+    plan_from_bounds(
+        double_wide,
+        def.canvas_size(),
+        bounds_from_rects(&fit_rects),
+        union_rects(&all_rects),
+    )
 }
 
 /// 取某 `.def` 指定分组的动画帧，**高清优先、1x 兜底**，两者都合成进 VCMI 显示窗口。
@@ -1280,23 +1361,16 @@ pub(crate) fn read_def_group_hd_inner(
         if let Some(anim) =
             crate::vcmi::anim_json::load_group(paths, mod_id, resource, group, double_wide)
         {
-        let (jx, jy, jw, jh) = anim.window;
-        // png 动画的帧即整画布：win = 基准窗口，tex = 窗口 ∪ 帧包围盒（实测这类素材多在窗口内）
-        let plan = crate::vcmi::resource::WindowPlan {
-            win: (
-                if double_wide { WIN_X_DOUBLE } else { WIN_X_SINGLE },
-                WIN_Y,
-                WIN_W,
-                WIN_H,
-            ),
-            tex: (jx, jy, jw, jh),
-            fit: (jx, jy, jw, jh),
-        };
-        let _ = &plan;
+        // 显示几何**与 DEF 完全同口径**（`plan_from_bounds`）：幕布窗口按适配组算宽幕布，
+        // 裁剪矩形 `win ∪ 全部已见组` 保头保尾，适配参考 `win ∪ 适配组` 决定缩放倍数。
+        // 早先这里把 `tex = fit = 基准窗口`，png 生物的头顶在进前端之前就被切掉了
+        // （实测 HuaXia「云南蛊女」alpha bbox 顶在 y=118，窗口上沿 155 → 头没了 37px）。
+        let plan = anim.plan;
+        let (tx, ty, tw, th) = plan.tex;
         let mut frames: Vec<(i64, i64, u32, u32, Vec<u8>)> = Vec::new();
         for img in &anim.frames {
             let (w, h) = (img.width(), img.height());
-            if let Some(f) = encode_window_frame(img.as_raw(), w, h, -jx, -jy, jw, jh) {
+            if let Some(f) = encode_window_frame(img.as_raw(), w, h, -tx, -ty, tw, th) {
                 frames.push(f);
             }
         }
@@ -1304,7 +1378,7 @@ pub(crate) fn read_def_group_hd_inner(
             return None;
         }
         // png 动画没有官方 HD 档位（HD 包只收原版 DEF 的帧名）→ 恒 1x，由前端平滑放大
-        return Some(build_window_json(frames, (jx, jy, jw, jh), 1, &plan));
+        return Some(build_window_json(frames, (tx, ty, tw, th), 1, &plan));
         }
     }
 
@@ -1671,5 +1745,83 @@ mod tests {
 
         let _ = fs::remove_dir_all(&root);
         let _ = fs::remove_dir_all(&only);
+    }
+
+    /// **裁剪矩形必须含素材越出窗口的部分**（2026-10-22 修复 png 动画"没头"）。
+    ///
+    /// 回归背景：sprites-json 路径早先直接把 `tex = fit = 基准窗口`，
+    /// 实测 HuaXia「云南蛊女」待机组 alpha 包围盒顶在 y=118（窗口上沿 155）→
+    /// 头顶 37px 在**进入前端之前**就被切掉，前端再怎么缩放也补不回来。
+    /// 本用例锁住三条口径（DEF 与 png 共用 `plan_from_bounds`）：
+    /// 幕布仍是两种布局之一、裁剪矩形包住素材、适配参考含 bbox 以便前端等比缩小。
+    #[test]
+    fn plan_from_bounds_keeps_offscreen_art() {
+        // 450×400 画布；待机组 bbox 顶在 118；全部组再向左下扩（攻击帧）
+        let fit = Some((133, 118, 280, 268));
+        let all = Some((130, 103, 358, 273));
+        let p = plan_from_bounds(true, Some((450, 400)), fit, all);
+        // 宽度需求 = 280 − 133 = 147 ≥ 105% × 100 → 宽幕布；高度恒 130（布局稳定）
+        assert_eq!((p.win.2, p.win.3), (200, 130), "幕布只能是两种布局之一");
+        assert!(p.tex.1 <= 118, "裁剪矩形上沿必须包住头部（实测 {}）", p.tex.1);
+        assert_eq!(p.tex, (120, 103, 238, 182), "裁剪 = 幕布 ∪ 全部组包围盒");
+        assert_eq!(p.fit, (120, 118, 200, 167), "适配参考 = 幕布 ∪ 适配组包围盒");
+
+        // 素材信息缺失（首帧全透明 / 组不存在）→ 退回基准窗口，不得 panic 或造 0 尺寸
+        let base = plan_from_bounds(false, None, None, None);
+        assert_eq!(base.win, (150, 155, 100, 130));
+        assert_eq!(base.tex, base.win);
+        assert_eq!(base.fit, base.win);
+    }
+
+    /// 宽幕布判定**只看宽度**（2026-10-22 拍板）：阈值 = 幕布宽 × 105%。
+    #[test]
+    fn wing_layout_depends_on_width_only() {
+        let canvas = Some((450, 400));
+        // 单格（窗口 150..250）：宽度需求 104 → 不触发；105 → 触发
+        assert_eq!(
+            two_layout_window(false, canvas, Some((150, 0, 254, 285))).2,
+            100,
+            "宽度 104 < 105% 不切宽幕布"
+        );
+        assert_eq!(
+            two_layout_window(false, canvas, Some((150, 0, 255, 285))).2,
+            200,
+            "宽度 105 = 105% 应切宽幕布"
+        );
+        // 高度不参与：宽度恰好 100、高度撑满画布 → 仍是标准幕布
+        assert_eq!(
+            two_layout_window(true, canvas, Some((170, 0, 270, 400))).2,
+            100,
+            "高度不得影响宽幕布判定"
+        );
+        // 位置偏移也计入宽度需求：bbox 在窗口左侧（130..210）→ 270-130 = 140 → 宽幕布
+        assert_eq!(
+            two_layout_window(true, canvas, Some((130, 155, 210, 285))).2,
+            200,
+            "偏左素材的宽度需求含窗口，应切宽幕布"
+        );
+    }
+
+    /// 适配包围盒用 **p10–p90 分位**：单帧离群不得拖垮整组；帧数不足退回并集。
+    #[test]
+    fn quantile_bounds_ignores_single_outlier() {
+        // 9 帧：8 帧正常（100×100），1 帧把整幅画布当帧
+        let mut rects: Vec<Rect> = (0..8).map(|i| (150 + i, 155, 250 + i, 255)).collect();
+        rects.push((0, 0, 450, 400));
+        let b = bounds_from_rects(&rects).expect("有帧");
+        assert!(
+            b.2 - b.0 <= 120 && b.3 - b.1 <= 120,
+            "离群帧不得把适配包围盒撑到画布（实测 {}x{}）",
+            b.2 - b.0,
+            b.3 - b.1
+        );
+        // 并集则会被撑满 —— 这正是"太阳独角兽/巨角鼠"被缩到 0.5 以下的根因
+        let u = union_rects(&rects).expect("有帧");
+        assert_eq!((u.2 - u.0, u.3 - u.1), (450, 400), "并集口径必被离群帧撑满");
+
+        // 帧数低于分位门槛 → 退回并集（小样本分位会被单帧带偏）
+        let few: Vec<Rect> = vec![(150, 155, 250, 255), (0, 0, 450, 400)];
+        assert_eq!(bounds_from_rects(&few), union_rects(&few));
+        assert_eq!(bounds_from_rects(&[]), None);
     }
 }
