@@ -13,8 +13,8 @@ import { ModBrowser } from "@/features/mods/ModBrowser";
 import type { ModInfo } from "@/lib/modScanner";
 import type { LangDict } from "@/i18n/types";
 import type { DepSolveResult } from "@/lib/modDeps";
-import { REALM_PRESET_ID } from "../editorShared";
-import { RealmModManagerPanel, type RealmModManagerPanelProps } from "../RealmModManagerPanel";
+import { REALM_PRESET_ID } from "@/features/realms/editor/editorShared";
+import { RealmModManagerPanel, type RealmModManagerPanelProps } from "@/features/realms/editor/RealmModManagerPanel";
 
 /** 双视图标识（§4.4：非路由；切 tab 保持） */
 export type ModsViewMode = "presets" | "manage";

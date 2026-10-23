@@ -80,7 +80,7 @@ function previewRewrite(url: string, r: MirrorRule): string | null {
 
 /** 摘要里的镜像域名（解析失败退回原文） */
 function mirrorDomain(r: MirrorRule): string {
-  const v = (r.mode === "prefix" ? r.prefix : r.template ?? "").trim();
+  const v = (r.mode === "prefix" ? r.prefix ?? "" : r.template ?? "").trim();
   try {
     return new URL(v).host;
   } catch {

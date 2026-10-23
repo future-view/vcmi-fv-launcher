@@ -15,7 +15,7 @@ export interface EditorProps {
   editing: Realm;
   onCancel: () => void;
   onSaved: () => void;
-  showToast: (type: "success" | "error", msg: string) => void;
+  showToast: (type: "success" | "error" | "info", msg: string) => void;
   /**
    * 把编辑器内部的返回处理（`handleBack`，含未保存改动的确认弹窗）注册给宿主
    * （`RealmShell` 的 `editorBackRef`）：编辑器的「返回 + 标题」已上提为覆盖层
@@ -49,7 +49,7 @@ export function installedToModInfo(m: InstalledMod): ModInfo {
     // 引擎兼容区间 / 语言 / modType 原文：领域模组列表与 Mods 页面共用同一套
     // 守卫与角标（版本不兼容、翻译语言不符），缺了这些字段领域页就会静默失去提示。
     compatibility: m.compatibility ?? null,
-    language: m.language ?? null,
+    language: m.language ?? undefined,
     rawType: m.rawType ?? null,
     subs: [],
     factions: m.factions,
@@ -83,7 +83,7 @@ export function realmModToModInfo(m: RealmInstalledMod): ModInfo {
     softDepends: m.softDepends ?? [],
     conflicts: m.conflicts ?? [],
     compatibility: null,
-    language: null,
+    language: undefined,
     rawType: m.rawType ?? null,
     subs: [],
     factions: m.factions,

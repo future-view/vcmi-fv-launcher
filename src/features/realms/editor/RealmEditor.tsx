@@ -45,6 +45,14 @@ import { RealmIntroOverlay } from "@/features/realms/RealmIntroOverlay";
 import { RealmShell } from "@/features/realms/RealmShell";
 import { ShowcaseOverlay } from "@/features/realms/showcase/ShowcaseOverlay";
 import { EditorProps, REALM_PRESET_ID, realmModToModInfo } from "./editorShared";
+import {
+  adoptRefs,
+  addPreset as addPresetTo,
+  deletePreset as deletePresetFrom,
+  enableDep,
+  purgeRoots,
+  renamePreset as renamePresetIn,
+} from "./realmPresets";
 import { LanguagePicker } from "./LanguagePicker";
 import { BasicTab, type BasicTabProps } from "./tabs/BasicTab";
 import { AdvancedTab, type AdvancedTabProps } from "./tabs/AdvancedTab";
@@ -796,47 +804,33 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
   /** 新建模组组合：以输入的名称为预设 id，创建后即切换过去（空组合，自行勾选模组） */
   const addPreset = () => {
     const id = newPresetName.trim();
-    if (!id || presets[id]) return;
-    setPresets((ps) => ({ ...ps, [id]: [] }));
+    const next = addPresetTo(presets, id);
+    if (!next) return;
+    setPresets(next);
     setActivePreset(id);
     setNewPresetName("");
     setAddingPreset(false);
   };
   /** 删除当前模组组合（至少保留一个），并切到剩下的第一个 */
   const deletePreset = () => {
-    const rest = Object.keys(presets).filter((p) => p !== activePreset);
-    if (rest.length === 0) return;
-    setPresets((ps) => {
-      const next = { ...ps };
-      delete next[activePreset];
-      return next;
-    });
-    setActivePreset(rest[0]);
+    const r = deletePresetFrom(presets, activePreset);
+    if (!r) return;
+    setPresets(r.presets);
+    setActivePreset(r.active);
   };
   /** 重命名模组组合：键值整体迁移并保持激活态（`__realm__` 为契约 id，不可重命名） */
   const renamePreset = (from: string, to: string) => {
-    const n = to.trim();
-    if (!n || n === from || from === REALM_PRESET_ID || presets[n]) return;
-    setPresets((ps) => {
-      const next: Record<string, string[]> = {};
-      for (const [k, v] of Object.entries(ps)) next[k === from ? n : k] = v;
-      return next;
-    });
-    setActivePreset((cur) => (cur === from ? n : cur));
+    const next = renamePresetIn(presets, from, to);
+    if (!next) return;
+    setPresets(next);
+    setActivePreset((cur) => (cur === from ? to.trim() : cur));
   };
 
   /** 从**全部预设**清理这些根模组及其子模组（realm-mods-management §7.7）：
    * 「取消引用 / 删除」的联动——物理层已移除的模组不应在启用组合里残留。 */
   const purgePresets = (rootIds: string[]) => {
     if (rootIds.length === 0) return;
-    const roots = new Set(rootIds.map((x) => x.toLowerCase()));
-    setPresets((ps) => {
-      const next: Record<string, string[]> = {};
-      for (const [k, v] of Object.entries(ps)) {
-        next[k] = v.filter((id) => !roots.has(rootOf(id).toLowerCase()));
-      }
-      return next;
-    });
+    setPresets((ps) => purgeRoots(ps, rootIds, rootOf));
   };
 
   /**
@@ -846,19 +840,10 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
    * 返回**落定**的组合名（供结果提示）。
    */
   const adoptPresetRefs = (ids: string[], create?: string): string => {
-    if (create) {
-      let name = create;
-      let i = 2;
-      while (presets[name]) name = `${create}-${i++}`;
-      setPresets((ps) => ({ ...ps, [name]: [...new Set([...(ps[name] ?? []), ...ids])] }));
-      setActivePreset(name);
-      return name;
-    }
-    setPresets((ps) => ({
-      ...ps,
-      [REALM_PRESET_ID]: [...new Set([...(ps[REALM_PRESET_ID] ?? []), ...ids])],
-    }));
-    return REALM_PRESET_ID;
+    const r = adoptRefs(presets, ids, create);
+    setPresets(r.presets);
+    if (create) setActivePreset(r.name);
+    return r.name;
   };
 
   /**
@@ -874,17 +859,7 @@ export function RealmEditor({ editing, onCancel, onSaved, showToast, registerBac
     if (presetNames.length === 0) return;
     const canonical =
       realmMods.find((m) => m.id.toLowerCase() === depId.toLowerCase())?.id ?? depId;
-    setPresets((ps) => {
-      let changed = false;
-      const next = { ...ps };
-      for (const p of presetNames) {
-        const cur = next[p];
-        if (!cur || cur.some((v) => v.toLowerCase() === canonical.toLowerCase())) continue;
-        next[p] = [...cur, canonical];
-        changed = true;
-      }
-      return changed ? next : ps;
-    });
+    setPresets((ps) => enableDep(ps, presetNames, canonical));
   };
 
   /**

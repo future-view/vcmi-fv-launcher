@@ -1,8 +1,8 @@
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RealmAssets, RealmBackgroundFilter } from "@/lib/realm/types";
-import { FilterSlider } from "../FilterSlider";
-import { Field } from "../Field";
+import { FilterSlider } from "@/features/realms/editor/FilterSlider";
+import { Field } from "@/features/realms/editor/Field";
 import type { LangDict } from "@/i18n/types";
 
 export interface IntroTabProps {

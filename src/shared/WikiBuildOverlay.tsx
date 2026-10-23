@@ -41,6 +41,7 @@ export function stageReadyHint(
       readyHintTemplate: string;
       readyHintRest: string;
       stageSeparator: string;
+      stagePrep: string;
       stageData: string;
       stageAssets: string;
       stageHd: string;

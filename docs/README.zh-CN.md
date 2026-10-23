@@ -12,7 +12,7 @@
 | [overview](./architecture/overview.zh-CN.md) | 定位、能力全景、技术栈、目录结构、文档约定 |
 | [frontend](./architecture/frontend.zh-CN.md) | 前端四层、目录归属判定、依赖方向、启动编排 |
 | [backend](./architecture/backend.zh-CN.md) | Rust 分层、infra 模块清单、并发节流、禁改清单 |
-| [ipc](./architecture/ipc.zh-CN.md) | 136 个命令清单、事件、三方 parity、冻结契约 |
+| [ipc](./architecture/ipc.zh-CN.md) | 命令清单、事件、三方 parity、冻结契约 |
 | [persistence](./architecture/persistence.zh-CN.md) | 数据目录、`launcher.json` 分组、领域 / 缓存 / 日志布局 |
 
 ## 功能

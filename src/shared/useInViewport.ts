@@ -20,8 +20,8 @@ import { useEffect, useRef, useState, type RefObject } from "react";
  */
 export function useInViewport<T extends Element>(
   rootMargin = "300px",
-): { ref: RefObject<T | null>; inView: boolean } {
-  const ref = useRef<T | null>(null);
+): { ref: RefObject<T>; inView: boolean } {
+  const ref = useRef<T>(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {
     if (inView) return;

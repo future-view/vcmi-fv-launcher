@@ -122,7 +122,7 @@ export function contentLangKey(uiLang: string): string {
  * 回退顺序严格对齐 VCMI：**当前语言 → 英文（VCMI 翻译基准语言）**。
  * 不做「任意语言」兜底，也不在英文界面回退到中文——否则会出现捷克语残留、
  * 或英文界面显示中文等与 VCMI 不一致的表现。 */
-export function pickName(name: Record<string, string> | undefined, lang: string): string {
+export function pickName(name: Record<string, string> | null | undefined, lang: string): string {
   if (!name) return "";
   const l = contentLangKey(lang);
   for (const k of [l, "english"]) {
@@ -170,7 +170,7 @@ export async function loadModCache(modId: string): Promise<Record<string, unknow
 
 /** 把 images/ 相对路径拼成缓存根目录下的绝对路径，供 convertFileSrc 使用。
  * 浏览器自测模式（非 Tauri）下改走 vite mock-cache 中间件的 URL（rel 已含 <modId>/ 前缀）。 */
-export function fullImgUrl(cacheDir: string | null, rel?: string): string {
+export function fullImgUrl(cacheDir: string | null | undefined, rel?: string): string {
   if (!rel) return "";
   const norm = rel.replace(/\\/g, "/");
   if (!isTauri()) return `/mock-cache/mods/${norm}`;

@@ -1,6 +1,6 @@
 ---
 description: Tauri 与 VCMI 集成要点：目录识别（dirs.json/默认规则）、IPC 命令契约、游戏/编辑器启动、modSettings 读写与备份、Windows 打包。涉及 src-tauri 或 IPC 时必读。
-globs: ["src-tauri/**", "src/lib/tauri.ts", "**/tauri.conf.json"]
+globs: ["src-tauri/**", "src/lib/tauri.ts", "src/lib/ipc/**", "**/tauri.conf.json"]
 ---
 
 # Tauri / VCMI 集成
@@ -21,7 +21,7 @@ globs: ["src-tauri/**", "src/lib/tauri.ts", "**/tauri.conf.json"]
 | `launch_editor` | — | () | spawn `VCMI_mapeditor.exe`（同上） |
 | `open_in_explorer` | `{ path }` | () | 系统资源管理器打开目录 |
 
-- 前端统一经 `src/lib/tauri.ts` 调用；`isTauri()` 为假时返回 mock，不抛错。
+- 前端统一经 `src/lib/tauri.ts`（barrel）+ `src/lib/ipc/*` 调用；`isTauri()` 为假时返回 mock，不抛错。
 - 后端错误统一返回 `Result<T, String>`，中文描述由前端展示。
 - ⚠️ 启动类命令**必须** `.current_dir(game_dir)`：VCMI 按**进程工作目录**解析相对路径
   （`CFilesystemLoader` 的 `dataPaths()` 硬编码 `"."`），从启动器 spawn 时会继承启动器自身的 cwd。

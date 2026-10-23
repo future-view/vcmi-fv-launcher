@@ -1,12 +1,13 @@
 # ==========================================================================
 # CI —— 四项静态自检（快速、无需真实游戏目录）
 #
-# 覆盖重构后最容易静默失效的三处契约：
-#   1. IPC 契约（前端 invoke / 后端 #[tauri::command] / lib.rs 注册表 三方一致，基线 77 命令）
+# 覆盖重构后最容易静默失效的四处契约：
+#   1. IPC 契约（前端 invoke / 后端 #[tauri::command] / lib.rs 注册表 三方一致；命令数以脚本输出为准，勿在此写死）
 #   2. modSettings 结构（纯 Node 验证脚本，用临时副本，不改真实文件）
-#   3. Rust 编译 + 前端类型
+#   3. Rust 编译 + 前端类型 + 前端生产构建（vite build，抓 tsc 漏掉的打包期错误）
+#   4. 前端单元测试（vitest）+ 代码规范（ESLint）
 #
-# 说明：真机冒烟测试（`wiki::smoke_tests`，多为 #[ignore] + 依赖真实游戏目录）
+# 说明：真机冒烟测试（`modcache::smoke_tests`，多为 #[ignore] + 依赖真实游戏目录）
 #       不在 CI 内运行 —— 需要 `-- --ignored` 与 `VCMI_GAME_DIR`。
 # ==========================================================================
 name: CI
@@ -34,6 +35,12 @@ jobs:
         run: npm ci
       - name: TypeScript 类型检查
         run: npx tsc --noEmit
+      - name: 前端生产构建（vite build，验证打包期可解析）
+        run: npx vite build
+      - name: 前端单元测试（vitest）
+        run: npm run test:unit
+      - name: 代码规范检查（ESLint，错误阻断、告警不阻断）
+        run: npm run lint
       - name: IPC 契约三方比对
         run: npm run check:invoke-parity
       - name: modSettings 结构验证

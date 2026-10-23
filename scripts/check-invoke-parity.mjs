@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * IPC 契约一致性检查（可进 CI）：比对
- *   ① 前端 `invoke("x")` 字面量
+ *   ① 前端 `invoke("x")` 字面量（`src/lib/tauri.ts` barrel + `src/lib/ipc/**` 各域文件）
  *   ② 后端 `#[tauri::command]` 函数（src-tauri/src/*.rs）
  *   ③ `lib.rs` 的 `generate_handler!` 注册表
  *
@@ -23,7 +23,9 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, "..");
 const TAURI_SRC = path.join(REPO, "src-tauri", "src");
-const FE_FILE = path.join(REPO, "src", "lib", "tauri.ts");
+/** IPC 实现已按域拆到 `src/lib/ipc/**`；barrel 也扫，防止有人把 invoke 写回 barrel。 */
+const FE_BARREL = path.join(REPO, "src", "lib", "tauri.ts");
+const FE_IPC_DIR = path.join(REPO, "src", "lib", "ipc");
 
 /** Tauri 注入参数（不出现在 IPC 参数里） */
 const INJECT_PREFIXES = [
@@ -144,10 +146,28 @@ function readRegistry() {
   return names;
 }
 
+/** 递归收集目录下的 .ts 文件（只收 `.ts`，域文件不含 JSX） */
+function tsFiles(dir) {
+  if (!fs.existsSync(dir)) return [];
+  const out = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...tsFiles(p));
+    else if (e.name.endsWith(".ts")) out.push(p);
+  }
+  return out;
+}
+
 /** ③ 前端 invoke */
 function readFrontend() {
-  const text = stripComments(fs.readFileSync(FE_FILE, "utf8"));
   const map = new Map();
+  for (const file of [FE_BARREL, ...tsFiles(FE_IPC_DIR)]) {
+    collectInvokes(stripComments(fs.readFileSync(file, "utf8")), map);
+  }
+  return map;
+}
+
+function collectInvokes(text, map) {
   let search = 0;
   while (true) {
     const i = text.indexOf("invoke", search);
@@ -183,7 +203,6 @@ function readFrontend() {
     }
     map.set(name, rec);
   }
-  return map;
 }
 
 const backend = readBackend();

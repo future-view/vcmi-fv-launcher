@@ -1,13 +1,13 @@
 # IPC 命令契约
 
-> 状态：已实现 ｜ 最后核对：2026-10-17 ｜ 代码：`src-tauri/src/lib.rs`、`src/lib/tauri.ts`、`scripts/check-invoke-parity.mjs`
-> 当前基线 **138 个命令**（以脚本输出为准）。改后端必跑 `npm run check:invoke-parity`。
+> 状态：已实现 ｜ 最后核对：2026-10-24 ｜ 代码：`src-tauri/src/lib.rs`、`src/lib/tauri.ts`（barrel）+ `src/lib/ipc/**`、`scripts/check-invoke-parity.mjs`
+> 命令总数**以脚本输出为准**（勿在文档写死具体数字，避免漂移）。改后端必跑 `npm run check:invoke-parity`。
 
 ## 1. 三方一致性
 
 脚本比对三方，任一不一致退出码 1：
 
-1. 前端 `src/lib/tauri.ts` 里的字面量 `invoke("x")`（前端 invoke 集中在此文件，脚本只扫它）；
+1. 前端 `invoke("x")` 字面量（实现按域拆在 `src/lib/ipc/*.ts`，脚本递归扫描该目录 **并** `src/lib/tauri.ts` barrel）；
 2. Rust 侧 `#[tauri::command]` 定义（含**参数名**）；
 3. `lib.rs` 的 `generate_handler!` 注册表。
 

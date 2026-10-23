@@ -180,7 +180,7 @@ export function resolveDwellingId(
   if (names.length > 0) {
     const hit = buildings.find((b) => {
       // 建筑名可能是多语言对象，也可能已是字符串（第三方模组偶见）
-      const nm = typeof b.name === "string" ? b.name : pickName(b.name ?? undefined, lang);
+      const nm = typeof b.name === "string" ? b.name : pickName(b.name ?? undefined, lang ?? "");
       return !!nm && names.includes(nm);
     });
     if (hit) return hit.id;

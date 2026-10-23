@@ -55,13 +55,15 @@ shell / features/*  ──►  features/{mods, wiki, settings}  ──►  share
 | `shell/TopBar.tsx` / `shell/BottomBar.tsx` | 主界面顶栏（品牌 + 页签 + 窗口控件）/ 底栏（游戏数据 / 帮助 / 编辑器 / 启动游戏） |
 | `features/realms/RealmShell.tsx` | 领域全屏覆盖层**容器**：状态编排 + 页面分发 + 弹窗；页面实体在 `HomePage.tsx`（主界面）/ `InfoBody.tsx`（信息页）/ `switch/` / `repository/` / `editor/` / `features/settings` |
 | `features/wiki/detail/EntryDetail.tsx` | 百科条目详情**入口 + 按 category 分发**；公共件在 `detailShared.tsx`，各 `modType` 渲染在 `XxxDetail.tsx`（生物/英雄/城镇/建筑/宝物/法术/技能/地形/模组） |
-| `features/realms/editor/RealmEditor.tsx` | 领域编辑器**状态编排**（表单 state / 校验 / 保存 / 导出）+ 标签栏与弹窗；四个标签页在 `tabs/{Basic,Intro,Mods,Advanced}Tab.tsx`，通过 `XxxTabProps` 接收扁平 props |
+| `features/realms/editor/RealmEditor.tsx` | 领域编辑器**状态编排**（表单 state / 校验 / 保存 / 导出）+ 标签栏与弹窗；五个标签页在 `tabs/{Basic,Intro,Mods,Advanced,Showcase}Tab.tsx`，通过 `XxxTabProps` 接收扁平 props。预设（模组组合）的纯变换在 `realmPresets.ts`（可直接单测）；`tabs/showcaseControls.tsx` 收巡礼页的通用表单控件 |
+| `features/realms/editor/RealmModManagerPanel.tsx` | 领域模组管理（四页签的**数据装配与动作编排**：下载队列 worker / 导入 / 依赖处置 / 确认弹窗）；四张表格在 `RealmModTables.tsx`，props **刻意沿用主组件同名闭包**，新增列按同一口径补 prop |
 | `lib/modScanner.ts` | 扫描 `Mods/`，解析各 mod.json，按 modType 分组；submod 用 `parent.child` ID 归并 |
 | `lib/minimapBase.ts` | 基线 mods 配置（默认增强版 `["vcmi","h3e-main-menu","core"]`） |
 | `lib/settingsSchema.ts` | 官方设置面板 schema（13 标签 / 157 项，bool/enum/slider/num/text/button）—— **只有结构，无文案**；label/desc 在 `i18n/settingsText.<lang>.ts`，键域由 `generated/settingKeys.ts` 穷举 |
 | `lib/realm/{store,intro,types}.ts` | 领域不可变快照 store（`useSyncExternalStore`）、多语言回退取词、领域类型 |
 | `i18n/` | 界面词典：`langs.ts`（支持哪几种语言 = `UI_LANG_IDS`，标识与官方 VCMI 同名单，当前 5 种：中/英/俄/波/德，可扩展）+ `zh-CN.ts` / `en.ts` / `ru.ts` / `pl.ts` / `de.ts`（各一本完整 `LangDict`）+ 分段正文 `settingsText.<lang>.ts` + `types.ts`；VCMI 语言标识 ↔ 本地化名 ↔ BCP-47 标签在 `lib/vcmiLangs.ts`（经 `vcmiLangName` / `vcmiLangTag` 取用） |
-| `lib/tauri.ts` | IPC 桥接：`isTauri()` 区分环境，`invoke()` 调后端命令 |
+| `lib/tauri.ts` | IPC 桥接 **barrel**：仅 `export * from "./ipc/*"`；`isTauri()` 区分环境，`invoke()` 调后端命令 |
+| `lib/ipc/*.ts` | IPC 实现按域拆分（`core` 基础设施 / `window` 窗口 / `config` 配置 / `prefs` 偏好项 / `dialog` 对话框 / `wiki` 构建 / `settings-json` 原始配置 / `launch` 启动与体检 / `wiki-read` 缓存读取 / `vcmi-settings` 设置面板 / `realm*` 领域四件 / `mods` 仓库 / `mod-install` 本地安装 / `game-import` 导入 / `def` 动画 / `updater` 自动更新 / `runtime` 外挂组件）—— 新命令加在对应域文件，**不再堆回单体** |
 | `lib/zip.ts` / `lib/enc.ts` | yauzl 精准单条目读取 / 加密检测；编码回退 + 宽松 JSON 解析 |
 | `lib/helpDoc.ts` | 帮助文档：内置 Markdown（`src/assets/help/help.<lang>.md`，5 语言）装载 + 受控子集解析（`Block[]`）+ 目录 / 搜索 —— 解析器**无 React**，见 `docs/features/i18n.zh-CN.md` §4 |
 
@@ -84,7 +86,7 @@ shell / features/*  ──►  features/{mods, wiki, settings}  ──►  share
 
 ### IPC 契约冻结清单（改后端必读）
 
-**改完必须跑 `npm run check:invoke-parity`** —— 比对前端 `invoke("x")` / 后端 `#[tauri::command]` / `lib.rs` 注册表三方，有差异退出码 1。当前基线：**135 个命令**（以脚本输出为准）（2026-09-15 新增启动器自动更新 6 命令：`check_launcher_update` / `download_launcher_update` / `cancel_launcher_update` / `apply_launcher_update` / `set_update_pref` / `set_update_manifest_url`；2026-09-17 新增 `set_town_preview`（城镇背景 hover 预览开关）；2026-09-23 新增 HD 素材 3 命令：`set_hd_edition_use` / `set_hd_edition_scale` / `hd_edition_status`（官方 HD 版素材 `.pak` 的来源开关、档位与状态探测）；2026-09-29 **未新增命令**：可选更新的 7 天节流**复用** `set_update_pref` 扩展参数（`autoCheck` 改 `Option<bool>`、新增 `promptVersion`，旧调用向后兼容 —— 本机工具链对**新增** Tauri 命令会触发 never-type 硬错误，见 `docs/architecture/backend.zh-CN.md` 的对应约束），配套 `check_launcher_update` 出参新增 `shouldPrompt`、`get_runtime_info` 新增可选 `config_dir`；前端 invoke 集中在 `src/lib/tauri.ts`，parity 脚本只扫描该文件）。
+**改完必须跑 `npm run check:invoke-parity`** —— 比对前端 `invoke("x")` / 后端 `#[tauri::command]` / `lib.rs` 注册表三方，有差异退出码 1。命令总数**以脚本输出为准**（勿在文档写死具体数字，避免漂移）（2026-09-15 新增启动器自动更新 6 命令：`check_launcher_update` / `download_launcher_update` / `cancel_launcher_update` / `apply_launcher_update` / `set_update_pref` / `set_update_manifest_url`；2026-09-17 新增 `set_town_preview`（城镇背景 hover 预览开关）；2026-09-23 新增 HD 素材 3 命令：`set_hd_edition_use` / `set_hd_edition_scale` / `hd_edition_status`（官方 HD 版素材 `.pak` 的来源开关、档位与状态探测）；2026-09-29 **未新增命令**：可选更新的 7 天节流**复用** `set_update_pref` 扩展参数（`autoCheck` 改 `Option<bool>`、新增 `promptVersion`，旧调用向后兼容 —— 本机工具链对**新增** Tauri 命令会触发 never-type 硬错误，见 `docs/architecture/backend.zh-CN.md` 的对应约束），配套 `check_launcher_update` 出参新增 `shouldPrompt`、`get_runtime_info` 新增可选 `config_dir`；前端 invoke 按域拆在 `src/lib/ipc/**`（`src/lib/tauri.ts` 仅为 barrel），parity 脚本递归扫描两者）。
 
 - **命令名 + 参数名** = 前端契约：重命名或改参数会**静默 404**（前端 `invoke` 拿不到命令）。
 - **三层格式各自冻结**（详见重构文档 §7.1）：磁盘 `launcher.json` = **按用途分组的 snake_case**（`paths` / `ui` / `hd` / `mods` / `realms` / `update` / `runtime`，2026-09-24 由平铺改为此结构，**无迁移层**：旧扁平文件视为无效配置）；`read_launcher_config` 出参 = **手写 camelCase**（`gameDir` 等 15 key，2026-09-17 加 `townPreview`）；`write_launcher_config` 入参 = camelCase。任一层被"顺手统一"→ 用户配置丢失或启动流程断裂。

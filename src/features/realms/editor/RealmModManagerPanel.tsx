@@ -65,6 +65,18 @@ import type { Row } from "@/features/mods/ModManagerPanel";
 import { ConfirmDialog } from "@/shared/ConfirmDialog";
 import { DepClosureDialog } from "./DepClosureDialog";
 import { DepResolveDialog } from "./DepResolveDialog";
+import {
+  DownloadableTable,
+  InstalledTable,
+  ReferableTable,
+  UpdatableTable,
+  pctOf,
+  type DelDlgState,
+  type DlMap,
+  type QItem,
+  type UnrefDlgState,
+  type UpdRow,
+} from "./RealmModTables";
 import { installedToModInfo, realmModToModInfo } from "./editorShared";
 import type { LangDict } from "@/i18n/types";
 import { backendErrorText } from "@/lib/backendError";
@@ -120,56 +132,6 @@ type ManageTab = "installed" | "referable" | "downloadable" | "updatable";
 
 /** 根模组 id（`parent.child` → `parent`）。 */
 const rootId = (id: string) => (id.includes(".") ? id.split(".")[0] : id);
-
-/** 下载/更新队列项（本组件内部 worker 串行执行；失败不中断后续）。 */
-interface QItem {
-  id: string;
-  name: string;
-  state: "queued" | "running" | "done" | "fail";
-  /** 任务类型：install = 可下载页安装；update = 可更新行升级（引用态先取消引用再装副本） */
-  kind: "install" | "update";
-  /** update 任务上下文（kind === "update" 时必填） */
-  upd?: UpdRow;
-}
-
-function queueLabel(q: QItem, m: LangDict["modsManage"]): string {
-  if (q.state === "queued") return m.qQueued;
-  if (q.state === "running") return m.qRunning;
-  if (q.state === "done") return m.qDone;
-  return m.qFail;
-}
-
-/** 下载进度百分比（total 未知时返回 0）。 */
-const pctOf = (dl: { received: number; total: number }) =>
-  dl.total > 0 ? Math.min(100, Math.floor((dl.received / dl.total) * 100)) : 0;
-
-/** 「可下载 / 可更新」尚未检查仓库时的缺省说明：解释空页原因 + 内联「检查更新」入口。 */
-function RepoNotChecked({
-  t,
-  m,
-  busy,
-  onCheck,
-}: {
-  t: LangDict;
-  m: LangDict["realm"]["modsManage"];
-  busy: boolean;
-  onCheck: () => void;
-}) {
-  return (
-    <div className="mx-auto flex max-w-md flex-col items-center gap-2">
-      <div className="text-sm text-slate-300">{m.repoEmptyTitle}</div>
-      <div className="text-xs leading-5 text-slate-500">{m.repoEmptyHint}</div>
-      <button
-        type="button"
-        onClick={onCheck}
-        disabled={busy}
-        className="rounded border border-slate-600 px-3 py-1 text-xs text-slate-200 hover:border-slate-500 hover:text-white disabled:opacity-40"
-      >
-        {busy ? t.modsRepo.checking : t.modsRepo.check}
-      </button>
-    </div>
-  );
-}
 
 export function RealmModManagerPanel(props: RealmModManagerPanelProps) {
   const {
@@ -266,12 +228,8 @@ export function RealmModManagerPanel(props: RealmModManagerPanelProps) {
   };
 
   /* ---------------- 确认对话框状态 ---------------- */
-  const [unrefDlg, setUnrefDlg] = useState<{ mod: RealmInstalledMod; deps: RealmInstalledMod[]; cascade: boolean } | null>(null);
-  const [delDlg, setDelDlg] = useState<{
-    mod: RealmInstalledMod;
-    kind: "bundled" | "pinned" | "local";
-    deps: RealmInstalledMod[];
-  } | null>(null);
+  const [unrefDlg, setUnrefDlg] = useState<UnrefDlgState | null>(null);
+  const [delDlg, setDelDlg] = useState<DelDlgState | null>(null);
   const [bundleDlg, setBundleDlg] = useState<{ mod: InstalledMod; reason: "game" | "diverged" } | null>(null);
   const [updDlg, setUpdDlg] = useState<UpdRow | null>(null);
   const [impDlg, setImpDlg] = useState<{ items: RealmImportResult[] } | null>(null);
@@ -379,7 +337,7 @@ export function RealmModManagerPanel(props: RealmModManagerPanelProps) {
   const [queue, setQueue] = useState<QItem[]>([]);
   const workerRef = useRef(false);
   /** `mod-download-progress` 事件累积（key = 模组 id 小写）：行内展示下载百分比与解包阶段。 */
-  const [dlMap, setDlMap] = useState<Record<string, { received: number; total: number; done: boolean }>>({});
+  const [dlMap, setDlMap] = useState<DlMap>({});
   useEffect(() => {
     let unsub: (() => void) | null = null;
     let alive = true;
@@ -1424,388 +1382,86 @@ export function RealmModManagerPanel(props: RealmModManagerPanelProps) {
         ))}
       </div>
 
-      {/* 表格区 */}
+      {/* 表格区（四页签的表格体在 ./RealmModTables，props 与本地闭包同名） */}
       <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-slate-800">
         {tab === "installed" && (
-          <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
-            <colgroup>
-              <col className="w-[28%]" />
-              <col className="w-[14%]" />
-              <col className="w-[8%]" />
-              <col className="w-[9%]" />
-              <col className="w-[12%]" />
-              <col className="w-[29%]" />
-            </colgroup>
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-slate-900 text-left text-xs text-slate-500">
-                <th className="border-b border-slate-800 px-3 py-2 font-normal">{mm.colMod}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colDirName}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colType}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{m.colVersion}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colLocation}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colAction}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {typedInstalled.map((x) => {
-                const isRealm = x.source === "realm";
-                const canUnref = x.inBorrowed;
-                const depInfo = depSolve.byRoot.get(x.id.toLowerCase());
-                return (
-                  <tr
-                    key={`${x.source}:${x.id}`}
-                    onClick={() => setDetail({ row: rowOfInstalled(x), entry: repoMap?.get(x.id.toLowerCase()) ?? null })}
-                    className="group cursor-pointer text-slate-300 hover:bg-slate-800/40"
-                  >
-                    <td className="border-b border-slate-800/60 px-3 py-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-white decoration-sky-400/60 transition-colors group-hover:text-sky-300 group-hover:underline">
-                          {shownNameOfRealm(x)}
-                        </span>
-                        {!x.metaOk && (
-                          <span className="shrink-0 rounded border border-red-500/50 bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-300">
-                            {t.mods.missing}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="truncate border-b border-slate-800/60 px-2 py-2 text-xs text-slate-500" title={x.diskName || x.id}>
-                      {x.diskName || x.id}
-                    </td>
-                    <td className="border-b border-slate-800/60 px-2 py-2 text-xs text-slate-400">
-                      {x.type ? (t.mods.typeLabels[x.type] ?? x.type) : "—"}
-                    </td>
-                    <td className="border-b border-slate-800/60 px-2 py-2 tabular-nums">{x.version || "—"}</td>
-                    <td className="border-b border-slate-800/60 px-2 py-2 text-xs text-slate-400">
-                      {isRealm ? mm.locationRealm : x.source === "user" ? mm.locationUser : mm.locationGame}
-                    </td>
-                    <td className="border-b border-slate-800/60 px-2 py-2">
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
-                        {/* 依赖处置（依赖处置体系）：仅缺陷行显示；N = 缺失依赖项数 */}
-                        {depInfo && (
-                          <button
-                            type="button"
-                            disabled={opBusy || queueBusy}
-                            onClick={() => {
-                              setDepStates({});
-                              setDepDlg(x.id.toLowerCase());
-                            }}
-                            className="flex items-center gap-1 rounded border border-amber-500/60 bg-amber-500/10 px-2 py-1 text-amber-200 hover:bg-amber-500/20 disabled:opacity-50"
-                          >
-                            <AlertTriangle className="h-3 w-3" />
-                            {m.depRowBtn}
-                            <span className="rounded bg-amber-500/30 px-1 text-[10px]">{depInfo.total}</span>
-                          </button>
-                        )}
-                        {canUnref && (
-                          <button
-                            type="button"
-                            disabled={opBusy || queueBusy}
-                            onClick={() =>
-                              setUnrefDlg({ mod: x, deps: dependentsOf(x.id), cascade: dependentsOf(x.id).length > 0 })
-                            }
-                            className="rounded border border-slate-600 px-2 py-1 text-slate-300 hover:text-white disabled:opacity-50"
-                          >
-                            {m.actUnref}
-                          </button>
-                        )}
-                        {isRealm && (
-                          <button
-                            type="button"
-                            disabled={opBusy || queueBusy}
-                            onClick={() => {
-                              const kind = x.inPinned ? "pinned" : x.inBundled ? "bundled" : "local";
-                              setDelDlg({ mod: x, kind, deps: dependentsOf(x.id) });
-                            }}
-                            className="rounded border border-red-500/50 px-2 py-1 text-red-300 hover:bg-red-500/10 disabled:opacity-50"
-                          >
-                            {m.actDelete}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {typedInstalled.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-2 py-10 text-center text-slate-500">
-                    {mm.empty}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <InstalledTable
+            t={t}
+            m={m}
+            mm={mm}
+            typedInstalled={typedInstalled}
+            depSolve={depSolve}
+            rowOfInstalled={rowOfInstalled}
+            repoMap={repoMap}
+            setDetail={setDetail}
+            shownNameOfRealm={shownNameOfRealm}
+            opBusy={opBusy}
+            queueBusy={queueBusy}
+            dependentsOf={dependentsOf}
+            setDepStates={setDepStates}
+            setDepDlg={setDepDlg}
+            setUnrefDlg={setUnrefDlg}
+            setDelDlg={setDelDlg}
+          />
         )}
 
         {tab === "referable" && (
-          <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
-            <colgroup>
-              <col className="w-[30%]" />
-              <col className="w-[15%]" />
-              <col className="w-[8%]" />
-              <col className="w-[10%]" />
-              <col className="w-[13%]" />
-              <col className="w-[24%]" />
-            </colgroup>
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-slate-900 text-left text-xs text-slate-500">
-                <th className="border-b border-slate-800 px-3 py-2 font-normal">{mm.colMod}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colDirName}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colType}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{m.colVersion}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colLocation}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colAction}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {typedReferable.map((x) => (
-                <tr
-                  key={x.id}
-                  onClick={() => setDetail({ row: rowOfReferable(x), entry: repoMap?.get(x.id.toLowerCase()) ?? null })}
-                  className="group cursor-pointer text-slate-300 hover:bg-slate-800/40"
-                >
-                  <td className="border-b border-slate-800/60 px-3 py-2">
-                    <span className="truncate text-white decoration-sky-400/60 group-hover:text-sky-300 group-hover:underline">
-                      {localizedName(miOfInstalled(x), vcmiLang) || x.name || x.id}
-                    </span>
-                  </td>
-                  <td className="truncate border-b border-slate-800/60 px-2 py-2 text-xs text-slate-500" title={x.id}>
-                    {x.id}
-                  </td>
-                  <td className="border-b border-slate-800/60 px-2 py-2 text-xs text-slate-400">
-                    {x.type ? (t.mods.typeLabels[x.type] ?? x.type) : "—"}
-                  </td>
-                  <td className="border-b border-slate-800/60 px-2 py-2 tabular-nums">{x.version || x.meta?.version || "—"}</td>
-                  <td className="border-b border-slate-800/60 px-2 py-2 text-xs text-slate-400">
-                    {x.source === "game" ? mm.locationGame : mm.locationUser}
-                  </td>
-                  <td className="border-b border-slate-800/60 px-2 py-2">
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        disabled={opBusy || queueBusy}
-                        onClick={() => void doRef([x.id])}
-                        className="rounded border border-indigo-500/60 bg-indigo-500/10 px-2 py-1 text-indigo-200 hover:bg-indigo-500/20 disabled:opacity-50"
-                      >
-                        {m.actRef}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={opBusy || queueBusy}
-                        onClick={() => void doBundle(x, false)}
-                        className="rounded border border-fuchsia-500/60 bg-fuchsia-500/10 px-2 py-1 text-fuchsia-200 hover:bg-fuchsia-500/20 disabled:opacity-50"
-                      >
-                        {m.actBundle}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {typedReferable.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-2 py-10 text-center text-slate-500">
-                    {mm.empty}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <ReferableTable
+            t={t}
+            m={m}
+            mm={mm}
+            typedReferable={typedReferable}
+            rowOfReferable={rowOfReferable}
+            repoMap={repoMap}
+            setDetail={setDetail}
+            miOfInstalled={miOfInstalled}
+            vcmiLang={vcmiLang}
+            opBusy={opBusy}
+            queueBusy={queueBusy}
+            doRef={doRef}
+            doBundle={doBundle}
+          />
         )}
 
         {tab === "downloadable" && (
-          <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
-            <colgroup>
-              <col className="w-[32%]" />
-              <col className="w-[16%]" />
-              <col className="w-[8%]" />
-              <col className="w-[10%]" />
-              <col className="w-[12%]" />
-              <col className="w-[22%]" />
-            </colgroup>
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-slate-900 text-left text-xs text-slate-500">
-                <th className="border-b border-slate-800 px-3 py-2 font-normal">{mm.colMod}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colDirName}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colType}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{m.colCurVersion}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{m.colSource}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colAction}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {typedDownloadable.map(({ entry, repair }) => {
-                const qq = queueOf(entry.id);
-                const dl = dlMap[entry.id.toLowerCase()];
-                return (
-                  <tr
-                    key={entry.id}
-                    onClick={() => setDetail({ row: rowOfDownloadable(entry), entry })}
-                    className="group cursor-pointer text-slate-300 hover:bg-slate-800/40"
-                  >
-                    <td className="border-b border-slate-800/60 px-3 py-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-white decoration-sky-400/60 group-hover:text-sky-300 group-hover:underline">
-                          {localizedName({ name: entry.name || entry.id, i18n: entry.i18n } as ModInfo, vcmiLang) || entry.name || entry.id}
-                        </span>
-                        {repair && (
-                          <span className="shrink-0 rounded border border-red-500/50 bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-300">
-                            {m.missingTag}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="truncate border-b border-slate-800/60 px-2 py-2 text-xs text-slate-500" title={entry.id}>
-                      {entry.id}
-                    </td>
-                    <td className="border-b border-slate-800/60 px-2 py-2 text-xs text-slate-400">
-                      {entry.modType ? (t.mods.typeLabels[entry.modType] ?? entry.modType) : "—"}
-                    </td>
-                    <td className="border-b border-slate-800/60 px-2 py-2 tabular-nums">{entry.version || "—"}</td>
-                    <td className="border-b border-slate-800/60 px-2 py-2 text-xs text-slate-400">
-                      {entry.sourceKind === "extra" ? mm.sourceExtra : mm.sourceDefault}
-                    </td>
-                    <td className="border-b border-slate-800/60 px-2 py-2">
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => void enqueueFromUi(entry)}
-                          disabled={qq?.state === "queued" || qq?.state === "running"}
-                          className="rounded border border-sky-500/60 bg-sky-500/10 px-2 py-1 text-sky-200 hover:bg-sky-500/20 disabled:opacity-50"
-                        >
-                          {qq
-                            ? qq.state === "running"
-                              ? progressLabel(entry.id, mm.qRunning)
-                              : queueLabel(qq, mm)
-                            : mm.actInstall}
-                        </button>
-                        {(qq?.state === "queued" || (qq?.state === "running" && dl && !dl.done)) && (
-                          <button
-                            type="button"
-                            onClick={() => cancelQueued(entry.id)}
-                            className="rounded border border-slate-600 px-2 py-1 text-slate-400 hover:text-white"
-                          >
-                            {mm.actCancel}
-                          </button>
-                        )}
-                      </div>
-                      {qq?.state === "running" && dl && !dl.done && dl.total > 0 && (
-                        <div className="mt-1 h-1 w-28 overflow-hidden rounded bg-slate-700">
-                          <div
-                            className="h-full bg-sky-400 transition-[width] duration-200"
-                            style={{ width: `${pctOf(dl)}%` }}
-                          />
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-              {typedDownloadable.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-2 py-10 text-center text-slate-500">
-                    {repoMap ? mm.empty : <RepoNotChecked t={t} m={m} busy={repoBusy} onCheck={onRepoCheck} />}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <DownloadableTable
+            t={t}
+            m={m}
+            mm={mm}
+            typedDownloadable={typedDownloadable}
+            queueOf={queueOf}
+            dlMap={dlMap}
+            rowOfDownloadable={rowOfDownloadable}
+            setDetail={setDetail}
+            vcmiLang={vcmiLang}
+            enqueueFromUi={enqueueFromUi}
+            progressLabel={progressLabel}
+            cancelQueued={cancelQueued}
+            repoMap={repoMap}
+            repoBusy={repoBusy}
+            onRepoCheck={onRepoCheck}
+          />
         )}
 
         {tab === "updatable" && (
-          <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
-            <colgroup>
-              <col className="w-[28%]" />
-              <col className="w-[14%]" />
-              <col className="w-[8%]" />
-              <col className="w-[9%]" />
-              <col className="w-[9%]" />
-              <col className="w-[12%]" />
-              <col className="w-[20%]" />
-            </colgroup>
-            <thead className="sticky top-0 z-10">
-              <tr className="bg-slate-900 text-left text-xs text-slate-500">
-                <th className="border-b border-slate-800 px-3 py-2 font-normal">{mm.colMod}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colDirName}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colType}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{m.colCurVersion}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{m.colLatest}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colLocation}</th>
-                <th className="border-b border-slate-800 px-2 py-2 font-normal">{mm.colAction}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {typedUpdatable.map((row) => {
-                const qq = queueOf(row.mod.id);
-                const busyRow = qq?.state === "running";
-                const dl = dlMap[row.mod.id.toLowerCase()];
-                return (
-                <tr
-                  key={row.mod.id}
-                  onClick={() => setDetail({ row: rowOfInstalled(row.mod), entry: row.entry })}
-                  className="group cursor-pointer text-slate-300 hover:bg-slate-800/40"
-                >
-                  <td className="border-b border-slate-800/60 px-3 py-2">
-                    <span className="truncate text-white decoration-sky-400/60 group-hover:text-sky-300 group-hover:underline">
-                      {shownNameOfRealm(row.mod)}
-                    </span>
-                  </td>
-                  <td className="truncate border-b border-slate-800/60 px-2 py-2 text-xs text-slate-500" title={row.mod.diskName || row.mod.id}>
-                    {row.mod.diskName || row.mod.id}
-                  </td>
-                  <td className="border-b border-slate-800/60 px-2 py-2 text-xs text-slate-400">
-                    {row.mod.type ? (t.mods.typeLabels[row.mod.type] ?? row.mod.type) : "—"}
-                  </td>
-                  <td className="border-b border-slate-800/60 px-2 py-2 tabular-nums">{row.cur || "—"}</td>
-                  <td className="border-b border-slate-800/60 px-2 py-2 font-semibold tabular-nums text-amber-300">{row.next}</td>
-                  <td className="border-b border-slate-800/60 px-2 py-2 text-xs text-slate-400">
-                    {row.mod.source === "realm" ? mm.locationRealm : row.mod.source === "user" ? mm.locationUser : mm.locationGame}
-                  </td>
-                  <td className="border-b border-slate-800/60 px-2 py-2">
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        disabled={opBusy || qq?.state === "queued" || qq?.state === "running"}
-                        onClick={() => setUpdDlg(row)}
-                        className="rounded border border-amber-500/60 bg-amber-500/10 px-2 py-1 text-amber-200 hover:bg-amber-500/20 disabled:opacity-50"
-                      >
-                        {qq
-                          ? busyRow
-                            ? progressLabel(row.mod.id, mm.qRunning)
-                            : queueLabel(qq, mm)
-                          : mm.actUpdate}
-                      </button>
-                      {qq?.state === "queued" && (
-                        <button
-                          type="button"
-                          onClick={() => dequeue(row.mod.id)}
-                          className="rounded border border-slate-600 px-2 py-1 text-slate-400 hover:text-white"
-                        >
-                          {mm.actCancel}
-                        </button>
-                      )}
-                      {busyRow && dl && !dl.done && dl.total > 0 && (
-                        <div className="h-1 w-24 overflow-hidden rounded bg-slate-700">
-                          <div
-                            className="h-full bg-amber-400 transition-[width] duration-200"
-                            style={{ width: `${pctOf(dl)}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-                );
-              })}
-              {typedUpdatable.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-2 py-10 text-center text-slate-500">
-                    {repoMap ? t.modsRepo.emptyUpdates : <RepoNotChecked t={t} m={m} busy={repoBusy} onCheck={onRepoCheck} />}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <UpdatableTable
+            t={t}
+            m={m}
+            mm={mm}
+            typedUpdatable={typedUpdatable}
+            queueOf={queueOf}
+            dlMap={dlMap}
+            rowOfInstalled={rowOfInstalled}
+            setDetail={setDetail}
+            shownNameOfRealm={shownNameOfRealm}
+            opBusy={opBusy}
+            setUpdDlg={setUpdDlg}
+            progressLabel={progressLabel}
+            dequeue={dequeue}
+            repoMap={repoMap}
+            repoBusy={repoBusy}
+            onRepoCheck={onRepoCheck}
+          />
         )}
       </div>
 
@@ -2118,12 +1774,4 @@ export function RealmModManagerPanel(props: RealmModManagerPanelProps) {
       )}
     </div>
   );
-}
-
-/* 可更新行模型 */
-interface UpdRow {
-  mod: RealmInstalledMod;
-  entry: ModRepoEntry;
-  cur: string;
-  next: string;
 }

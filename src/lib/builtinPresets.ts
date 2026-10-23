@@ -94,9 +94,9 @@ export function mergeBuiltinPresets(
       });
     } else {
       const mods = Array.from(new Set([...base.mods, ...(c.mods ?? [])]));
-      const modsByLang: Record<string, string[]> = { ...base.modsByLang };
+      const modsByLang: Partial<Record<string, string[]>> = { ...base.modsByLang };
       for (const [lang, arr] of Object.entries(c.modsByLang ?? {})) {
-        modsByLang[lang] = Array.from(new Set([...(modsByLang[lang] ?? []), ...arr]));
+        modsByLang[lang] = Array.from(new Set([...(modsByLang[lang] ?? []), ...(arr ?? [])]));
       }
       const label = { ...base.label, ...(c.label ?? {}) };
       byId.set(c.id, { ...base, mods, modsByLang, label, locked: c.locked ?? base.locked });

@@ -54,6 +54,7 @@ vcmi-fv-launcher/
 │   │   └── ui/                # shadcn 基础控件（button / input / select / slider / switch）
 │   ├── lib/                   # 纯 TS 逻辑（**无 React**）
 │   │   ├── tauri.ts / utils.ts / enc.ts / zip.ts / log.ts / modScope.ts / modHelpers.ts / townLoading.ts
+│   │   ├── ipc/             # IPC 实现按域拆分（tauri.ts 仅 barrel 再导出；契约见 ipc.zh-CN.md）
 │   │   ├── modScanner.ts / minimapBase.ts / settingsSchema.ts / langMods.ts / builtinPresets.ts
 │   │   ├── realm/{store.ts, intro.ts, types.ts}
 │   │   ├── modcache/{index.ts, status.ts, buildTargets.ts, realmAssets.ts}

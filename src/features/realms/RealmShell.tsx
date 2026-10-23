@@ -579,11 +579,11 @@ export function RealmShell({
         // ⚠️ 必须用 `h-full` 而不是 `flex-1`：本节点是块级父容器（`relative min-h-0 flex-1 pt-10`）
         // 的子节点，不是 flex 容器的子项 —— `flex-1` 在块级父下完全失效，高度会撑成内容高，
         // 于是 `overflow-y-auto` 拿不到可滚动高度 → 整页既滚不动也定位不了。
-        return (
+        return realm ? (
           <div className="flex h-full min-h-0">
             <InfoBody r={realm} />
           </div>
-        );
+        ) : null;
 
       case "switch":
         return (
@@ -608,7 +608,7 @@ export function RealmShell({
         );
 
       default:
-        return <HomePage realm={realm} root={root} phase={phase} onPlay={handlePlay} onInfo={() => setPage("info")} onSwitch={() => setPage("switch")} onExit={onExitRealm} onReplay={onReplayIntro} bgmMuted={bgmMuted} onToggleBgm={handleToggleBgm} onShowcase={realm.showcase && realm.showcase.enabled !== false ? () => openWithAssets("showcase") : undefined} />;
+        return realm ? <HomePage realm={realm} root={root} phase={phase} onPlay={handlePlay} onInfo={() => setPage("info")} onSwitch={() => setPage("switch")} onExit={onExitRealm} onReplay={onReplayIntro} bgmMuted={bgmMuted} onToggleBgm={handleToggleBgm} onShowcase={realm.showcase && realm.showcase.enabled !== false ? () => openWithAssets("showcase") : undefined} /> : null;
       case "assets":
         return realm ? (
           <RealmAssetsPage

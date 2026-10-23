@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import type { RealmI18nEntry } from "@/lib/realm/types";
-import { Field } from "../Field";
+import { Field } from "@/features/realms/editor/Field";
 import type { LangDict } from "@/i18n/types";
 
 /** 每语言的标签上限（控制筛选栏与卡片显示空间，见设计 §6 / 索引规范） */
