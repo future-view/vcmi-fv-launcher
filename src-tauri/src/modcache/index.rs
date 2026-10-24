@@ -77,7 +77,9 @@ pub(crate) fn read_mod_wiki_text(
     cache_root: &Path,
     mod_id: &str,
 ) -> Option<std::sync::Arc<String>> {
-    crate::modcache::read_cached_text(&cache_root.join(format!("{}/cache.json", sanitize_id(mod_id))))
+    crate::modcache::read_cached_text(
+        &cache_root.join(format!("{}/cache.json", sanitize_id(mod_id))),
+    )
 }
 
 /// [`read_mod_wiki_text`] 的 `{ok, data}` 包装版（**会解析整份 JSON**）。
@@ -346,8 +348,11 @@ pub(crate) fn build_all_wiki_inner(mods: &Value, cache_root: &Path) -> Value {
             }
         };
         // 模组磁盘位置拆成「来源根 + 相对路径」（见 `modpath_root_rel`）——**不存绝对路径**。
-        let (mp_root, mp_rel) =
-            modpath_root_rel(std::path::Path::new(&mod_path), &paths, extra_game_mods.as_deref());
+        let (mp_root, mp_rel) = modpath_root_rel(
+            std::path::Path::new(&mod_path),
+            &paths,
+            extra_game_mods.as_deref(),
+        );
         index_mods.push(json!({
             "modId": id,
             "diskName": m.get("diskName").and_then(|x| x.as_str()).unwrap_or(""),
@@ -424,7 +429,10 @@ mod modpath_tests {
         let f = |s: &str| modpath_root_rel(std::path::Path::new(s), &p, None);
 
         // 游戏目录 Mods
-        assert_eq!(f("D:/Games/h3/Mods/1-Knight-town"), ("game".into(), "1-Knight-town".into()));
+        assert_eq!(
+            f("D:/Games/h3/Mods/1-Knight-town"),
+            ("game".into(), "1-Knight-town".into())
+        );
         // 用户数据 Mods
         assert_eq!(
             f("C:/Users/u/Documents/My Games/vcmi/Mods/HuaXia"),
@@ -447,7 +455,11 @@ mod modpath_tests {
         // 真实场景：`launcher.json` 写 `d:/games/H3`，而 `read_dir` 返回 `D:\Games\h3`
         let mut p = paths();
         p.game_dir = std::path::PathBuf::from("d:/games/H3");
-        let (root, rel) = modpath_root_rel(std::path::Path::new("D:/games/h3/Mods/1-Knight-town"), &p, None);
+        let (root, rel) = modpath_root_rel(
+            std::path::Path::new("D:/games/h3/Mods/1-Knight-town"),
+            &p,
+            None,
+        );
         assert_eq!(root, "game");
         // 相对部分保留**原始**大小写（不能把小写化的结果写进去）
         assert_eq!(rel, "1-Knight-town");

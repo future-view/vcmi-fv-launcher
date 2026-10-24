@@ -209,8 +209,10 @@ pub(crate) fn collect_config_jsons(mod_path: &Path, type_subdir: &str) -> Vec<(S
         let mut scanned = Vec::new();
         collect_json_files(&content_dir, type_subdir, &mut scanned);
         // 去重：显式清单与目录扫描可能指向同一个文件（不合并会重复 push 同一 id）
-        let known: std::collections::HashSet<String> =
-            files.iter().map(|p| p.to_string_lossy().to_lowercase()).collect();
+        let known: std::collections::HashSet<String> = files
+            .iter()
+            .map(|p| p.to_string_lossy().to_lowercase())
+            .collect();
         files.extend(
             scanned
                 .into_iter()
@@ -351,7 +353,14 @@ pub(crate) fn collect_all_raw_configs(mod_path: &Path) -> serde_json::Map<String
 /// **且完全没有英雄特征**（`army` / `texts` / `images` / `class` / `biography`）。
 /// 后者兜住写得精简的合法英雄文件（VCMI 的 hero schema 必填 `class`+`army`+`skills`+`texts`）。
 pub(crate) fn looks_like_hero_class(v: &Value) -> bool {
-    const HERO_MARKS: &[&str] = &["army", "startingArmy", "texts", "images", "class", "biography"];
+    const HERO_MARKS: &[&str] = &[
+        "army",
+        "startingArmy",
+        "texts",
+        "images",
+        "class",
+        "biography",
+    ];
     const CLASS_MARKS: &[&str] = &[
         "affinity",
         "lowLevelChance",
@@ -560,7 +569,10 @@ fn collect_all_raw_configs_uncached(mod_path: &Path) -> serde_json::Map<String, 
     // 这里把**声明为职业的文件**补进职业桶（幽灵英雄的剔除由下方 2.6 的形状嗅探统一负责）。
     // 只做这一步（不改动其它类型的目录回退语义），把爆炸半径限制在已取证的场景上。
     let mut declared_classes: Vec<Value> = Vec::new();
-    for mj in [mod_path.join("mod.json"), mod_path.join("Content").join("mod.json")] {
+    for mj in [
+        mod_path.join("mod.json"),
+        mod_path.join("Content").join("mod.json"),
+    ] {
         let Ok(text) = fs::read_to_string(&mj) else {
             continue;
         };
@@ -764,7 +776,10 @@ mod tests {
         let raw = collect_all_raw_configs(&root);
         let heroes = raw.get("heroes").and_then(|x| x.as_object()).unwrap();
         assert!(heroes.contains_key("hero1"));
-        assert!(!heroes.contains_key("daoSage"), "职业形状的残留文件不得算英雄：{heroes:?}");
+        assert!(
+            !heroes.contains_key("daoSage"),
+            "职业形状的残留文件不得算英雄：{heroes:?}"
+        );
         // 顺手搬进职业桶，让引用了它的英雄能解析出职业名
         let classes = raw.get("heroClasses").and_then(|x| x.as_object()).unwrap();
         assert!(classes.contains_key("daoSage"));

@@ -92,7 +92,10 @@ fn glossary_sort_key(v: &Value) -> String {
             }
         }
     }
-    v.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string()
+    v.get("id")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string()
 }
 
 #[cfg(test)]
@@ -138,7 +141,10 @@ mod tests {
         // 按显示名升序：alpha < beta
         assert_eq!(out[0].get("id").and_then(|x| x.as_str()), Some("test.a"));
         assert_eq!(
-            out[0].get("name").and_then(|n| n.get("chinese")).and_then(|x| x.as_str()),
+            out[0]
+                .get("name")
+                .and_then(|n| n.get("chinese"))
+                .and_then(|x| x.as_str()),
             Some("alpha")
         );
         assert_eq!(
@@ -155,7 +161,10 @@ mod tests {
             "name.english 不应是翻译 key"
         );
         assert!(
-            out[0].get("description").and_then(|n| n.get("english")).is_none(),
+            out[0]
+                .get("description")
+                .and_then(|n| n.get("english"))
+                .is_none(),
             "description.english 不应是翻译 key"
         );
 

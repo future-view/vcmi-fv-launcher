@@ -184,9 +184,10 @@ pub fn extract(
             continue;
         }
         if entry.encrypted {
-            report
-                .failed
-                .push((entry.destination.clone(), "数据块被加密（ARC4），暂不支持".into()));
+            report.failed.push((
+                entry.destination.clone(),
+                "数据块被加密（ARC4），暂不支持".into(),
+            ));
             continue;
         }
         if entry.filtered && !opts.include_filtered {
@@ -241,7 +242,9 @@ fn read_chunk(f: &mut File, entry: &InnoFileEntry) -> Result<Vec<u8>, String> {
         return Err("数据块魔数不符（zlb）".to_string());
     }
     match entry.compression.as_str() {
-        "lzma1" => lzma::decompress(&buf[4..], Some(entry.size as usize)).map_err(|e| e.to_string()),
+        "lzma1" => {
+            lzma::decompress(&buf[4..], Some(entry.size as usize)).map_err(|e| e.to_string())
+        }
         "stored" => {
             let n = entry.size as usize;
             buf.get(4..4 + n)
@@ -344,11 +347,7 @@ struct Cur<'a> {
 
 impl<'a> Cur<'a> {
     fn new(b: &'a [u8], unicode: bool) -> Self {
-        Self {
-            b,
-            pos: 0,
-            unicode,
-        }
+        Self { b, pos: 0, unicode }
     }
 
     fn take(&mut self, n: usize) -> Result<&'a [u8], String> {

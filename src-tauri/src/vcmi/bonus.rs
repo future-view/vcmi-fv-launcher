@@ -231,5 +231,3 @@ fn merge_bonus_json(v: &Value, map: &mut BonusMap) {
 pub(crate) fn res_of(v: Option<&Value>) -> Option<String> {
     crate::vcmi::town::value_to_resource(v?).filter(|s| !s.is_empty())
 }
-
-

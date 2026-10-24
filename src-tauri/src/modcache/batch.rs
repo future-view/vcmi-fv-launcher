@@ -143,7 +143,10 @@ impl EmitThrottle {
     fn pass(&self, force: bool) -> bool {
         let now = std::time::Instant::now();
         let mut g = self.last.lock().unwrap_or_else(|e| e.into_inner());
-        let ok = force || g.map_or(true, |t| now.duration_since(t).as_millis() >= self.interval_ms);
+        let ok = force
+            || g.map_or(true, |t| {
+                now.duration_since(t).as_millis() >= self.interval_ms
+            });
         if ok {
             *g = Some(now);
         }
@@ -323,7 +326,10 @@ fn order_by_cost<'a>(
                 }
             }
         };
-        match rayon::ThreadPoolBuilder::new().num_threads(threads.max(1)).build() {
+        match rayon::ThreadPoolBuilder::new()
+            .num_threads(threads.max(1))
+            .build()
+        {
             Ok(pool) => pool.install(|| need.par_iter().for_each(|m| one(m))),
             // 建池失败（极少见）→ 串行兜底：慢，但不丢进度
             Err(_) => need.iter().for_each(|m| one(m)),
@@ -520,7 +526,8 @@ pub(crate) fn build_mods_cache_batch_inner_hd(
     let hd_failed = std::sync::atomic::AtomicUsize::new(0);
     let hd_pruned = std::sync::atomic::AtomicUsize::new(0);
     // 本轮是否需要"全网补跑高清变体"（HD 方案版本变化时置位，见 `hd::scheme_changed`）
-    let hd_sweep = std::sync::atomic::AtomicBool::new(crate::modcache::hd::scheme_changed(&cache_root));
+    let hd_sweep =
+        std::sync::atomic::AtomicBool::new(crate::modcache::hd::scheme_changed(&cache_root));
     // 构建进度的时间节流（与准备阶段 `order_by_cost` 内的同一个策略）
     let build_throttle = EmitThrottle::new(PROGRESS_EMIT_MS);
     use rayon::prelude::*;

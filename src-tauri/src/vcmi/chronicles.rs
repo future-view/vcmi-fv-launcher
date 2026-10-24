@@ -69,7 +69,8 @@ pub fn install(
     game_dir: &Path,
     overwrite: bool,
 ) -> Result<ChroniclesInstall, String> {
-    let app = find_child_dir_ci(extracted_root, "app").unwrap_or_else(|| extracted_root.to_path_buf());
+    let app =
+        find_child_dir_ci(extracted_root, "app").unwrap_or_else(|| extracted_root.to_path_buf());
     let nos = detect_chronicles(&app);
     if nos.is_empty() {
         return Err("解包目录里没有识别到任何历代记篇目（缺少 app/<篇名>/data 结构）".to_string());
@@ -125,10 +126,7 @@ fn detect_chronicles(app: &Path) -> Vec<usize> {
         }
     }
     for i in 1..CHRONICLES.len() {
-        if names
-            .iter()
-            .any(|n| n.eq_ignore_ascii_case(CHRONICLES[i]))
-        {
+        if names.iter().any(|n| n.eq_ignore_ascii_case(CHRONICLES[i])) {
             out.push(i);
         }
     }
@@ -144,8 +142,17 @@ fn create_base_mod(base_mod: &Path, game_dir: &Path, overwrite: bool) -> Result<
     }
     // 头像表：来自游戏目录（VCMI 内置核心模组的 config/heroes）
     let candidates = [
-        game_dir.join("Mods").join("vcmi").join("Content").join("config").join("heroes").join("portraitsChronicles.json"),
-        game_dir.join("config").join("heroes").join("portraitsChronicles.json"),
+        game_dir
+            .join("Mods")
+            .join("vcmi")
+            .join("Content")
+            .join("config")
+            .join("heroes")
+            .join("portraitsChronicles.json"),
+        game_dir
+            .join("config")
+            .join("heroes")
+            .join("portraitsChronicles.json"),
     ];
     for src in &candidates {
         if !src.is_file() {
@@ -158,8 +165,7 @@ fn create_base_mod(base_mod: &Path, game_dir: &Path, overwrite: bool) -> Result<
             break;
         }
         let _ = fs::remove_file(&dst);
-        fs::copy(src, &dst)
-            .map_err(|e| be_err("infra_file_copy_failed", &format!("{}", e)))?;
+        fs::copy(src, &dst).map_err(|e| be_err("infra_file_copy_failed", &format!("{}", e)))?;
         break;
     }
     Ok(())
@@ -258,7 +264,9 @@ fn create_chronicle_mod(
         if let Some(maps_dir) = dir.parent().and_then(|p| find_child_dir_ci(p, "maps")) {
             if let Ok(rd) = fs::read_dir(&maps_dir) {
                 for e in rd.flatten() {
-                    if e.path().is_file() && fs::copy(e.path(), out_data.join(e.file_name())).is_ok() {
+                    if e.path().is_file()
+                        && fs::copy(e.path(), out_data.join(e.file_name())).is_ok()
+                    {
                         files += 1;
                     }
                 }
@@ -301,7 +309,11 @@ fn copy_intro_video(base_data: &Path, no: usize, out_video: &Path) -> u64 {
     let Some(entries) = crate::infra::archive::vid_entries(&vid) else {
         return 0;
     };
-    let dst_name = if no == 7 || no == 8 { src_name } else { "Intro" };
+    let dst_name = if no == 7 || no == 8 {
+        src_name
+    } else {
+        "Intro"
+    };
     let want = src_name.to_ascii_lowercase();
     let mut n = 0u64;
     for e in entries {
@@ -357,7 +369,9 @@ fn extract_lod(dir: &Path, lod_name: &str, out: &Path, only: Option<&[&str]>) ->
                 continue;
             }
         }
-        let Some(bytes) = arc.read(&name) else { continue };
+        let Some(bytes) = arc.read(&name) else {
+            continue;
+        };
         let dst = out.join(&name);
         if fs::write(&dst, &bytes).is_ok() {
             n += 1;
@@ -467,23 +481,40 @@ mod tests {
         // 基础模组：mod.json 声明战役地图格式 + VCMI 语言块
         let base_json = fs::read_to_string(out.base_mod.join("mod.json")).unwrap();
         assert!(base_json.contains("mapFormat"), "基础模组应声明 mapFormat");
-        assert!(base_json.contains("portraitTarnumBarbarian"), "应带 Tarnum 头像表");
+        assert!(
+            base_json.contains("portraitTarnumBarbarian"),
+            "应带 Tarnum 头像表"
+        );
         let base_parsed: serde_json::Value = serde_json::from_str(&base_json).unwrap();
         assert_eq!(base_parsed["chinese"]["name"], "英雄无敌历代记");
         assert_eq!(base_parsed["chinese"]["description"], "英雄无敌历代记");
         // Tarnum 头像进了基础模组的 content/Data，且只抽指定前缀
-        assert!(out.base_mod.join("content").join("Data").join("HPS137.PCX").is_file());
+        assert!(out
+            .base_mod
+            .join("content")
+            .join("Data")
+            .join("HPS137.PCX")
+            .is_file());
         assert!(
-            !out.base_mod.join("content").join("Data").join("OTHER.PCX").exists(),
+            !out.base_mod
+                .join("content")
+                .join("Data")
+                .join("OTHER.PCX")
+                .exists(),
             "只抽 Tarnum 前缀，其它条目不应混入"
         );
         // 单篇子模组：素材按命名空间分目录
         let sub = out.base_mod.join("Mods").join("chronicles_1");
         let sub_json = fs::read_to_string(sub.join("mod.json")).unwrap();
         // 官方 createChronicleMod：name = "<no> - <篇名>"，description = "Heroes Chronicles <no> - <篇名>"
-        assert!(sub_json.contains(r#""name": "1 - Warlords of the Wasteland""#), "{}", sub_json);
         assert!(
-            sub_json.contains(r#""description": "Heroes Chronicles 1 - Warlords of the Wasteland""#),
+            sub_json.contains(r#""name": "1 - Warlords of the Wasteland""#),
+            "{}",
+            sub_json
+        );
+        assert!(
+            sub_json
+                .contains(r#""description": "Heroes Chronicles 1 - Warlords of the Wasteland""#),
             "{}",
             sub_json
         );
@@ -509,16 +540,31 @@ mod tests {
             "条目名应保留原始大小写（官方同款），实际 {:?}",
             entries
         );
-        assert!(sub_data.join("Main.h3c").is_file(), "xlBitmap.lod 条目应解到 Data");
-        assert!(sub_data.join("INTRORIM.PCX").is_file(), "开场图应来自基础 lbitmap.lod");
+        assert!(
+            sub_data.join("Main.h3c").is_file(),
+            "xlBitmap.lod 条目应解到 Data"
+        );
+        assert!(
+            sub_data.join("INTRORIM.PCX").is_file(),
+            "开场图应来自基础 lbitmap.lod"
+        );
         assert!(
             !sub_data.join("OTHER2.PCX").exists(),
             "lbitmap.lod 只抽 INTRORIM，其它条目不应混入"
         );
-        assert!(sub.join("content").join("Sprites").join("chronicles_1").join("CHRSPR.DEF").is_file());
+        assert!(sub
+            .join("content")
+            .join("Sprites")
+            .join("chronicles_1")
+            .join("CHRSPR.DEF")
+            .is_file());
         // 战役文件：从解出的 Data 改名落位
         assert!(
-            sub.join("content").join("Maps").join("Chronicles").join("Hc1_Main.h3c").is_file(),
+            sub.join("content")
+                .join("Maps")
+                .join("Chronicles")
+                .join("Hc1_Main.h3c")
+                .is_file(),
             "Data 里的 Main.h3c 应改名为 Hc1_Main.h3c"
         );
         assert_eq!(out.chronicles, vec!["chronicles_1".to_string()]);
@@ -548,7 +594,10 @@ mod tests {
             .join("content")
             .join("Maps")
             .join("Chronicles");
-        assert!(maps.join("Hc5_Main.h3c").is_file(), "maps 目录里的战役文件也应改名");
+        assert!(
+            maps.join("Hc5_Main.h3c").is_file(),
+            "maps 目录里的战役文件也应改名"
+        );
         assert!(!maps.join("Main.h3c").exists(), "不应残留未改名的 Main.h3c");
         let _ = fs::remove_dir_all(&d);
     }

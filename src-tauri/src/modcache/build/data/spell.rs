@@ -72,8 +72,8 @@ pub(crate) fn build_spells(
             .and_then(|s| s.as_object())
             .is_some_and(|m| !m.is_empty());
         let has_level = obj.get("level").is_some();
-        let has_name = obj.get("name").is_some()
-            || obj.get("text").and_then(|t| t.get("name")).is_some();
+        let has_name =
+            obj.get("name").is_some() || obj.get("text").and_then(|t| t.get("name")).is_some();
         if hidden || (!has_school && !has_level && !has_name) {
             continue;
         }
@@ -340,10 +340,25 @@ mod visibility_tests {
                 "adventure": { "type": "adventure", "name": "Adv" }
             }"#,
         );
-        assert!(!ids.iter().any(|i| i == "moat"), "生物能力法术不得收录：{ids:?}");
-        assert!(!ids.iter().any(|i| i == "moatTrig"), "生物能力法术不得收录：{ids:?}");
-        assert!(!ids.iter().any(|i| i == "onlySpec"), "special 法术不得收录：{ids:?}");
-        assert!(ids.iter().any(|i| i == "iceShot"), "普通战斗法术应保留：{ids:?}");
-        assert!(ids.iter().any(|i| i == "adventure"), "冒险法术应保留：{ids:?}");
+        assert!(
+            !ids.iter().any(|i| i == "moat"),
+            "生物能力法术不得收录：{ids:?}"
+        );
+        assert!(
+            !ids.iter().any(|i| i == "moatTrig"),
+            "生物能力法术不得收录：{ids:?}"
+        );
+        assert!(
+            !ids.iter().any(|i| i == "onlySpec"),
+            "special 法术不得收录：{ids:?}"
+        );
+        assert!(
+            ids.iter().any(|i| i == "iceShot"),
+            "普通战斗法术应保留：{ids:?}"
+        );
+        assert!(
+            ids.iter().any(|i| i == "adventure"),
+            "冒险法术应保留：{ids:?}"
+        );
     }
 }

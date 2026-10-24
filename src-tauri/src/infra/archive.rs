@@ -127,7 +127,7 @@ mod tests {
         n2[..3].copy_from_slice(b"C.D");
         f.write_all(&n2).unwrap();
         f.write_all(&130u32.to_le_bytes()).unwrap(); // offset 130
-        // 数据区：头 4 + 条目 44×2 = 92；补到总长 160 ⇒ 末项长度 30
+                                                     // 数据区：头 4 + 条目 44×2 = 92；补到总长 160 ⇒ 末项长度 30
         f.write_all(&vec![0u8; 160 - 92]).unwrap();
         drop(f);
 
@@ -156,7 +156,10 @@ mod tests {
 
         let entries = snd_entries(&p).expect("snd 解析");
         assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].name, "horn.wav", "名字补 .wav 并小写（官方同款）");
+        assert_eq!(
+            entries[0].name, "horn.wav",
+            "名字补 .wav 并小写（官方同款）"
+        );
         assert_eq!(entries[0].size, 7);
         let _ = fs::remove_dir_all(&d);
     }

@@ -306,9 +306,7 @@ pub(crate) fn name_obj_with_inline(
     // 若翻译表命中（m 有值）却没有当前语言，绝不能把 key 本身当成英文原文
     // （实测 Expansion 词汇表只带 chinese.json，英文界面曾显示
     // `vcmi.wiki.glossary.proverb.name`）。
-    let inline_is_key = inline
-        .and_then(|v| v.as_str())
-        .is_some_and(|s| s == key);
+    let inline_is_key = inline.and_then(|v| v.as_str()).is_some_and(|s| s == key);
     build_text_obj(i18n_get_multi(i18n, key), inline, fallback, inline_is_key)
 }
 
@@ -589,7 +587,10 @@ mod tests {
     /// `lang_map_to_obj` 同口径：没有 chinese 条目就不写 chinese 键。
     #[test]
     fn lang_map_does_not_fake_chinese() {
-        let v = lang_map_to_obj(HashMap::from([("english".to_string(), "Sword".to_string())]));
+        let v = lang_map_to_obj(HashMap::from([(
+            "english".to_string(),
+            "Sword".to_string(),
+        )]));
         assert!(v.get("chinese").is_none(), "不应伪造中文：{v}");
         assert_eq!(v["english"], "Sword");
         assert_eq!(v["auto"], "Sword");

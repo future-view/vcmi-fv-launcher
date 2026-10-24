@@ -44,9 +44,8 @@ pub(crate) fn assets_enabled() -> bool {
 /// 详情页、右键弹窗、城镇卡片、城镇预览都会读**同一份** `cache.json`
 /// （最大 1.7 MB，整份解析实测 33 ms）。缓存后重复访问只付一次 `Value::clone`。
 /// 容量由 `infra::cache::CFG_CACHE_CAP`（4）决定：单份解析后约 5~8 MB，4 份 ≈ 30 MB。
-static CACHE_JSON_LRU: std::sync::OnceLock<
-    std::sync::Mutex<Vec<(String, std::sync::Arc<Value>)>>,
-> = std::sync::OnceLock::new();
+static CACHE_JSON_LRU: std::sync::OnceLock<std::sync::Mutex<Vec<(String, std::sync::Arc<Value>)>>> =
+    std::sync::OnceLock::new();
 
 /// 读并解析 `cache.json`（按 `(路径, mtime, len)` 缓存解析结果）。
 ///

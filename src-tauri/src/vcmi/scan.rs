@@ -428,9 +428,8 @@ pub(crate) fn str_arr(v: Option<&Value>) -> Vec<String> {
 ///
 /// 567 个 mod 时一次实扫要 `read_dir` + 逐个解析 `mod.json`（数百毫秒，HDD 更久），
 /// 而 `scan_mods` / `list_installed_mods` / `collect_mod_paths` 都会调用它。
-static USER_MODS_SCAN_CACHE: std::sync::OnceLock<
-    Mutex<Vec<(String, std::sync::Arc<Vec<Value>>)>>,
-> = std::sync::OnceLock::new();
+static USER_MODS_SCAN_CACHE: std::sync::OnceLock<Mutex<Vec<(String, std::sync::Arc<Vec<Value>>)>>> =
+    std::sync::OnceLock::new();
 
 /// 扫一个 Mods 目录（**带指纹缓存**，见 [`USER_MODS_SCAN_CACHE`]）。
 pub(crate) fn scan_user_mods_dir(user_mods_dir: &Path) -> Vec<Value> {

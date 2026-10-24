@@ -37,10 +37,7 @@ struct DefHeader {
 
 /// 按 **DEF 组号** 取分组（组号可能不连续，不能用 Vec 下标）。
 fn group_by_id(header: &DefHeader, group: usize) -> Option<&DefGroup> {
-    header
-        .groups
-        .iter()
-        .find(|g| g.block_id as usize == group)
+    header.groups.iter().find(|g| g.block_id as usize == group)
 }
 
 /// 一个 DEF 分组：帧偏移与帧名一一对应（`names[i]` 即 `offsets[i]` 处的 13 字节名字段）。
@@ -450,7 +447,12 @@ impl<'a> DefReader<'a> {
                 }
                 out.push((
                     gid,
-                    (lm as i64, tm as i64, lm as i64 + w as i64, tm as i64 + h as i64),
+                    (
+                        lm as i64,
+                        tm as i64,
+                        lm as i64 + w as i64,
+                        tm as i64 + h as i64,
+                    ),
                 ));
             }
         }

@@ -59,10 +59,7 @@ fn bonus_graphics_table_reads_bonus_icons_submod() {
         .get("ADDITIONAL_ATTACK")
         .and_then(|g| g.icon.clone())
         .expect("ADDITIONAL_ATTACK 应有 graphics.icon（Bonus Icons 子模组提供）");
-    assert!(
-        !aa.is_empty(),
-        "ADDITIONAL_ATTACK 的图标资源不应为空字符串"
-    );
+    assert!(!aa.is_empty(), "ADDITIONAL_ATTACK 的图标资源不应为空字符串");
 }
 
 /// ② 端到端：完整构建一个带 `bonusToGraphics` 图标的 mod，能力图标必须落到磁盘。
@@ -81,7 +78,13 @@ fn ability_icons_are_extracted_for_bonus_graphics() {
     let mod_cache = cache_root.join(crate::modcache::sanitize_id(mod_id));
     let _ = fs::remove_dir_all(&mod_cache);
     let _ = fs::create_dir_all(&cache_root);
-    let r = build_mod_wiki_phase(&mod_dir.to_string_lossy(), mod_id, &cache_root, &game_dir, 2);
+    let r = build_mod_wiki_phase(
+        &mod_dir.to_string_lossy(),
+        mod_id,
+        &cache_root,
+        &game_dir,
+        2,
+    );
     assert_eq!(
         r.get("ok").and_then(|x| x.as_bool()),
         Some(true),
@@ -93,8 +96,16 @@ fn ability_icons_are_extracted_for_bonus_graphics() {
     let mut total = 0usize;
     let mut with_icon = 0usize;
     let mut missing_file = Vec::new();
-    for c in data.get("creatures").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
-        for a in c.get("abilities").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
+    for c in data
+        .get("creatures")
+        .and_then(|x| x.as_array())
+        .unwrap_or(&vec![])
+    {
+        for a in c
+            .get("abilities")
+            .and_then(|x| x.as_array())
+            .unwrap_or(&vec![])
+        {
             total += 1;
             match a.get("icon").and_then(|x| x.as_str()) {
                 Some(rel) if !rel.is_empty() => {
@@ -111,7 +122,10 @@ fn ability_icons_are_extracted_for_bonus_graphics() {
             }
         }
     }
-    println!("能力 {total} 条，有图标 {with_icon} 条，文件缺失 {} 条", missing_file.len());
+    println!(
+        "能力 {total} 条，有图标 {with_icon} 条，文件缺失 {} 条",
+        missing_file.len()
+    );
     for m in missing_file.iter().take(5) {
         println!("  缺文件：{m}");
     }
@@ -120,7 +134,10 @@ fn ability_icons_are_extracted_for_bonus_graphics() {
         with_icon > 0,
         "bonusToGraphics 一路没产出任何能力图标（表读到了但资源提取失败？）"
     );
-    assert!(missing_file.is_empty(), "图标声明了但文件没落盘：{missing_file:?}");
+    assert!(
+        missing_file.is_empty(),
+        "图标声明了但文件没落盘：{missing_file:?}"
+    );
     // 覆盖率护栏：全发行版预估约 82%，这个 mod 实测 35/42。若回归到"几乎全空"（如旧实现 0 条）
     // 必须失败 —— 这正是用户反复报的"所有技能图片均为空图"。
     assert!(
@@ -149,7 +166,9 @@ fn spell_immunity_icons_come_from_declared_spell_files() {
         println!("  {k} = {:?}", table.get(k));
     }
     if table.is_empty() {
-        eprintln!("跳过：该发行版没有法术 iconImmune 数据（未装 vcmi-extras 的 Immunity Icons 子模组）");
+        eprintln!(
+            "跳过：该发行版没有法术 iconImmune 数据（未装 vcmi-extras 的 Immunity Icons 子模组）"
+        );
         return;
     }
     // 实测 `config/creatures/dungeon.json` 的 Troglodyte 写的就是 `subtype: "spell.blind"`
@@ -182,16 +201,34 @@ fn spell_immunity_icons_are_extracted() {
     let mod_cache = cache_root.join(crate::modcache::sanitize_id(mod_id));
     let _ = fs::remove_dir_all(&mod_cache);
     let _ = fs::create_dir_all(&cache_root);
-    let r = build_mod_wiki_phase(&mod_dir.to_string_lossy(), mod_id, &cache_root, &game_dir, 2);
-    assert_eq!(r.get("ok").and_then(|x| x.as_bool()), Some(true), "构建失败：{r}");
+    let r = build_mod_wiki_phase(
+        &mod_dir.to_string_lossy(),
+        mod_id,
+        &cache_root,
+        &game_dir,
+        2,
+    );
+    assert_eq!(
+        r.get("ok").and_then(|x| x.as_bool()),
+        Some(true),
+        "构建失败：{r}"
+    );
     let text = fs::read_to_string(mod_cache.join("cache.json")).expect("cache.json 未落盘");
     let data: Value = serde_json::from_str(&text).expect("cache.json 解析失败");
 
     let mut total = 0usize;
     let mut with_icon = 0usize;
     let mut missing = Vec::new();
-    for c in data.get("creatures").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
-        for a in c.get("abilities").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
+    for c in data
+        .get("creatures")
+        .and_then(|x| x.as_array())
+        .unwrap_or(&vec![])
+    {
+        for a in c
+            .get("abilities")
+            .and_then(|x| x.as_array())
+            .unwrap_or(&vec![])
+        {
             if !a
                 .get("type")
                 .and_then(|x| x.as_str())
@@ -201,7 +238,11 @@ fn spell_immunity_icons_are_extracted() {
                 continue;
             }
             total += 1;
-            if let Some(rel) = a.get("icon").and_then(|x| x.as_str()).filter(|s| !s.is_empty()) {
+            if let Some(rel) = a
+                .get("icon")
+                .and_then(|x| x.as_str())
+                .filter(|s| !s.is_empty())
+            {
                 with_icon += 1;
                 if !cache_root.join(rel).is_file() {
                     missing.push(format!(
@@ -249,8 +290,18 @@ fn creature_abilities_skip_textless_entries() {
     let mod_cache = cache_root.join(crate::modcache::sanitize_id(mod_id));
     let _ = fs::remove_dir_all(&mod_cache);
     let _ = fs::create_dir_all(&cache_root);
-    let r = build_mod_wiki_phase(&mod_dir.to_string_lossy(), mod_id, &cache_root, &game_dir, 2);
-    assert_eq!(r.get("ok").and_then(|x| x.as_bool()), Some(true), "构建失败：{r}");
+    let r = build_mod_wiki_phase(
+        &mod_dir.to_string_lossy(),
+        mod_id,
+        &cache_root,
+        &game_dir,
+        2,
+    );
+    assert_eq!(
+        r.get("ok").and_then(|x| x.as_bool()),
+        Some(true),
+        "构建失败：{r}"
+    );
     let text = fs::read_to_string(mod_cache.join("cache.json")).expect("cache.json 未落盘");
     let data: Value = serde_json::from_str(&text).expect("cache.json 解析失败");
 
@@ -275,8 +326,16 @@ fn creature_abilities_skip_textless_entries() {
     let mut rows = 0usize;
     let mut with_icon = 0usize;
     let mut bad: Vec<String> = Vec::new();
-    for c in data.get("creatures").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
-        for a in c.get("abilities").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
+    for c in data
+        .get("creatures")
+        .and_then(|x| x.as_array())
+        .unwrap_or(&vec![])
+    {
+        for a in c
+            .get("abilities")
+            .and_then(|x| x.as_array())
+            .unwrap_or(&vec![])
+        {
             rows += 1;
             if a.get("icon").and_then(|x| x.as_str()).is_some() {
                 with_icon += 1;
@@ -330,14 +389,32 @@ fn ability_text_substitutes_spell_subtype_name() {
     let mod_cache = cache_root.join(crate::modcache::sanitize_id(mod_id));
     let _ = fs::remove_dir_all(&mod_cache);
     let _ = fs::create_dir_all(&cache_root);
-    let r = build_mod_wiki_phase(&mod_dir.to_string_lossy(), mod_id, &cache_root, &game_dir, 2);
-    assert_eq!(r.get("ok").and_then(|x| x.as_bool()), Some(true), "构建失败：{r}");
+    let r = build_mod_wiki_phase(
+        &mod_dir.to_string_lossy(),
+        mod_id,
+        &cache_root,
+        &game_dir,
+        2,
+    );
+    assert_eq!(
+        r.get("ok").and_then(|x| x.as_bool()),
+        Some(true),
+        "构建失败：{r}"
+    );
     let text = fs::read_to_string(mod_cache.join("cache.json")).expect("cache.json 未落盘");
     let data: Value = serde_json::from_str(&text).expect("cache.json 解析失败");
 
     let mut rows = Vec::new();
-    for c in data.get("creatures").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
-        for a in c.get("abilities").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
+    for c in data
+        .get("creatures")
+        .and_then(|x| x.as_array())
+        .unwrap_or(&vec![])
+    {
+        for a in c
+            .get("abilities")
+            .and_then(|x| x.as_array())
+            .unwrap_or(&vec![])
+        {
             let sub = a.get("subtype").and_then(|x| x.as_str()).unwrap_or("");
             if !sub.starts_with("spell.") {
                 continue;
@@ -366,9 +443,10 @@ fn ability_text_substitutes_spell_subtype_name() {
     );
     // 名称不在翻译池里的 mod 法术（如 `spell.paraFungus`）替换后仍是空串 —— 那是**数据缺口**，
     // 不是本用例要锁的代码缺陷，故只提示不判失败。
-    for (s, d) in rows.iter().filter(|(_, d)| {
-        d.contains("免疫魔法") || d.contains("cannot be affected by .")
-    }) {
+    for (s, d) in rows
+        .iter()
+        .filter(|(_, d)| d.contains("免疫魔法") || d.contains("cannot be affected by ."))
+    {
         println!("  （提示）{s} 的法术名不在翻译池里 → 文案留空：{d}");
     }
 }

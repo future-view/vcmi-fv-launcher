@@ -641,10 +641,7 @@ pub fn status_json_at(game_dir: Option<&Path>, user_data_dir: Option<&Path>) -> 
     status_json_impl(game_dir, user_data_dir)
 }
 
-fn status_json_impl(
-    game_dir: Option<&Path>,
-    user_data_dir: Option<&Path>,
-) -> serde_json::Value {
+fn status_json_impl(game_dir: Option<&Path>, user_data_dir: Option<&Path>) -> serde_json::Value {
     use serde_json::json;
     let cfg = crate::vcmi::paths::VcmiPaths::read_launcher_config();
     let enabled = cfg
@@ -699,7 +696,10 @@ pub fn lookup_shadow(name: &str, scale: u32) -> Option<image::RgbaImage> {
 }
 
 /// 便捷入口：按**目标倍数**取图 + 绘制偏移（见 [`HdEditionSource::lookup_with_offset_for`]）。
-pub fn lookup_with_offset_for(name: &str, need: u32) -> Option<(image::RgbaImage, u32, (i32, i32))> {
+pub fn lookup_with_offset_for(
+    name: &str,
+    need: u32,
+) -> Option<(image::RgbaImage, u32, (i32, i32))> {
     source()?.lookup_with_offset_for(name, need)
 }
 
@@ -792,8 +792,7 @@ mod tests {
     #[test]
     #[ignore]
     fn status_json_at_uses_explicit_dirs() {
-        let root =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../references/Heroes3-VCMI");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../references/Heroes3-VCMI");
         if !root.is_dir() {
             eprintln!("跳过：缺少 references/Heroes3-VCMI");
             return;
@@ -803,12 +802,19 @@ mod tests {
         println!("explicit dirs → {v}");
         assert_eq!(v["found"], true, "游戏目录 Mods 下的 hd-edition 应被命中");
         assert_eq!(
-            v["dir"].as_str().unwrap_or("").to_lowercase().contains("mods"),
+            v["dir"]
+                .as_str()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains("mods"),
             true,
             "命中路径应带 Mods 段"
         );
 
-        let none = status_json_at(Some(Path::new("Z:/vcmi-fv-none")), Some(Path::new("Z:/vcmi-fv-none")));
+        let none = status_json_at(
+            Some(Path::new("Z:/vcmi-fv-none")),
+            Some(Path::new("Z:/vcmi-fv-none")),
+        );
         assert_eq!(none["found"], false, "空目录不应误报");
     }
 

@@ -819,9 +819,12 @@ pub(crate) fn extract_game_def_frame_and_save_mod(
         crate::vcmi::hd_edition::probe_def_frame(&bytes, group, frame)
     };
     if hd.is_none() && coverage >= 0.05 {
-        if let Some(alias) =
-            hd_alias(&target, group, frame, &def.frame_name(group, frame).unwrap_or_default())
-        {
+        if let Some(alias) = hd_alias(
+            &target,
+            group,
+            frame,
+            &def.frame_name(group, frame).unwrap_or_default(),
+        ) {
             if crate::vcmi::hd_edition::lookup(&alias).is_some() {
                 hd = Some(alias);
             }
@@ -1359,10 +1362,7 @@ mod tests {
         assert_eq!(owner_of(&Origin::SelfMod, "farraway.Town"), "farraway.Town");
         // 游戏级 / 跨模组引用口径不变
         assert_eq!(owner_of(&Origin::Game, "core.dungeon"), "core");
-        assert_eq!(
-            owner_of(&Origin::Mod("hota".into()), "core.castle"),
-            "hota"
-        );
+        assert_eq!(owner_of(&Origin::Mod("hota".into()), "core.castle"), "hota");
         assert!(is_core_scope("core.rampart"));
         assert!(!is_core_scope("coverage"));
     }

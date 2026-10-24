@@ -154,8 +154,16 @@ fn def_group_hd_creature_smoke() {
     }
     // 不存在的动作组 → None（前端据此把该项置灰）
     assert!(
-        crate::vcmi::resource::read_def_group_hd_inner(&paths, "core.castle", "CGRIFF.DEF", 99, true, 270, None)
-            .is_none(),
+        crate::vcmi::resource::read_def_group_hd_inner(
+            &paths,
+            "core.castle",
+            "CGRIFF.DEF",
+            99,
+            true,
+            270,
+            None
+        )
+        .is_none(),
         "不存在的组应返回 None"
     );
     crate::vcmi::hd_edition::set_source(None);
@@ -176,19 +184,20 @@ fn adaptive_window_smoke() {
     let paths = VcmiPaths::detect();
     // (资源, 双格, 期望) —— 判定看适配组(0/1/2/4)的 p10–p90 分位包围盒宽度
     for (res, dw, expect) in [
-        ("CPHX.DEF", true, "wing"),    // 凤凰：适配 200×174
-        ("CFBIRD.DEF", true, "wing"),  // 火鸟
-        ("CNDRGN.DEF", true, "wing"),  // 骨龙
-        ("CHDRGN.DEF", true, "wing"),  // 鬼龙
-        ("CDDRAG.DEF", true, "wing"),  // 金龙
-        ("CRANGL.DEF", true, "wing"),  // 大天使
-        ("CBDRGN.DEF", true, "wing"),  // 黑龙
-        ("CCHAMP.DEF", true, "wing"),  // 骑士：适配 200×130（旧口径 24px 时为 game）
-        ("CPEAS.DEF", false, "game"),  // 农民（单格，宽度需求 103 < 105）
+        ("CPHX.DEF", true, "wing"),   // 凤凰：适配 200×174
+        ("CFBIRD.DEF", true, "wing"), // 火鸟
+        ("CNDRGN.DEF", true, "wing"), // 骨龙
+        ("CHDRGN.DEF", true, "wing"), // 鬼龙
+        ("CDDRAG.DEF", true, "wing"), // 金龙
+        ("CRANGL.DEF", true, "wing"), // 大天使
+        ("CBDRGN.DEF", true, "wing"), // 黑龙
+        ("CCHAMP.DEF", true, "wing"), // 骑士：适配 200×130（旧口径 24px 时为 game）
+        ("CPEAS.DEF", false, "game"), // 农民（单格，宽度需求 103 < 105）
     ] {
-         let Some(v) = crate::vcmi::resource::read_def_group_hd_inner(
-            &paths, "core", res, 2, dw, 270, None,
-        ).map(|g| g.to_value()) else {
+        let Some(v) =
+            crate::vcmi::resource::read_def_group_hd_inner(&paths, "core", res, 2, dw, 270, None)
+                .map(|g| g.to_value())
+        else {
             println!("{res} → 无帧（跳过）");
             continue;
         };
@@ -197,8 +206,14 @@ fn adaptive_window_smoke() {
             v["w"].as_u64().unwrap_or(0) / s,
             v["h"].as_u64().unwrap_or(0) / s,
         );
-        let (winx, winy) = (v["winW"].as_u64().unwrap_or(0), v["winH"].as_u64().unwrap_or(0));
-        let (fitw, fith) = (v["fitW"].as_u64().unwrap_or(0), v["fitH"].as_u64().unwrap_or(0));
+        let (winx, winy) = (
+            v["winW"].as_u64().unwrap_or(0),
+            v["winH"].as_u64().unwrap_or(0),
+        );
+        let (fitw, fith) = (
+            v["fitW"].as_u64().unwrap_or(0),
+            v["fitH"].as_u64().unwrap_or(0),
+        );
         println!("{res} → 裁剪 {w}x{h} / 幕布 {winx}x{winy} / 适配 {fitw}x{fith}（{expect}）");
         match expect {
             // 两种布局：高度**恒为 130**；宽幕布只左右扩
@@ -238,14 +253,56 @@ fn json_anim_group_smoke() {
     // `images` 方言那 4 条是 2026-10-21 的回归红线：它们没有 `.def` 兜底，只靠 json。
     // `mod_id` 用**真实 wiki 条目归属**：`hota.factory` 的自身路径 = `Mods/hota/Mods/factory`。
     let candidates = [
-        ("35- Yokai-town", "x.yokai-town", "yokai/creatures/battle/lv7up2.json", 2u32, false),
-        ("35- Yokai-town", "x.yokai-town", "yokai/creatures/battle/lv7up2.json", 11, false),
-        ("HuaXia", "x.huaxia", "huaXia/creatures/battle/lv1.json", 2, false),
+        (
+            "35- Yokai-town",
+            "x.yokai-town",
+            "yokai/creatures/battle/lv7up2.json",
+            2u32,
+            false,
+        ),
+        (
+            "35- Yokai-town",
+            "x.yokai-town",
+            "yokai/creatures/battle/lv7up2.json",
+            11,
+            false,
+        ),
+        (
+            "HuaXia",
+            "x.huaxia",
+            "huaXia/creatures/battle/lv1.json",
+            2,
+            false,
+        ),
         // 请求名 = 生物配置里的 `graphics.animation`（那个 `.def` 文件并不存在）
-        ("hota/Mods/factory", "hota.factory", "hota/factory/creatures/battle/CSANDWX.def", 0, true),
-        ("hota/Mods/factory", "hota.factory", "hota/factory/creatures/battle/CDREAD.def", 30, true),
-        ("hota/Mods/factory", "hota.factory", "hota/factory/creatures/battle/COLGOIX.def", 5, true),
-        ("hota/Mods/factory", "hota.factory", "hota/factory/creatures/battle/CJUGGER.def", 2, true),
+        (
+            "hota/Mods/factory",
+            "hota.factory",
+            "hota/factory/creatures/battle/CSANDWX.def",
+            0,
+            true,
+        ),
+        (
+            "hota/Mods/factory",
+            "hota.factory",
+            "hota/factory/creatures/battle/CDREAD.def",
+            30,
+            true,
+        ),
+        (
+            "hota/Mods/factory",
+            "hota.factory",
+            "hota/factory/creatures/battle/COLGOIX.def",
+            5,
+            true,
+        ),
+        (
+            "hota/Mods/factory",
+            "hota.factory",
+            "hota/factory/creatures/battle/CJUGGER.def",
+            2,
+            true,
+        ),
     ];
     let mut hit = false;
     for (mod_dir, mod_id, res, group, required) in candidates {
@@ -270,12 +327,19 @@ fn json_anim_group_smoke() {
                     v["w"], v["h"], v["scale"]
                 );
                 assert!(frames > 0, "png 动画应至少一帧");
-                assert_eq!(v["scale"].as_u64(), Some(1), "png 动画无官方 HD 档位，应恒 1x");
+                assert_eq!(
+                    v["scale"].as_u64(),
+                    Some(1),
+                    "png 动画无官方 HD 档位，应恒 1x"
+                );
                 hit = true;
             }
             None => {
                 println!("{mod_dir} {res} g{group} → 无帧（该组可能不存在）");
-                assert!(!required, "images 方言的动画组必须能解析出帧（不得回退静态图）");
+                assert!(
+                    !required,
+                    "images 方言的动画组必须能解析出帧（不得回退静态图）"
+                );
             }
         }
     }
@@ -289,8 +353,7 @@ fn json_anim_group_smoke() {
     // 必须按**索引**还原成"0 透明、1/4 半透明黑"，否则百科里就是一块天蓝幕布 + 脚下洋红。
     if game.join("Mods").join("hota").is_dir() {
         let res = "hota/factory/creatures/battle/CSANDWX.def";
-        if let Some(anim) =
-            crate::vcmi::anim_json::load_group(&paths, "hota.factory", res, 0, true)
+        if let Some(anim) = crate::vcmi::anim_json::load_group(&paths, "hota.factory", res, 0, true)
         {
             let f = anim.frames.first().expect("至少一帧");
             let (mut cyan, mut magenta, mut shadow) = (0usize, 0usize, 0usize);
@@ -306,7 +369,10 @@ fn json_anim_group_smoke() {
                     shadow += 1;
                 }
             }
-            println!("{res} 首帧：残留青 {} / 残留洋红 {} / 半透明阴影 {}", cyan, magenta, shadow);
+            println!(
+                "{res} 首帧：残留青 {} / 残留洋红 {} / 半透明阴影 {}",
+                cyan, magenta, shadow
+            );
             assert_eq!(cyan, 0, "色键索引 0 必须还原成透明，不得留下天蓝幕布");
             assert_eq!(magenta, 0, "阴影索引 1/4 必须是半透明黑，不得画成洋红");
             assert!(shadow > 0, "生物帧应带脚底阴影（索引 1/4）");
@@ -321,13 +387,20 @@ fn json_anim_group_smoke() {
         .join("sprites")
         .join("CAELEM.json");
     if cross_json.is_file() {
-        let hijack = crate::vcmi::anim_json::load_group(&paths, "core.conflux", "CAELEM.DEF", 2, false);
+        let hijack =
+            crate::vcmi::anim_json::load_group(&paths, "core.conflux", "CAELEM.DEF", 2, false);
         assert!(
             hijack.is_none(),
             "跨模组的 images 定义不得顶替 core 生物的 DEF 动画"
         );
         let def = crate::vcmi::resource::read_def_group_hd_inner(
-            &paths, "core.conflux", "CAELEM.DEF", 2, false, 270, None,
+            &paths,
+            "core.conflux",
+            "CAELEM.DEF",
+            2,
+            false,
+            270,
+            None,
         );
         assert!(def.is_some(), "core 生物必须仍走 DEF 路径出帧");
     } else {
@@ -441,7 +514,11 @@ fn json_anim_window_keeps_head() {
         n("fitW"),
         n("fitH")
     );
-    assert!(n("wy") <= 130, "裁剪矩形上沿必须包住头部（实测 wy={}）", n("wy"));
+    assert!(
+        n("wy") <= 130,
+        "裁剪矩形上沿必须包住头部（实测 wy={}）",
+        n("wy")
+    );
     assert!(
         n("fitH") > n("winH"),
         "适配参考必须按素材包围盒放大（否则头部只能被硬裁）"
@@ -656,9 +733,3 @@ fn crossmod_fallback_no_paths_is_safe() {
     assert!(got.is_none());
     let _ = std::fs::remove_dir_all(&tmp);
 }
-
-
-
-
-
-

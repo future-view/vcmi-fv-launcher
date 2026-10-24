@@ -297,7 +297,7 @@ impl VcmiPaths {
         })
     }
 
-/// 领域隔离目录（设计 §3.1）：exe 目录 / .vcmi-fv-launcher/realms/<id>/vcmi
+    /// 领域隔离目录（设计 §3.1）：exe 目录 / .vcmi-fv-launcher/realms/<id>/vcmi
     /// 5 个真实 dirs.json key 全部指向这里的子目录，从而把用户目录与游戏目录分离。
     pub fn realm_vcmi_dir(id: &str) -> Option<PathBuf> {
         Self::launcher_data_dir().map(|d| {
@@ -651,7 +651,11 @@ impl VcmiPaths {
             let configured = std::fs::read_to_string(&dirs_path)
                 .ok()
                 .and_then(|text| crate::infra::json::parse_json_lenient(&text).ok())
-                .and_then(|v| v.get("userConfigPath").and_then(|x| x.as_str()).map(str::to_string))
+                .and_then(|v| {
+                    v.get("userConfigPath")
+                        .and_then(|x| x.as_str())
+                        .map(str::to_string)
+                })
                 .map(|raw| expand_env(&raw));
 
             if let Some(expanded) = configured {
@@ -822,9 +826,7 @@ pub fn looks_like_vcmi_user_data(dir: &Path) -> bool {
     if dir.join(GAME_EXE_MARKER).is_file() {
         return false;
     }
-    USER_DATA_MEMBERS
-        .iter()
-        .any(|m| dir.join(m).is_dir())
+    USER_DATA_MEMBERS.iter().any(|m| dir.join(m).is_dir())
 }
 
 /// VCMI 官方默认用户数据目录：`文档\My Games\vcmi`。

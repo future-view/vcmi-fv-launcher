@@ -29,10 +29,7 @@ use crate::vcmi::scan::cached_mod_paths;
 /// ⚠️ `async` + `spawn_blocking`：读整份 `cache.json` 是重 IO，且列表页会并发调用数百次，
 /// 同步命令会冻结 WebView 消息循环（见 `docs/features/startup-responsiveness.zh-CN.md`）。
 #[tauri::command]
-pub async fn read_mod_cache(
-    _state: State<'_, AppPaths>,
-    mod_id: String,
-) -> Result<String, String> {
+pub async fn read_mod_cache(_state: State<'_, AppPaths>, mod_id: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
         let cache_root = VcmiPaths::mods_cache_dir()
             .unwrap_or_else(|| PathBuf::from(".vcmi-fv-launcher").join("mods"));

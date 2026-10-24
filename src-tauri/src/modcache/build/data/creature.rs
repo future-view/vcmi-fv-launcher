@@ -46,7 +46,10 @@ fn merge_pairs(
 /// 只在该语言**没有名称**时用头部充名；描述去掉头部后为空则不留空串。
 fn split_header_text(
     m: std::collections::HashMap<String, String>,
-) -> (std::collections::HashMap<String, String>, std::collections::HashMap<String, String>) {
+) -> (
+    std::collections::HashMap<String, String>,
+    std::collections::HashMap<String, String>,
+) {
     let mut names = std::collections::HashMap::new();
     let mut descs = std::collections::HashMap::new();
     for (lang, text) in m {
@@ -132,11 +135,20 @@ fn neutral_creature_background(
     // 已经在 `core` 里提取过（`core/images/town/neutral-creature-bg.webp`）→ **直接引用**，
     // 不再给每个含中立生物的 mod 各复制一份（去重口径与城镇幕布一致）。
     let canonical = "core/images/town/neutral-creature-bg.webp";
-    if cache_root.join("core").join("images").join("town").join("neutral-creature-bg.webp").is_file() {
+    if cache_root
+        .join("core")
+        .join("images")
+        .join("town")
+        .join("neutral-creature-bg.webp")
+        .is_file()
+    {
         return Some(Value::String(canonical.to_string()));
     }
     let cfg = crate::vcmi::town::parse_town_config_file(
-        &game_dir.join("config").join("factions").join("neutral.json"),
+        &game_dir
+            .join("config")
+            .join("factions")
+            .join("neutral.json"),
     );
     let res = cfg.creature_background?;
     let (buf, ext) = crate::vcmi::resource::resolve_resource_fallback(p, game_dir, &res)?;
@@ -204,8 +216,14 @@ pub(crate) fn build_creatures(
         //    的条目：那是给别的生物打补丁的定义，不是独立生物（实测 Courtyard 的
         //    `stackExp.json`：`cameraObscuraCreature`、`potionCartCreature` 全属性为 0）。
         // 用户实测这三类在百科里是一排"无图/全 0"的噪音条目。
-        let disabled = obj.get("disabled").and_then(|v| v.as_bool()).unwrap_or(false);
-        let special = obj.get("special").and_then(|v| v.as_bool()).unwrap_or(false);
+        let disabled = obj
+            .get("disabled")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let special = obj
+            .get("special")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         let is_patch_only = obj.get("name").is_none()
             && obj.get("level").is_none()
             && obj.get("abilities").is_none()
@@ -531,10 +549,7 @@ pub(crate) fn build_creatures(
                     &format!("creature.{}.{}.ability.{}", scope, id, bname),
                 )
                 .or_else(|| {
-                    i18n_get_multi(
-                        &i18n,
-                        &format!("creature.{}.{}.ability.{}", scope, id, i),
-                    )
+                    i18n_get_multi(&i18n, &format!("creature.{}.{}.ability.{}", scope, id, i))
                 });
                 // ── 行文本：无文案的能力**整行不显示**（对齐 VCMI `WikiCreatureContent.cpp:298-307`）──
                 //
@@ -859,12 +874,7 @@ pub(crate) fn build_creatures(
 /// - ③ 两者都没有 → `kind: "unknown"`，交给详情页原有实时定位（`anim_json::locate`
 ///   带结果缓存）。**不在这里做跨模组全扫**：数千生物 × 数百模组会显著拖慢构建，
 ///   而真正的跨模组引用是少数，首次多付一次 400ms 即可。
-fn probe_animation(
-    mod_path: &Path,
-    game_dir: &Path,
-    mod_id: &str,
-    res: Option<&str>,
-) -> Value {
+fn probe_animation(mod_path: &Path, game_dir: &Path, mod_id: &str, res: Option<&str>) -> Value {
     let Some(res) = res.map(str::trim).filter(|s| !s.is_empty()) else {
         return json!({ "kind": "none" });
     };
@@ -909,7 +919,10 @@ mod header_split_tests {
     use super::split_header_text;
 
     fn m(pairs: &[(&str, &str)]) -> std::collections::HashMap<String, String> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 
     /// 实测形态：`creatures.core.devil.bonus.decreaseLuck` 的值
@@ -920,7 +933,10 @@ mod header_split_tests {
             "english",
             "{Reduces enemy luck}\nDevils and Archdevils reduce enemy luck by one",
         )]));
-        assert_eq!(n.get("english").map(String::as_str), Some("Reduces enemy luck"));
+        assert_eq!(
+            n.get("english").map(String::as_str),
+            Some("Reduces enemy luck")
+        );
         assert_eq!(
             d.get("english").map(String::as_str),
             Some("Devils and Archdevils reduce enemy luck by one")
@@ -932,7 +948,10 @@ mod header_split_tests {
     fn 纯描述不造名称() {
         let (n, d) = split_header_text(m(&[("english", "Flies over obstacles.")]));
         assert!(n.is_empty());
-        assert_eq!(d.get("english").map(String::as_str), Some("Flies over obstacles."));
+        assert_eq!(
+            d.get("english").map(String::as_str),
+            Some("Flies over obstacles.")
+        );
     }
 
     /// 只有头部、没有描述行：不留空串描述

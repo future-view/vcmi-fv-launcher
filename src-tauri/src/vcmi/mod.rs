@@ -30,7 +30,6 @@ pub mod config;
 pub mod game_import;
 pub mod gamedata;
 pub mod h3core;
-pub mod modmeta;
 /// 原版 H3 数据文件：检测（官方口径）/ 定位（注册表）/ 补齐（复制 .lod）。
 pub mod h3data;
 pub mod health;
@@ -38,6 +37,7 @@ pub mod i18n;
 /// Inno Setup 安装器的**只读**探测（版本 / 头部位置 / 数据区起点 / 压缩算法）。
 pub mod inno;
 pub mod mod_install;
+pub mod modmeta;
 // HD 高清素材来源（`.pak`）：接线期间部分接口尚未被提取链路调用，先放宽 dead_code。
 #[allow(dead_code)]
 pub mod hd_edition;

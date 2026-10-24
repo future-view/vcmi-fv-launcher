@@ -515,12 +515,21 @@ fn index_dedup_drops_legacy_case_entries() {
     let mods = v["mods"].as_array().unwrap();
     assert_eq!(mods.len(), 2, "同 key 的两条应合成一条：{v}");
     assert_eq!(mods[0]["modId"], "1-knight-town", "应保留规范小写那条：{v}");
-    assert_eq!(mods[0]["name"]["chinese"], "新条目", "内容应是新口径那条：{v}");
-    assert_eq!(mods[1]["modId"], "core", "位置稳定：首条原位保留，不追加到末尾");
+    assert_eq!(
+        mods[0]["name"]["chinese"], "新条目",
+        "内容应是新口径那条：{v}"
+    );
+    assert_eq!(
+        mods[1]["modId"], "core",
+        "位置稳定：首条原位保留，不追加到末尾"
+    );
     // 幂等：已归一的索引再跑一次不再丢任何条目
     assert_eq!(crate::modcache::index::dedup_index_mods(&mut v), 0);
     // 只有旧口径条目时也要保留（不是"见到就删"）：落到它自己的小写 key 上
     let mut only_legacy = json!({ "mods": [{ "modId": "29- Jadelake-town" }] });
-    assert_eq!(crate::modcache::index::dedup_index_mods(&mut only_legacy), 0);
+    assert_eq!(
+        crate::modcache::index::dedup_index_mods(&mut only_legacy),
+        0
+    );
     assert_eq!(only_legacy["mods"][0]["modId"], "29- Jadelake-town");
 }

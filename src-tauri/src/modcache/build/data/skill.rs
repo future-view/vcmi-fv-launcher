@@ -34,19 +34,22 @@ pub(crate) fn build_skills(
         // advanced/expert 档时 → `image` 恒为 null（用户报"有些技能也是没有图片"）。
         // 口径：先按档位（basic → advanced → expert），档内按尺寸（medium → large → small
         // → scenarioBonus）——medium 是技能栏标准尺寸，取不到再退而求其次。
-        let img = (["basic", "advanced", "expert"]).iter().find_map(|lvl| {
-            obj.get(*lvl)
-                .and_then(|b| b.get("images"))
-                .and_then(|i| {
-                    i.get("medium")
-                        .or_else(|| i.get("large"))
-                        .or_else(|| i.get("small"))
-                        .or_else(|| i.get("scenarioBonus"))
-                })
-                .and_then(|v| v.as_str())
-        }).and_then(|r| {
-            extract_icon_and_save(&p, game_dir, cache_root, mod_id, "skill", &id, Some(r))
-        });
+        let img = (["basic", "advanced", "expert"])
+            .iter()
+            .find_map(|lvl| {
+                obj.get(*lvl)
+                    .and_then(|b| b.get("images"))
+                    .and_then(|i| {
+                        i.get("medium")
+                            .or_else(|| i.get("large"))
+                            .or_else(|| i.get("small"))
+                            .or_else(|| i.get("scenarioBonus"))
+                    })
+                    .and_then(|v| v.as_str())
+            })
+            .and_then(|r| {
+                extract_icon_and_save(&p, game_dir, cache_root, mod_id, "skill", &id, Some(r))
+            });
         // **内部记账技能不展示**（2026-10-16）：HotA / 潮战的「符文等级计数器」
         // （`RUNE_LEVEL_COUNTER` / `YETI_RUNE_LEVEL_COUNTER` / `APE_RUNE_LEVEL_COUNTER`）
         // 三档都没有 `images`（VCMI 侧 `RenderHandler.cpp:496-501` 空名直接跳过注册 →
@@ -143,11 +146,7 @@ pub(crate) fn build_skills(
                     "",
                 )
             };
-            let lv = [
-                lvl_obj("basic"),
-                lvl_obj("advanced"),
-                lvl_obj("expert"),
-            ];
+            let lv = [lvl_obj("basic"), lvl_obj("advanced"), lvl_obj("expert")];
             // 纯字符串版（英雄页对非本 mod 技能的直接显示回退）：中英优先，不带语言键
             let lv_text = |o: &Value| -> String {
                 o.get("chinese")
@@ -229,6 +228,9 @@ mod visibility_tests {
             ids.iter().any(|i| i == "namedNoIcon"),
             "有名称、只缺图标的技能必须保留（VCMI 也照样列出）：{ids:?}"
         );
-        assert!(ids.iter().any(|i| i == "inlineZhNoIcon"), "内嵌中文名同样算有名称：{ids:?}");
+        assert!(
+            ids.iter().any(|i| i == "inlineZhNoIcon"),
+            "内嵌中文名同样算有名称：{ids:?}"
+        );
     }
 }

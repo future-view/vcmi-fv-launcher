@@ -460,7 +460,14 @@ fn no_image_root_cause_audit() {
         let res = build_mod_wiki_inner(&mod_dir.to_string_lossy(), &mod_id, &cache, &game_dir);
         let ok = res.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
         let mut line = format!("{mod_id} ok={ok}");
-        for cat in ["factions", "creatures", "heroes", "artifacts", "spells", "skills"] {
+        for cat in [
+            "factions",
+            "creatures",
+            "heroes",
+            "artifacts",
+            "spells",
+            "skills",
+        ] {
             let arr = cache
                 .join(&mod_id)
                 .join("cache.json")
@@ -468,16 +475,17 @@ fn no_image_root_cause_audit() {
                 .then(|| fs::read_to_string(cache.join(&mod_id).join("cache.json")).ok())
                 .flatten()
                 .and_then(|t| serde_json::from_str::<Value>(&t).ok());
-            let (total, no_img) = match arr.as_ref().and_then(|v| v.get(cat)).and_then(|x| x.as_array()) {
+            let (total, no_img) = match arr
+                .as_ref()
+                .and_then(|v| v.get(cat))
+                .and_then(|x| x.as_array())
+            {
                 Some(a) => (
                     a.len(),
                     a.iter()
                         .filter(|it| {
                             !it.get("ref").and_then(|r| r.as_bool()).unwrap_or(false)
-                                && it
-                                    .get("image")
-                                    .map(|v| v.is_null())
-                                    .unwrap_or(true)
+                                && it.get("image").map(|v| v.is_null()).unwrap_or(true)
                         })
                         .count(),
                 ),

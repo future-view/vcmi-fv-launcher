@@ -705,11 +705,7 @@ pub(crate) fn resolve_resource_origin(
 /// ⚠️ 单一实现是硬要求：两个对外入口（[`resolve_resource_fallback`] /
 /// [`resolve_resource_origin`]）共用它。两处各写一份归一口径必然漂移 ——
 /// [`resource_keys`] 的文档记过这类漂移的后果（负缓存误伤命中）。
-fn resolve_core(
-    mod_path: &Path,
-    game_dir: &Path,
-    res: &str,
-) -> Option<(Vec<u8>, String, Origin)> {
+fn resolve_core(mod_path: &Path, game_dir: &Path, res: &str) -> Option<(Vec<u8>, String, Origin)> {
     if let Some((b, e)) = resolve_resource(mod_path, res) {
         return Some((b, e, Origin::SelfMod));
     }
@@ -756,10 +752,7 @@ fn resolve_core(
         // 每个动画分组请求都会为"这是不是 json 定义"逐个模组做解析（见 `CROSSMOD_HIT`）。
         {
             let hit = CROSSMOD_HIT.get_or_init(|| Mutex::new(HashMap::new()));
-            let cached = hit
-                .lock()
-                .ok()
-                .and_then(|g| g.get(&miss_key).cloned());
+            let cached = hit.lock().ok().and_then(|g| g.get(&miss_key).cloned());
             if let Some((mp, mid)) = cached {
                 if let Some((b, e)) = resolve_resource(&mp, res) {
                     crate::infra::metrics::count("res.hit.cached", 1);
@@ -868,7 +861,10 @@ pub(crate) fn set_wiki_mod_paths(paths: &[ModEntry]) {
     if let Ok(g) = WIKI_MOD_PATHS.lock() {
         if let Some(prev) = g.as_ref() {
             if prev.len() == paths.len()
-                && prev.iter().zip(paths.iter()).all(|(a, b)| a.0 == b.0 && a.1 == b.1)
+                && prev
+                    .iter()
+                    .zip(paths.iter())
+                    .all(|(a, b)| a.0 == b.0 && a.1 == b.1)
             {
                 return;
             }
@@ -1154,7 +1150,11 @@ pub(crate) fn two_layout_window(
     canvas: Option<(u32, u32)>,
     art: Option<Rect>,
 ) -> Rect {
-    let bx0 = if double_wide { WIN_X_DOUBLE } else { WIN_X_SINGLE };
+    let bx0 = if double_wide {
+        WIN_X_DOUBLE
+    } else {
+        WIN_X_SINGLE
+    };
     let base = (bx0, WIN_Y, WIN_W, WIN_H);
     let Some((ax0, _, ax1, _)) = art else {
         return base;
@@ -1272,12 +1272,13 @@ pub(crate) fn plan_from_bounds(
 
     // ⚠️ 包围盒口径是 `(x0, y0, x1, y1)`，窗口口径是 `(x, y, w, h)` —— 必须先统一再并
     let win_bbox = (win.0, win.1, win.0 + win.2, win.1 + win.3);
-    let union = |a: Option<(i64, i64, i64, i64)>, b: (i64, i64, i64, i64)| -> (i64, i64, i64, i64) {
-        match a {
-            Some((x0, y0, x1, y1)) => (x0.min(b.0), y0.min(b.1), x1.max(b.2), y1.max(b.3)),
-            None => b,
-        }
-    };
+    let union =
+        |a: Option<(i64, i64, i64, i64)>, b: (i64, i64, i64, i64)| -> (i64, i64, i64, i64) {
+            match a {
+                Some((x0, y0, x1, y1)) => (x0.min(b.0), y0.min(b.1), x1.max(b.2), y1.max(b.3)),
+                None => b,
+            }
+        };
     let clamp = |r: (i64, i64, i64, i64)| -> (i64, i64, i64, i64) {
         let (mut x0, mut y0, mut x1, mut y1) = r;
         if let Some((cw, ch)) = canvas {
@@ -1361,24 +1362,24 @@ pub(crate) fn read_def_group_hd_inner(
         if let Some(anim) =
             crate::vcmi::anim_json::load_group(paths, mod_id, resource, group, double_wide)
         {
-        // 显示几何**与 DEF 完全同口径**（`plan_from_bounds`）：幕布窗口按适配组算宽幕布，
-        // 裁剪矩形 `win ∪ 全部已见组` 保头保尾，适配参考 `win ∪ 适配组` 决定缩放倍数。
-        // 早先这里把 `tex = fit = 基准窗口`，png 生物的头顶在进前端之前就被切掉了
-        // （实测 HuaXia「云南蛊女」alpha bbox 顶在 y=118，窗口上沿 155 → 头没了 37px）。
-        let plan = anim.plan;
-        let (tx, ty, tw, th) = plan.tex;
-        let mut frames: Vec<(i64, i64, u32, u32, Vec<u8>)> = Vec::new();
-        for img in &anim.frames {
-            let (w, h) = (img.width(), img.height());
-            if let Some(f) = encode_window_frame(img.as_raw(), w, h, -tx, -ty, tw, th) {
-                frames.push(f);
+            // 显示几何**与 DEF 完全同口径**（`plan_from_bounds`）：幕布窗口按适配组算宽幕布，
+            // 裁剪矩形 `win ∪ 全部已见组` 保头保尾，适配参考 `win ∪ 适配组` 决定缩放倍数。
+            // 早先这里把 `tex = fit = 基准窗口`，png 生物的头顶在进前端之前就被切掉了
+            // （实测 HuaXia「云南蛊女」alpha bbox 顶在 y=118，窗口上沿 155 → 头没了 37px）。
+            let plan = anim.plan;
+            let (tx, ty, tw, th) = plan.tex;
+            let mut frames: Vec<(i64, i64, u32, u32, Vec<u8>)> = Vec::new();
+            for img in &anim.frames {
+                let (w, h) = (img.width(), img.height());
+                if let Some(f) = encode_window_frame(img.as_raw(), w, h, -tx, -ty, tw, th) {
+                    frames.push(f);
+                }
             }
-        }
-        if frames.is_empty() {
-            return None;
-        }
-        // png 动画没有官方 HD 档位（HD 包只收原版 DEF 的帧名）→ 恒 1x，由前端平滑放大
-        return Some(build_window_json(frames, (tx, ty, tw, th), 1, &plan));
+            if frames.is_empty() {
+                return None;
+            }
+            // png 动画没有官方 HD 档位（HD 包只收原版 DEF 的帧名）→ 恒 1x，由前端平滑放大
+            return Some(build_window_json(frames, (tx, ty, tw, th), 1, &plan));
         }
     }
 
@@ -1430,15 +1431,18 @@ pub(crate) fn read_def_group_hd_inner(
             // 全画布位置 − 窗口左上角，再按档位放大
             let x = ((lm as i64 - off.0 as i64) - wx) * s as i64;
             let y = ((tm as i64 - off.1 as i64) - wy) * s as i64;
-            if let Some(f) =
-                encode_window_frame(&rgba, w, h, x, y, ww * s as i64, wh * s as i64)
-            {
+            if let Some(f) = encode_window_frame(&rgba, w, h, x, y, ww * s as i64, wh * s as i64) {
                 frames.push(f);
             }
         }
         if ok && !frames.is_empty() {
             let s = scale.unwrap_or(1);
-            return Some(build_window_json(frames, (wx, wy, ww * s as i64, wh * s as i64), s, &plan));
+            return Some(build_window_json(
+                frames,
+                (wx, wy, ww * s as i64, wh * s as i64),
+                s,
+                &plan,
+            ));
         }
     }
 
@@ -1529,9 +1533,7 @@ impl GroupOut {
         let frames: Vec<Value> = self
             .frames
             .iter()
-            .map(|f| {
-                json!({ "x": f.x, "y": f.y, "w": f.w, "h": f.h, "data": f.data })
-            })
+            .map(|f| json!({ "x": f.x, "y": f.y, "w": f.w, "h": f.h, "data": f.data }))
             .collect();
         v["frames"] = Value::Array(frames);
         v
@@ -1587,9 +1589,7 @@ pub(crate) fn pack_group_binary(out: Option<GroupOut>) -> Vec<u8> {
     let frames_meta: Vec<Value> = out
         .frames
         .iter()
-        .map(|f| {
-            json!({ "x": f.x, "y": f.y, "w": f.w, "h": f.h, "len": f.data.len() })
-        })
+        .map(|f| json!({ "x": f.x, "y": f.y, "w": f.w, "h": f.h, "len": f.data.len() }))
         .collect();
     let mut meta = out.meta;
     meta["frames"] = Value::Array(frames_meta);
@@ -1609,12 +1609,7 @@ pub(crate) fn pack_group_binary(out: Option<GroupOut>) -> Vec<u8> {
 /// 对齐 VCMI `HdImageLoader::getImage(shadow=true)` 的语义：阴影与本体**共用同一 margins**
 /// （`HdImageLoader.cpp:176` 对两者一视同仁），只是各自尺寸不同 ⇒ 二者**左上角对齐**叠加，
 /// 画布取二者较大者。绝不自己发明"底边/居中对齐" —— 那会让阴影相对生物漂移。
-fn composite_shadow(
-    body: &[u8],
-    w: u32,
-    h: u32,
-    shadow: &image::RgbaImage,
-) -> (Vec<u8>, u32, u32) {
+fn composite_shadow(body: &[u8], w: u32, h: u32, shadow: &image::RgbaImage) -> (Vec<u8>, u32, u32) {
     let (sw, sh) = (shadow.width(), shadow.height());
     if w == 0 || h == 0 || sw == 0 || sh == 0 {
         return (body.to_vec(), w, h);
@@ -1652,7 +1647,9 @@ fn blend_over(src: [u8; 4], dst: [u8; 4]) -> [u8; 4] {
     let a = src[3] as f32 / 255.0;
     let mut out = [0u8; 4];
     for c in 0..3 {
-        out[c] = (src[c] as f32 * a + dst[c] as f32 * (1.0 - a)).round().min(255.0) as u8;
+        out[c] = (src[c] as f32 * a + dst[c] as f32 * (1.0 - a))
+            .round()
+            .min(255.0) as u8;
     }
     out[3] = (a * 255.0 + dst[3] as f32 * (1.0 - a)).round().min(255.0) as u8;
     out
@@ -1669,8 +1666,20 @@ mod tests {
         let out = GroupOut {
             meta: json!({ "w": 300, "h": 390, "scale": 3 }),
             frames: vec![
-                FrameOut { x: 0, y: 0, w: 300, h: 390, data: vec![1, 2, 3] },
-                FrameOut { x: 1, y: 2, w: 10, h: 20, data: vec![4; 5] },
+                FrameOut {
+                    x: 0,
+                    y: 0,
+                    w: 300,
+                    h: 390,
+                    data: vec![1, 2, 3],
+                },
+                FrameOut {
+                    x: 1,
+                    y: 2,
+                    w: 10,
+                    h: 20,
+                    data: vec![4; 5],
+                },
             ],
         };
         let buf = pack_group_binary(Some(out));
@@ -1706,7 +1715,10 @@ mod tests {
         let entry = resource_keys("data/zvs/Lib1.res/E_DEATH.png");
         assert_eq!(req.0, "zvs/lib1.res/e_death");
         assert_eq!(req.0, entry.0, "请求与清单条目的去扩展名 key 必须一致");
-        assert_eq!(entry.1, "zvs/lib1.res/e_death.png", "含扩展名 key 保留末段扩展");
+        assert_eq!(
+            entry.1, "zvs/lib1.res/e_death.png",
+            "含扩展名 key 保留末段扩展"
+        );
     }
 
     /// **素材不得被 `config/` 下的同名定义文件顶掉**（2026-10-16 修复）。
@@ -1719,15 +1731,26 @@ mod tests {
     fn asset_wins_over_same_stem_config_json() {
         let root = std::env::temp_dir().join("vcmi_fv_res_cfg_collision");
         let _ = fs::remove_dir_all(&root);
-        let cfg = root.join("Content").join("config").join("lianjin").join("artifacts");
-        let sp = root.join("Content").join("sprites").join("lianjin").join("artifacts");
+        let cfg = root
+            .join("Content")
+            .join("config")
+            .join("lianjin")
+            .join("artifacts");
+        let sp = root
+            .join("Content")
+            .join("sprites")
+            .join("lianjin")
+            .join("artifacts");
         fs::create_dir_all(&cfg).unwrap();
         fs::create_dir_all(&sp).unwrap();
         fs::write(cfg.join("ringOfTheCobrasEye.json"), b"{ \"x\": 1 }").unwrap();
         fs::write(sp.join("ringOfTheCobrasEye.bmp"), b"BMP-BYTES").unwrap();
 
         let got = resolve_resource(&root, "lianjin/artifacts/ringOfTheCobrasEye").unwrap();
-        assert_eq!(got.1, "bmp", "命中的应是 sprites 下的素材，而不是 config 的 JSON");
+        assert_eq!(
+            got.1, "bmp",
+            "命中的应是 sprites 下的素材，而不是 config 的 JSON"
+        );
         assert_eq!(got.0, b"BMP-BYTES".to_vec());
 
         // 请求带（不存在于盘的）扩展名时同样命中素材，而非定义文件
@@ -1762,9 +1785,17 @@ mod tests {
         let p = plan_from_bounds(true, Some((450, 400)), fit, all);
         // 宽度需求 = 280 − 133 = 147 ≥ 105% × 100 → 宽幕布；高度恒 130（布局稳定）
         assert_eq!((p.win.2, p.win.3), (200, 130), "幕布只能是两种布局之一");
-        assert!(p.tex.1 <= 118, "裁剪矩形上沿必须包住头部（实测 {}）", p.tex.1);
+        assert!(
+            p.tex.1 <= 118,
+            "裁剪矩形上沿必须包住头部（实测 {}）",
+            p.tex.1
+        );
         assert_eq!(p.tex, (120, 103, 238, 182), "裁剪 = 幕布 ∪ 全部组包围盒");
-        assert_eq!(p.fit, (120, 118, 200, 167), "适配参考 = 幕布 ∪ 适配组包围盒");
+        assert_eq!(
+            p.fit,
+            (120, 118, 200, 167),
+            "适配参考 = 幕布 ∪ 适配组包围盒"
+        );
 
         // 素材信息缺失（首帧全透明 / 组不存在）→ 退回基准窗口，不得 panic 或造 0 尺寸
         let base = plan_from_bounds(false, None, None, None);

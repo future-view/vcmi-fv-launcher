@@ -991,10 +991,7 @@ pub fn install_hd_edition(
                 let dst = subdir.join("content").join("data");
                 fs::create_dir_all(&dst)
                     .map_err(|e| be_err("realm_target_dir_create_failed", &format!("{}", e)))?;
-                write_mod_json(
-                    &subdir,
-                    crate::vcmi::modmeta::hd_localization(&full, scale),
-                )?;
+                write_mod_json(&subdir, crate::vcmi::modmeta::hd_localization(&full, scale))?;
                 files += 1;
                 for name in loc_paks {
                     copy_pak_or_count(
@@ -1451,7 +1448,8 @@ pub fn execute(
 fn exec_chronicles(env: &ImportEnv, src: &Path, conflict: Conflict, exec: &mut ExecItem) {
     if !inno_signature(src) {
         exec.status = "failed".to_string();
-        exec.reason = Some("不是 Inno Setup 安装器（未找到特征串，可能不是 GOG 离线包）".to_string());
+        exec.reason =
+            Some("不是 Inno Setup 安装器（未找到特征串，可能不是 GOG 离线包）".to_string());
         return;
     }
     // ⚠️ **不需要 `.bin`**：官方启动器 `ChroniclesExtractor::installChronicles` 对单个 `.exe`
@@ -1532,7 +1530,8 @@ fn exec_chronicles(env: &ImportEnv, src: &Path, conflict: Conflict, exec: &mut E
             exec.status = "added".to_string();
             exec.dest = Some(out.base_mod.to_string_lossy().into_owned());
             if out.files == 0 {
-                exec.reason = Some("已生成模组但未解出素材文件（安装器内容可能不完整）".to_string());
+                exec.reason =
+                    Some("已生成模组但未解出素材文件（安装器内容可能不完整）".to_string());
             }
         }
         Err(e) => {
@@ -2010,7 +2009,10 @@ mod tests {
         let report = execute(&env, &[s(&exe)], Conflict::Overwrite, &BTreeMap::new());
         assert_eq!(report.items.len(), 1);
         assert_eq!(report.items[0].kind, "chronicles");
-        assert_eq!(report.items[0].status, "failed", "非 Inno 包应判失败并给出原因");
+        assert_eq!(
+            report.items[0].status, "failed",
+            "非 Inno 包应判失败并给出原因"
+        );
         assert!(report.items[0].reason.is_some());
         let _ = fs::remove_dir_all(&d);
     }
@@ -2042,7 +2044,10 @@ mod tests {
             report.total, report.added, report.failed, report.unsupported
         );
         let it = &report.items[0];
-        println!("status={} dest={:?} reason={:?}", it.status, it.dest, it.reason);
+        println!(
+            "status={} dest={:?} reason={:?}",
+            it.status, it.dest, it.reason
+        );
         assert_eq!(it.status, "added", "真实包应导入成功：{:?}", it.reason);
         assert_eq!(
             it.dest.as_deref().map(Path::new),
@@ -2056,27 +2061,51 @@ mod tests {
         // 基础模组：Expansion + 战役地图格式声明
         let base = env.mods_dir.join("chronicles");
         let base_json = fs::read_to_string(base.join("mod.json")).expect("基础 mod.json");
-        assert!(base_json.contains("\"chronicles\""), "应声明 chronicles 地图格式");
-        assert!(base_json.contains("portraitTarnumBarbarian"), "应带 Tarnum 头像表");
+        assert!(
+            base_json.contains("\"chronicles\""),
+            "应声明 chronicles 地图格式"
+        );
+        assert!(
+            base_json.contains("portraitTarnumBarbarian"),
+            "应带 Tarnum 头像表"
+        );
 
         // 8 篇子模组：mod.json + 素材 + 改名后的战役文件
         let mut total = 0usize;
         for no in 1..=8 {
             let sub = base.join("Mods").join(format!("chronicles_{no}"));
-            assert!(sub.join("mod.json").is_file(), "缺少 chronicles_{no}/mod.json");
+            assert!(
+                sub.join("mod.json").is_file(),
+                "缺少 chronicles_{no}/mod.json"
+            );
             let maps = sub.join("content").join("Maps").join("Chronicles");
             assert!(
                 maps.join(format!("Hc{no}_Main.h3c")).is_file(),
                 "缺少第 {no} 篇战役 Hc{no}_Main.h3c"
             );
             assert!(!maps.join("Main.h3c").exists(), "不应残留未改名的 Main.h3c");
-            let data = sub.join("content").join("Data").join(format!("chronicles_{no}"));
+            let data = sub
+                .join("content")
+                .join("Data")
+                .join(format!("chronicles_{no}"));
             let n = count_files(&data);
             println!(
                 "chronicles_{no}: Data {n} / Sprites {} / Video {} / Sounds {} / Maps {}",
-                count_files(&sub.join("content").join("Sprites").join(format!("chronicles_{no}"))),
-                count_files(&sub.join("content").join("Video").join(format!("chronicles_{no}"))),
-                count_files(&sub.join("content").join("Sounds").join(format!("chronicles_{no}"))),
+                count_files(
+                    &sub.join("content")
+                        .join("Sprites")
+                        .join(format!("chronicles_{no}"))
+                ),
+                count_files(
+                    &sub.join("content")
+                        .join("Video")
+                        .join(format!("chronicles_{no}"))
+                ),
+                count_files(
+                    &sub.join("content")
+                        .join("Sounds")
+                        .join(format!("chronicles_{no}"))
+                ),
                 count_files(&maps)
             );
             assert!(n > 0, "chronicles_{no} 的 Data 不应为空");
@@ -2091,7 +2120,9 @@ mod tests {
                 .join("content")
                 .join("Video")
                 .join(format!("chronicles_{no}"));
-            let has = ["bik", "smk"].iter().any(|e| video.join(format!("{intro}.{e}")).is_file());
+            let has = ["bik", "smk"]
+                .iter()
+                .any(|e| video.join(format!("{intro}.{e}")).is_file());
             assert!(has, "第 {no} 篇缺少片头 {intro}.bik/smk");
         }
         // Tarnum 头像：从基础 bitmap.lod 抽进基础模组的 content/Data
@@ -2099,16 +2130,24 @@ mod tests {
         let has_tarnum = fs::read_dir(&portraits)
             .map(|rd| {
                 rd.flatten().any(|e| {
-                    e.file_name().to_string_lossy().to_uppercase().starts_with("HPS137")
+                    e.file_name()
+                        .to_string_lossy()
+                        .to_uppercase()
+                        .starts_with("HPS137")
                 })
             })
             .unwrap_or(false);
-        assert!(has_tarnum, "基础模组 content/Data 里应有 Tarnum 头像 HPS137.*");
+        assert!(
+            has_tarnum,
+            "基础模组 content/Data 里应有 Tarnum 头像 HPS137.*"
+        );
         let _ = fs::remove_dir_all(&d);
     }
 
     fn count_files(dir: &Path) -> usize {
-        fs::read_dir(dir).map(|rd| rd.flatten().filter(|e| e.path().is_file()).count()).unwrap_or(0)
+        fs::read_dir(dir)
+            .map(|rd| rd.flatten().filter(|e| e.path().is_file()).count())
+            .unwrap_or(0)
     }
 
     #[test]

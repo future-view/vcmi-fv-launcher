@@ -19,8 +19,12 @@ const K: [u32; 64] = [
 
 /// 计算 MD5，返回 16 字节摘要。
 pub fn digest(data: &[u8]) -> [u8; 16] {
-    let (mut a0, mut b0, mut c0, mut d0) =
-        (0x6745_2301u32, 0xefcd_ab89u32, 0x98ba_dcfeu32, 0x1032_5476u32);
+    let (mut a0, mut b0, mut c0, mut d0) = (
+        0x6745_2301u32,
+        0xefcd_ab89u32,
+        0x98ba_dcfeu32,
+        0x1032_5476u32,
+    );
 
     let mut msg = data.to_vec();
     let bit_len = (data.len() as u64).wrapping_mul(8);
@@ -52,10 +56,7 @@ pub fn digest(data: &[u8]) -> [u8; 16] {
             let tmp = d;
             d = c;
             c = b;
-            let sum = a
-                .wrapping_add(f)
-                .wrapping_add(K[i])
-                .wrapping_add(m[g]);
+            let sum = a.wrapping_add(f).wrapping_add(K[i]).wrapping_add(m[g]);
             b = b.wrapping_add(sum.rotate_left(S[i]));
             a = tmp;
         }
@@ -93,7 +94,9 @@ mod tests {
             "f96b697d7cb7938d525a2f31aaf161d0"
         );
         assert_eq!(
-            hex(&digest(b"12345678901234567890123456789012345678901234567890123456789012345678901234567890")),
+            hex(&digest(
+                b"12345678901234567890123456789012345678901234567890123456789012345678901234567890"
+            )),
             "57edf4a22be3c955ac49da2e2107b67a"
         );
     }

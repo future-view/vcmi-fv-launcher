@@ -51,9 +51,9 @@ pub mod logging;
 pub mod lru;
 /// 机器内存探测 + 缓存预算分档。
 pub mod mem;
+pub mod metrics;
 /// 按 VCMI modId 解析磁盘目录（大小写不敏感 + 子模组嵌套）。
 pub mod moddir;
-pub mod metrics;
 /// 锐化算子（USM）：传统插画档放大后叠加 —— AI 超分不可用（组件缺失 / 倍率不符 / 类型不适用）
 /// 时的锐度补偿，见 `modcache::hd::upscale_file` 的编码前处理。
 pub mod sharpen;

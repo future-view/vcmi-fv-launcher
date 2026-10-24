@@ -27,7 +27,8 @@ use crate::vcmi::paths::VcmiPaths;
 /// - 存储层就存不下分语言：`import_realm_asset` 按 kind 固定文件名（`assets/wallpaper.<ext>`），
 ///   后传的会覆盖先传的，异扩展名还会删掉旧文件 → 另一语言块留下悬空引用；
 /// - 发布推导封面（`plan_publish`）只读顶层 `assets`，配在非默认语言的素材会**静默丢失**。
-const REALM_MEDIA_ASSET_KEYS: [&str; 5] = ["wallpaper", "cover", "music", "introMusic", "introVideo"];
+const REALM_MEDIA_ASSET_KEYS: [&str; 5] =
+    ["wallpaper", "cover", "music", "introMusic", "introVideo"];
 
 pub fn read_realm_meta(id: &str) -> Option<Value> {
     let p = realm_meta_path(id)?;
@@ -511,7 +512,10 @@ mod tests {
         assert_eq!(realm["assets"]["music"], json!("assets/music.ogg"));
         // 文本不动：仍是分语言，顶层只保留原有兜底值
         assert_eq!(realm["assets"]["introText"], json!("top text"));
-        assert_eq!(realm["i18n"]["chinese"]["assets"]["introText"], json!("中文"));
+        assert_eq!(
+            realm["i18n"]["chinese"]["assets"]["introText"],
+            json!("中文")
+        );
         // 媒体字段已从语言块剥离
         assert!(realm["i18n"]["chinese"]["assets"]["wallpaper"].is_null());
         assert!(realm["i18n"]["chinese"]["assets"]["music"].is_null());

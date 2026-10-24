@@ -415,9 +415,7 @@ mod tests {
             enc.set_depth(png::BitDepth::Eight);
             enc.set_palette(palette);
             let mut writer = enc.write_header().expect("写 PNG 头");
-            writer
-                .write_image_data(&[0u8, 1, 8, 4, 5])
-                .expect("写像素");
+            writer.write_image_data(&[0u8, 1, 8, 4, 5]).expect("写像素");
             writer.finish().expect("收尾");
         }
         let img = decode_paletted_png(&out).expect("应识别为索引 PNG");
@@ -454,6 +452,9 @@ mod tests {
             writer.write_image_data(&[1u8, 2, 3, 4]).expect("写像素");
             writer.finish().expect("收尾");
         }
-        assert!(decode_paletted_png(&out).is_none(), "真彩 PNG 不该走索引语义");
+        assert!(
+            decode_paletted_png(&out).is_none(),
+            "真彩 PNG 不该走索引语义"
+        );
     }
 }

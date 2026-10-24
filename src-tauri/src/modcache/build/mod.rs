@@ -17,7 +17,7 @@ use crate::infra::json::parse_vcmi_json;
 use crate::modcache::collect::{
     collect_all_raw_configs, collect_config_jsons_merged, merge_json_in_place,
 };
-use crate::modcache::i18n::{set_core_i18n};
+use crate::modcache::i18n::set_core_i18n;
 use crate::modcache::version::{ASSETS_VERSION, WIKI_CACHE_VERSION};
 use crate::modcache::{sanitize_id, set_assets_enabled};
 use crate::vcmi::gamedata::{
@@ -549,7 +549,11 @@ fn build_mod_wiki_phase_inner(
                 remove_recorded_assets(&dir.join("cache.json"), cache_root, mod_id);
                 // HD 登记同样只摘除本 mod 记录过的键：`core/hd-map.json` 是多 mod 共建的
                 // 共享表，删整个文件会把别人的登记一并抹掉（2026-10-20 实测 1010→140）。
-                crate::modcache::hd_map::prune_recorded(&dir.join("cache.json"), cache_root, mod_id);
+                crate::modcache::hd_map::prune_recorded(
+                    &dir.join("cache.json"),
+                    cache_root,
+                    mod_id,
+                );
             }
             return build_mod_wiki_once(mod_path, mod_id, cache_root, game_dir, true);
         }
@@ -950,9 +954,8 @@ pub(crate) fn build_mod_wiki_once(
         )
     });
     // ---- 词汇表（VCMI 游戏内 Wiki 的 Glossary 分类，数据源 `config/wikiGlossary.json`）----
-    let glossary = crate::infra::metrics::scope("ent.glossary", || {
-        data::glossary::build_glossary(&p, &i18n)
-    });
+    let glossary =
+        crate::infra::metrics::scope("ent.glossary", || data::glossary::build_glossary(&p, &i18n));
     // ---- 资源类型（游戏级数据：金币/木材/水银/…，名称来自 h3-core 官方译名）----
     let resources = crate::infra::metrics::scope("ent.resources", || {
         data::resource::build_resources(game_dir, &i18n, mod_id)

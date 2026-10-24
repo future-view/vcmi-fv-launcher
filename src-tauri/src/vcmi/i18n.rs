@@ -288,7 +288,9 @@ fn merge_mod_i18n(mod_dir: &Path, map: &mut I18nMap) {
             if let Value::Object(m) = crate::infra::json::parse_vcmi_json(&text) {
                 for (k, val) in m {
                     if let Some(s) = val.as_str() {
-                        map.entry(k).or_default().insert(lang.to_string(), s.to_string());
+                        map.entry(k)
+                            .or_default()
+                            .insert(lang.to_string(), s.to_string());
                     }
                 }
             }
@@ -419,10 +421,19 @@ mod lang_path_tests {
     /// 平铺写法：文件名即语言（绝大多数第三方 mod）
     #[test]
     fn 平铺文件按文件名取语言() {
-        assert_eq!(lang_of_rel_path("config/translations/chinese.json").as_deref(), Some("chinese"));
-        assert_eq!(lang_of_rel_path("Content/config/translation/english.json").as_deref(), Some("english"));
+        assert_eq!(
+            lang_of_rel_path("config/translations/chinese.json").as_deref(),
+            Some("chinese")
+        );
+        assert_eq!(
+            lang_of_rel_path("Content/config/translation/english.json").as_deref(),
+            Some("english")
+        );
         // 旧的大小写/别名写法（`zh`/`ru` 不在 known_lang 里，但 `tchinese` 在）
-        assert_eq!(lang_of_rel_path("translation/tchinese.json").as_deref(), Some("tchinese"));
+        assert_eq!(
+            lang_of_rel_path("translation/tchinese.json").as_deref(),
+            Some("tchinese")
+        );
     }
 
     /// 按语言分组的子目录：HotA 的 `translation/<mod>/<lang>/*.json`

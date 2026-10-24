@@ -834,14 +834,16 @@ mod tests {
     /// 锁死 2026-10-21「game 源语言包漏检」修复的核心行为。
     #[test]
     fn collect_lang_cands_filters_by_type_language_and_top_level() {
-        let root = std::env::temp_dir().join(format!(
-            "vcmi_fv_collect_lang_cands_{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("vcmi_fv_collect_lang_cands_{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let mods = root.join("Mods");
         // 基础语言包（带 VCMI 基础翻译作用域文件硬签名）
-        write_lang_mod(&mods.join("simplified-chinese-translation"), Some("Translation"), Some("chinese"));
+        write_lang_mod(
+            &mods.join("simplified-chinese-translation"),
+            Some("Translation"),
+            Some("chinese"),
+        );
         fs::create_dir_all(
             mods.join("simplified-chinese-translation")
                 .join("Content")
@@ -857,13 +859,25 @@ mod tests {
         )
         .unwrap();
         // 内容汉化包：同类型同语言，但无 base 签名
-        write_lang_mod(&mods.join("new-chinese-mods"), Some("Translation"), Some("chinese"));
+        write_lang_mod(
+            &mods.join("new-chinese-mods"),
+            Some("Translation"),
+            Some("chinese"),
+        );
         // 其它语言：不匹配当前语言，排除
-        write_lang_mod(&mods.join("russian-translation"), Some("Translation"), Some("russian"));
+        write_lang_mod(
+            &mods.join("russian-translation"),
+            Some("Translation"),
+            Some("russian"),
+        );
         // 普通模组：无 modType，排除（绝不能按名字猜）
         write_lang_mod(&mods.join("chinese-style-ui"), None, None);
         // 父子模组：只认父，子模组即使标了 Translation+chinese 也不收
-        write_lang_mod(&mods.join("zh-parent"), Some("Translation"), Some("chinese"));
+        write_lang_mod(
+            &mods.join("zh-parent"),
+            Some("Translation"),
+            Some("chinese"),
+        );
         write_lang_mod(
             &mods.join("zh-parent").join("Mods").join("zh-child"),
             Some("Translation"),
@@ -875,7 +889,14 @@ mod tests {
         // read_dir 顺序不保证 → 按 id 集合断言（排序由调用方负责）
         let mut ids: Vec<&str> = out.iter().map(|c| c.id.as_str()).collect();
         ids.sort_unstable();
-        assert_eq!(ids, vec!["new-chinese-mods", "simplified-chinese-translation", "zh-parent"]);
+        assert_eq!(
+            ids,
+            vec![
+                "new-chinese-mods",
+                "simplified-chinese-translation",
+                "zh-parent"
+            ]
+        );
         // base 签名只认结构，不认名字
         let base_of = |id: &str| out.iter().find(|c| c.id == id).unwrap().base;
         assert!(base_of("simplified-chinese-translation"));

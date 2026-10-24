@@ -121,9 +121,7 @@ fn detect_optional_mods(game: &std::path::Path, user: &std::path::Path) -> Value
     let mut chronicles_chapters = 0u32;
     for root in [user, game] {
         let mods = root.join("Mods");
-        if !hd_edition
-            && crate::vcmi::hd_edition::detect(&[mods.clone()], None).is_some()
-        {
+        if !hd_edition && crate::vcmi::hd_edition::detect(&[mods.clone()], None).is_some() {
             hd_edition = true;
         }
         let base = mods.join("chronicles");
@@ -142,7 +140,11 @@ fn detect_optional_mods(game: &std::path::Path, user: &std::path::Path) -> Value
             };
             let dir = nested.unwrap_or_else(|| mods.clone());
             chronicles_chapters = (1..=8)
-                .filter(|n| dir.join(format!("chronicles_{n}")).join("mod.json").is_file())
+                .filter(|n| {
+                    dir.join(format!("chronicles_{n}"))
+                        .join("mod.json")
+                        .is_file()
+                })
                 .count() as u32;
         }
     }
@@ -191,8 +193,8 @@ mod tests {
     /// 真实 `hd-edition`（`references/Heroes3-VCMI/Mods/hd-edition`）：pak 存在才算就绪。
     #[test]
     fn optional_mods_detects_real_hd_edition() {
-        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../references/Heroes3-VCMI");
+        let root =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../references/Heroes3-VCMI");
         if !root.join("Mods").join("hd-edition").is_dir() {
             eprintln!("跳过：缺少 references/Heroes3-VCMI/Mods/hd-edition");
             return;

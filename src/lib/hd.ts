@@ -244,7 +244,12 @@ export function imgCandidates(url: string, rate: number): string[] {
   // ⚠️ 必须**逐档降序全试**（4x → 3x → 2x）：后端按用途分级生成，
   // 大图（城镇幕布）常常只到 2x，而小图（兵种/英雄）拿满倍率 ——
   // 前端不知道每张图实际拿了几倍，只试最高档会让大图白白退回原图。
-  // 未命中的档位由 `markHdMissing` 记住，同一路径只付一次 404（本地文件，代价极低）。
+  // 未命中的档位由 `markHdMissing` 记住，同一路径只付一次 404。
+  //
+  // ⚠️ "404 很便宜"**只对前端成立**：每次未命中还会经 Tauri 资产协议，
+  // 由 `tauri::protocol::asset` 以 ERROR 级写一行应用日志（见 `infra/logging.rs` 的
+  // `NOISY_TARGETS`）。故这里的记忆逻辑必须**每一档都记**，不能只记首档
+  // （`HdImg` 的 `onError` 同理）。
   for (let r = Math.min(rate, MAX_HD_RATE); r >= 2; r--) {
     const hd = hdVariantUrl(url, r);
     if (hd === url || isHdMissing(hd)) continue;

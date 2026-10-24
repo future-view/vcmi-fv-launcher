@@ -33,13 +33,7 @@ fn build_and_read(mod_dir: &Path, mod_id: &str, game_dir: &Path) -> Value {
     let mod_cache = cache_root.join(crate::modcache::sanitize_id(mod_id));
     let _ = fs::remove_dir_all(&mod_cache);
     let _ = fs::create_dir_all(&cache_root);
-    let r = build_mod_wiki_phase(
-        &mod_dir.to_string_lossy(),
-        mod_id,
-        &cache_root,
-        game_dir,
-        0,
-    );
+    let r = build_mod_wiki_phase(&mod_dir.to_string_lossy(), mod_id, &cache_root, game_dir, 0);
     assert_eq!(
         r.get("ok").and_then(|x| x.as_bool()),
         Some(true),
@@ -62,9 +56,10 @@ fn hero_ids(data: &Value) -> Vec<String> {
 }
 
 fn hero_of<'a>(data: &'a Value, id: &str) -> Option<&'a Value> {
-    data.get("heroes")
-        .and_then(|x| x.as_array())
-        .and_then(|a| a.iter().find(|h| h.get("id").and_then(|x| x.as_str()) == Some(id)))
+    data.get("heroes").and_then(|x| x.as_array()).and_then(|a| {
+        a.iter()
+            .find(|h| h.get("id").and_then(|x| x.as_str()) == Some(id))
+    })
 }
 
 /// `moonspire`：2 个职业声明在 `heroClasses` 下但文件位于 `heroes/`；
@@ -89,10 +84,7 @@ fn moonspire_class_files_are_not_heroes() {
         );
     }
     // ② 同时不能把真英雄删掉（moonspire 的 17 个英雄）
-    assert!(
-        ids.len() >= 17,
-        "英雄数量异常（应为 17 个）：{ids:?}"
-    );
+    assert!(ids.len() >= 17, "英雄数量异常（应为 17 个）：{ids:?}");
 
     // ③ 职业名 / 阵营 / 力量-魔法归属必须解析出来（否则分组标题回落 id、分组塌成一张表）
     let h = hero_of(&data, "moonspireHero01").expect("moonspireHero01 缺失");
@@ -119,7 +111,10 @@ fn moonspire_class_files_are_not_heroes() {
     for hid in &ids {
         let hh = hero_of(&data, hid).unwrap();
         assert!(
-            !hh.get("class").and_then(|x| x.as_str()).unwrap_or("").is_empty(),
+            !hh.get("class")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .is_empty(),
             "英雄 {hid} 没有职业"
         );
     }
@@ -164,6 +159,57 @@ fn blazers_class_files_are_not_heroes() {
     assert!(
         resolved,
         "必须有英雄同时解析出中文职业名与 affinity（否则分组标题回落 id、力量/魔法分组塌成一张）：{ids:?}"
+    );
+}
+
+/// `New Pavilion Town`：职业与英雄都写在 `Content/config/` 树**之外**
+/// （`Content/classesPavilion/` / `Content/heroesPavilion/`），只能靠 `mod.json` 的
+/// `heroClasses` / `heroes` 清单装载。
+///
+/// 旧实现只在 `rawConfigs` 里找职业（而 `rawConfigs` 只遍历 `Content/config/`），
+/// 于是 2 个职业一个都拿不到 → `class_known` 对 19 个英雄全部判负 → `heroes` 输出 0 条，
+/// 百科城镇页的「英雄」区整块消失（用户报「Pavilion Town 无法显示英雄列表」）。
+#[test]
+#[ignore]
+fn new_pavilion_heroes_loaded_from_mod_json_lists() {
+    let Some(mod_dir) = game_mod("New Pavilion/Mods/New Pavillion") else {
+        eprintln!("跳过：未安装 New Pavilion Town");
+        return;
+    };
+    let game_dir = game_dir();
+    crate::vcmi::resource::set_wiki_user_data_dir(&user_data_dir(&game_dir));
+    let data = build_and_read(&mod_dir, "new pavilion.new pavillion", &game_dir);
+    let ids = hero_ids(&data);
+    assert!(
+        ids.len() >= 10,
+        "Pavilion 英雄必须从 mod.json 的 `heroes` 清单装载（实际 {} 条）：{ids:?}",
+        ids.len()
+    );
+    // 职业名 / affinity / 阵营都来自于清单里的 `heroClasses`
+    let h = data
+        .get("heroes")
+        .and_then(|x| x.as_array())
+        .and_then(|a| {
+            a.iter().find(|h| {
+                h.get("class")
+                    .and_then(|x| x.as_str())
+                    .is_some_and(|c| c == "vizier" || c == "embalmer")
+            })
+        })
+        .expect("应至少有一个 vizier / embalmer 职业的英雄");
+    let cname = h
+        .get("className")
+        .and_then(|c| c.get("chinese").or_else(|| c.get("english")))
+        .and_then(|x| x.as_str())
+        .unwrap_or("");
+    assert!(
+        !cname.is_empty() && cname != "vizier" && cname != "embalmer",
+        "职业名必须解析成中文（维西尔 / 葬仪官），而不是回落 id：{cname:?}"
+    );
+    assert_eq!(
+        h.get("factionId").and_then(|x| x.as_str()),
+        Some("pavilion"),
+        "factionId 必须来自 heroClass.faction（否则城镇页按阵营过滤时全军覆没）"
     );
 }
 

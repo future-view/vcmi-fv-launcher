@@ -451,7 +451,10 @@ fn collect_batch(game_dir: &Path) -> Vec<BatchWikiMod> {
         }
     }
     fn id_of(m: &Value) -> String {
-        m.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string()
+        m.get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string()
     }
     let user_dir = user_data_dir(game_dir);
     let game_tree = scan_user_mods_dir(&game_dir.join("Mods"));
@@ -461,8 +464,7 @@ fn collect_batch(game_dir: &Path) -> Vec<BatchWikiMod> {
     } else if user_tree.is_empty() {
         game_tree
     } else {
-        let user_ids: std::collections::HashSet<String> =
-            user_tree.iter().map(id_of).collect();
+        let user_ids: std::collections::HashSet<String> = user_tree.iter().map(id_of).collect();
         let mut merged = user_tree;
         for m in game_tree {
             let id = id_of(&m);
@@ -477,8 +479,16 @@ fn collect_batch(game_dir: &Path) -> Vec<BatchWikiMod> {
     let mut batch: Vec<BatchWikiMod> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     for m in &flat {
-        let id = m.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let mod_path = m.get("modPath").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let id = m
+            .get("id")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        let mod_path = m
+            .get("modPath")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
         if id.is_empty() || mod_path.is_empty() || !seen.insert(id.clone()) {
             continue;
         }
@@ -493,7 +503,11 @@ fn collect_batch(game_dir: &Path) -> Vec<BatchWikiMod> {
             }),
         });
     }
-    let core_path = game_dir.join("Mods").join("vcmi").to_string_lossy().to_string();
+    let core_path = game_dir
+        .join("Mods")
+        .join("vcmi")
+        .to_string_lossy()
+        .to_string();
     batch.push(BatchWikiMod {
         mod_id: "core".into(),
         mod_path: core_path.clone(),
@@ -541,28 +555,86 @@ fn mirror_launcher_full_flow() {
     let town = split(true);
     let rest = split(false);
     let gd = game_dir.to_string_lossy().to_string();
-    println!("mods={} town={} rest={}", batch.len(), town.len(), rest.len());
+    println!(
+        "mods={} town={} rest={}",
+        batch.len(),
+        town.len(),
+        rest.len()
+    );
 
     let hd = crate::modcache::hd::HdOptions::new(Some(4), Some(1.5), None, Some(false));
     println!("hdOpt = {}", hd.is_some());
 
     // ① 阶段一：全部，仅数据（turbo；VCMI_MIRROR_P1_THROTTLE 可覆盖做控制变量）
-    let p1 = std::env::var("VCMI_MIRROR_P1_THROTTLE").ok().and_then(|v| v.trim().parse::<u8>().ok()).unwrap_or(2);
-    build_mods_cache_batch_inner_hd(None, &gd, &batch, &cache_root, Some(p1), Some(0), None, BuildSlot::global()).expect("阶段一失败");
+    let p1 = std::env::var("VCMI_MIRROR_P1_THROTTLE")
+        .ok()
+        .and_then(|v| v.trim().parse::<u8>().ok())
+        .unwrap_or(2);
+    build_mods_cache_batch_inner_hd(
+        None,
+        &gd,
+        &batch,
+        &cache_root,
+        Some(p1),
+        Some(0),
+        None,
+        BuildSlot::global(),
+    )
+    .expect("阶段一失败");
     // ② 阶段二：town（eco）
-    build_mods_cache_batch_inner_hd(None, &gd, &town, &cache_root, Some(0), Some(1), None, BuildSlot::global()).expect("阶段二 town 失败");
+    build_mods_cache_batch_inner_hd(
+        None,
+        &gd,
+        &town,
+        &cache_root,
+        Some(0),
+        Some(1),
+        None,
+        BuildSlot::global(),
+    )
+    .expect("阶段二 town 失败");
     // ③ 阶段二：rest（eco）
-    build_mods_cache_batch_inner_hd(None, &gd, &rest, &cache_root, Some(0), Some(1), None, BuildSlot::global()).expect("阶段二 rest 失败");
+    build_mods_cache_batch_inner_hd(
+        None,
+        &gd,
+        &rest,
+        &cache_root,
+        Some(0),
+        Some(1),
+        None,
+        BuildSlot::global(),
+    )
+    .expect("阶段二 rest 失败");
     // 阶段二结束时的登记量（区分"阶段二就丢"还是"阶段三破坏"）
     for owner in ["core"] {
         let map = crate::modcache::hd_map::load(&cache_root, owner);
         println!("【阶段二后】{owner}/hd-map.json 共 {} 条", map.len());
     }
     // ④ 阶段三：town（eco + HD）
-    let r4 = build_mods_cache_batch_inner_hd(None, &gd, &town, &cache_root, Some(0), Some(1), hd.clone(), BuildSlot::global()).expect("阶段三 town 失败");
+    let r4 = build_mods_cache_batch_inner_hd(
+        None,
+        &gd,
+        &town,
+        &cache_root,
+        Some(0),
+        Some(1),
+        hd.clone(),
+        BuildSlot::global(),
+    )
+    .expect("阶段三 town 失败");
     println!("④阶段三 town: {}", r4);
     // ⑤ 阶段三：rest（eco + HD）
-    let r5 = build_mods_cache_batch_inner_hd(None, &gd, &rest, &cache_root, Some(0), Some(1), hd.clone(), BuildSlot::global()).expect("阶段三 rest 失败");
+    let r5 = build_mods_cache_batch_inner_hd(
+        None,
+        &gd,
+        &rest,
+        &cache_root,
+        Some(0),
+        Some(1),
+        hd.clone(),
+        BuildSlot::global(),
+    )
+    .expect("阶段三 rest 失败");
     println!("⑤阶段三 rest: {}", r5);
 
     // 结果核对：core 与各 core.<faction> 的登记量
@@ -570,9 +642,14 @@ fn mirror_launcher_full_flow() {
         let map = crate::modcache::hd_map::load(&cache_root, owner);
         let mut by_sub: std::collections::BTreeMap<String, usize> = Default::default();
         for k in map.keys() {
-            *by_sub.entry(k.split('/').next().unwrap_or("").to_string()).or_default() += 1;
+            *by_sub
+                .entry(k.split('/').next().unwrap_or("").to_string())
+                .or_default() += 1;
         }
-        println!("{owner}/hd-map.json 共 {} 条，按 sub: {:?}", map.len(), by_sub);
+        println!(
+            "{owner}/hd-map.json 共 {} 条，按 sub: {:?}",
+            map.len(),
+            by_sub
+        );
     }
-
 }

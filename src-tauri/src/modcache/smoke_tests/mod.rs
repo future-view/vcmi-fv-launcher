@@ -24,6 +24,7 @@
 
 use crate::infra::hash::compute_source_hash;
 use crate::infra::image::encode_webp;
+use crate::modcache::batch::BuildSlot;
 use crate::modcache::batch::{
     build_mods_cache_batch_inner, build_mods_cache_batch_inner_hd, wiki_threads, BatchWikiMod,
 };
@@ -38,7 +39,6 @@ use crate::modcache::preview::generate_town_preview_inner;
 use crate::modcache::preview::{
     compose_town_preview_for, composite_structures_to_canvas, load_structure_frame,
 };
-use crate::modcache::batch::BuildSlot;
 use crate::modcache::version::WIKI_CACHE_VERSION;
 use crate::vcmi::h3core::{h3_core_data_dir, load_h3_core_i18n};
 use crate::vcmi::paths::VcmiPaths;
@@ -49,13 +49,13 @@ use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod ability_icons;
 mod ai_audit;
 mod assets_icons;
 mod build_phase;
 mod core_regression;
 mod hd_bench;
 mod hd_compare;
-mod ability_icons;
 mod hd_edition;
 mod hero_class_decl;
 mod hero_specialty_text;

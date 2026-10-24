@@ -138,7 +138,9 @@ pub(crate) fn extract_shared_ui_icons(game_dir: &Path, cache_root: &Path, _mod_i
         out.insert("spellbonDir".into(), json!("core/images/spellbon"));
         out.insert(
             "spellbonFrames".into(),
-            json!(fs::read_dir(&spellbon_dir).map(|rd| rd.count()).unwrap_or(0)),
+            json!(fs::read_dir(&spellbon_dir)
+                .map(|rd| rd.count())
+                .unwrap_or(0)),
         );
     } else if let Some(bytes) =
         crate::vcmi::resource::read_game_resource_fallback(game_dir, "SPELLBON.DEF")
@@ -170,8 +172,7 @@ pub(crate) fn extract_shared_ui_icons(game_dir: &Path, cache_root: &Path, _mod_i
                             let stem = raw.trim().rsplit_once('.').map_or(raw.trim(), |(s, _)| s);
                             let b = stem.as_bytes();
                             if b.len() >= 2 && b[..2].eq_ignore_ascii_case(b"SB") {
-                                let sibling =
-                                    format!("SM{}", stem[2..].to_ascii_uppercase());
+                                let sibling = format!("SM{}", stem[2..].to_ascii_uppercase());
                                 if crate::vcmi::hd_edition::lookup(&sibling).is_some() {
                                     hd_hit = Some(sibling);
                                 }
@@ -179,12 +180,7 @@ pub(crate) fn extract_shared_ui_icons(game_dir: &Path, cache_root: &Path, _mod_i
                         }
                     }
                     if let Some(hd) = hd_hit {
-                        crate::modcache::hd_map::record(
-                            "core",
-                            "spellbon",
-                            &idx.to_string(),
-                            &hd,
-                        );
+                        crate::modcache::hd_map::record("core", "spellbon", &idx.to_string(), &hd);
                     }
                     max_frame = idx;
                 }

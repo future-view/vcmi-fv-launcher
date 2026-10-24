@@ -247,13 +247,16 @@ pub async fn write_launcher_config(
                 .map(|n| n.eq_ignore_ascii_case("Data"))
                 .unwrap_or(false)
             {
-                return Err(be_err(
-                    "setup_h3_data_dir_invalid",
-                    &to.to_string_lossy(),
-                ));
+                return Err(be_err("setup_h3_data_dir_invalid", &to.to_string_lossy()));
             }
-            let copy_mp3 = data.get("h3CopyMp3").and_then(|v| v.as_bool()).unwrap_or(true);
-            let copy_maps = data.get("h3CopyMaps").and_then(|v| v.as_bool()).unwrap_or(false);
+            let copy_mp3 = data
+                .get("h3CopyMp3")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            let copy_maps = data
+                .get("h3CopyMaps")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             // 诊断日志：数据到底落在哪，一目了然（radio 归属争议时第一手证据）
             tracing::info!(
                 target: "paths",
@@ -266,18 +269,19 @@ pub async fn write_launcher_config(
             let (files, bytes) = tauri::async_runtime::spawn_blocking(move || {
                 // ① .lod / .snd / .vid → <游戏目录>/Data（判定根之一，与用户数据目录无关）。
                 //    .snd/.vid 不可省：缺 VIDEO.VID 时 VCMI 会弹「未检测到视频文件」。
-                let (f, b) = crate::vcmi::h3data::copy_data_files(&from_data, &to, |f, b, tf, tb| {
-                    let _ = emitter.emit(
-                        "user-data-copy-progress",
-                        json!({
-                            "stage": "data",
-                            "doneFiles": f,
-                            "doneBytes": b,
-                            "totalFiles": tf,
-                            "totalBytes": tb,
-                        }),
-                    );
-                })?;
+                let (f, b) =
+                    crate::vcmi::h3data::copy_data_files(&from_data, &to, |f, b, tf, tb| {
+                        let _ = emitter.emit(
+                            "user-data-copy-progress",
+                            json!({
+                                "stage": "data",
+                                "doneFiles": f,
+                                "doneBytes": b,
+                                "totalFiles": tf,
+                                "totalBytes": tb,
+                            }),
+                        );
+                    })?;
                 // ② Mp3 / Maps → **与 .lod 同一个 radio 目标根**（VCMI 的 MUSIC / MAPS
                 //    挂载点同时挂游戏目录与用户数据目录，两处都可见）；
                 //    Maps 目录即使不复制也会创建（VCMI 不自建）

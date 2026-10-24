@@ -202,7 +202,9 @@ fn group_frame_names(v: &Value, group: usize) -> Option<Vec<String>> {
 
 /// 节点上的 `group`（缺省/非数字 → `None`）
 fn group_of(node: &Value) -> Option<usize> {
-    node.get("group").and_then(|g| g.as_u64()).map(|g| g as usize)
+    node.get("group")
+        .and_then(|g| g.as_u64())
+        .map(|g| g as usize)
 }
 
 /// 帧名：字符串（`sequences.frames[]` 常规写法）或对象内的 `file`（`images[]` 写法）。
@@ -355,11 +357,7 @@ fn locate_scan(
 /// ⚠️ 非 UTF-8 / 非 JSON 只返回 `None`，由调用方 `continue`：同一资源名在不同 mod 里可能
 /// 是**真正的 `.def`**（二进制），一个二进制命中就把整个函数判死，会让排在后面的 json 定义
 /// 永远读不到（跨 mod 覆盖场景必踩）。
-fn as_definition(
-    buf: Vec<u8>,
-    owner: PathBuf,
-    is_own: bool,
-) -> Option<(String, PathBuf)> {
+fn as_definition(buf: Vec<u8>, owner: PathBuf, is_own: bool) -> Option<(String, PathBuf)> {
     let text = String::from_utf8(buf).ok()?;
     let v: Value = serde_json::from_str(&text).ok()?;
     let has_sequences = v.get("sequences").and_then(|x| x.as_array()).is_some();
@@ -383,7 +381,11 @@ fn as_definition(
 fn load_frame(owner: &Path, game_dir: &Path, base: &str, name: &str) -> Option<image::RgbaImage> {
     let base = base.replace('\\', "/");
     let rel = format!("{base}{name}");
-    for cand in [rel.clone(), format!("Sprites/{rel}"), format!("sprites/{rel}")] {
+    for cand in [
+        rel.clone(),
+        format!("Sprites/{rel}"),
+        format!("sprites/{rel}"),
+    ] {
         if let Some((buf, ext)) =
             crate::vcmi::resource::resolve_resource_fallback(owner, game_dir, &cand)
         {
@@ -459,7 +461,11 @@ mod tests {
         });
         assert_eq!(
             names(&v, 0),
-            Some(vec!["a.png".to_string(), "b_fix.png".to_string(), "c.png".to_string()])
+            Some(vec![
+                "a.png".to_string(),
+                "b_fix.png".to_string(),
+                "c.png".to_string()
+            ])
         );
     }
 
@@ -473,7 +479,10 @@ mod tests {
                 { "group": 0, "frame": 3, "file": "d.png" }
             ]
         });
-        assert_eq!(names(&v, 0), Some(vec!["a.png".to_string(), "d.png".to_string()]));
+        assert_eq!(
+            names(&v, 0),
+            Some(vec!["a.png".to_string(), "d.png".to_string()])
+        );
     }
 
     /// 帧项兼容对象写法的 `file`（`sequences` 里也可能出现对象）。
@@ -484,7 +493,11 @@ mod tests {
             Some("a.png".to_string())
         );
         assert_eq!(frame_name(&json!("b.png")), Some("b.png".to_string()));
-        assert_eq!(frame_name(&json!({ "file": "  " })), None, "空文件名不得当成帧");
+        assert_eq!(
+            frame_name(&json!({ "file": "  " })),
+            None,
+            "空文件名不得当成帧"
+        );
         assert_eq!(frame_name(&json!(1)), None);
     }
 }

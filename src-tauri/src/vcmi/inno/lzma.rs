@@ -202,12 +202,9 @@ impl LenDecoder {
         if rc.bit(&mut self.choice)? == 0 {
             Ok(bit_tree(rc, &mut self.low[pos_state], 3)? as usize)
         } else if rc.bit(&mut self.choice2)? == 0 {
-            Ok(LEN_LOW_SYMBOLS
-                + bit_tree(rc, &mut self.mid[pos_state], 3)? as usize)
+            Ok(LEN_LOW_SYMBOLS + bit_tree(rc, &mut self.mid[pos_state], 3)? as usize)
         } else {
-            Ok(LEN_LOW_SYMBOLS
-                + LEN_MID_SYMBOLS
-                + bit_tree(rc, &mut self.high, 8)? as usize)
+            Ok(LEN_LOW_SYMBOLS + LEN_MID_SYMBOLS + bit_tree(rc, &mut self.high, 8)? as usize)
         }
     }
 }
@@ -392,7 +389,8 @@ mod tests {
 
     /// 已知向量：`b"Hello, Inno Setup! " × 3`，lc=3/lp=0/pb=2/dict=4096。
     /// 由 Python `lzma.compress(format=FORMAT_RAW, filters=[FILTER_LZMA1])` 生成。
-    const VEC_TEXT: &str = "5d0010000000241949986f160287596984671c682dfec14e5b7b56ae7eabadfffff95d2000";
+    const VEC_TEXT: &str =
+        "5d0010000000241949986f160287596984671c682dfec14e5b7b56ae7eabadfffff95d2000";
     /// 已知向量：`bytes(range(256)) × 8`（2048 字节，覆盖字面量 + 长距离匹配）。
     const VEC_RANGE: &str = "5d0010000000000052500a84f99bb28021a969d627e03e065a5f048d53d404ba39570509c15524de9db871593160a19ff96f4973f2c8ea8cba1a8b29692180fe338366af466dec9e898a0b83f03c0e898e3fed5fe79e90d91cff32f4b2e03951b2d21415b4c571badb06e3799a9fbb38c1b000ac930baa0619031208155b9bc848f0322efe2da087c8f0a4e0d251eb8d675692b24d84c5f18631df6a625bc2792dd9f73c73ba747407d83ca9562224a166f85a845f3067d2f64b492e7f20ebdbf8100e947877c73f6befb4cd95e26ff6446e06cf0b821acbdb7af0578d98ff90c03ee6c1124175ee032896eb13fba728ccaf32bba40e25f2563cf81a87fffeed4fa0";
 

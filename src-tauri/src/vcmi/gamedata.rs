@@ -150,7 +150,12 @@ mod tests {
     /// SPELLBON 帧号（无图标）与名字，实测 1,749 条英雄法术里 147 条空白。
     #[test]
     fn spell_id_table_matches_vcmi_enum_and_is_unique() {
-        let idx = |id: &str| SPELL_ID_TABLE.iter().find(|(k, _)| *k == id).map(|(_, i)| *i);
+        let idx = |id: &str| {
+            SPELL_ID_TABLE
+                .iter()
+                .find(|(k, _)| *k == id)
+                .map(|(_, i)| *i)
+        };
         // 抽样覆盖：冒险法术 / 表尾曾缺失段 / 生物能力伪法术
         assert_eq!(idx("summonBoat"), Some(0));
         assert_eq!(idx("townPortal"), Some(9));

@@ -44,9 +44,19 @@ use crate::infra::berror::be_err;
 use crate::infra::lod::lod_entry_names;
 
 /// 挂到 `DATA/` 的 LOD 名（`config/filesystem.json:10-17`，大小写不敏感）。
-const DATA_LODS: [&str; 4] = ["H3ab_bmp.lod", "h3abp_bm.lod", "H3bitmap.lod", "H3pbitma.lod"];
+const DATA_LODS: [&str; 4] = [
+    "H3ab_bmp.lod",
+    "h3abp_bm.lod",
+    "H3bitmap.lod",
+    "H3pbitma.lod",
+];
 /// 挂到 `SPRITES/` 的 LOD 名（`config/filesystem.json:18-25`）。
-const SPRITES_LODS: [&str; 4] = ["H3ab_spr.lod", "h3abp_sp.lod", "H3sprite.lod", "H3psprit.lod"];
+const SPRITES_LODS: [&str; 4] = [
+    "H3ab_spr.lod",
+    "h3abp_sp.lod",
+    "H3sprite.lod",
+    "H3psprit.lod",
+];
 
 /// 数据模态（对齐 VCMI `GameLibrary::GameDataMode` + 官方导入校验，取并集）。
 ///
@@ -345,10 +355,15 @@ pub fn inspect_source(from: &Path) -> Option<H3DataKind> {
         .data
         .iter()
         .any(|n| n.eq_ignore_ascii_case("TENTCOLR.TXT"))
-        && idx.maps.iter().any(|n| n.eq_ignore_ascii_case("H3DEMO.H3M"));
+        && idx
+            .maps
+            .iter()
+            .any(|n| n.eq_ignore_ascii_case("H3DEMO.H3M"));
     Some(classify(
         idx.has_roe,
-        idx.data.iter().any(|n| n.eq_ignore_ascii_case("TENTCOLR.TXT")),
+        idx.data
+            .iter()
+            .any(|n| n.eq_ignore_ascii_case("TENTCOLR.TXT")),
         demo,
         idx.ab_lods,
         idx.has_pak,
@@ -455,7 +470,11 @@ pub fn copy_extra(
             continue;
         }
         let entries: Vec<PathBuf> = match fs::read_dir(&src) {
-            Ok(rd) => rd.flatten().map(|e| e.path()).filter(|p| p.is_file()).collect(),
+            Ok(rd) => rd
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.is_file())
+                .collect(),
             Err(_) => continue,
         };
         let total_files = entries.len() as u64;
@@ -489,7 +508,10 @@ pub fn locate_installs() -> Vec<PathBuf> {
     #[cfg(windows)]
     {
         const KEYS: [(&str, &str); 4] = [
-            (r"HKEY_LOCAL_MACHINE\SOFTWARE\GOG.com\Games\1207658787", "path"),
+            (
+                r"HKEY_LOCAL_MACHINE\SOFTWARE\GOG.com\Games\1207658787",
+                "path",
+            ),
             (
                 r"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\GOG.com\Games\1207658787",
                 "path",
@@ -527,7 +549,11 @@ pub fn locate_installs() -> Vec<PathBuf> {
                 let Some(path) = it.next() else { continue };
                 // reg 对含空格路径不会加引号；类型字段之后的所有内容即路径
                 let rest: Vec<&str> = line.splitn(4, ' ').collect();
-                let p = if rest.len() == 4 { rest[3].trim() } else { path };
+                let p = if rest.len() == 4 {
+                    rest[3].trim()
+                } else {
+                    path
+                };
                 if p.is_empty() {
                     continue;
                 }
@@ -629,7 +655,10 @@ mod tests {
         assert_eq!(inspect_source(&hd), Some(H3DataKind::HdEdition));
         assert!(ensure_supported_source(&hd).is_err(), "HD 数据不得复制");
         // 直接选 `Data` 目录本身也必须识别（不能报成"无关目录"）
-        assert_eq!(inspect_source(&hd.join("Data")), Some(H3DataKind::HdEdition));
+        assert_eq!(
+            inspect_source(&hd.join("Data")),
+            Some(H3DataKind::HdEdition)
+        );
 
         // 末日之刃：只有 `H3ab*.lod`，没有 `TENTCOLR.TXT`（fake lod 解不出条目 = 缺 SoD 层）
         let ab = base.join("ab");
@@ -674,17 +703,25 @@ mod tests {
         fs::write(src_root.join("Maps").join("m.h3m"), b"1234").expect("write");
 
         // 都不复制：目录仍必须建（VCMI 只自建 cache/config/logs/Saves）
-        let (f, b) = copy_extra(&src_root, &dst_user, false, false, |_, _, _, _, _| {}).expect("copy");
+        let (f, b) =
+            copy_extra(&src_root, &dst_user, false, false, |_, _, _, _, _| {}).expect("copy");
         assert_eq!((f, b), (0, 0));
         assert!(dst_user.join("Mp3").is_dir(), "Mp3 目录应被创建");
         assert!(dst_user.join("Maps").is_dir(), "Maps 目录应被创建");
-        assert!(!dst_user.join("Mp3").join("a.mp3").exists(), "未勾选不应复制文件");
+        assert!(
+            !dst_user.join("Mp3").join("a.mp3").exists(),
+            "未勾选不应复制文件"
+        );
 
         // 勾选 Maps：只搬 Maps
-        let (f2, b2) = copy_extra(&src_root, &dst_user, false, true, |_, _, _, _, _| {}).expect("copy2");
+        let (f2, b2) =
+            copy_extra(&src_root, &dst_user, false, true, |_, _, _, _, _| {}).expect("copy2");
         assert_eq!((f2, b2), (1, 4));
         assert!(dst_user.join("Maps").join("m.h3m").is_file());
-        assert!(!dst_user.join("Mp3").join("a.mp3").exists(), "Mp3 未勾选仍不复制");
+        assert!(
+            !dst_user.join("Mp3").join("a.mp3").exists(),
+            "Mp3 未勾选仍不复制"
+        );
         let _ = fs::remove_dir_all(&base);
     }
 
@@ -708,8 +745,14 @@ mod tests {
         assert_eq!(bytes, 5 + 3 + 5 + 5 + 4);
         assert!(dst.join("H3Bitmap.lod").is_file());
         assert!(dst.join("Heroes3.snd").is_file(), ".snd 应被复制（音效）");
-        assert!(dst.join("Heroes3.vid").is_file(), ".vid 应被复制（过场动画）");
-        assert!(dst.join("VIDEO.VID").is_file(), "VIDEO.VID 是 VCMI 启动检查项");
+        assert!(
+            dst.join("Heroes3.vid").is_file(),
+            ".vid 应被复制（过场动画）"
+        );
+        assert!(
+            dst.join("VIDEO.VID").is_file(),
+            "VIDEO.VID 是 VCMI 启动检查项"
+        );
         assert!(!dst.join("mumaz.bmp").exists(), ".bmp 不在复制范围");
         // 第二次复制：目标已存在 ⇒ 0 字节
         let (files2, bytes2) = copy_data_files(&src, &dst, |_, _, _, _| {}).expect("copy2");

@@ -148,8 +148,7 @@ fn fix_leading_zero_numbers(s: &str) -> String {
         if at_value_start {
             let mut j = i;
             while j < chars.len()
-                && (chars[j].is_ascii_digit()
-                    || matches!(chars[j], '.' | 'e' | 'E' | '+' | '-'))
+                && (chars[j].is_ascii_digit() || matches!(chars[j], '.' | 'e' | 'E' | '+' | '-'))
             {
                 j += 1;
             }
@@ -327,7 +326,9 @@ pub(crate) fn is_type_config_path(rel_lower: &str, type_subdir: &str) -> bool {
             .any(|k| type_seg_match(name, k) && !type_name_eq(&k.to_lowercase(), &t))
     };
     // ① 目录段命中别的类型目录（如 `config/skills/…` 采"英雄"）→ 否决
-    let other_dir = segs[..segs.len().saturating_sub(1)].iter().any(|s| is_other(s));
+    let other_dir = segs[..segs.len().saturating_sub(1)]
+        .iter()
+        .any(|s| is_other(s));
     // ② 聚合文件名本身就是别的类型名（如 `config/x/creatures.json` 采"英雄"）→ 否决
     let other_agg = is_other(fname.trim_end_matches(".json"));
     if other_dir || other_agg {
@@ -432,9 +433,7 @@ mod leading_zero_tests {
     #[test]
     fn 与注释尾逗号共存() {
         // 同一文件里三种非法形态叠加（VCMI 手工配置常见）
-        let v = parse(
-            "{\n  // 注释\n  \"y\": 083,\n  \"x\": 07,\n}",
-        );
+        let v = parse("{\n  // 注释\n  \"y\": 083,\n  \"x\": 07,\n}");
         assert_eq!(v["y"], 83);
         assert_eq!(v["x"], 7);
     }
@@ -460,7 +459,10 @@ mod type_path_tests {
     fn 别的类型目录下的配置不得被采成本类型() {
         // 技能配置 —— 不得因为模组目录名 `-heroes` 被当成英雄
         let p = "d:/games/Mods/immortal-cultivation-heroes/Mods/L-skills/content/config/skills/skxx.json";
-        assert!(!is_type_config_path(p, "heroes"), "skills/ 下的配置不是英雄");
+        assert!(
+            !is_type_config_path(p, "heroes"),
+            "skills/ 下的配置不是英雄"
+        );
         assert!(is_type_config_path(p, "skills"), "skills/ 下的是技能");
 
         // 宝物配置 —— 同上
@@ -520,12 +522,24 @@ mod type_path_tests {
             "creatures"
         ));
         // 聚合文件 `<mod>/heroes.json`
-        assert!(is_type_config_path("d:/g/Mods/m/content/config/m/heroes.json", "heroes"));
+        assert!(is_type_config_path(
+            "d:/g/Mods/m/content/config/m/heroes.json",
+            "heroes"
+        ));
         // 单复数 / 大写目录
-        assert!(is_type_config_path("d:/g/Mods/m/content/config/m/artifact/a.json", "artifacts"));
-        assert!(is_type_config_path("d:/g/Mods/m/content/config/m/Creatures/a.json", "creatures"));
+        assert!(is_type_config_path(
+            "d:/g/Mods/m/content/config/m/artifact/a.json",
+            "artifacts"
+        ));
+        assert!(is_type_config_path(
+            "d:/g/Mods/m/content/config/m/Creatures/a.json",
+            "creatures"
+        ));
         // 游戏根 `config/<sub>/<file>.json`（`read_game_root_configs` 走这条）
-        assert!(is_type_config_path("d:/g/config/creatures/castle.json", "creatures"));
+        assert!(is_type_config_path(
+            "d:/g/config/creatures/castle.json",
+            "creatures"
+        ));
         // 魔法行会概率表：town 目录下不得被采成法术
         assert!(!is_type_config_path(
             "d:/g/Mods/m/content/config/m/town/spells.json",

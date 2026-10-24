@@ -396,11 +396,7 @@ fn merge_core_texts(out: &mut I18nMap) {
                 .entry(format!("{prefix}{id}{suffix}").to_lowercase())
                 .or_default();
             for (lang, text) in langs {
-                let Some(t) = text
-                    .as_str()
-                    .map(str::trim)
-                    .filter(|s| !s.is_empty())
-                else {
+                let Some(t) = text.as_str().map(str::trim).filter(|s| !s.is_empty()) else {
                     continue;
                 };
                 entry.entry(lang.clone()).or_insert_with(|| t.to_string());
@@ -597,7 +593,8 @@ pub(crate) fn h3_creature_name_map() -> Option<std::sync::Arc<HashMap<String, St
                     if s.trim().is_empty() {
                         continue;
                     }
-                    m.entry(s.trim().to_lowercase()).or_insert_with(|| id.clone());
+                    m.entry(s.trim().to_lowercase())
+                        .or_insert_with(|| id.clone());
                     m.entry(s.trim().to_lowercase().replace(' ', ""))
                         .or_insert_with(|| id.clone());
                 }
@@ -813,7 +810,11 @@ mod tests {
             langs.get("english").and_then(|v| v.as_str()),
             langs.get("chinese").and_then(|v| v.as_str()),
         ) {
-            assert_ne!(en.trim(), zh.trim(), "`{section}.{id}` 的中英文本相同，疑似漏翻");
+            assert_ne!(
+                en.trim(),
+                zh.trim(),
+                "`{section}.{id}` 的中英文本相同，疑似漏翻"
+            );
         }
     }
 
@@ -831,10 +832,7 @@ mod tests {
             .and_then(|v| v.as_object())
             .expect("缺少 factionDescriptions");
         for (id, entry) in factions {
-            assert!(
-                CORE_FACTIONS.contains(&id.as_str()),
-                "未知阵营 id `{id}`"
-            );
+            assert!(CORE_FACTIONS.contains(&id.as_str()), "未知阵营 id `{id}`");
             assert_lang_entries("factionDescriptions", id, entry);
         }
         assert_eq!(

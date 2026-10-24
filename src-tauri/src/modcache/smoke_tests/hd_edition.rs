@@ -33,7 +33,10 @@ fn hd_assets_dump() {
     fs::create_dir_all(&out_root).unwrap();
     // 探针：先确认目标目录可写（避免"跑了半天、一个文件都没落盘"）
     match fs::write(out_root.join(".probe"), b"x") {
-        Ok(()) => println!("探针写入 OK：{}", out_root.canonicalize().unwrap_or_default().display()),
+        Ok(()) => println!(
+            "探针写入 OK：{}",
+            out_root.canonicalize().unwrap_or_default().display()
+        ),
         Err(e) => println!("探针写入失败：{e}（目标 {}）", out_root.display()),
     }
     let mut csv = fs::File::create(out_root.join("index.csv")).expect("清单文件");
@@ -77,7 +80,11 @@ fn hd_assets_dump() {
                 }
             });
         }
-        println!("x{forced}: 条目 {}，导出首帧样本 {written} → {}", by_entry.len(), scale_dir.display());
+        println!(
+            "x{forced}: 条目 {}，导出首帧样本 {written} → {}",
+            by_entry.len(),
+            scale_dir.display()
+        );
     }
     println!("清单 {}", out_root.join("index.csv").display());
 }
@@ -115,7 +122,10 @@ fn hd_assets_dump_all() {
                 None => true,
             };
             if need_dir {
-                let d = out_root.join(format!("x{forced}")).join(&pak_name).join(&entry);
+                let d = out_root
+                    .join(format!("x{forced}"))
+                    .join(&pak_name)
+                    .join(&entry);
                 fs::create_dir_all(&d).unwrap();
                 entries += 1;
                 cur_dir = Some(d);
@@ -163,9 +173,18 @@ fn spellbon_hd_sibling_smoke() {
     let stem = raw.trim().rsplit_once('.').map_or(raw.trim(), |(s, _)| s);
     let sibling = format!("SM{}", stem[2..].to_ascii_uppercase());
     let hit = crate::vcmi::hd_edition::lookup(&sibling);
-    println!("SPELLBON g0f0 = {raw} → 兄弟帧 {sibling} → {}", if hit.is_some() { "命中" } else { "未命中" });
+    println!(
+        "SPELLBON g0f0 = {raw} → 兄弟帧 {sibling} → {}",
+        if hit.is_some() { "命中" } else { "未命中" }
+    );
     let img = hit.expect("SPELLSCR 应有同图案高清帧");
-    println!("高清尺寸 {}x{}（1x 约 {}x{}）", img.0.width(), img.0.height(), img.0.width() / img.1, img.0.height() / img.1);
+    println!(
+        "高清尺寸 {}x{}（1x 约 {}x{}）",
+        img.0.width(),
+        img.0.height(),
+        img.0.width() / img.1,
+        img.0.height() / img.1
+    );
     assert!(img.0.width() > 100, "应为真高清帧");
 }
 
@@ -194,7 +213,11 @@ fn hd_alias_frames_smoke() {
     ] {
         match crate::vcmi::hd_edition::lookup(name) {
             Some((img, scale)) => {
-                println!("{label}: {name} 命中 x{scale} {}x{}", img.width(), img.height());
+                println!(
+                    "{label}: {name} 命中 x{scale} {}x{}",
+                    img.width(),
+                    img.height()
+                );
                 assert!(
                     img.width() >= min_w,
                     "{name} 应为高清帧（实测宽 {}）",
@@ -553,7 +576,10 @@ fn debug_probe_def_frame_cprsmall() {
     crate::vcmi::hd_edition::setup_from_config(None, &game);
 
     println!("== 位图路径对照（已知 127 条命中）");
-    println!("probe(HRART098) = {:?}", crate::vcmi::hd_edition::probe("HRART098"));
+    println!(
+        "probe(HRART098) = {:?}",
+        crate::vcmi::hd_edition::probe("HRART098")
+    );
 
     println!("== CPRSMALL 路径（实测仅 2 条命中）");
     let bytes = crate::vcmi::resource::read_game_resource_fallback(&game, "CPRSMALL.DEF")
@@ -609,18 +635,34 @@ fn debug_rebuild_core_castle_registration() {
         let by_sub: std::collections::BTreeMap<String, usize> = {
             let mut m: std::collections::BTreeMap<String, usize> = Default::default();
             for k in map.keys() {
-                *m.entry(k.split('/').next().unwrap_or("").to_string()).or_default() += 1;
+                *m.entry(k.split('/').next().unwrap_or("").to_string())
+                    .or_default() += 1;
             }
             m
         };
-        println!("{owner}/hd-map.json 共 {} 条，按 sub: {:?}", map.len(), by_sub);
-        let creature: Vec<_> = map.iter().filter(|(k, _)| k.starts_with("creature/")).take(6).collect();
+        println!(
+            "{owner}/hd-map.json 共 {} 条，按 sub: {:?}",
+            map.len(),
+            by_sub
+        );
+        let creature: Vec<_> = map
+            .iter()
+            .filter(|(k, _)| k.starts_with("creature/"))
+            .take(6)
+            .collect();
         println!("  creature 样例: {:?}", creature);
     }
     let dir = cache_root.join("core").join("images").join("creature");
-    let n = fs::read_dir(&dir).map(|d| d.flatten().filter(|e| {
-        e.file_name().to_string_lossy().contains("g0f2") || e.file_name().to_string_lossy().contains("g0f10")
-    }).count()).unwrap_or(0);
+    let n = fs::read_dir(&dir)
+        .map(|d| {
+            d.flatten()
+                .filter(|e| {
+                    e.file_name().to_string_lossy().contains("g0f2")
+                        || e.file_name().to_string_lossy().contains("g0f10")
+                })
+                .count()
+        })
+        .unwrap_or(0);
     println!("core/images/creature 中 g0f2/g0f10 相关文件数: {n}");
 
     // 3) HD 变体验证：generate_for_mod 应按 hd-map 登记取 HD 真源（而非 1x 插值）
@@ -634,28 +676,53 @@ fn debug_rebuild_core_castle_registration() {
         ai_mix: 0.75,
     };
     let st = generate_for_mod(&cache_root, "core", &opt);
-    println!("generate_for_mod(core): generated={} skipped={} failed={}", st.generated, st.skipped, st.failed);
+    println!(
+        "generate_for_mod(core): generated={} skipped={} failed={}",
+        st.generated, st.skipped, st.failed
+    );
     for name in ["cprsmall_def~g0f2", "artifact_def~g0f103"] {
         for sub in ["creature", "artifact"] {
-            let base = cache_root.join("core").join("images").join(sub).join(format!("{name}.webp"));
-            let variant = cache_root.join("core").join("images").join(sub).join(format!("{name}@4x.webp"));
+            let base = cache_root
+                .join("core")
+                .join("images")
+                .join(sub)
+                .join(format!("{name}.webp"));
+            let variant = cache_root
+                .join("core")
+                .join("images")
+                .join(sub)
+                .join(format!("{name}@4x.webp"));
             let dim = |p: &std::path::Path| -> Option<(u32, u32)> {
                 let b = fs::read(p).ok()?;
-                image::load_from_memory(&b).ok().map(|i| (i.width(), i.height()))
+                image::load_from_memory(&b)
+                    .ok()
+                    .map(|i| (i.width(), i.height()))
             };
-            let v = if variant.is_file() { Some(dim(&variant)) } else { None };
+            let v = if variant.is_file() {
+                Some(dim(&variant))
+            } else {
+                None
+            };
             println!("  {sub}/{name}: 1x={:?} @4x={:?}", dim(&base), v);
         }
     }
 
     // 4) 城镇描边：登记 HD 后按用途目标框生成变体（观察倍率与体积）
     let st2 = generate_for_mod(&cache_root, "core.castle", &opt);
-    println!("generate_for_mod(core.castle): generated={} skipped={} failed={}", st2.generated, st2.skipped, st2.failed);
+    println!(
+        "generate_for_mod(core.castle): generated={} skipped={} failed={}",
+        st2.generated, st2.skipped, st2.failed
+    );
     let mut base_b = 0u64;
     let mut var_b = 0u64;
     let mut var_n = 0usize;
     let mut sample = String::new();
-    if let Ok(rd) = fs::read_dir(cache_root.join("core.castle").join("images").join("townborder")) {
+    if let Ok(rd) = fs::read_dir(
+        cache_root
+            .join("core.castle")
+            .join("images")
+            .join("townborder"),
+    ) {
         for f in rd.flatten() {
             let n = f.metadata().map(|m| m.len()).unwrap_or(0);
             let name = f.file_name().to_string_lossy().to_string();
@@ -670,9 +737,17 @@ fn debug_rebuild_core_castle_registration() {
             }
         }
     }
-    print!("townborder 变体 {var_n} 个 共 {} KB（基准 {} KB）样例 {sample}", var_b / 1024, base_b / 1024);
+    print!(
+        "townborder 变体 {var_n} 个 共 {} KB（基准 {} KB）样例 {sample}",
+        var_b / 1024,
+        base_b / 1024
+    );
     if !sample.is_empty() {
-        let p = cache_root.join("core.castle").join("images").join("townborder").join(&sample);
+        let p = cache_root
+            .join("core.castle")
+            .join("images")
+            .join("townborder")
+            .join(&sample);
         if let Ok(b) = fs::read(&p) {
             if let Ok(i) = image::load_from_memory(&b) {
                 println!(" → {}x{}", i.width(), i.height());
@@ -728,8 +803,7 @@ fn debug_probe_shared_icon_hd_coverage() {
         probe_def(&format!("{t}.DEF"), &[0]);
     }
     println!("== SPELLBON 帧名 → SPELLINT(SI)/SPELLS(SP) 兄弟命中（法术图标 HD 候选）");
-    if let Some(bytes) = crate::vcmi::resource::read_game_resource_fallback(&game, "SPELLBON.DEF")
-    {
+    if let Some(bytes) = crate::vcmi::resource::read_game_resource_fallback(&game, "SPELLBON.DEF") {
         let d = crate::infra::def::DefReader::new(&bytes);
         let mut si = 0;
         let mut sp = 0;
@@ -760,16 +834,13 @@ fn debug_probe_shared_icon_hd_coverage() {
     println!("== 城镇描边（townborder）：原版 BMP 与 HD 帧的宽高比对照");
     for n in ["TOCSMAG1", "TOCSTAV1", "TOCSDKMS", "TOCSC101"] {
         let core = game.join("Mods").join("vcmi");
-        let bmp = crate::vcmi::resource::resolve_resource_fallback(
-            &core,
-            &game,
-            &format!("{n}.bmp"),
-        )
-        .and_then(|(b, _e)| {
-            image::load_from_memory(&b)
-                .ok()
-                .map(|i| (i.width(), i.height()))
-        });
+        let bmp =
+            crate::vcmi::resource::resolve_resource_fallback(&core, &game, &format!("{n}.bmp"))
+                .and_then(|(b, _e)| {
+                    image::load_from_memory(&b)
+                        .ok()
+                        .map(|i| (i.width(), i.height()))
+                });
         let hd = crate::vcmi::hd_edition::lookup(n).map(|(i, s)| (i.width(), i.height(), s));
         println!("  {n}: bmp={bmp:?} hd={hd:?}");
     }
@@ -857,7 +928,12 @@ fn terrain_registers_hd_source() {
         crate::modcache::set_assets_enabled(true);
         crate::modcache::hd_map::reset();
         let rel = crate::modcache::assets::extract_icon_and_save(
-            &core, &game, &cache_root, "core", "terrain", id,
+            &core,
+            &game,
+            &cache_root,
+            "core",
+            "terrain",
+            id,
             Some(def),
         )
         .unwrap_or_else(|| panic!("{id} 应提取出地形图标"));
@@ -921,7 +997,14 @@ fn four_x_variant_resamples_top_scale() {
     crate::modcache::set_assets_enabled(true);
     crate::modcache::hd_map::reset();
     crate::modcache::assets::extract_game_def_frame_and_save(
-        &game, &cache_root, "core", "CPRSMALL", 0, 2, "creature", "c000",
+        &game,
+        &cache_root,
+        "core",
+        "CPRSMALL",
+        0,
+        2,
+        "creature",
+        "c000",
     )
     .expect("应提取 CPRS000C");
     crate::modcache::hd_map::flush(&cache_root);
@@ -981,7 +1064,14 @@ fn pskil42_variant_uses_hd_source() {
     crate::modcache::hd_map::reset();
     // 素材阶段：1x 基准图 + HD 登记（与生产同函数）
     crate::modcache::assets::extract_game_def_frame_and_save(
-        &game, &cache_root, "core", "PSKIL42", 0, 0, "pskil42", "attack",
+        &game,
+        &cache_root,
+        "core",
+        "PSKIL42",
+        0,
+        0,
+        "pskil42",
+        "attack",
     )
     .expect("应提取 PSKIL42 首帧");
     crate::modcache::hd_map::flush(&cache_root);

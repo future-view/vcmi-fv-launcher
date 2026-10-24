@@ -77,7 +77,10 @@ const TAIL_WINDOW: u64 = 4 * 1024 * 1024;
 /// 探测一个 Inno Setup 安装器。**只读**，不会创建/修改任何文件。
 pub fn probe(path: &Path) -> Result<InnoProbe, String> {
     let mut f = File::open(path).map_err(|e| format!("打开安装器失败：{e}"))?;
-    let file_size = f.metadata().map_err(|e| format!("读取文件大小失败：{e}"))?.len();
+    let file_size = f
+        .metadata()
+        .map_err(|e| format!("读取文件大小失败：{e}"))?
+        .len();
     if file_size < 0x1000 {
         return Err("文件过小，不像是安装器".to_string());
     }
@@ -120,7 +123,10 @@ pub fn probe(path: &Path) -> Result<InnoProbe, String> {
         .and_then(|_| f.read_exact(&mut head))
         .is_ok();
     let first_chunk_hex = if read_ok {
-        head.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(" ")
+        head.iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<Vec<_>>()
+            .join(" ")
     } else {
         String::new()
     };
@@ -269,11 +275,17 @@ mod tests {
         let r = probe(&p).expect("probe");
         assert_eq!(r.version, "5.2.3");
         assert_eq!(r.compression, "zlib");
-        assert_eq!(r.data_start, 0x180, "数据区起点 = 节 PointerToRawData+SizeOfRawData");
+        assert_eq!(
+            r.data_start, 0x180,
+            "数据区起点 = 节 PointerToRawData+SizeOfRawData"
+        );
         assert!(r.header_offset > r.data_start);
         assert_eq!(r.header_size, r.file_size - r.header_offset);
         assert_eq!(r.payload_size, r.header_offset - r.data_start);
-        assert!(r.first_chunk_hex.starts_with("7a 6c 62 1a"), "首块应以 zlb 魔数开头");
+        assert!(
+            r.first_chunk_hex.starts_with("7a 6c 62 1a"),
+            "首块应以 zlb 魔数开头"
+        );
         let _ = std::fs::remove_dir_all(&d);
     }
 
@@ -411,7 +423,11 @@ mod tests {
         for name in rep.md5_mismatch.iter().take(10) {
             println!("  MD5  {name}");
         }
-        assert!(rep.failed.is_empty(), "不应有失败条目：{:?}", rep.failed.len());
+        assert!(
+            rep.failed.is_empty(),
+            "不应有失败条目：{:?}",
+            rep.failed.len()
+        );
         assert!(rep.md5_mismatch.is_empty(), "MD5 全部应一致");
         // 未解出的条目只应是需要 exe filter 的 PE 文件（按默认选项跳过）
         let listing = header::list(Path::new(&p)).expect("list");
@@ -429,7 +445,10 @@ mod tests {
             assert!(out.join(must).is_file(), "缺少 {must}");
         }
         assert!(
-            std::fs::read_dir(out.join("MP3")).map(|d| d.count()).unwrap_or(0) > 0,
+            std::fs::read_dir(out.join("MP3"))
+                .map(|d| d.count())
+                .unwrap_or(0)
+                > 0,
             "MP3 目录不应为空"
         );
     }
@@ -466,9 +485,18 @@ mod tests {
             e.1 += f.size;
         }
         for (name, (n, bytes)) in &groups {
-            println!("  {:<32} {:>4} 文件 {:>8} MiB", name, n, bytes / (1024 * 1024));
+            println!(
+                "  {:<32} {:>4} 文件 {:>8} MiB",
+                name,
+                n,
+                bytes / (1024 * 1024)
+            );
         }
-        for f in listing.files.iter().filter(|f| f.destination.contains(".lod")) {
+        for f in listing
+            .files
+            .iter()
+            .filter(|f| f.destination.contains(".lod"))
+        {
             println!("  LOD {:>10} {}", f.size, f.destination);
         }
 
@@ -501,10 +529,9 @@ mod tests {
             );
         }
         assert!(
-            listing
-                .files
-                .iter()
-                .any(|f| f.destination.eq_ignore_ascii_case("{app}\\Data\\bitmap.lod")),
+            listing.files.iter().any(|f| f
+                .destination
+                .eq_ignore_ascii_case("{app}\\Data\\bitmap.lod")),
             "缺少基础 bitmap.lod"
         );
     }

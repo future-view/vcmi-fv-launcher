@@ -113,9 +113,15 @@ export function HdImg({
       loading={loading}
       onLoad={pixelArt ? measure : undefined}
       onError={() => {
-        // 高清缺失 → 记住它（同一路径不再重试），前进到原图；
+        // 高清缺失 → 记住**这一档**（同一路径不再重试），前进到下一个候选；
         // 原图也失败 → idx 越界 → 占位块（不再有 broken 图标）
-        if (idx === 0 && src.length > 1) markHdMissing(url);
+        //
+        // ⚠️ 条件是 `idx < src.length - 1` 而非 `idx === 0`：后者只记首档失败，
+        // 于是 `@3x` / `@2x`（第二、三次失败）永远不入册 —— 组件每次重新挂载
+        // 都会把它们再请求一遍（实测同一 URL 反复 404，单次会话最多 4 次），
+        // 而每次 404 都会在应用日志里留一行 ERROR。
+        // 末项（原图）不入册：`imgCandidates` 原本就无条件保留原图兜底。
+        if (idx < src.length - 1) markHdMissing(url);
         setIdx((v) => v + 1);
       }}
     />

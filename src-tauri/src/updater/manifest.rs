@@ -671,10 +671,16 @@ mod tests {
         }"#;
         let e: ManifestEntry = serde_json::from_str(with_md).unwrap();
         assert_eq!(
-            e.notes_md.as_ref().and_then(|m| m.get("chinese")).map(String::as_str),
+            e.notes_md
+                .as_ref()
+                .and_then(|m| m.get("chinese"))
+                .map(String::as_str),
             Some("**改进百科**\n- 支持 `生物动画`")
         );
-        assert_eq!(e.notes.get("chinese").map(Vec::as_slice), Some(["一行一条".to_string()].as_slice()));
+        assert_eq!(
+            e.notes.get("chinese").map(Vec::as_slice),
+            Some(["一行一条".to_string()].as_slice())
+        );
 
         // 旧清单（0.1.x）：没有 notesMd → 解析成功且为 None，前端回退到 notes 行数组
         let legacy = r#"{
@@ -685,6 +691,9 @@ mod tests {
         }"#;
         let old: ManifestEntry = serde_json::from_str(legacy).unwrap();
         assert!(old.notes_md.is_none());
-        assert_eq!(old.notes.get("chinese").map(Vec::as_slice), Some(["旧格式说明".to_string()].as_slice()));
+        assert_eq!(
+            old.notes.get("chinese").map(Vec::as_slice),
+            Some(["旧格式说明".to_string()].as_slice())
+        );
     }
 }

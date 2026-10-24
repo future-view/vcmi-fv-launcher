@@ -159,6 +159,76 @@ fn cross_mod_reference_marked_as_ref() {
     );
 }
 
+/// 8) 阵营名主来源 = **faction 配置的 `name`**（VCMI 的 `CFaction::getName()`），
+///     `mod.json` 的模组名只能当兜底。
+///
+/// 此前顺序反着排：单城镇 mod 的 `mod.json` 名（常是英文）压在配置名前，
+/// 实测本发行版 4 座城镇变成英文：
+/// - `hota.cove` → “Cove town”（配置名：港口）
+/// - `hota.factory` → “Factory Town”（配置名：工厂）
+/// - `hota.bulwark` → “Bulwark”（配置名：棱堡）
+/// - `new pavilion.new pavillion` → “Pavilion Town”（配置名：沙堡）
+/// 它们的共同点：`mod.json` 没有 `chinese` 块（转成内嵌中文）而 faction 配置里有中文名。
+#[test]
+#[ignore]
+fn faction_config_name_beats_mod_json_name() {
+    let Some(game_dir) = test_game_dir() else {
+        return;
+    };
+    // 显示名 = `chinese` → `english`（配置里的裸字符串按「语言未知的原文」落在 english）
+    let shown = |fac: &Value| -> String {
+        let n = fac.get("name");
+        ["chinese", "english", "auto"]
+            .iter()
+            .find_map(|k| n.and_then(|n| n.get(*k)).and_then(|x| x.as_str()))
+            .unwrap_or("")
+            .to_string()
+    };
+    for (rel, id, fid, expect) in [
+        ("hota/Mods/cove", "hota.cove", "cove", "港口"),
+        ("hota/Mods/Factory", "hota.factory", "factory", "工厂"),
+        ("hota/Mods/bulwark", "hota.bulwark", "bulwark", "棱堡"),
+        // 中文包：配置名与 mod.json 语言块都是中文，改口径后仍应是中文
+        // （此前显示的是 mod.json 的“梦境（Asylum）”，现在对齐 VCMI 取配置名）
+        ("asylum", "asylum", "asylum", "梦境"),
+        ("haven", "haven", "haven", "峡湾"),
+        (
+            "New Pavilion/Mods/New Pavillion",
+            "new pavilion.new pavillion",
+            "pavilion",
+            "沙堡",
+        ),
+    ] {
+        let mod_dir = game_dir.join("Mods").join(rel);
+        if !mod_dir.is_dir() {
+            eprintln!("跳过：未安装 {rel}");
+            continue;
+        }
+        let cache_root = std::env::temp_dir().join("vcmi_fv_town_name_test");
+        let mod_cache = cache_root.join(crate::modcache::sanitize_id(id));
+        let _ = fs::remove_dir_all(&mod_cache);
+        let _ = fs::create_dir_all(&cache_root);
+        // 阶段一（仅数据）就够：本用例只看 factions[].name
+        let r = build_mod_wiki_phase(&mod_dir.to_string_lossy(), id, &cache_root, &game_dir, 0);
+        assert_eq!(
+            r.get("ok").and_then(|x| x.as_bool()),
+            Some(true),
+            "构建失败 {id}: {r}"
+        );
+        let data: Value = serde_json::from_str(
+            &fs::read_to_string(mod_cache.join("cache.json")).expect("cache.json 未落盘"),
+        )
+        .expect("cache.json 解析失败");
+        let fac = faction_of(&data, fid);
+        assert_eq!(
+            shown(fac),
+            expect,
+            "{id} 城镇名应取 faction 配置的 name（实际：{}）",
+            serde_json::to_string(fac.get("name").unwrap_or(&Value::Null)).unwrap()
+        );
+    }
+}
+
 /// 5) 跨模组翻译（祖先链）+ 大小写不敏感 + `translation*` 目录变体：
 ///    此前 17 个城镇显示英文名（crossroads 12 / hota 3 / new-pavilion / Fairytale）。
 #[test]

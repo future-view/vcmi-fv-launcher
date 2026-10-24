@@ -94,10 +94,7 @@ fn ensure_hd_scheme(cache_root: &Path) {
             // 第三方 mod 的 HD 来源登记一并作废（v3：旧登记含"帧名误配原版素材"的脏项）。
             // core / core.<faction> 的登记保留 —— 那是原版资源的合法 HD 源，清掉会让
             // 原版生物/英雄/图标的高清集体退化成插值，直到各自重建。
-            let id = m
-                .file_name()
-                .to_string_lossy()
-                .to_string();
+            let id = m.file_name().to_string_lossy().to_string();
             if !crate::vcmi::h3core::parse_core_mod(&id).0
                 && m.path().join("hd-map.json").is_file()
                 && fs::remove_file(m.path().join("hd-map.json")).is_ok()
@@ -922,13 +919,7 @@ pub(crate) fn upscale_lowpass(
 /// 而不是"先用低档放大到整数倍"再让浏览器下采样 —— 后者细节更少、观感更糊。
 /// alpha 处理与 [`upscale_lowpass`] 同口径：defringe → 预乘插值 → 反预乘 →
 /// 低 alpha 带回填源色（源色取自**未预乘**的入参，避免回填出偏暗的边）。
-fn resample_lowpass(
-    rgba: &[u8],
-    w: u32,
-    h: u32,
-    tw: u32,
-    th: u32,
-) -> Option<(Vec<u8>, u32, u32)> {
+fn resample_lowpass(rgba: &[u8], w: u32, h: u32, tw: u32, th: u32) -> Option<(Vec<u8>, u32, u32)> {
     let n = (w as usize) * (h as usize);
     if w == 0 || h == 0 || tw == 0 || th == 0 || rgba.len() < n * 4 {
         return None;
@@ -937,13 +928,8 @@ fn resample_lowpass(
     defringe(&mut pre, w, h, 3);
     premultiply_rgba(&mut pre);
     let sheet = image::RgbaImage::from_raw(w, h, pre)?;
-    let mut out = image::imageops::resize(
-        &sheet,
-        tw,
-        th,
-        image::imageops::FilterType::Lanczos3,
-    )
-    .into_raw();
+    let mut out =
+        image::imageops::resize(&sheet, tw, th, image::imageops::FilterType::Lanczos3).into_raw();
     unpremultiply_rgba(&mut out);
     for y in 0..th as usize {
         for x in 0..tw as usize {
