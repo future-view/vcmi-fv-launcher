@@ -39,8 +39,18 @@ pub fn runtime_status(id: String) -> Result<Value, String> {
 ///
 /// 进度经 `runtime-install-progress` 事件推送 `{id, received, total, done?}`，每 200ms 一次。
 /// 返回安装后的最新状态，便于前端直接刷新 UI。
+///
+/// ⚠️ `async` + `spawn_blocking`：同步命令在主线程执行，大组件（AI 运行时）下载 + 解压会把
+/// WebView 消息循环冻住 —— 最小化再还原时窗口被系统判为「未响应」
+/// （同 `updater::download_launcher_update`，P8 / R1 同一口径）。
 #[tauri::command]
-pub fn runtime_install(app: AppHandle, id: String) -> Result<Value, String> {
+pub async fn runtime_install(app: AppHandle, id: String) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || runtime_install_blocking(app, id))
+        .await
+        .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?
+}
+
+fn runtime_install_blocking(app: AppHandle, id: String) -> Result<Value, String> {
     // 与「启动器更新」互斥：更新包可能也要写 `runtime/**`（打包预置组件），
     // 与设置页的组件安装并发会互相踩踏同一目录。
     if !matches!(

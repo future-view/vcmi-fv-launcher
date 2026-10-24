@@ -39,20 +39,29 @@ pub async fn check_launcher_update(
 
 /// 下载更新包（**阻塞**至完成）并强制 sha256 校验。
 /// 进度经 `launcher-update-progress` 事件推送 `{received, total, done?}`，每 200ms 一次。
+///
+/// ⚠️ **必须 `async` + `spawn_blocking`**：Tauri 的同步命令在主线程执行，下载（慢网可达数分钟）
+/// 会把 WebView 消息循环一起冻住 —— 表现为「最小化再还原后窗口变灰 / 标题栏被判『未响应』」，
+/// 而下载本身还在推进（进度条照动），用户只能等它跑完；同期点「取消下载」也进不来
+/// （命令排在阻塞的下载之后）。与 P8（`fetch_mod_index`）、R1（启动期命令）同一口径。
 #[tauri::command]
-pub fn download_launcher_update(app: AppHandle) -> Result<Value, String> {
-    let emitter = app.clone();
-    let path = updater::download::download_and_verify(move |received, total| {
-        let _ = emitter.emit(
+pub async fn download_launcher_update(app: AppHandle) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let emitter = app.clone();
+        let path = updater::download::download_and_verify(move |received, total| {
+            let _ = emitter.emit(
+                "launcher-update-progress",
+                json!({ "received": received, "total": total }),
+            );
+        })?;
+        let _ = app.emit(
             "launcher-update-progress",
-            json!({ "received": received, "total": total }),
+            json!({ "received": 0, "total": 0, "done": true }),
         );
-    })?;
-    let _ = app.emit(
-        "launcher-update-progress",
-        json!({ "received": 0, "total": 0, "done": true }),
-    );
-    Ok(json!({ "ok": true, "path": path.to_string_lossy() }))
+        Ok(json!({ "ok": true, "path": path.to_string_lossy() }))
+    })
+    .await
+    .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?
 }
 
 /// 取消正在进行的更新下载（置哨兵，下载循环下一块退出；状态回 available 可重试）。
@@ -68,8 +77,18 @@ pub fn cancel_launcher_update() -> Result<(), String> {
 ///   返回 `restarted: false`，`failed` 非空表示个别文件被占用（提示用户关闭后重试）。
 /// - 其余（含 exe / 单 exe 包）→ 生成 detached 替换脚本，前端随后延迟 `close_window`；
 ///   脚本等进程退出后 `move 旧→.old`、`move 新→原位`、拉起新版本并自删；返回 `restarted: true`。
+///
+/// ⚠️ `async` + `spawn_blocking`：就地落地会逐文件拷贝（更新包可达 200MB），同步命令在主线程跑
+/// 同样会冻住消息循环（同 `download_launcher_update`）；`relaunch` 的脚本 spawn 本身是毫秒级，
+/// 放阻塞线程池无副作用。
 #[tauri::command]
-pub fn apply_launcher_update() -> Result<Value, String> {
+pub async fn apply_launcher_update() -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(apply_launcher_update_blocking)
+        .await
+        .map_err(|e| be_err("cmd_blocking_task_failed", &format!("{}", e)))?
+}
+
+fn apply_launcher_update_blocking() -> Result<Value, String> {
     // 调试构建不做任何落地（tauri dev 产物受保护）；`apply_update` 内亦有一道同样的保护
     if cfg!(debug_assertions) {
         return Err(be_err("cmd_debug_no_update_apply", ""));

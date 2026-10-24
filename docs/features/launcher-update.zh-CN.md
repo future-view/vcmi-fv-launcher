@@ -64,6 +64,12 @@ manifest（清单比对）  →  download（下载校验）  →  apply（自替
 - zip 落 `VCMI-FV-Launcher_<ver>.zip`，exe 落 `.exe.update`（同版本可复用免重下）。
 - **解压白名单** `allowed_rel`：主 exe、`.vcmi-fv-launcher/{runtime,mods,realms}/`、配置补丁；**拒绝** `launcher.json`、`realms/`、`cache/`、`downloads/`、`mods/`（用户数据）。
 
+⚠️ **命令壳必须 async + `spawn_blocking`**（`download_launcher_update` / `apply_launcher_update`，组件安装 `runtime_install` 同理）：
+Tauri 的同步命令在**主线程**执行，下载 + 解包 + 逐文件拷贝会把 WebView 消息循环一起冻住 ——
+典型现场是「更新下载时最小化再还原，窗口变灰、标题栏被系统判为『未响应』」，
+但进度条仍在动（WebView2 渲染在独立进程），且点「取消下载」无效（命令排在阻塞的下载之后只能等它跑完）。
+同 P8（`fetch_mod_index`）与启动期命令（[startup-responsiveness](./startup-responsiveness.zh-CN.md) R1）的口径。
+
 ## 5. 应用（自替换，按 `updateMode` 分派 —— ADR 0008 D7）
 
 | 模式 | 适用 | 替换策略 |

@@ -74,6 +74,7 @@ See [How to write this file](docs/guides/release.zh-CN.md#changelog-syntax) for 
 - Fixed the issue where war machines (crossbow carts, first aid tents, supply carts) in the "Initial Troops" section of heroes were mistakenly placed in the initial troop grid
 - Fixed the animation display of War Machine in the Encyclopedia
 - Fixed the issue of some creature animations causing the screen to flicker
+- Fixed the issue where the software download window would freeze due to high traffic
 - Compatible with the configuration methods of some town mods
 
 ### chinese
@@ -84,4 +85,5 @@ See [How to write this file](docs/guides/release.zh-CN.md#changelog-syntax) for 
 - 修复英雄「初始部队」里的战争机器（弩车 / 急救帐篷 / 补给车）被错分到初始部队格子里
 - 修复百科里战争机器动画显示
 - 修复一些生物动画幕布跳动
+- 修复软件下载窗口繁忙卡死
 - 兼容一些城镇模组的配置方式
