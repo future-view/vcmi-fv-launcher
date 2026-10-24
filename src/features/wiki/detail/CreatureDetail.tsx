@@ -19,6 +19,7 @@ import {
 import {
   MOTION_HOME,
   buildIdleSimple,
+  buildSiegeSteps,
   buildSteps,
   planPatrol,
   type AnimState,
@@ -110,6 +111,19 @@ export function CreatureDetail({
   const animOwner = typeof animPtr.owner === "string" && animPtr.owner ? animPtr.owner : modId;
   const animKind = typeof animPtr.kind === "string" ? animPtr.kind : undefined;
   const battleRes = animKind === "none" ? "" : ((d.animation as string) ?? "");
+  /**
+   * 战争机器（投石车 / 弩车 / 急救帐篷 / 补给车 / 加农炮）。
+   *
+   * 两个来源缺一不可：
+   * - `siegeWeapon`：VCMI `CCreature::isSiegeWeapon()`（`SIEGE_WEAPON` 能力）；
+   * - `warMachine`：绑定的神器 id（旧缓存的 `siegeWeapon` 口径错了但该字段是对的）。
+   *
+   * 判定用途见 `buildSiegeSteps`：这类素材的待机组只有 1 帧、`MOVING`/`MOUSEON` 是 0 帧，
+   * 走普通生物的状态机就是“没有动画”。
+   */
+  const isSiege = d.siegeWeapon === true || String(d.warMachine ?? "").length > 0;
+  /** 战争机器是否有开炮帧（`shots` = 配置的弹药量）：有则预览靠开炮、否则退防御组 */
+  const siegeCanShoot = Number(d.shots ?? 0) > 0;
   /** 高清素材倍率：兵种大图在本页会被**放大**显示，高清收益最明显的一处 */
   const rate = useHdRate();
   // 生物窗背景（VCMI `CCreaturePic` 的 creatureBackground）。
@@ -266,21 +280,40 @@ export function CreatureDetail({
       setMotionMs(step.syncMotion ? step.loops * g.count * ANIM_FRAME_MS : 260);
     };
 
+    /**
+     * 本轮要播的步骤。
+     *
+     * 战争机器走自己的预览编排（见 `buildSiegeSteps`）：待机组只有 1 帧、`MOVING`/`MOUSEON`
+     * 是 0 帧，普通状态机的「待机」就是静态图、「移动」巡逻必然空转后回落到静态图。
+     * 受击/死亡不受影响（`HITTED`/`DEATH` 组有 8~10 帧），故排除在重映射之外。
+     */
+    const planSteps = (
+      st: AnimState,
+      cur: Motion,
+    ): { steps: AnimStep[]; next: Motion } => {
+      if (isSiege && st !== "hurt") {
+        return {
+          steps: buildSiegeSteps(st === "attack" ? "attack" : "idle", siegeCanShoot),
+          next: cur,
+        };
+      }
+      if (st === "move") return planPatrol(cur, boxCss, boxH);
+      return {
+        // 弹窗只播 HOLDING（见 `buildIdleSimple` 的说明），其余走完整状态机
+        steps: compact ? buildIdleSimple() : buildSteps(st as Exclude<AnimState, "move">),
+        next: cur,
+      };
+    };
+
     const run = async () => {
       let emptyRounds = 0;
       // 巡逻光标：跨轮保存当前位置/朝向（"走到一边再走回来"）
       let cursor: Motion = MOTION_HOME;
       while (!cancelled) {
         let played = 0;
-        let steps: AnimStep[];
-        if (runState === "move") {
-          const plan = planPatrol(cursor, boxCss, boxH);
-          steps = plan.steps;
-          cursor = plan.next;
-        } else {
-          // 弹窗只播 HOLDING（见 `buildIdleSimple` 的说明），其余走完整状态机
-          steps = compact ? buildIdleSimple() : buildSteps(runState as Exclude<AnimState, "move">);
-        }
+        const plan = planSteps(runState, cursor);
+        const steps: AnimStep[] = plan.steps;
+        cursor = plan.next;
         for (const step of steps) {
           if (cancelled) return;
           if (missingGroups.get(missKey)?.has(step.group)) continue;
@@ -325,12 +358,7 @@ export function CreatureDetail({
     // 首轮要依次等 2~5 次后端往返。这里先并发展开（`getAnimGroup` 自带 inflight 去重，
     // 下面 `run` 再请求同一组时共用同一次往返）。上限 8 组，避免一次打满线程池。
     {
-      const warmSteps =
-        runState === "move"
-          ? planPatrol(MOTION_HOME, boxCss, boxH).steps
-          : compact
-            ? buildIdleSimple()
-            : buildSteps(runState as Exclude<AnimState, "move">);
+      const warmSteps = planSteps(runState, MOTION_HOME).steps;
       const groups = [...new Set(warmSteps.map((s: AnimStep) => s.group))].slice(0, 8);
       for (const g of groups)
         void getAnimGroup(animOwner, battleRes, g, doubleWide, boxCss, animKind);
@@ -340,7 +368,7 @@ export function CreatureDetail({
       cancelled = true;
       cancelAnimationFrame(raf);
     };
-  }, [battleRes, animOwner, animKind, runState, d.doubleWide, compact]);
+  }, [battleRes, animOwner, animKind, runState, d.doubleWide, compact, isSiege, siegeCanShoot]);
 
   const name = pickName((d.name as Record<string, string>) ?? {}, lang);
   const desc = pickName((d.description as Record<string, string>) ?? {}, lang);
@@ -543,10 +571,16 @@ export function CreatureDetail({
    */
   const stateRows: { state: AnimState; label: string }[] = [
     { state: "idle", label: t.wiki.creature.anim.state.idle },
-    { state: "move", label: t.wiki.creature.anim.state.move },
+    // 战争机器没有「移动」状态：`MOVING` 组是 0 帧（实测 SMCATA/SMBAL/SMCART/SMCANNON），
+    // 巡逻只会空转两轮后回落到静态图，故直接不列这行（详见 `buildSiegeSteps`）。
+    ...(isSiege
+      ? []
+      : [{ state: "move" as const, label: t.wiki.creature.anim.state.move }]),
     { state: "attack", label: t.wiki.creature.anim.state.attack },
     { state: "hurt", label: t.wiki.creature.anim.state.hurt },
   ];
+  /** 展示用的状态：战争机器继承了会话粘性的「移动」时按待机呈现（播放同一套预览） */
+  const shownState: AnimState = isSiege && animState === "move" ? "idle" : animState;
 
   /** 切换状态：写入模块级粘性值（跨生物沿用） */
   const pickState = (st: AnimState) => {
@@ -581,7 +615,7 @@ export function CreatureDetail({
 
   /** 当前状态的可读文本 */
   const animLabel =
-    stateRows.find((r) => r.state === animState)?.label ?? t.wiki.creature.anim.state.idle;
+    stateRows.find((r) => r.state === shownState)?.label ?? t.wiki.creature.anim.state.idle;
 
   // ── 三层矩形（都是 1x 画布坐标，后端 `anim_window` 给出）──
   // - `win`：**幕布窗口**（100×130 或 200×130）→ 决定画框比例与黑幕范围；
@@ -595,12 +629,29 @@ export function CreatureDetail({
   const texH = frames ? Math.max(1, Math.round(frames.h / texScale)) : 130;
   const texX = frames?.wx ?? (d.doubleWide ? 170 : 150);
   const texY = frames?.wy ?? 155;
-  const curtainW = frames?.winW ?? 100;
-  const curtainH = frames?.winH ?? 130;
-  const curtainX = frames?.winX ?? (d.doubleWide ? 170 : 150);
-  const curtainY = frames?.winY ?? 155;
-  const fitW = frames?.fitW ?? curtainW;
-  const fitH = frames?.fitH ?? curtainH;
+  /**
+   * 帧到达前的**布局基线**（构建期从 DEF 帧头算好的幕布 + 适配参考，缓存字段 `animWindow`）。
+   *
+   * 没有它时前端只能按基准窗口 100×130 先摆一次，帧一到后端算出宽幕布（200×130），
+   * 画框会从 180×234 “跳”成 320×208 —— 实测投石车待机预览最明显：先看见标准画框里的
+   * 静态图，随后整个画框变宽。
+   *
+   * 仅 DEF 生物有（png 动画的几何靠逐帧 alpha 扫描，构建期算不划算）；无值时退回旧行为。
+   */
+  const animWin = (d.animWindow ?? null) as {
+    winX?: number;
+    winY?: number;
+    winW?: number;
+    winH?: number;
+    fitW?: number;
+    fitH?: number;
+  } | null;
+  const curtainW = frames?.winW ?? animWin?.winW ?? 100;
+  const curtainH = frames?.winH ?? animWin?.winH ?? 130;
+  const curtainX = frames?.winX ?? animWin?.winX ?? (d.doubleWide ? 170 : 150);
+  const curtainY = frames?.winY ?? animWin?.winY ?? 155;
+  const fitW = frames?.fitW ?? animWin?.fitW ?? curtainW;
+  const fitH = frames?.fitH ?? animWin?.fitH ?? curtainH;
   const baseX = d.doubleWide ? 170 : 150;
   const baseY = 155;
 
@@ -755,7 +806,7 @@ export function CreatureDetail({
             onClick={() => setMenuOpen((v) => !v)}
             className={cn(
               "flex h-[20px] w-[20px] flex-none items-center justify-center rounded border text-[11px] leading-none transition-colors",
-              animState !== "idle"
+              shownState !== "idle"
                 ? "border-amber-400/80 bg-slate-800/80 text-amber-200"
                 : "border-slate-600/60 bg-slate-900/60 text-slate-300 hover:text-slate-100",
             )}
@@ -767,7 +818,7 @@ export function CreatureDetail({
           {menuOpen && (
             <div className="absolute right-0 top-[26px] z-30 w-[168px] rounded-lg border border-slate-700/70 bg-slate-900/95 p-1 shadow-lg">
               {stateRows.map((row) => {
-                const active = row.state === animState;
+                const active = row.state === shownState;
                 return (
                   <button
                     key={row.state}

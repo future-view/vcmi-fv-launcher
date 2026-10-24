@@ -72,6 +72,7 @@
 - 图片经 `fullImgUrl` / `fullImgCandidates` + `convertFileSrc` 拼绝对 URL；高清变体 `@Nx` 由 `SafeImg` 自动回退。
 - **幽灵条目过滤**：索引条目先与 `visibleModKeySet()`（实时 `scan_mods` ∪ core 伪模组）求交，剔除已卸载或属于其它领域的条目。缓存 `index.json` 只合并不删除，过滤发生在读侧。
 - **收录口径（后端，2026-10-16）**：`spells` 不收录 `"type": "ability"` 与 `flags.special` 的法术（对齐 VCMI 法术书与内建百科：`CSpellWindow.cpp:338`、`WikiModContent.cpp:88,337`、`CSpell.cpp:238-241`）；`skills` 不收录「三档都无 `images` 且无任何语言名称」的记账技能（HotA / 潮战的符文等级计数器）。两类条目在 VCMI 里也没有可展示的图标，留着只会得到「有名无图」的空壳行。
+- **生物收录口径（后端，2026-10-24）**：`creatures` 不收录 `disabled: true`、只含补丁字段的条目，以及 `special: true` 且**没有**战争机器绑定的生物（如游戏根 `config/creatures/special.json` 的 `unused122…128`、`arrowTower`）。但 `special: true` 的**战争机器必须放行** —— 原版 `catapult` / `ballista` / `firstAidTent` / `ammoCart` 全在那个文件里，VCMI 的百科列表同样是 `if(!creature->special || isWM)`（`WikiWindow.cpp:553-557`）。判据是神器配置的 `warMachine` 反查（`CArtHandler.cpp:230`），不是硬编码 id 名单，mod 新增的战争机器（如 HotA 的 `cannon`）同样自动纳入。曾因一刀切排除 `special` 导致全发行版没有任何生物记录带 `warMachine`：英雄「初始部队」里的弩车 / 急救帐篷既无图也无弹窗，还被前端错分类成普通部队（实测艾拉切第 2 格空白）。
 - **分类归属（后端，2026-10-16）**：配置类型判定只在**最后一个 `config/` 段之后**比对；`config/skills/…`、`config/artifacts/…` 这类路径不会再因为**模组目录名**（`…-heroes` / `…-creatures`）被采成英雄 / 生物。子路径没有类型目录时（如 `config/cherub/cherub.json`）仍保留旧的模组目录名容错——它们正是靠这条容错才被采到的真实实体。
 
 ## 4. 详情分发
@@ -82,7 +83,7 @@
 |---|---|
 | `FactionDetail` | 城镇幕布大图 + 生物表（statIcons 表头）+ 建筑表 + 英雄表 |
 | `CreatureDetail` | 阵营 `creatureBackground` 底图 + canvas 播放战斗 DEF 动画（只解当前动作分组）+ 统计表 / 招募花费 / 升级链 / 招募建筑 / 能力格（详见 §4.1） |
-| `HeroDetail` | 头像、传记、特长、初始部队（排除战争机器，按 `startingStackChances` 取概率）、副技能 / 法术行 |
+| `HeroDetail` | 头像、传记、特长、初始部队（排除战争机器，按 `startingStackChances` 取概率）、战争机器（首格恒为投石车 + 初始部队里的战争机器）、副技能 / 法术行 |
 | `BuildingDetail` | 标题 + 大图 + 描述 + `formatCost` 花费 |
 | `SpellDetail` | 派系 + 等级 / 魔法值 / 造价 + 初 / 中 / 高级分级描述 |
 | `SkillDetail` | basic / advanced / expert 三级描述 |
@@ -250,6 +251,50 @@ const fitK = Math.max(FIT_MIN_SCALE, Math.min(1, curtainW / fitW, curtainH / fit
 **遗留（未做）**：位置锚点 —— 9.3% 的第三方素材"站立中心"偏离原版窗口中心 ≥30px。
 目前靠 `tex` 保像素，但生物与背景的相对位置仍按原版固定坐标，会出现"生物贴左、背景居中"
 （洞穴魔龙 `CR155.def`，身体中心 x≈187 vs 窗口中心 220）。
+
+#### 4.2.7 战争机器的预览编排（2026-10-24）
+
+战争机器的战斗 DEF **没有待机循环**，用普通生物的状态机就是一张静态图（用户实测「投石车 / 弩车没有动画」）：
+
+| DEF | `HOLDING`(2) | `MOVING`(0) | `MOUSEON`(1) | `SHOOT`(14/15/16) | `HITTED`/`DEFENCE`(3/4) |
+|---|---|---|---|---|---|
+| `SMCATA.DEF` | **1** | **0** | **0** | 13 | 8 |
+| `SMBAL.DEF` | **1** | **0** | **0** | 9 | 10 |
+| `SMCART.DEF` | **1** | **0** | **0** | 0 | 10 |
+| `SMCANNON.def`（HotA） | **1** | **0** | **0** | 8 | 9 |
+| `SMTENT.DEF` | 6 | 0 | 0 | 0 | 9 |
+
+即：待机组只有 1 帧、`MOVING`/`MOUSEON` 是 0 帧，动作帧全在**射击组**与受击/防御/死亡组里。
+VCMI 同样不用普通待机，而是让战争机器走 `machPreviewList`（`Images.cpp:492-505`）靠开炮体现动画。
+
+实现：
+
+- 后端缓存标出战争机器 —— `siegeWeapon` 取 `SIEGE_WEAPON` 能力（`CCreature::isSiegeWeapon()`），
+  **不是** `bonuses` 数组（原版 `config/creatures/special.json` 与 HotA 的 `cannon` 都写在
+  `abilities.siegeWeapon`，旧口径全判 false）；前端同时认 `warMachine`（神器绑定）做兼容；
+- 前端 `animScenario::buildSiegeSteps`：短暂待机 → 随机方向开炮（`SHOOT_*`）→ 停顿 → 循环；
+  无射击帧的机器（`shots == 0`，如补给车）改用防御组，否则整台机器完全静止；
+- 状态菜单对战争机器**不列「移动」**（`MOVING` 是 0 帧，巡逻只会空转两轮后回落静态图），
+  会话粘性的「移动」在这些条目上按待机呈现；受击/死亡沿用普通编排（那几组有 8~10 帧）。
+- 回归：`war_machine_defs_have_no_idle_loop`（锁定上表事实：待机 ≤1 帧、`MOVING`/`MOUSEON` = 0、
+  投石车/弩车必有射击组）、`core_war_machines_are_creatures_with_binding`（`siegeWeapon` = true）。
+
+#### 4.2.8 帧到达前也按最终画框摆版（`animWindow`，2026-10-24）
+
+前端在**还没拿到帧**时只能按基准窗口 `100×130` 摆一次性过渡态，帧一到后端算出宽幕布
+（`200×130`）画框就整块“跳”一下：标准 180×234 → 宽 320×208（实测投石车待机预览最明显）。
+
+修复：构建期把显示几何存进缓存字段 `animWindow`（`winX/winY/winW/winH/fitX/fitY/fitW/fitH`），
+前端优先用它，`frames` 到达后再按帧里的同名字段（两者同源，必相等）：
+
+- 几何只取决于 **DEF 帧头**（`frame_rects_by_group`，不解帧像素），构建期算一次即永久有效；
+- 代价：把旧实现“只解路径不读字节”改成读字节 —— 实测该发行版 `Mods/` 下 **2398 个 `.def` 合计 124 MB**（均 53 KB），
+  一次性读一遍即可；`infra/def.rs` 同时新增 `frame_geometry`（只读帧头不拷像素）；
+- 不变量回归：`war_machine_creatures::anim_window_matches_runtime_group_meta`（缓存里的
+  `animWindow` 必须与运行期 `read_def_group_hd` 返回的 `win*/fit*` 逐字段相等），
+  另断言投石车 `winW = 200`（正是缺基线时会跳的那一档）；
+- **png（sprites-json）动画仍会跳一次**：它的几何来自逐帧 alpha 扫描，构建期算不划算，
+  仍靠后端 `anim_json::WINDOW_CACHE` 首个请求定档。
 
 ## 5. 悬停浮层（WikiPopup）
 

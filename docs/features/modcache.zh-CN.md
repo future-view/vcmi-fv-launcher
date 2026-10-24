@@ -101,7 +101,7 @@ mods/
 
 键格式：`v{WIKI_CACHE_VERSION}:{sourceHash}:{h3DataKey}:{h3CoreHash}:{schemaHash}`，**字符串相等**判定命中。
 
-当前值：`WIKI_CACHE_VERSION = 4`、`ASSETS_VERSION = 3`（另 `HD_SCHEME_VERSION = 6`）。`WIKI_CACHE_VERSION = 4`（2026-10-24）：阵营名改为「faction 配置名 + mod.json 模组名」双源合并（3 版只取配置名，英文界面退回中文；id 形态的模组名不采用），连同英雄职业表补上 `mod.json` 的 `heroClasses` 清单 —— 都会改变 `factions[].name` / `heroes[]` 的内容，旧缓存必须整体重建（见 §3 取名与职业口径）。`ASSETS_VERSION = 3`（2026-10-20）：HD 登记表键口径由 `sanitize_id`（`~`→`_`）修正为 `sanitize_asset_name`（保留 `~`，与磁盘 stem 一致），旧登记全线失效必须重建，见 [hd-assets](./hd-assets.zh-CN.md) §6。
+当前值：`WIKI_CACHE_VERSION = 4`、`ASSETS_VERSION = 3`（另 `HD_SCHEME_VERSION = 6`）。`WIKI_CACHE_VERSION = 4`（2026-10-24）：阵营名改为「faction 配置名 + mod.json 模组名」双源合并（3 版只取配置名，英文界面退回中文；id 形态的模组名不采用），连同英雄职业表补上 `mod.json` 的 `heroClasses` 清单 —— 都会改变 `factions[].name` / `heroes[]` 的内容，旧缓存必须整体重建（见 §3 取名与职业口径）。同版还把 `special: true` 的生物改为「只排除非战争机器」，原版弩车 / 急救帐篷 / 补给车 / 投石车（均在游戏根 `config/creatures/special.json`）因此重新进入 `creatures[]`（见 [wiki](./wiki.zh-CN.md) §3 生物收录口径）。`ASSETS_VERSION = 3`（2026-10-20）：HD 登记表键口径由 `sanitize_id`（`~`→`_`）修正为 `sanitize_asset_name`（保留 `~` 与磁盘 stem 一致），旧登记全线失效必须重建，见 [hd-assets](./hd-assets.zh-CN.md) §6。
 
 失效条件：源哈希变化、游戏数据指纹变化、h3-core 文案表变化、schema 变化；素材未就绪或 `assetsVersion < ASSETS_VERSION` 或 HD 来源指纹变化时，清 `images/` 与 `hd-map.json` 重跑。
 

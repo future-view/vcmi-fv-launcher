@@ -48,6 +48,33 @@ export function HeroDetail({
   const creatureRef = makeRefResolver({ category: "creatures", modId, lang, modCache, getEntry });
   const creatureById = (cid: string) => creatureRef(cid).record;
   /**
+   * 战争机器图标表（键 = 生物 id 小写）：后端把 CPRSMALL 的 4 个固定帧
+   * （`catapult` / `ballista` / `firstAidTent` / `ammoCart`，VCMI 索引 145-148）提成**公共素材**
+   * `sharedIcons['warmachine/<id>']`，与英雄配置无关。
+   *
+   * 用途是给「战争机器区」兜底出图：原版战争机器全在游戏根
+   * `config/creatures/special.json`，一旦生物记录缺失（旧缓存 / mod 新增的战争机器），
+   * 原来只能得到空槽位 —— 实测艾拉切第 2 格 `ballista`（88%）就是这种空槽。
+   */
+  const warMachineIcons: Record<string, string> = {};
+  for (const [k, v] of Object.entries(sharedIcons)) {
+    if (k.startsWith("warmachine/")) warMachineIcons[k.slice("warmachine/".length).toLowerCase()] = v;
+  }
+  const warMachineIcon = (cid: string) => warMachineIcons[cid.toLowerCase()];
+  /**
+   * 部队槽是不是战争机器（VCMI `CHeroOverview.cpp:148` 判 `warMachine != ArtifactID::NONE`）。
+   *
+   * ① 生物记录优先：`warMachine` = 绑定的神器 id（空串 = 普通部队）；
+   * ② 记录缺失时退化为「公共战争机器图标命中」—— 否则这类槽位既无图标、右键也弹不出
+   *    生物窗，还会被错分到「初始部队」格里（与 VCMI 把弩车/帐篷算战争机器的口径相反）。
+   */
+  const isWarMachine = (u: Record<string, unknown>) => {
+    const cid = String(u.creature ?? u.id ?? "");
+    const cr = creatureById(cid);
+    if (cr) return String(cr.warMachine ?? "").length > 0;
+    return Boolean(warMachineIcon(cid)) || cid.toLowerCase().includes("warmachine");
+  };
+  /**
    * 初始法术解析：同样是跨模组引用（4,581/4,822 条初始法术属 core），
    * 本 mod 法术表优先 → 全类目索引兜底。名称、图标、描述都从这里取。
    */
@@ -58,22 +85,10 @@ export function HeroDetail({
   const stackChances = ((modCache?.gameSettings as Record<string, unknown>)?.startingStackChances as
     number[]) ?? [100, 88, 25];
 
-  // 初始部队：排除战争机器（VCMI CHeroOverview.cpp:148 判 `warMachine == ArtifactID::NONE`；
-  // 后端 warMachine = 绑定的神器 id，空串即非战争机器）。保留原始索引以取概率。
-  const troops = army
-    .map((u, idx) => ({ u, idx }))
-    .filter(({ u }) => {
-      const cr = creatureById(String(u.creature ?? u.id ?? ""));
-      if (cr) return String(cr.warMachine ?? "").length === 0;
-      return !String(u.creature ?? u.id ?? "").toLowerCase().includes("warmachine");
-    });
+  // 初始部队：排除战争机器（判据见上方 `isWarMachine`）。保留原始索引以取概率。
+  const troops = army.map((u, idx) => ({ u, idx })).filter(({ u }) => !isWarMachine(u));
   // 战争机器：英雄初始部队里配置的战争机器（弩车/急救帐篷/弹药车等）
-  const machines = army
-    .map((u, idx) => ({ u, idx }))
-    .filter(({ u }) => {
-      const cr = creatureById(String(u.creature ?? u.id ?? ""));
-      return Boolean(cr && String(cr.warMachine ?? "").length > 0);
-    });
+  const machines = army.map((u, idx) => ({ u, idx })).filter(({ u }) => isWarMachine(u));
   // 投石车（首格恒为它）：本 mod 或 core 收录了 catapult 时右键可开完整生物窗
   const catapultRef = creatureRef("catapult");
 
@@ -167,7 +182,13 @@ export function HeroDetail({
   ) => {
     const cid = String(u.creature ?? u.id ?? "");
     const ref = creatureRef(cid);
-    const iconUrl = ref.image ? fullImgUrl(cacheDir, ref.image) : undefined;
+    // 图标：生物记录 → 公共战争机器帧（记录缺失时的兜底，见 `warMachineIcons`）
+    const wmIcon = warMachineIcon(cid);
+    const iconUrl = ref.image
+      ? fullImgUrl(cacheDir, ref.image)
+      : wmIcon
+        ? fullImgUrl(cacheDir, wmIcon)
+        : undefined;
     const min = Number(u.min ?? 0);
     const max = Number(u.max ?? 0);
     const count = min || max ? `${min}${max !== min ? `-${max}` : ""}` : String(u.count ?? "");
@@ -314,7 +335,7 @@ export function HeroDetail({
                     {...(catapultRef.record ? triggers(() => openCreature("catapult")) : {})}
                   >
                     <SafeImg
-                      src={fullImgUrl(cacheDir, sharedIcons["warmachine/catapult"])}
+                      src={fullImgUrl(cacheDir, warMachineIcons["catapult"])}
                       alt=""
                       className="h-8 w-8 rounded border border-slate-700/50 pixelated object-contain"
                       placeholderClassName="h-8 w-8 rounded border border-slate-700/50 bg-slate-800/60"

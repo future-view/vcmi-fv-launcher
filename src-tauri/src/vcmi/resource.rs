@@ -538,33 +538,6 @@ pub(crate) fn resolve_resource(mod_path: &Path, resource: &str) -> Option<(Vec<u
     crate::infra::metrics::scope("res.resolve", || resolve_resource_inner(mod_path, resource))
 }
 
-/// 只解析资源的**实际扩展名**，不读文件字节（构建期登记动画指针用）。
-///
-/// 与 [`resolve_resource`] 同口径（同一套目录 / zip 索引与命中顺序），只是跳过读字节：
-/// 构建期为数千个生物登记 `graphics.animation` 指针时，若每个都读几百 KB 的 DEF，
-/// 会额外付出 GB 级 IO —— 而这里只需要回答"有没有、是什么扩展名"。
-pub(crate) fn resolve_resource_ext(mod_path: &Path, resource: &str) -> Option<String> {
-    let resource = resource.trim();
-    if resource.is_empty() {
-        return None;
-    }
-    let (key, key_with_ext) = resource_keys(resource);
-    let content_dir = mod_path.join("Content");
-    if content_dir.is_dir() {
-        if let Ok(found) = find_in_dir(&content_dir, &key, &key_with_ext) {
-            return Some(
-                found
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .unwrap_or("")
-                    .to_ascii_lowercase(),
-            );
-        }
-    }
-    let i = zip_resource_index(mod_path, resource)?;
-    zip_entry_ext(mod_path, i)
-}
-
 /// 资源引用 → `(去扩展名 key, 含扩展名 key)`，与磁盘/zip 索引**同一归一口径**。
 ///
 /// 抽出来是为了让 `resolve_resource_fallback` 的负结果缓存能用**完全相同**的 key 记账，
@@ -1294,6 +1267,25 @@ pub(crate) fn plan_from_bounds(
         tex: clamp(union(all_bounds, win_bbox)),
         fit: clamp(union(fit_bounds, win_bbox)),
     }
+}
+
+/// 构建期用：由 DEF 字节算出**显示几何**（幕布 + 适配参考），**不解帧像素**。
+///
+/// 与 [`read_def_group_hd_inner`] 内部用的 `anim_window` 同源 → 构建期存进缓存的几何
+/// 与运行期帧携带的几何必然一致（`war_machine_creatures::anim_window_matches_runtime_group_meta`
+/// 锁住这条不变量）。
+///
+/// 用途：前端在“还没有任何帧”时也能按最终画框摆版。否则它只能按基准窗口 100×130 先画
+/// 一次，帧一到后端算出宽幕布（200×130）画框就“跳”一下 —— 实测战争机器待机预览
+/// （投石车 / 弩车）最明显。
+///
+/// `None` = 不是合法 DEF / 没有任何可用帧（前端退回旧行为）。
+pub(crate) fn def_window_plan(bytes: &[u8], double_wide: bool) -> Option<WindowPlan> {
+    let def = crate::infra::def::DefReader::new(bytes);
+    if def.canvas_size().is_none() || def.frame_rects_by_group().is_empty() {
+        return None;
+    }
+    Some(anim_window(&def, double_wide))
 }
 
 fn anim_window(def: &crate::infra::def::DefReader, double_wide: bool) -> WindowPlan {

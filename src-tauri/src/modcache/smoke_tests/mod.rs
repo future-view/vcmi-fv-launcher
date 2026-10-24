@@ -63,6 +63,7 @@ mod protocol;
 mod rebuild;
 mod resolve_resource;
 mod town_refs;
+mod war_machine_creatures;
 
 /// 测试用 mod 目录 = [`test_mods_dir`] + mod 相对路径。
 ///

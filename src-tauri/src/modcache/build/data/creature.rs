@@ -211,11 +211,19 @@ pub(crate) fn build_creatures(
         //    `unused122/124/126/128`，名字就是 "NOT USED (1)…"），VCMI 加载时即跳过；
         // ② `special: true`：非玩家生物，VCMI 的百科列表直接排除
         //    （`WikiWindow.cpp:553-557`：`if(!creature->special || isWM)` 才入列，
-        //     即只放行"非 special"与战争机器）；
+        //     即只放行"非 special"与**战争机器**）；
         // ③ 只有 `stackExperience` / `bonuses` 之类**补丁字段**、没有 name/level/abilities
         //    的条目：那是给别的生物打补丁的定义，不是独立生物（实测 Courtyard 的
         //    `stackExp.json`：`cameraObscuraCreature`、`potionCartCreature` 全属性为 0）。
-        // 用户实测这三类在百科里是一排"无图/全 0"的噪音条目。
+        // 用户实测这几类在百科里是一排"无图/全 0"的噪音条目。
+        //
+        // ⚠️ `special` 必须**放行战争机器**（原版 `catapult` / `ballista` / `firstAidTent` /
+        //    `ammoCart` 全在游戏根 `config/creatures/special.json` 且都标了 `special: true`）：
+        //    旧实现一刀切丢掉了它们 → 整个发行版**没有任何生物记录**能声明 `warMachine`，
+        //    英雄「初始部队」里 11 个 ballista + 9 个 firstAidTent 既无图也无弹窗，
+        //    还会因为拿不到 `warMachine` 被错分类成普通部队（实测艾拉切第 2 格空白）。
+        //    判据用神器反查表（VCMI CArtHandler.cpp:230）而不是硬编码 id 名单，
+        //    这样 mod 新增的战争机器（如 HotA 的 `cannon`）同样自动纳入。
         let disabled = obj
             .get("disabled")
             .and_then(|v| v.as_bool())
@@ -224,11 +232,12 @@ pub(crate) fn build_creatures(
             .get("special")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
+        let is_war_machine = war_machine_of.contains_key(id);
         let is_patch_only = obj.get("name").is_none()
             && obj.get("level").is_none()
             && obj.get("abilities").is_none()
             && obj.get("bonuses").is_none();
-        if disabled || special || is_patch_only {
+        if disabled || (special && !is_war_machine) || is_patch_only {
             continue;
         }
         // 生物小图标（对齐 VCMI wiki：CPRSMALL 帧 iconIndex，带浅色底图非透明抠图）。
@@ -761,8 +770,28 @@ pub(crate) fn build_creatures(
         let luck = stat_val("LUCK");
         // 详情页动画指针：构建期就把"这个 animation 资源到底在哪、是什么类型"算好，
         // 运行期不再在 500+ 个模组里实时检索（见 `anim_json::locate` / `resource::resolve_core`）。
-        let anim_ptr = probe_animation(p, game_dir, mod_id, anim.as_deref());
-        creatures.push(json!({
+        let (anim_ptr, anim_window) = probe_animation(p, game_dir, mod_id, anim.as_deref(), double_wide);
+        // 战争机器判据（VCMI `CCreature::isSiegeWeapon()`）：看 `SIEGE_WEAPON` 能力本身，
+        // **不是**看 `bonuses` 数组 —— 原版游戏根 `config/creatures/special.json` 与 HotA 的
+        // `cannon` 都写在 `abilities.siegeWeapon.type = "SIEGE_WEAPON"`：
+        // 旧实现只读 `bonuses` → 投石车 / 弩车 / 急救帐篷 / 补给车全被判成 false，
+        // 前端因此拿不到“战争机器预览”的判据，只好走普通生物待机（那几张 DEF 的
+        // 待机组只有 1 帧，表现就是“没有动画”）。
+        let has_siege_weapon = |v: &Value| {
+            v.get("type").and_then(|t| t.as_str()) == Some("SIEGE_WEAPON")
+        };
+        let siege_weapon = obj
+            .get("abilities")
+            .and_then(|a| a.as_object())
+            .map(|m| m.values().any(has_siege_weapon))
+            .unwrap_or(false)
+            || obj
+                .get("bonuses")
+                .and_then(|b| b.as_array())
+                .map(|arr| arr.iter().any(has_siege_weapon))
+                .unwrap_or(false);
+        // 字段已经很多（再加会撞到 `json!` 宏的递归上限）—— `animWindow` 在宏之后插入。
+        let mut entry = json!({
             "id": id,
             "name": name_obj,
             "image": img,
@@ -813,12 +842,14 @@ pub(crate) fn build_creatures(
             // 值为绑定的神器 id（空串 = 非战争机器）
             "warMachine": war_machine_of.get(id.as_str()).cloned().unwrap_or_default(),
             // 战争机器预览动画分组（VCMI startPreview(siegeWeapon)）：投石车/弩车等走 machPreviewList
-            "siegeWeapon": obj
-                .get("bonuses")
-                .and_then(|b| b.as_array())
-                .map(|arr| arr.iter().any(|x| x.get("type").and_then(|t| t.as_str()) == Some("SIEGE_WEAPON")))
-                .unwrap_or(false),
-        }));
+            "siegeWeapon": siege_weapon,
+        });
+        // 显示几何（幕布 + 适配参考）：前端在“还没有帧”时按它摆版，避免画框从
+        // 基准 100×130 跳成宽幕布（实测投石车待机预览）。仅 DEF 有值，png 动画为 null。
+        if let Some(o) = entry.as_object_mut() {
+            o.insert("animWindow".to_string(), anim_window);
+        }
+        creatures.push(entry);
     }
 
     // 反查升级来源：先收集所有 (id, 升级目标) 配对，再可变借用填充
@@ -861,12 +892,11 @@ pub(crate) fn build_creatures(
     creatures
 }
 
-/// 构建期为生物登记**动画指针** `{owner, resource, kind}`。
+/// 构建期为生物登记**动画指针** `{owner, resource, kind}` 与**显示几何** `animWindow`。
 ///
 /// 目的：详情页播放动画时不必在 500+ 个模组里实时检索（实测 569 模组下首次定位
 /// 需扫 569 次资源解析，冷索引时还要先建 14 万文件的目录清单）。指针在构建期算好，
-/// 运行期直接按 `owner` 读文件。本发行版实测 3769 个生物，本函数**只解析路径不读字节**
-/// （[`crate::vcmi::resource::resolve_resource_ext`]），增量成本为毫秒级。
+/// 运行期直接按 `owner` 读文件。
 ///
 /// 解析范围刻意只到「本模组 + 游戏根」：
 /// - ① 本模组：绝大多数第三方生物；
@@ -874,25 +904,67 @@ pub(crate) fn build_creatures(
 /// - ③ 两者都没有 → `kind: "unknown"`，交给详情页原有实时定位（`anim_json::locate`
 ///   带结果缓存）。**不在这里做跨模组全扫**：数千生物 × 数百模组会显著拖慢构建，
 ///   而真正的跨模组引用是少数，首次多付一次 400ms 即可。
-fn probe_animation(mod_path: &Path, game_dir: &Path, mod_id: &str, res: Option<&str>) -> Value {
+///
+/// **为什么要连字节一起读**（旧实现只调 `resolve_resource_ext` 不读字节）：显示几何
+/// （幕布 100×130 / 200×130 + 适配参考）只取决于帧头，而帧头在文件里；构建期算一次存进
+/// 缓存，前端首次打开就能直接按最终画框摆版，不会“先标准幕布、帧一到又变宽幕布”。
+/// 成本实测：本发行版 `Mods/` 下 2398 个 `.def` 合计 **124 MB**（均 53 KB），一次构建
+/// 全部读一遍即可；`frame_rects_by_group` 只读帧头不解像素，CPU 可忽略。
+fn probe_animation(
+    mod_path: &Path,
+    game_dir: &Path,
+    mod_id: &str,
+    res: Option<&str>,
+    double_wide: bool,
+) -> (Value, Value) {
     let Some(res) = res.map(str::trim).filter(|s| !s.is_empty()) else {
-        return json!({ "kind": "none" });
+        return (json!({ "kind": "none" }), Value::Null);
     };
     let owner_self = if crate::vcmi::h3core::parse_core_mod(mod_id).0 {
         "core".to_string()
     } else {
         mod_id.to_string()
     };
-    // ① 本模组
-    if let Some(ext) = crate::vcmi::resource::resolve_resource_ext(mod_path, res) {
-        return anim_ptr_json(&ext, res, Some(owner_self));
+    // ① 本模组（读字节：显示几何需要帧头，见上方成本说明）
+    if let Some((bytes, ext)) = crate::vcmi::resource::resolve_resource(mod_path, res) {
+        let win = anim_window_json(&bytes, &ext, double_wide);
+        return (anim_ptr_json(&ext, res, Some(owner_self)), win);
     }
     // ② 游戏根 / 用户数据（原版素材统一归属 `core`）
-    if crate::vcmi::resource::read_game_resource_fallback(game_dir, res).is_some() {
-        return json!({ "owner": "core", "resource": res, "kind": "def" });
+    if let Some(bytes) = crate::vcmi::resource::read_game_resource_fallback(game_dir, res) {
+        return (
+            json!({ "owner": "core", "resource": res, "kind": "def" }),
+            anim_window_json(&bytes, "def", double_wide),
+        );
     }
     // ③ 未在「本模组 + 游戏根」找到 → 详情页沿用原有实时定位
-    json!({ "resource": res, "kind": "unknown" })
+    (json!({ "resource": res, "kind": "unknown" }), Value::Null)
+}
+
+/// 显示几何 → 缓存字段 `animWindow`（前端“帧到达之前”的布局基线）。
+///
+/// 只对 DEF 算：sprites-json（png）的几何来自逐帧 alpha 扫描，构建期算不划算，
+/// 那边继续用后端 `anim_json::WINDOW_CACHE` 的首个请求定档（第 1 次打开仍会跳一下）。
+/// 字段口径与 [`crate::vcmi::resource::read_def_group_hd_inner`] 返回的 `win*/fit*` 完全一致。
+fn anim_window_json(bytes: &[u8], ext: &str, double_wide: bool) -> Value {
+    if ext != "def" {
+        return Value::Null;
+    }
+    let Some(plan) = crate::vcmi::resource::def_window_plan(bytes, double_wide) else {
+        return Value::Null;
+    };
+    let (wx, wy, ww, wh) = plan.win;
+    let (fx, fy, fw, fh) = plan.fit;
+    json!({
+        "winX": wx,
+        "winY": wy,
+        "winW": ww,
+        "winH": wh,
+        "fitX": fx,
+        "fitY": fy,
+        "fitW": fw,
+        "fitH": fh,
+    })
 }
 
 /// 展平指针：`kind` 只保留取值域内的语义，未知扩展名原样带回（详情页按"非 def"处理）。

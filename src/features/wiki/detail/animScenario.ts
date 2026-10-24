@@ -129,6 +129,50 @@ export function buildIdleSimple(): AnimStep[] {
 }
 
 /**
+ * **战争机器（投石车 / 弩车 / 急救帐篷 / 补给车 / 加农炮）的预览编排**。
+ *
+ * 为什么不能复用普通生物的状态机 —— 实测原版 DEF 的分组帧数（`VCMI_GAME_DIR` 实机）：
+ *
+ * | DEF | HOLDING(2) | MOVING(0) | MOUSEON(1) | SHOOT(14/15/16) | HITTED/DEFENCE(3/4) |
+ * | --- | --- | --- | --- | --- | --- |
+ * | `SMCATA.DEF` | **1** | **0** | **0** | 13 | 8 |
+ * | `SMBAL.DEF` | **1** | **0** | **0** | 9 | 10 |
+ * | `SMCART.DEF` | **1** | **0** | **0** | 0 | 10 |
+ * | `SMCANNON.def`（HotA） | **1** | **0** | **0** | 8 | 9 |
+ * | `SMTENT.DEF` | 6 | 0 | 0 | 0 | 9 |
+ *
+ * 即：这些素材的**待机组只有 1 帧**，“待机”就是一张静态图；`MOVING`/`MOUSEON` 更是 0 帧。
+ * 真正的动作帧全在**射击组**与受击/防御/死亡组里。
+ *
+ * VCMI 的处理正是如此：战争机器走 `machPreviewList`（`Images.cpp:492-505`：
+ * HOLDING → MOVING → SHOOT_UP → SHOOT_FRONT → SHOOT_DOWN），靠“开炮”体现动画，
+ * 而不是靠站立。这里同样按“短暂待机 → 随机方向开炮 → 停顿”循环；
+ * `MOVING`/`MOUSEON` 这种 0 帧组不列入（否则只会白等两次 IPC 再回落静态图）。
+ *
+ * 没有射击组的机器（急救帐篷 / 补给车）传 `canShoot = false`（判据：`shots > 0`），
+ * 改用防御组循环 —— 它们没有开炮帧，防御组（8~10 帧）是唯一能动的现成素材。
+ */
+export function buildSiegeSteps(
+  state: Exclude<AnimState, "hurt">,
+  canShoot = true,
+): AnimStep[] {
+  const shoot = () => weightedDir(ANIM.SHOOT_UP, ANIM.SHOOT_FRONT, ANIM.SHOOT_DOWN);
+  const idle = state === "idle";
+  const steps: AnimStep[] = [
+    { group: ANIM.HOLDING, loops: 1, holdMs: idle ? 420 : 180 },
+  ];
+  // 有射击组的机器（投石车 / 弩车 / 加农炮）靠开炮体现动画；没射击组的
+  // （补给车、部分 mod 战争机器）只能退而用防御组 —— 否则整台机器完全静止。
+  const act = canShoot ? shoot : () => ANIM.DEFENCE;
+  steps.push({ group: act(), loops: idle ? 1 : 2, holdMs: 260 });
+  if (idle) {
+    steps.push({ group: ANIM.HOLDING, loops: 1, holdMs: 240 });
+    steps.push({ group: act(), loops: 1, holdMs: 320 });
+  }
+  return steps;
+}
+
+/**
  * 移动状态（巡逻）：走到一侧 → 停一下 → 走到另一侧，可带纵向偏移形成斜向。
  *
  * 生成一整轮步骤并返回**新的光标**，由调用方（播放器）跨轮保存。

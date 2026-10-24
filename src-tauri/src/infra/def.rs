@@ -418,6 +418,27 @@ impl<'a> DefReader<'a> {
         Some((header.width, header.height))
     }
 
+    /// 只读帧**头**（**不复制像素数据**）：`(w, h, lm, tm)`；不可用帧返回 `None`。
+    ///
+    /// [`Self::read_frame`] 会把每帧像素整份拷进 `Vec`，而包围盒 / 可用性判定只需要帧头 ——
+    /// 构建期对全量生物算一次包围盒时差距明显（DEF 单文件上百帧）。判定条件与 `read_frame`
+    /// 同源，保证“能取到几何”与“能取到像素”是同一批帧。
+    fn frame_geometry(&self, offset: u32) -> Option<(u32, u32, i32, i32)> {
+        let off = offset as usize;
+        if off + SSPRITE_DEF_SIZE > self.data.len() {
+            return None;
+        }
+        let fmt = self.read_u32(off + 4);
+        let w = self.read_u32(off + 16);
+        let h = self.read_u32(off + 20);
+        if fmt > 3 || w == 0 || h == 0 || w > 4096 || h > 4096 {
+            return None;
+        }
+        let lm = self.read_u32(off + 24) as i32;
+        let tm = self.read_u32(off + 28) as i32;
+        Some((w, h, lm, tm))
+    }
+
     /// **逐帧**包围盒（画布坐标）：`(组号, (x0, y0, x1, y1))`。
     ///
     /// 只读帧头（不解码任何像素），用于「显示窗口/缩放自适应」：VCMI 的窗口是固定矩形
@@ -437,12 +458,9 @@ impl<'a> DefReader<'a> {
         for g in header.groups.iter() {
             let gid = g.block_id as usize;
             for &off in &g.offsets {
-                let Some((_fmt, w, h, _fs, _pad, _pixel, lm, tm)) = self.read_frame(off) else {
+                let Some((w, h, lm, tm)) = self.frame_geometry(off) else {
                     continue;
                 };
-                if w == 0 || h == 0 {
-                    continue;
-                }
                 // 画布外的帧是坏帧（部分 mod DEF 尾部有垃圾分组，lm/tm 是随机值）——
                 // 不滤掉会把包围盒撑到整张画布，窗口自适应随之失控。
                 if lm < 0
