@@ -26,7 +26,8 @@ use crate::vcmi::town::{read_game_root_configs, TownConfig};
 /// `pikemanOld`…），英雄初始部队的 HOTRAITS 数据用的正是这批旧名 ——
 /// 实测索萨第 2 格的 `LightCrossbowman` 就是它，既不是 id 也不是显示名。
 fn insert_creature_alias(map: &mut HashMap<String, String>, id: &str, v: &Value) {
-    map.entry(id.to_lowercase()).or_insert_with(|| id.to_string());
+    map.entry(id.to_lowercase())
+        .or_insert_with(|| id.to_string());
     match v.get("compatibilityIdentifiers") {
         Some(Value::String(s)) => {
             map.insert(s.to_lowercase(), id.to_string());
@@ -92,14 +93,18 @@ pub(crate) fn build_heroes(
     //    `compatibilityIdentifiers` 必须从这里读，raw_cfgs 里是空的。
     //    只对 core 系做：第三方 mod 的生物走 ①，且全量读游戏根对 380 个 mod 是纯浪费。
     if is_core {
-        for (id, v) in crate::vcmi::town::read_game_root_configs(game_dir, "creatures", core_faction) {
+        for (id, v) in
+            crate::vcmi::town::read_game_root_configs(game_dir, "creatures", core_faction)
+        {
             insert_creature_alias(&mut creature_alias, &id, &v);
         }
     }
     // ③ h3-core 的 name / plural（`Pixies` / `Air Elementals` 这类复数显示名）
     if let Some(m) = crate::vcmi::h3core::h3_creature_name_map() {
         for (k, id) in m.iter() {
-            creature_alias.entry(k.clone()).or_insert_with(|| id.clone());
+            creature_alias
+                .entry(k.clone())
+                .or_insert_with(|| id.clone());
         }
     }
     for (cid, idx) in hero_class_index_map {
@@ -110,7 +115,17 @@ pub(crate) fn build_heroes(
             hero_class_prim.insert(cid.clone(), *stats);
         }
     }
-    for (cid, co) in raw_cfgs
+    // 职业定义（heroClasses）有两个来源，**缺一不可**：
+    // ① 归一 rawConfigs：`config/heroClasses/`、`config/<mod>/classes/`，以及从 `heroes/`
+    //    目录按形状嗅探出来并搬进 heroClasses 桶的文件；
+    // ② `mod.json` 的 `heroClasses` 清单：清单内的文件可以放在 `Content/` 的**任意**目录下，
+    //    只要不在 `Content/config/` 树里就收不进 rawConfigs（见 `collect_all_raw_configs`）。
+    //
+    // ② 缺失的代价是整座城镇的英雄列表**整块消失**：实测 `New Pavilion Town` 把 2 个职业
+    // 写在 `Content/classesPavilion/`、19 个英雄写在 `Content/heroesPavilion/`（都在 config
+    // 树外）—— 职业表为空 ⇒ 下方 `class_known` 对每个英雄都判负 ⇒ heroes 输出 0 条，
+    // 百科城镇页的「英雄」区完全不渲染。
+    let mut hero_class_jsons: std::collections::HashMap<String, Value> = raw_cfgs
         .get("heroClasses")
         .and_then(|h| h.as_object())
         .map(|o| {
@@ -119,7 +134,12 @@ pub(crate) fn build_heroes(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default()
-    {
+        .into_iter()
+        .collect();
+    for (cid, cv) in collect_config_jsons_merged(&p, "heroClasses") {
+        hero_class_jsons.entry(cid).or_insert(cv);
+    }
+    for (cid, co) in hero_class_jsons.iter() {
         if let Some(a) = co.get("affinity").and_then(|x| x.as_str()) {
             hero_class_affinity.insert(cid.clone(), a.to_string());
         }
@@ -139,10 +159,10 @@ pub(crate) fn build_heroes(
         // `unwrap_or(0)`，会把上方用 h3-core（HCTRAITS.TXT）桥接得到的正确四维清成 0/0/0/0
         // —— 这正是原版英雄四维全 0 的根因（约克/野蛮人等）。缺失字段保留桥接基线值。
         if let Some(ps) = co.get("primarySkills").filter(|p| p.is_object()) {
-            let base = hero_class_prim.get(&cid).copied().unwrap_or((0, 0, 0, 0));
+            let base = hero_class_prim.get(cid).copied().unwrap_or((0, 0, 0, 0));
             let gp = |k: &str| -> Option<i64> { ps.get(k).and_then(|v| v.as_i64()) };
             hero_class_prim.insert(
-                cid,
+                cid.clone(),
                 (
                     gp("attack").unwrap_or(base.0),
                     gp("defence").or_else(|| gp("defense")).unwrap_or(base.1),
@@ -373,13 +393,10 @@ pub(crate) fn build_heroes(
         // 实测 `bastille/.../heroes/S_sylphine.json` 声明 `"class": "elder"`，而该 mod 的
         // classes/ 只有 campaignHeroes / pyroma / warlord —— 游戏内根本没有这个英雄
         // （也不在堡垒的英雄表里），百科却把它列了出来。
-        // 判定口径：职业必须在「本 mod 的 heroClasses（含 classes/ 归一）」或
+        // 判定口径：职业必须在「本 mod 的 heroClasses（含 classes/ 归一与 mod.json 清单）」或
         // 「游戏根 / vcmi 的职业索引」里。跨 mod 借用职业的极端情形会被一并丢掉（可接受）。
         let class_known = !class_id.is_empty()
-            && (raw_cfgs
-                .get("heroClasses")
-                .and_then(|h| h.get(&class_id))
-                .is_some()
+            && (hero_class_jsons.contains_key(&class_id)
                 || hero_class_index_map.contains_key(&class_id));
         if !class_known {
             continue;

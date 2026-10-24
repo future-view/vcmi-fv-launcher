@@ -35,10 +35,13 @@ pub(crate) struct TownConfig {
     pub(crate) alignment: String,
     /// 本族地形（nativeTerrain）。
     pub(crate) native_terrain: String,
-    /// 城镇名（`town.json` 的 `name`，可能是字符串或多语言对象）。
+    /// 城镇名（`town.json` / `faction.json` 的 `name`，可能是字符串或多语言对象）。
     /// 部分模组**没有 translation 目录**，直接把中文名写在配置里；
     /// 若只走 i18n 键取名会未命中而回落成英文 id（表现为中英混杂），故保留兜底。
-    pub(crate) town_name: Option<String>,
+    ///
+    /// 保留**原始 JSON 形态**（不在此处坍缩成字符串）：多语言对象要按语言键原样透传，
+    /// 裸字符串则按「语言未知的原文」交给 `name_obj_with_inline` 处理。
+    pub(crate) town_name: Option<Value>,
     /// 城镇自带描述（`town.json` 顶层 `description`，可能是字符串或多语言对象）。
     ///
     /// 多数中文城镇模组把整段设定（「种族阵营 / 种族地形 / 所在地」+ 正文）全写在这一个字段里
@@ -736,22 +739,17 @@ pub(crate) fn build_town_config(v: &Value) -> TownConfig {
         }
     }
     // 城镇内嵌名称（优先 inner.name，其次 town_sub.name；可能是字符串或多语言对象）。
-    // 用作 i18n 未命中时的兜底——部分模组无 translation 目录，中文名直接写在配置里。
-    let town_name: Option<String> = inner
+    // 这是**阵营名的主来源**（VCMI 同样取 faction 配置的 name，而非 mod.json 的模组名），
+    // 原样保留 JSON 形态，由 `name_obj_with_inline` 决定放进哪个语言键。
+    let town_name: Option<Value> = inner
         .get("name")
         .or_else(|| town_sub.and_then(|t| t.get("name")))
-        .and_then(|v| match v {
-            Value::String(s) => Some(s.clone()),
-            // 多语言对象：取中/英/任意首个
-            Value::Object(m) => m
-                .get("chinese")
-                .or_else(|| m.get("english"))
-                .or_else(|| m.values().next())
-                .and_then(|x| x.as_str())
-                .map(|s| s.to_string()),
-            _ => None,
+        .filter(|v| match v {
+            Value::String(s) => !s.trim().is_empty(),
+            Value::Object(m) => !m.is_empty(),
+            _ => false,
         })
-        .filter(|s| !s.is_empty());
+        .cloned();
 
     // 城镇自带描述（`inner.description` / `town_sub.description`；字符串或多语言对象）。
     // 与 town_name 同理：部分模组没有 translation 目录，整段设定直接写在 town.json 里。

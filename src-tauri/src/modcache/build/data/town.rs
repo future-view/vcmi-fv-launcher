@@ -171,14 +171,10 @@ pub(crate) fn build_towns(
                         .get("animation")
                         .and_then(|x| x.as_str())
                         .map(|s| s.to_string());
-                    let bgroup = detail_v
-                        .get("group")
-                        .and_then(|x| x.as_u64())
-                        .unwrap_or(0) as usize;
-                    let bindex = detail_v
-                        .get("index")
-                        .and_then(|x| x.as_u64())
-                        .unwrap_or(0) as usize;
+                    let bgroup =
+                        detail_v.get("group").and_then(|x| x.as_u64()).unwrap_or(0) as usize;
+                    let bindex =
+                        detail_v.get("index").and_then(|x| x.as_u64()).unwrap_or(0) as usize;
                     let bimg = detail_v
                         .get("image")
                         .and_then(|x| x.as_str())
@@ -189,8 +185,7 @@ pub(crate) fn build_towns(
                         match load_structure_frame(&p, &core, &game_dir, &sa) {
                             Some((img, _lm, _tm)) => {
                                 let mut webp = Vec::new();
-                                let enc =
-                                    image::codecs::webp::WebPEncoder::new_lossless(&mut webp);
+                                let enc = image::codecs::webp::WebPEncoder::new_lossless(&mut webp);
                                 if enc
                                     .encode(
                                         img.as_raw(),
@@ -261,27 +256,32 @@ pub(crate) fn build_towns(
                     if let Some(icons_ref) = cfg.buildings_icons.as_deref() {
                         // 沿 `upgrades` 链走到链尾（= VCMI 的 getBase()），逐级换 bid 重试。
                         // 上限 8 级防配置写环时死循环。
-                        let mut cur = detail.and_then(|d| d.get("upgrades")).and_then(|x| x.as_str()).map(|s| s.to_string());
+                        let mut cur = detail
+                            .and_then(|d| d.get("upgrades"))
+                            .and_then(|x| x.as_str())
+                            .map(|s| s.to_string());
                         for _ in 0..8 {
-                            let Some(up_id) = cur.filter(|s| !s.is_empty()) else { break };
-                            let Some(up) = cfg
-                                .buildings_detail
-                                .iter()
-                                .find(|d| d.get("id").and_then(|x| x.as_str()) == Some(up_id.as_str()))
-                            else {
+                            let Some(up_id) = cur.filter(|s| !s.is_empty()) else {
+                                break;
+                            };
+                            let Some(up) = cfg.buildings_detail.iter().find(|d| {
+                                d.get("id").and_then(|x| x.as_str()) == Some(up_id.as_str())
+                            }) else {
                                 break;
                             };
                             let up_bid = up.get("bid").and_then(|x| x.as_i64()).unwrap_or(-1);
-                            if let Some(hit) = crate::modcache::assets::extract_sprite_frame_and_save(
-                                &p,
-                                game_dir,
-                                cache_root,
-                                mod_id,
-                                "building",
-                                &icon_name,
-                                icons_ref,
-                                up_bid.max(0) as usize,
-                            ) {
+                            if let Some(hit) =
+                                crate::modcache::assets::extract_sprite_frame_and_save(
+                                    &p,
+                                    game_dir,
+                                    cache_root,
+                                    mod_id,
+                                    "building",
+                                    &icon_name,
+                                    icons_ref,
+                                    up_bid.max(0) as usize,
+                                )
+                            {
                                 from_icons = Some(hit);
                                 break;
                             }
@@ -313,10 +313,14 @@ pub(crate) fn build_towns(
                         .and_then(|x| x.as_str())
                         .map(|s| s.to_string());
                     for _ in 0..8 {
-                        let Some(up_id) = cur.filter(|s| !s.is_empty()) else { break };
-                        let Some(up) = cfg.buildings_detail.iter().find(|d| {
-                            d.get("id").and_then(|x| x.as_str()) == Some(up_id.as_str())
-                        }) else {
+                        let Some(up_id) = cur.filter(|s| !s.is_empty()) else {
+                            break;
+                        };
+                        let Some(up) = cfg
+                            .buildings_detail
+                            .iter()
+                            .find(|d| d.get("id").and_then(|x| x.as_str()) == Some(up_id.as_str()))
+                        else {
                             break;
                         };
                         // 产物文件名沿用**本建筑**的 icon_name：前端按
@@ -438,15 +442,24 @@ pub(crate) fn build_towns(
         let native_terrain = cfg.native_terrain.clone();
         factions.push(json!({
             "factionId": cfg.faction_id,
-            // 名称兜底顺序：mod 翻译（i18n）→ 单城镇 mod 的 mod.json 语言块 →
-            // 城镇配置自带 name（town.json 的 name）→ faction id。
-            // 许多城镇模组无 translation 目录，中文名直接写在 town.json / mod.json 里；
-            // 若兜底成 id 就会出现「部分城镇中文、部分英文」的中英混杂。
+            // 名称兜底顺序：mod 翻译（i18n）→ **城镇配置自带 name**（faction.json / town.json）
+            // → 单城镇 mod 的 mod.json 语言块 → faction id。
+            //
+            // 城镇配置名必须排在 mod.json 名**之前**（对齐 VCMI：百科 / 城镇界面显示的是
+            // `CFaction::getName()`，由 faction 配置的 `name` 注册，mod.json 的 `name`
+            // 只用于模组列表）。此前反着排，英文 mod 名会直接顶掉配置里的中文城镇名：
+            // 实测本发行版 `hota.cove` / `hota.factory` / `hota.bulwark` /
+            // `new pavilion.new pavillion` —— 这 4 座城镇的 mod.json 没有 `chinese` 块，
+            // 而 faction.json 的 `name` 是中文（港口 / 工厂 / 棱堡 / 沙堡），
+            // 百科却显示成 “Cove town / Factory Town / Pavilion Town”。
+            //
+            // 许多城镇模组无 translation 目录，中文名就写在配置里，因此配置名是主来源；
+            // mod.json 名只在配置完全没有 name 时兜底。
             "name": name_obj_with_inline(
                 &i18n,
                 &format!("faction.{}.{}.name", scope, cfg.faction_id),
-                mod_name_inline,
-                cfg.town_name.as_deref().unwrap_or(&cfg.faction_id),
+                cfg.town_name.as_ref().or(mod_name_inline),
+                &cfg.faction_id,
             ),
             // 阵营描述（VCMI: faction.<mod>.<id>.description，合成图下方段落）。
             // 兜底链：翻译键 → **城镇自带 description** → 单城镇 mod 的 mod.json 语言块 → 空。

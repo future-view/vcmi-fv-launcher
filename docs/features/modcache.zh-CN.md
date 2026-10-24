@@ -91,11 +91,16 @@ mods/
 不是遗留重复。若把它们也搬进 `core/images/`，`core.<faction>` 将不剩任何图片，
 反而破坏"城镇模组自包含"的对称性（第三方城镇仍然自带幕布），故**不做调整**。
 
+**取名与职业口径（2026-10-24，缓存版本 3）**：
+
+- **阵营名主来源是 faction 配置的 `name`**（对齐 VCMI `CFaction::getName()`；`mod.json` 的 `name` 只用于模组列表），`mod.json` 语言块只在配置完全没写 `name` 时兜底。此前顺序反着排，本身没有 `chinese` 块的城镇会把配置里的中文名顶成英文模组名（实测 `hota.cove` / `hota.factory` / `hota.bulwark` / `new pavilion` 四座城镇显示为 Cove town / Factory Town / Bulwark / Pavilion Town）。配置里的**裸字符串**按「语言未知的原文」只落 `english` 键，中文界面由 `pickName` 的 `当前语言 → english` 回退取到；多语言对象按语言键原样透传。
+- **英雄职业表两源合并**：归一 `rawConfigs.heroClasses`（`config/heroClasses/`、`config/<mod>/classes/`、从 `heroes/` 目录按形状嗅探出的职业文件）+ **`mod.json` 的 `heroClasses` 清单**。清单里的文件可以放在 `Content/` 的任意目录，只要不在 `Content/config/` 树里就收不进 `rawConfigs`；只认前者会让该 mod 的**全部**英雄被 `class_known` 判负而整批丢弃（实测 `New Pavilion`：职业在 `Content/classesPavilion/`、英雄在 `Content/heroesPavilion/`，城镇页英雄区空白）。
+
 ## 4. 缓存键与失效
 
 键格式：`v{WIKI_CACHE_VERSION}:{sourceHash}:{h3DataKey}:{h3CoreHash}:{schemaHash}`，**字符串相等**判定命中。
 
-当前值：`WIKI_CACHE_VERSION = 2`、`ASSETS_VERSION = 3`（另 `HD_SCHEME_VERSION = 6`）。`ASSETS_VERSION = 3`（2026-10-20）：HD 登记表键口径由 `sanitize_id`（`~`→`_`）修正为 `sanitize_asset_name`（保留 `~`，与磁盘 stem 一致），旧登记全线失效必须重建，见 [hd-assets](./hd-assets.zh-CN.md) §6。
+当前值：`WIKI_CACHE_VERSION = 3`、`ASSETS_VERSION = 3`（另 `HD_SCHEME_VERSION = 6`）。`WIKI_CACHE_VERSION = 3`（2026-10-24）：阵营名改取 faction 配置的 `name`、英雄职业表补上 `mod.json` 的 `heroClasses` 清单 —— 两者都会改变 `factions[].name` / `heroes[]` 的内容，旧缓存必须整体重建（见 §3 取名与职业口径）。`ASSETS_VERSION = 3`（2026-10-20）：HD 登记表键口径由 `sanitize_id`（`~`→`_`）修正为 `sanitize_asset_name`（保留 `~`，与磁盘 stem 一致），旧登记全线失效必须重建，见 [hd-assets](./hd-assets.zh-CN.md) §6。
 
 失效条件：源哈希变化、游戏数据指纹变化、h3-core 文案表变化、schema 变化；素材未就绪或 `assetsVersion < ASSETS_VERSION` 或 HD 来源指纹变化时，清 `images/` 与 `hd-map.json` 重跑。
 
