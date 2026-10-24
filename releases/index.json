@@ -40,8 +40,72 @@
   },
   "product": "VCMI-FV-Launcher",
   "channel": "stable",
-  "latest": "0.2.0",
+  "latest": "0.2.1",
   "releases": [
+    {
+      "release": "0.2.1",
+      "platform": "windows-x86_64",
+      "title": "VCMI-FV-Launcher 0.2.1",
+      "tag": "v0.2.1",
+      "target": "main",
+      "commit": "8bd697b10cc0d4641374ab90ae23e2857f4810fc",
+      "page": "https://github.com/future-view/vcmi-fv-launcher/releases/tag/v0.2.1",
+      "updateVersion": "0.2.1",
+      "prerelease": false,
+      "publishedAt": "2026-10-24",
+      "critical": false,
+      "notesSource": "changelog",
+      "notes": {
+        "english": [
+          "Fixed the issue where the color loss of cached images in the module was caused by incorrect image cropping",
+          "Fixed the logic for reading town names in multiple languages",
+          "Fixed the issue where war machines (crossbow carts, first aid tents, supply carts) in the \"Initial Troops\" section of heroes were mistakenly placed in the initial troop grid",
+          "Fixed the animation display of War Machine in the Encyclopedia",
+          "Fixed the issue of some creature animations causing the screen to flicker",
+          "Compatible with the configuration methods of some town mods"
+        ],
+        "chinese": [
+          "修复模组缓存图片被错误抠图导致图片丢失色彩",
+          "修复城镇名称多语言的读取逻辑",
+          "修复英雄「初始部队」里的战争机器（弩车 / 急救帐篷 / 补给车）被错分到初始部队格子里",
+          "修复百科里战争机器动画显示",
+          "修复一些生物动画幕布跳动",
+          "兼容一些城镇模组的配置方式"
+        ]
+      },
+      "notesMd": {
+        "english": "**Fixes:**\n- Fixed the issue where the color loss of cached images in the module was caused by incorrect image cropping\n- Fixed the logic for reading town names in multiple languages\n- Fixed the issue where war machines (crossbow carts, first aid tents, supply carts) in the \"Initial Troops\" section of heroes were mistakenly placed in the initial troop grid\n- Fixed the animation display of War Machine in the Encyclopedia\n- Fixed the issue of some creature animations causing the screen to flicker\n- Compatible with the configuration methods of some town mods",
+        "chinese": "**修复：**\n- 修复模组缓存图片被错误抠图导致图片丢失色彩\n- 修复城镇名称多语言的读取逻辑\n- 修复英雄「初始部队」里的战争机器（弩车 / 急救帐篷 / 补给车）被错分到初始部队格子里\n- 修复百科里战争机器动画显示\n- 修复一些生物动画幕布跳动\n- 兼容一些城镇模组的配置方式"
+      },
+      "assets": [
+        {
+          "name": "portable_0.2.1_20261024-21_windows-x86_64.zip",
+          "role": "update",
+          "path": "download/v0.2.1/portable_0.2.1_20261024-21_windows-x86_64.zip",
+          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.2.1/portable_0.2.1_20261024-21_windows-x86_64.zip",
+          "size": 10481667,
+          "sha256": "54039f81ac5a22550b7f1ac027554b7a25f7627c7d5722d3b03076d394eb8bd8"
+        },
+        {
+          "name": "vcmi-fv-launcher.exe",
+          "role": "binary",
+          "path": "download/v0.2.1/vcmi-fv-launcher.exe",
+          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.2.1/vcmi-fv-launcher.exe",
+          "size": 26807296,
+          "sha256": "3393584b0daf33f2e46e4a3c2e2eb164d645566492f3ab8c8fb5618e92afca7c"
+        }
+      ],
+      "preset": {
+        "file": "launcher.patch.json",
+        "sha256": "61c8c268bff1dde1d1c8d2119ce3c142fd0741f8a272d471f222e3b159864683"
+      },
+      "pack": {
+        "dir": "0.2.1_20261024-21_windows-x86_64",
+        "profile": "release",
+        "flavor": null,
+        "builtAt": "2026-10-24T13:08:00.944Z"
+      }
+    },
     {
       "release": "0.2.0",
       "platform": "windows-x86_64",
