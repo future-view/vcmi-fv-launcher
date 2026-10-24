@@ -160,7 +160,7 @@ pub(crate) fn read_showcase_slides_inner(
 
         // 音乐：解析 musicTheme → 磁盘路径 / zip 条目（§4.5）。
         // `musicTheme` 一并回传（诊断用）：前端据此可区分「配置里就没有」与「有 theme 但文件没找到」。
-        let music_theme = music_theme_for(cache_root, game_dir, &mod_id, &faction_id);
+        let music_theme = music_theme_for(cache_root, game_dir, &mod_id, &faction_id, Some(faction));
         let (music, music_zip) = match music_theme.as_deref() {
             Some(th) => resolve_music_from_theme(game_dir, &mod_id, th, mod_path.as_deref()),
             None => (Value::Null, Value::Null),
@@ -240,7 +240,7 @@ fn first_music_theme(v: &Value) -> Option<String> {
 }
 
 /// 由 `musicTheme`（AudioPath）解析到可播放的音频：返回 `(music 绝对路径 | null, musicZip 描述 | null)`。
-fn resolve_music_from_theme(
+pub(crate) fn resolve_music_from_theme(
     game_dir: &Path,
     mod_id: &str,
     theme: &str,
@@ -248,44 +248,76 @@ fn resolve_music_from_theme(
 ) -> (Value, Value) {
     let rest = strip_music_prefix(theme);
 
-    // 1) 磁盘：mod 的 Content/music/<rest>
+    // 待试的文件名（相对 `music/`），按可靠性降序：
+    // ① theme 自带扩展名 → 先试原样（实测 hota.bulwark = `music/factions/BulwarkTown.mp3`，
+    //    只按「拼接扩展名」找会拼出 `BulwarkTown.mp3.mp3` 全部落空）；
+    // ② 去掉扩展名后按各音频扩展名重试 —— 覆盖「配置写的扩展名与实际文件不符」
+    //    （实测 peachville-town 写 `.mp3` 而盘上是 `.ogg`、slothlux-town 同款）。
+    let mut names: Vec<String> = Vec::new();
+    let lower = rest.to_lowercase();
+    let hit_ext = AUDIO_EXTS.iter().find(|e| lower.ends_with(&format!(".{e}")));
+    if hit_ext.is_some() {
+        names.push(rest.to_string());
+    }
+    let stem = hit_ext
+        .map(|e| &rest[..rest.len() - e.len() - 1])
+        .unwrap_or(rest);
+    for ext in AUDIO_EXTS {
+        let n = format!("{stem}.{ext}");
+        if !names.iter().any(|x| x == &n) {
+            names.push(n);
+        }
+    }
+
+    // 1) 磁盘：mod 的 Content/music/<name>
     if let Some(mp) = mod_path {
-        for ext in AUDIO_EXTS {
-            let p = Path::new(mp)
-                .join("Content")
-                .join("music")
-                .join(format!("{rest}.{ext}"));
+        for n in &names {
+            let p = Path::new(mp).join("Content").join("music").join(n);
             if p.is_file() {
                 return (json!(p.to_string_lossy().to_string()), Value::Null);
             }
         }
     }
-    // 2) 磁盘：游戏根 MP3/<rest>
-    for ext in AUDIO_EXTS {
-        let p = game_dir.join("MP3").join(format!("{rest}.{ext}"));
+    // 2) 磁盘：游戏根 MP3/<name>
+    for n in &names {
+        let p = game_dir.join("MP3").join(n);
         if p.is_file() {
             return (json!(p.to_string_lossy().to_string()), Value::Null);
         }
     }
     // 3) zip 内：content.zip（需 mod_path；命中即返回描述供异步抽取，§4.5.3）
     if let Some(mp) = mod_path {
-        let rel = format!("music/{rest}");
-        if zip_resource_index(Path::new(mp), &rel).is_some() {
-            return (Value::Null, json!({ "modId": mod_id, "rel": rel }));
+        for n in &names {
+            let rel = format!("music/{n}");
+            if zip_resource_index(Path::new(mp), &rel).is_some() {
+                return (Value::Null, json!({ "modId": mod_id, "rel": rel }));
+            }
         }
     }
     (Value::Null, Value::Null)
 }
 
-/// 取阵营 `musicTheme`（AudioPath，无扩展名）：
-/// - 第三方 Town 模组：`raw.json` → `rawConfigs.towns[<factionId>].town.musicTheme`；
+/// 取阵营 `musicTheme`（AudioPath，可能带扩展名）。三级来源，按可靠性降序：
+/// - 缓存阵营条目 `cache.json` → `factions[].musicTheme`（构建期解析，覆盖全部配置落点）；
+/// - 第三方 Town 模组：`raw.json` → `rawConfigs.towns[<factionId>].town.musicTheme`（只含 `config/**` 树）；
 /// - 原版 / `core.<faction>`：游戏根 `config/factions/<factionId>.json`（见下）。
 fn music_theme_for(
     cache_root: &Path,
     game_dir: &Path,
     mod_id: &str,
     faction_id: &str,
+    faction: Option<&Value>,
 ) -> Option<String> {
+    // 0) 构建期已解析（`cache.json` 的 `factions[].musicTheme`）：**权威入口**。
+    // 它由 `read_town_configs` 的变体目录/zip 扫描产出，覆盖全部配置落点；
+    // 而 `raw.json` 只聚合 `config/**` 树 —— 实测沙堡（New Pavilion）的 `faction.json`
+    // 在 `Content/townPavilion/` 下，只认 raw.json 就永远读不到它的 musicTheme。
+    if let Some(th) = faction
+        .and_then(|f| f.get("musicTheme"))
+        .and_then(first_music_theme)
+    {
+        return Some(th);
+    }
     let raw_path = cache_root.join(format!("{}/raw.json", sanitize_id(mod_id)));
     if let Some(t) = read_music_theme_from_raw(&raw_path, faction_id) {
         return Some(t);

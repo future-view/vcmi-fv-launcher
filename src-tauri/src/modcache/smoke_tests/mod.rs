@@ -62,6 +62,7 @@ mod hero_specialty_text;
 mod protocol;
 mod rebuild;
 mod resolve_resource;
+mod town_music;
 mod town_refs;
 mod war_machine_creatures;
 

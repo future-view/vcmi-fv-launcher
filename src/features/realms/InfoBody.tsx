@@ -227,12 +227,26 @@ export function InfoBody({ r }: { r: Realm }) {
       wanted.push(id);
     };
     let hidden = 0;
+    // 伞形 Town 包（实测 `New Pavilion`）：自身 factions 为空、城镇内容全在子模组里，
+    // 但 modType=Town 会因下方 Town 豁免被纳入 → 城镇网格多出一张「占位块 + 模组 id」
+    // 的空卡，与子模组的真城镇卡重复。口径同 ModBrowser 的父卡片判定：
+    // 自身无 factions 且确有子模组（index 里存在 parentId 指向它的条目）时不渲染。
+    // ⚠️ 必须带「有子模组」条件：被误标为 Town 且确无城镇数据的独立模组
+    // （如生物补充包）仍走占位卡片，保留「该模组无内容」的可见性。
+    const hasChildren = (id: string) => {
+      const k = modIdKey(id);
+      return [...infoByKey.values()].some(
+        (x) => modIdKey(x.modId ?? "") !== k && modIdKey(x.parentId ?? "") === k,
+      );
+    };
     for (const id of state.ids) {
       const info = infoByKey.get(modIdKey(id));
       if (!info) continue;
       const cc = info.contentCount ?? {};
       const total = CONTENT_KEYS.reduce((a, k) => a + (cc[k] ?? 0), 0);
-      if (total > 0 || info.type === "Town") add(id);
+      const umbrellaTown =
+        info.type === "Town" && (cc.factions ?? 0) === 0 && hasChildren(id);
+      if (total > 0 || (info.type === "Town" && !umbrellaTown)) add(id);
       else hidden += 1;
     }
     // 原版（core / core.<faction>）：不在预设里，由开关单独纳入

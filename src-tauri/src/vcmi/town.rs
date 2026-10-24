@@ -62,6 +62,13 @@ pub(crate) struct TownConfig {
     pub(crate) structures: HashMap<String, Value>,
     /// 建筑原始对象（含 `upgrades`），供叠加时的升级链去重（与 `compose_town_preview_for` 一致）。
     pub(crate) buildings_raw: HashMap<String, Value>,
+    /// 阵营主题曲（`town.musicTheme`，VCMI `AudioPath` 形如 `music/BastionTown`）。
+    ///
+    /// 实测 `New Pavilion`（沙堡）把它写在 `Content/townPavilion/faction.json`——该文件由
+    /// [`read_town_configs`] 的变体目录扫描命中，却**不在 `config/**` 树下**，因此进不了
+    /// `raw.json` 的 `rawConfigs.towns`（那是另一套只聚合 `config/**` 的收集口径）。
+    /// 只依赖 raw.json 取主题曲会让这类模组永远「没有阵营音乐」，故在配置解析层统一带出。
+    pub(crate) music_theme: Option<String>,
 }
 
 pub(crate) static BUILDING_ID_CACHE: std::sync::OnceLock<
@@ -232,6 +239,11 @@ pub(crate) fn read_town_configs(mod_path: &Path) -> Vec<TownConfig> {
                 }
                 if dst.town_desc.is_none() {
                     dst.town_desc = cfg.town_desc;
+                }
+                // 阵营主题曲：同样可能只写在 `faction.json`（实测 hota.cove / hota.bulwark /
+                // 沙堡都是多文件城镇），不并入就会被先解析到的 `buildings.json` 顶成 None。
+                if dst.music_theme.is_none() {
+                    dst.music_theme = cfg.music_theme;
                 }
                 // 结构位置与建筑原始对象：字段级并入（首次命中优先，保证多文件拆分时不全丢）
                 if dst.structures.is_empty() {
@@ -578,6 +590,23 @@ pub(crate) fn parse_town_config(bytes: &[u8], _name: &str) -> TownConfig {
     build_town_config(&v)
 }
 
+/// 取 `AudioPath` 数组的首个非空项（兼容裸字符串写法）。
+///
+/// VCMI 里 `musicTheme` / `ambientSounds` 之类字段在 schema 上是 `string[]`，
+/// 但第三方模组常写成裸字符串 —— 只按 `as_str()` 取会永远落空。
+fn first_audio_path(v: &Value) -> Option<String> {
+    match v {
+        Value::String(s) if !s.trim().is_empty() => Some(s.trim().to_string()),
+        Value::Array(arr) => arr.iter().find_map(|x| {
+            x.as_str()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+        }),
+        _ => None,
+    }
+}
+
 pub(crate) fn build_town_config(v: &Value) -> TownConfig {
     // VCMI 1.x 的 config/<faction>/town.json 结构：
     // { "<factionId>": { "town": { "townBackground": ..., "creatureBackground": ... }, "guildBackground": ..., ... } }
@@ -657,6 +686,13 @@ pub(crate) fn build_town_config(v: &Value) -> TownConfig {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
+    // 阵营主题曲（town.musicTheme）：VCMI schema 是 string[]（实测 `["music/CstleTown"]`），
+    // 个别模组写成裸字符串或已带扩展名（实测 hota.bulwark 的 `music/factions/BulwarkTown.mp3`）。
+    let music_theme = town_sub
+        .and_then(|t| t.get("musicTheme"))
+        .or_else(|| inner.get("musicTheme"))
+        .and_then(first_audio_path)
+        .map(|s| s.to_string());
     // 建筑详情：从 buildings 对象取 id + cost + 招募生物 + 图标路径（后续再 extract）
     let mut buildings_detail = Vec::new();
     if let Some(Value::Object(map)) = bld_val {
@@ -818,6 +854,7 @@ pub(crate) fn build_town_config(v: &Value) -> TownConfig {
         building_animations,
         structures,
         buildings_raw,
+        music_theme,
     }
 }
 

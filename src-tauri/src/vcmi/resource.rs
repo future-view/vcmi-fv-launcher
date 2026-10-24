@@ -459,12 +459,21 @@ pub(crate) fn content_zip_is_encrypted(mod_path: &Path) -> bool {
 /// 命中顺序与 [`resolve_resource`] 一致：先"含扩展名精确命中"（`X.json`/`X.png` 同基名撞 key
 /// 时唯一可靠），未命中再回落去扩展名的宽松匹配。
 pub(crate) fn zip_resource_index(mod_path: &Path, resource: &str) -> Option<usize> {
-    let full = format!("Content/{}", resource);
     let idx = zip_index_of(mod_path)?;
-    if let Some(i) = idx.by_ext.get(&norm_key_with_ext(&full)) {
-        return Some(*i);
+    // ⚠️ 两种包内布局都要试：标准 `Content/<资源>` 与「zip 根即资源根」（条目不带 `Content/`
+    // 前缀）。实测 `ruins-town` 的 content.zip 541 个条目全部是 `music/ruins.ogg` 这种裸路径，
+    // 只按标准写法补前缀会整包查不到 → 该阵营的主题曲解析失败。
+    for full in [format!("Content/{}", resource), resource.to_string()] {
+        if let Some(i) = idx.by_ext.get(&norm_key_with_ext(&full)) {
+            return Some(*i);
+        }
+        if let Some(k) = norm_zip_key(&full) {
+            if let Some(i) = idx.by_key.get(&k) {
+                return Some(*i);
+            }
+        }
     }
-    idx.by_key.get(&norm_zip_key(&full)?).copied()
+    None
 }
 
 /// 按条目序号读取 `content.zip` 内字节（复用线程局部已打开的 zip，避免重建中央目录）。

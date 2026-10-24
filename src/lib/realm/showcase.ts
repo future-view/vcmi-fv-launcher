@@ -263,6 +263,14 @@ export function estimateStayMs(o: {
   return { stayMs, cycleMs, autoMs };
 }
 
+/** 查 modPath：精确命中 → 小写兜底。
+ *
+ * 映射来自 `scanRealMods`（用**磁盘原名**作 key，如 `HuaXia`），而 deck / slide 里的
+ * modId 走索引口径，两边大小写可能不同 —— 只按原样取会查不到（子模组音乐解析直接落空）。 */
+export function modPathOf(map: Map<string, string>, modId: string): string {
+  return map.get(modId) ?? map.get(modId.toLowerCase()) ?? "";
+}
+
 /** 把 deck 项转成后端请求项（补 modPath 供音乐解析） */
 export function deckToEntries(
   deck: ShowcaseDeckEntry[],
@@ -271,7 +279,7 @@ export function deckToEntries(
   return deck.map((d) => ({
     modId: d.modId,
     factionId: d.factionId,
-    modPath: modPathMap.get(d.modId),
+    modPath: modPathOf(modPathMap, d.modId),
   }));
 }
 

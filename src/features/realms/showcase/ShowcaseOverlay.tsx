@@ -36,6 +36,7 @@ import {
 } from "@/lib/tauri";
 import { imgCandidates, markHdMissing } from "@/lib/hd";
 import { fullImgCandidates, pickName } from "@/lib/modcache";
+import { flattenTree } from "@/lib/modcache/buildTargets";
 import { HdImg } from "@/shared/HdImg";
 import { useWikiStagesDone, WikiBuildOverlay } from "@/shared/WikiBuildOverlay";
 import { useHdRate } from "@/shared/useHdRate";
@@ -43,6 +44,7 @@ import { realmAsset } from "@/lib/realm/intro";
 import {
   buildShowcaseDeck,
   deckToEntries,
+  modPathOf,
   defaultHeroIds,
   estimateStayMs,
   resolveDwellingId,
@@ -371,9 +373,13 @@ export function ShowcaseOverlay({
         realmConfigDir(realm.id),
       ]);
       const modPathMap = new Map<string, string>();
-      for (const m of realMods as ScanMod[]) {
-        const id = m.id ?? m.modId;
-        if (id && m.modPath) modPathMap.set(id, m.modPath);
+      // ⚠️ 必须 `flattenTree` 展开子模组：`scanRealMods` 返回的是带 `subs` 的**树**，
+      // 只遍历顶层会让子模组（hota.cove / hota.factory / hota.bulwark /
+      // new pavilion.new pavillion …）在映射里缺项 → 后端拿不到 modPath，
+      // 阵营音乐的「磁盘 Content/music」与「zip 抽取」两条解析路径同时被跳过（表现为无声）。
+      for (const m of flattenTree(realMods as Record<string, unknown>[])) {
+        const id = (m.id ?? m.modId) as string | undefined;
+        if (id && m.modPath) modPathMap.set(id, m.modPath as string);
       }
       modPathRef.current = modPathMap;
       // 本领域启用 mod 集合（auto-deck 过滤源，设计 §7.1）。
@@ -947,7 +953,7 @@ export function ShowcaseOverlay({
         return;
       }
       if (slide.musicZip) {
-        const mp = modPathRef.current.get(slide.musicZip.modId) ?? "";
+        const mp = modPathOf(modPathRef.current, slide.musicZip.modId);
         console.info(
           `[showcase] 阵营音乐 · zip 抽取 · ${slide.musicZip.modId} rel=${slide.musicZip.rel} modPath=${mp || "(空)"}`,
         );

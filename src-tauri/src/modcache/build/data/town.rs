@@ -565,6 +565,10 @@ pub(crate) fn build_towns(
             "buildings": buildings,
             "alignment": alignment,
             "nativeTerrain": native_terrain,
+            // 阵营主题曲 AudioPath（`town.musicTheme`，形如 `music/BastionTown`）。
+            // 落盘理由：配置可能不在 `config/**` 树（实测沙堡写在 `Content/townPavilion/faction.json`），
+            // 进不了 `raw.json` 的 `rawConfigs.towns` —— 巡礼音乐若只认 raw.json，这类模组永远无音乐。
+            "musicTheme": cfg.music_theme,
             // 城镇界面建筑动画 DEF 资源名（<bid> → "<file>.def"）。
             // 仅文本引用，前端在详情页按需 `getDefGroup` 懒加载播放（设计 §11）；
             // 构建期不解码，避免 2452 个原版 .def 拖慢后台任务。

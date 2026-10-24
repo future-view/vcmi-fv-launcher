@@ -13,8 +13,10 @@ import {
   type ShowcaseSlide,
 } from "@/lib/tauri";
 import { pickName } from "@/lib/modcache";
+import { flattenTree } from "@/lib/modcache/buildTargets";
 import {
   deckToEntries,
+  modPathOf,
   resolveTownIds,
   fallbackSeed,
   randomSeed,
@@ -112,9 +114,12 @@ export function ShowcaseTab({
       setLoading(true);
       const [idx, realMods] = await Promise.all([readWikiIndex(), scanRealMods()]);
       const modPathMap = new Map<string, string>();
-      for (const m of realMods as Array<{ id?: string; modId?: string; modPath?: string }>) {
-        const id = m.id ?? m.modId;
-        if (id && m.modPath) modPathMap.set(id, m.modPath);
+      // ⚠️ 与运行时同口径：`flattenTree` 展开子模组，否则子模组 modPath 缺失
+      // （阵营音乐解析与试听都会落空 —— 见 ShowcaseOverlay 的同款注释）。
+      for (const m of flattenTree(realMods as Record<string, unknown>[])) {
+        const id = (m.id ?? m.modId) as string | undefined;
+        const mp = m.modPath as string | undefined;
+        if (id && mp) modPathMap.set(id, mp);
       }
       modPathRef.current = modPathMap;
       const townIds = resolveTownIds(idx, cfg.includeCore === true, enabledIds);
@@ -473,7 +478,7 @@ export function ShowcaseTab({
     let src = "";
     if (sl.music) src = convertFileSrc(sl.music);
     else if (sl.musicZip) {
-      const mp = modPathRef.current.get(sl.musicZip.modId) ?? "";
+      const mp = modPathOf(modPathRef.current, sl.musicZip.modId);
       const p = await ensureShowcaseAudio(mp, sl.musicZip.modId, sl.musicZip.rel);
       if (p) src = convertFileSrc(p);
     }
