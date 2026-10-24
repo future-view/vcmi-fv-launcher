@@ -59,6 +59,96 @@ fn normalize_town_desc(v: &Value) -> Option<Value> {
     }
 }
 
+/// `mod.json` 的模组名是否只是**标识符**（不能当名字用）。
+///
+/// 很多 H3 时代的城镇模组把 `mod.json` 的 `name` 直接写成了阵营 id（或它的变体）
+/// —— 实测 `132mod v6.0` 发行版 123 个阵营里有 83 个如此（`csknight` / `blazers` /
+/// `oldpavilion` / `stundertaker`）。把它们当英文名填进 `english` 槽，英文界面就会显示
+/// 一串 id，比配置里的中文原文更难读（这正是 2.x 缓存的表现：`骑士` 的英文列是 `csknight`）。
+///
+/// 判据两条**同时**成立（两条都不涉及“猜测语言”）：
+/// - 归一化（只留字母数字、转小写）后与 faction id 相同 —— 不含任何新信息；
+/// - 原串没有大写字母 —— 真正以 id 为名的英文名常带首字母大写（`Bulwark`），不能误杀。
+fn mod_name_is_identifier(name: &str, faction_id: &str) -> bool {
+    let norm = |s: &str| -> String {
+        s.chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .map(|c| c.to_ascii_lowercase())
+            .collect()
+    };
+    norm(name) == norm(faction_id) && !name.chars().any(|c| c.is_uppercase())
+}
+
+/// 阵营名的**双源合并**：faction 配置的 `name`（VCMI 的 `CFaction::getName()`）
+/// + `mod.json` 的模组名（多语言块 / `name`）。
+///
+/// 为什么要合并：城镇模组常只写一种语言的 faction 名（`1.83` 发行版 13 座城镇只写了中文），
+/// 而英文名常常只存在于 `mod.json` 的**模组名**里（`Asylum Town` / `Cove town` / `Pavilion Town`）。
+/// 两边各填对方的空槽，中英界面才能都读到可用文本：
+/// - `chinese`：`mod.json` 中文块 → faction 配置名
+/// - `english`：`mod.json` 英文名（非 id 形态时）→ faction 配置的英文键
+///
+/// 优先级“真实翻译 > 模组名 > 配置原文”而不是“配置一律优先”：配置里的裸字符串是
+/// **语言未知的原文**（VCMI 里它就是个字面量，任何语言界面都原样显示），只补**空槽**，
+/// 不会顶掉 `mod.json` 已给出的中文名。反过来（模组名压制配置名）则会让中文界面只剩
+/// 英文（实测 Cove / Factory / Bulwark / Pavilion → “Cove town” / “Pavilion Town”）。
+fn merge_faction_name_inline(
+    town: Option<&Value>,
+    mod_name: Option<&Value>,
+    faction_id: &str,
+) -> Option<Value> {
+    let mut out = serde_json::Map::new();
+    let mut put = |k: &str, s: &str, only_empty: bool| {
+        if s.trim().is_empty() || (only_empty && out.contains_key(k)) {
+            return;
+        }
+        out.insert(k.to_string(), json!(s));
+    };
+    // 1) mod.json 语言块：真实多语言名，优先；但**形如 id 的模组名不能当名字**
+    //    （否则英文列会变成 `csknight`，见 `mod_name_is_identifier`）
+    let usable_mod_name = |k: &str, s: &str| -> bool {
+        !(matches!(k, "english" | "auto") && mod_name_is_identifier(s, faction_id))
+    };
+    match mod_name {
+        Some(Value::Object(o)) => {
+            for (k, v) in o {
+                if let Some(s) = v.as_str() {
+                    if usable_mod_name(k, s) {
+                        put(k, s, false);
+                    }
+                }
+            }
+        }
+        Some(Value::String(s)) => {
+            if usable_mod_name("english", s) {
+                put("english", s, false);
+            }
+        }
+        _ => {}
+    }
+    // 2) faction 配置名补空槽
+    match town {
+        Some(Value::Object(o)) => {
+            for (k, v) in o {
+                if let Some(s) = v.as_str() {
+                    put(k, s, true);
+                }
+            }
+        }
+        Some(Value::String(s)) => {
+            // 原文语言未知：先补中文槽（否则中文界面会回退到英文模组名），再补英文槽
+            put("chinese", s, true);
+            put("english", s, true);
+        }
+        _ => {}
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(Value::Object(out))
+    }
+}
+
 pub(crate) fn build_towns(
     p: &Path,
     mod_id: &str,
@@ -440,25 +530,22 @@ pub(crate) fn build_towns(
             }
         }
         let native_terrain = cfg.native_terrain.clone();
+        // 阵营名：faction 配置名 + mod.json 模组名的双源合并（见 `merge_faction_name_inline`）
+        let name_inline =
+            merge_faction_name_inline(cfg.town_name.as_ref(), mod_name_inline, &cfg.faction_id);
         factions.push(json!({
             "factionId": cfg.faction_id,
-            // 名称兜底顺序：mod 翻译（i18n）→ **城镇配置自带 name**（faction.json / town.json）
-            // → 单城镇 mod 的 mod.json 语言块 → faction id。
+            // 名称优先级：mod 翻译（i18n）→ 模组名 / 配置名合并体 → faction id。
             //
-            // 城镇配置名必须排在 mod.json 名**之前**（对齐 VCMI：百科 / 城镇界面显示的是
-            // `CFaction::getName()`，由 faction 配置的 `name` 注册，mod.json 的 `name`
-            // 只用于模组列表）。此前反着排，英文 mod 名会直接顶掉配置里的中文城镇名：
-            // 实测本发行版 `hota.cove` / `hota.factory` / `hota.bulwark` /
-            // `new pavilion.new pavillion` —— 这 4 座城镇的 mod.json 没有 `chinese` 块，
-            // 而 faction.json 的 `name` 是中文（港口 / 工厂 / 棱堡 / 沙堡），
-            // 百科却显示成 “Cove town / Factory Town / Pavilion Town”。
-            //
-            // 许多城镇模组无 translation 目录，中文名就写在配置里，因此配置名是主来源；
-            // mod.json 名只在配置完全没有 name 时兜底。
+            // 两侧各有所长，缺一边中文或英文就有一边读不到：
+            // - faction 配置名：VCMI 真正显示的名字（`CFaction::getName()`），
+            //   本发行版的 13 座第三方城镇只在这里写了中文（港口 / 工厂 / 棱堡 / 沙堡…）；
+            // - mod.json 模组名：英文常只在这里（`Asylum Town` / `Cove town` / `Pavilion Town`）。
+            // 合并规则见 `merge_faction_name_inline` 的文档注释。
             "name": name_obj_with_inline(
                 &i18n,
                 &format!("faction.{}.{}.name", scope, cfg.faction_id),
-                cfg.town_name.as_ref().or(mod_name_inline),
+                name_inline.as_ref(),
                 &cfg.faction_id,
             ),
             // 阵营描述（VCMI: faction.<mod>.<id>.description，合成图下方段落）。
@@ -488,4 +575,48 @@ pub(crate) fn build_towns(
         }));
     }
     (factions, icon_failures)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 形如 id 的模组名不得当英文名（实测 132mod 发行版 83/123 个阵营如此：
+    /// `csknight` / `blazers` / `oldpavilion`），否则英文界面显示一串 id。
+    #[test]
+    fn identifier_like_mod_name_is_rejected() {
+        assert!(mod_name_is_identifier("csknight", "csknight"));
+        assert!(mod_name_is_identifier("stundertaker", "stundertaker"));
+        assert!(mod_name_is_identifier("oldpavilion", "oldpavilion"));
+        // 带首字母大写的同名是真英文名（Expansion 的 Bulwark），不能误杀
+        assert!(!mod_name_is_identifier("Bulwark", "bulwark"));
+        assert!(!mod_name_is_identifier("Cemetary", "cemetary"));
+        // 不是 id → 保留（Cove town / Pavilion Town / Abyss town）
+        assert!(!mod_name_is_identifier("Cove town", "cove"));
+        assert!(!mod_name_is_identifier("Abyss town", "abyss"));
+    }
+
+    /// 合并口径：中文取配置名、英文取可用的模组名；模组名是 id 时两边都是配置名。
+    #[test]
+    fn merge_prefers_usable_mod_name_for_english() {
+        let town = json!("沙堡");
+        let merged = merge_faction_name_inline(
+            Some(&town),
+            Some(&json!({"english": "Pavilion Town"})),
+            "pavilion",
+        )
+        .unwrap();
+        assert_eq!(merged["chinese"], "沙堡");
+        assert_eq!(merged["english"], "Pavilion Town");
+
+        // 模组名 == 阵营 id → 丢弃，英文退回配置原文（与 VCMI 一致：英文界面显示配置名）
+        let merged = merge_faction_name_inline(
+            Some(&town),
+            Some(&json!({"english": "oldpavilion"})),
+            "oldpavilion",
+        )
+        .unwrap();
+        assert_eq!(merged["chinese"], "沙堡");
+        assert_eq!(merged["english"], "沙堡");
+    }
 }

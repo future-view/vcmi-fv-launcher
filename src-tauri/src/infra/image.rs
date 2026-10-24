@@ -476,12 +476,20 @@ mod tests {
         assert_eq!(magenta.alpha(0), Some(0), "洋红调色板：索引 0 透明");
         assert_eq!(magenta.alpha(1), Some(32), "索引 1 = 黑 12.5%");
         assert_eq!(magenta.alpha(4), Some(128), "索引 4 = 黑 50%");
-        assert_eq!(magenta.alpha(2), None, "2/3 号色不强行当阴影（VCMI 要颜色相符才算）");
+        assert_eq!(
+            magenta.alpha(2),
+            None,
+            "2/3 号色不强行当阴影（VCMI 要颜色相符才算）"
+        );
 
         // ② 非洋红调色板：只有「恰好等于纯青」的索引才设色键
         let cyan = IndexedPalette::new(&palette_with(&[(0, [0, 0, 0]), (7, [0, 255, 255])]));
         assert_eq!(cyan.alpha(7), Some(0), "调色板含纯青 → 键该索引");
-        assert_eq!(cyan.alpha(0), None, "0 号色不是色键就不透明（旧实现无条件抠 0）");
+        assert_eq!(
+            cyan.alpha(0),
+            None,
+            "0 号色不是色键就不透明（旧实现无条件抠 0）"
+        );
         // 相近色不键（容差被压到 0）：这是 58×64 画像被抠成麻点的根源
         let near = IndexedPalette::new(&palette_with(&[(0, [0, 0, 0]), (7, [2, 240, 245])]));
         assert_eq!(near.alpha(7), None, "近似青不属于色键");
@@ -527,7 +535,11 @@ mod tests {
             w.finish().expect("收尾");
         }
         let img = strip_color_key_rgba(&out).expect("含纯青应命中");
-        assert_eq!(img.get_pixel(0, 0).0, [0, 255, 255, 0], "精确纯青透明，RGB 保留");
+        assert_eq!(
+            img.get_pixel(0, 0).0,
+            [0, 255, 255, 0],
+            "精确纯青透明，RGB 保留"
+        );
         assert_eq!(img.get_pixel(1, 0).0[3], 255, "近似青不抠（容差 0）");
         assert_eq!(img.get_pixel(2, 0).0[3], 255, "普通色不抠");
     }

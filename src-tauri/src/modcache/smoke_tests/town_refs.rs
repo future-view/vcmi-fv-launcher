@@ -159,45 +159,62 @@ fn cross_mod_reference_marked_as_ref() {
     );
 }
 
-/// 8) 阵营名主来源 = **faction 配置的 `name`**（VCMI 的 `CFaction::getName()`），
-///     `mod.json` 的模组名只能当兜底。
+/// 8) 阵营名 = **faction 配置的 `name`（`CFaction::getName()`）+ `mod.json` 模组名的双源合并**。
 ///
-/// 此前顺序反着排：单城镇 mod 的 `mod.json` 名（常是英文）压在配置名前，
-/// 实测本发行版 4 座城镇变成英文：
-/// - `hota.cove` → “Cove town”（配置名：港口）
-/// - `hota.factory` → “Factory Town”（配置名：工厂）
-/// - `hota.bulwark` → “Bulwark”（配置名：棱堡）
-/// - `new pavilion.new pavillion` → “Pavilion Town”（配置名：沙堡）
-/// 它们的共同点：`mod.json` 没有 `chinese` 块（转成内嵌中文）而 faction 配置里有中文名。
+/// 本发行版两类城镇各缺一半，两边必须互补（只取任一边就有一半语言读不到）：
+/// - `hota.cove` / `hota.factory` / `hota.bulwark` / `new pavilion`：faction 配置只有中文
+///   （港口 / 工厂 / 棱堡 / 沙堡），英文只在 `mod.json`（Cove town / Factory Town / …）；
+/// - `asylum` / `haven` 等中文包：两边都有中文，但英文只在 `mod.json`（Asylum Town / Haven）。
+///
+/// 两种失败形态都曾出现过：模组名压制配置名 → 中文界面变英文；配置名压制模组名 → 英文界面变中文。
 #[test]
 #[ignore]
-fn faction_config_name_beats_mod_json_name() {
+fn faction_name_merges_config_and_mod_name() {
     let Some(game_dir) = test_game_dir() else {
         return;
     };
-    // 显示名 = `chinese` → `english`（配置里的裸字符串按「语言未知的原文」落在 english）
-    let shown = |fac: &Value| -> String {
-        let n = fac.get("name");
-        ["chinese", "english", "auto"]
-            .iter()
-            .find_map(|k| n.and_then(|n| n.get(*k)).and_then(|x| x.as_str()))
+    let lang_of = |fac: &Value, lang: &str| -> String {
+        fac.get("name")
+            .and_then(|n| n.get(lang))
+            .and_then(|x| x.as_str())
             .unwrap_or("")
             .to_string()
     };
-    for (rel, id, fid, expect) in [
-        ("hota/Mods/cove", "hota.cove", "cove", "港口"),
-        ("hota/Mods/Factory", "hota.factory", "factory", "工厂"),
-        ("hota/Mods/bulwark", "hota.bulwark", "bulwark", "棱堡"),
-        // 中文包：配置名与 mod.json 语言块都是中文，改口径后仍应是中文
-        // （此前显示的是 mod.json 的“梦境（Asylum）”，现在对齐 VCMI 取配置名）
-        ("asylum", "asylum", "asylum", "梦境"),
-        ("haven", "haven", "haven", "峡湾"),
+    for (rel, id, fid, zh, en) in [
+        ("hota/Mods/cove", "hota.cove", "cove", "港口", "Cove town"),
+        (
+            "hota/Mods/Factory",
+            "hota.factory",
+            "factory",
+            "工厂",
+            "Factory Town",
+        ),
+        (
+            "hota/Mods/bulwark",
+            "hota.bulwark",
+            "bulwark",
+            "棱堡",
+            "Bulwark",
+        ),
+        // 中文包：`mod.json` 给了中英双语 → 两边都取模组名（配置名不参与）
+        (
+            "asylum",
+            "asylum",
+            "asylum",
+            "梦境（Asylum）",
+            "Asylum Town",
+        ),
+        ("haven", "haven", "haven", "峡湾（Haven）", "Haven"),
         (
             "New Pavilion/Mods/New Pavillion",
             "new pavilion.new pavillion",
             "pavilion",
             "沙堡",
+            "Pavilion Town",
         ),
+        // 132mod v6.0 发行版：`mod.json` 的 name 就是阵营 id（`csknight`）——
+        // 这种“模组名”不含任何名称信息，不得当英文名（否则英文列显示 id）
+        ("1-Knight-town", "1-knight-town", "csknight", "骑士", "骑士"),
     ] {
         let mod_dir = game_dir.join("Mods").join(rel);
         if !mod_dir.is_dir() {
@@ -221,9 +238,15 @@ fn faction_config_name_beats_mod_json_name() {
         .expect("cache.json 解析失败");
         let fac = faction_of(&data, fid);
         assert_eq!(
-            shown(fac),
-            expect,
-            "{id} 城镇名应取 faction 配置的 name（实际：{}）",
+            lang_of(fac, "chinese"),
+            zh,
+            "{id} 中文名不对（实际：{}）",
+            serde_json::to_string(fac.get("name").unwrap_or(&Value::Null)).unwrap()
+        );
+        assert_eq!(
+            lang_of(fac, "english"),
+            en,
+            "{id} 英文名不对（实际：{}）",
             serde_json::to_string(fac.get("name").unwrap_or(&Value::Null)).unwrap()
         );
     }
