@@ -2,6 +2,16 @@
 //!
 //! 产物写入 `mods/<sanitize_id(owner)>/images/<sub>/<资源标识[~帧]>.webp`，返回**相对缓存根**的路径。
 //!
+//! ## 透明口径：只按“源格式 + 固定色键”，绝不按“图片用途/内容”猜
+//!
+//! 逐条对齐 VCMI（详见 `infra::image` / `infra::def` 的模块注释）：
+//! - DEF 帧：**索引 0 透明**（`SDL_SetColorKey(surface, TRUE, 0)`）；
+//! - 真彩**带 alpha** 的位图：用 alpha；
+//! - 真彩**无 alpha** 的位图：只抠**精确纯青 (0,255,255)**（`setDefaultColorKey`），容差 0。
+//!
+//! ⚠️ 曾有一层“≤64px 位图四角取色 + 容差 48”的启发式抠图，它把 58×64 的头像与生物大图
+//! 抠成麻点（2026-10-24 实测 adeptorium 16 张画像 + 16 张 `*_large`）——VCMI 没有这条规则，已删除。
+//!
 //! `owner` 是**素材来源方**（游戏级素材 → `core`、跨模组引用 → 被引用方、自有素材 → 自己），
 //! 文件名由**资源标识 + 帧**决定。二者合力保证：同一份素材无论被多少个模组、多少个条目提取，
 //! 磁盘上只存一份（实测原版地形曾被 124 个模组各存一份、`@4x` 变体各放大一遍）。
@@ -417,8 +427,9 @@ pub(crate) fn save_hd_or_raw_image(
 }
 
 /// 解析单个资源字段并转 webp 保存，返回相对 `images/` 路径。
-/// 小图标（≤64px）自动执行**四角取色抠图**：mod 自带的 png/webp 图标本体常带蓝底/青底，
-/// VCMI 端无此处理但视觉上期望透明底（绿幕式抠图）。容差 48 覆盖抗锯齿边缘。
+///
+/// 透明只来自源数据本身（DEF 索引 0 / 位图 alpha / 精确纯青色键），与 VCMI `BitmapHandler` 同口径；
+/// 不做任何“按四角色差猜背景”的抠图（详见模块头）。
 pub(crate) fn extract_icon_and_save(
     p: &Path,
     game_dir: &Path,
@@ -500,20 +511,16 @@ fn extract_icon_and_save_inner(
         return None;
     }
     // DEF 资源（如 HOTA 的 spells/xxx.def、mod 图标 xxx.def）：取 group0 首帧。
-    // 首帧常带法术卷轴/宝物底框色（青蓝），小帧做四角抠图去底（对齐小图标 matte）。
+    // 透明口径完全由 `infra::def` 的「索引 0 透明」给出（VCMI `SDL_SetColorKey(...,0)`），
+    // 此处**不得再做任何二次抠图**。
     if ext.eq_ignore_ascii_case("def") {
         // 走解码缓存（见 `FRAME_CACHE`）：同一份 DEF 首帧被同一 mod 的多个条目重复解码
         let Some(f) = decode_def_frame_cached(&buf, 0, 0) else {
             return None;
         };
         let (w, h, bgra) = (f.w, f.h, f.bgra);
-        let rel = match save_def_frame_matte(cache_root, &owner, sub, &fname, w, h, &bgra) {
-            Some(rel) => Some(rel),
-            None => {
-                let webp = encode_webp_from_bgra(&bgra, w, h)?;
-                save_wiki_image(cache_root, &owner, sub, &fname, &webp, "webp")
-            }
-        };
+        let webp = encode_webp_from_bgra(&bgra, w, h)?;
+        let rel = save_wiki_image(cache_root, &owner, sub, &fname, &webp, "webp");
         // 登记该帧的官方 HD 源（此前本分支漏了这步 → 走这条路径的素材永远从 1x 插值）。
         // 实测 2026-10-20：地形 tiles（`DIRTTL.DEF` 首帧 `TDTS000`、`ROCKTL.DEF` 首帧
         // `ROCKTL01`）在 hd-edition 里**确实有**高清源，却因缺少登记而只生成普通放大变体。
@@ -529,8 +536,11 @@ fn extract_icon_and_save_inner(
     // 无 alpha 的位图（bmp/png）常拿纯青 `(0,255,255)` 当透明底（H3 色键，见
     // [`crate::infra::image::keyed_rgba`]）：实测 `hota.Factory` 的法术图标
     // `iconCancel.bmp`（78×65）整张带青底。命中就先抠干净再落盘，否则青底会原样进缓存。
-    // ⚠️ 只处理**位图**：DEF 帧的透明已由 `palette[0]` 色键处理，且 78×65 这类超过
-    // matte 阈值（≤64px）的帧正是此前漏网的那一档。
+    //
+    // ⚠️ 这是位图**唯一**的抠色，与 VCMI `CSDL_Ext::setDefaultColorKey` 同口径（精确纯青、
+    // 容差 0）。不得在此基础上再加“按四角色差抠图”：2026-10-24 实测它把 58×64 的头像
+    // （`adeptorium/heroes/hero02_portrait_large.bmp`）与生物大图标（`*_large.bmp`）
+    // 抠成麻点——这些图的源文件全不透明、四角是画面内容，VCMI 渲染时也完全不透明。
     let (buf, ext) = match crate::infra::image::strip_color_key_rgba(&buf) {
         Some(rgba) => {
             let mut webp = Vec::new();
@@ -546,111 +556,10 @@ fn extract_icon_and_save_inner(
         }
         None => (buf, ext),
     };
-    // 四角抠图：仅对 ≤64px 的小图标且源为位图（png/bmp/webp）时执行
-    let small_icon = matches!(ext.to_lowercase().as_str(), "png" | "bmp" | "webp");
-    if small_icon {
-        let rel = crate::infra::metrics::scope("img.matte", || {
-            matte_and_save(cache_root, &owner, sub, &fname, &buf)
-        });
-        if let Some(rel) = rel {
-            note_hd_bitmap(&owner, sub, &fname, res_trim, Some(&origin));
-            return Some(rel);
-        }
-    }
     let rel = save_wiki_image(cache_root, &owner, sub, &fname, &buf, &ext)?;
     // 位图类资源也可能有官方 HD 版（如第三方 mod 引用原版 `HPL000KN.pcx`）→ 登记
     note_hd_bitmap(&owner, sub, &fname, res_trim, Some(&origin));
     Some(rel)
-}
-
-/// DEF 单帧（group0/frame0）四角抠图去底框色后落盘：小帧（≤64px，如 SPELLBK/ARTIFACT 32×32、
-/// HOTA 法术/宝物 def 首帧）常带青蓝底框，期望透明底（对齐小图标 matte 逻辑，见 [`matte_rgba`]）。
-fn save_def_frame_matte(
-    cache_root: &Path,
-    owner: &str,
-    sub: &str,
-    name: &str,
-    w: u32,
-    h: u32,
-    bgra: &[u8],
-) -> Option<String> {
-    if w > 64 || h > 64 {
-        return None;
-    }
-    let mut rgba = bgra_to_rgba(w, h, bgra);
-    matte_rgba(&mut rgba);
-    let webp = encode_rgba_auto(rgba.as_raw(), w, h)?;
-    save_wiki_image(cache_root, owner, sub, name, &webp, "webp")
-}
-
-/// BGRA（DefReader 输出，顶向下）转 RGBA 像素缓冲（交换 R/B）。
-fn bgra_to_rgba(w: u32, h: u32, bgra: &[u8]) -> image::RgbaImage {
-    let n = (w as usize * h as usize * 4).min(bgra.len());
-    let mut v = bgra[..n].to_vec();
-    for px in v.chunks_exact_mut(4) {
-        px.swap(0, 2);
-    }
-    image::RgbaImage::from_raw(w, h, v).unwrap_or_else(|| image::RgbaImage::new(w, h))
-}
-
-/// 四角取色抠图（绿幕式）：小图标/小 DEF 帧常带蓝底/青底框色，期望透明底。
-/// 仅把与任一不透明角点颜色相近（容差 48，覆盖抗锯齿边缘）的像素置透明；
-/// 四角全透明则原地返回（不破坏本就透明的帧，如多数建筑图标）。
-fn matte_rgba(img: &mut image::RgbaImage) {
-    let (w, h) = (img.width(), img.height());
-    if w == 0 || h == 0 {
-        return;
-    }
-    let corners = [
-        *img.get_pixel(0, 0),
-        *img.get_pixel(w - 1, 0),
-        *img.get_pixel(0, h - 1),
-        *img.get_pixel(w - 1, h - 1),
-    ];
-    let opaque: Vec<[u8; 4]> = corners.iter().map(|p| p.0).filter(|c| c[3] > 0).collect();
-    if opaque.is_empty() {
-        return;
-    }
-    let dist = |a: [u8; 4], b: [u8; 4]| -> i32 {
-        (a[0] as i32 - b[0] as i32).abs()
-            + (a[1] as i32 - b[1] as i32).abs()
-            + (a[2] as i32 - b[2] as i32).abs()
-    };
-    for px in img.pixels_mut() {
-        if px.0[3] == 0 {
-            continue;
-        }
-        if opaque.iter().any(|c| dist(*c, px.0) < 48) {
-            px.0[3] = 0;
-        }
-    }
-}
-
-/// 小图标（≤64px 位图）四角取色抠图后落盘：mod 自带图标常带蓝底/青底，
-/// VCMI 端无此处理但视觉上期望透明底（绿幕式抠图），容差 48 覆盖抗锯齿边缘。
-/// 不适用（尺寸超限 / 无透明角 / 编码失败）时返回 None，由调用方走常规编码路径。
-fn matte_and_save(
-    cache_root: &Path,
-    owner: &str,
-    sub: &str,
-    name: &str,
-    buf: &[u8],
-) -> Option<String> {
-    let img = image::load_from_memory(buf).ok()?;
-    if img.width() > 64 || img.height() > 64 {
-        return None;
-    }
-    let mut rgba = img.to_rgba8();
-    matte_rgba(&mut rgba);
-    let (w, h) = (rgba.width(), rgba.height());
-    let mut webp = Vec::new();
-    if image::codecs::webp::WebPEncoder::new_lossless(&mut webp)
-        .encode(rgba.as_raw(), w, h, image::ExtendedColorType::Rgba8)
-        .is_ok()
-    {
-        return save_wiki_image(cache_root, owner, sub, name, &webp, "webp");
-    }
-    None
 }
 
 /// 解析 DEF 资源（或裸 .def 路径），按 (group, index) 取出指定帧并转 webp 保存。
@@ -744,15 +653,9 @@ pub(crate) fn extract_game_def_frame_and_save(
     // 只解目标帧：此前解码整个动画（CPRSMALL 150+ 帧只取 1 帧）
     let def = crate::infra::def::DefReader::new(&bytes);
     let (w, h, bgra, _lm, _tm) = def.decode_frame_at(group, frame)?;
-    // 小帧（SPELLBK/ARTIFACT 32×32 等）含底框色（青蓝），四角抠图去底（对齐小图标 matte）；
-    // 大帧（如生物大图）保持原样。
-    let webp = if w <= 64 && h <= 64 {
-        let mut rgba = bgra_to_rgba(w, h, &bgra);
-        matte_rgba(&mut rgba);
-        encode_rgba_auto(rgba.as_raw(), w, h)
-    } else {
-        encode_webp_from_bgra(&bgra, w, h)
-    }?;
+    // 透明只来自 DEF 帧本身（`infra::def` 的「索引 0 透明」= VCMI `SDL_SetColorKey(...,0)`），
+    // 不再按尺寸/四角色差做二次抠图。
+    let webp = encode_webp_from_bgra(&bgra, w, h)?;
     // 落盘走单一入口（与上面的存在性判定同口径；`_shared` 已收编进 core，
     // 迁移时仅需拷贝 `core*` 目录）。各 mod 的 statIcons/sharedIcons 均引用此路径。
     let rel = save_wiki_image(cache_root, "core", sub, &fname, &webp, "webp")?;

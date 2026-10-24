@@ -8,8 +8,11 @@
 /// 12 字节头 = u32 fSize / u32 width / u32 height，其后为像素数据，8bpp 时末尾另含 256×3 调色板。
 /// 区分 8bpp/24bpp **必须看 fSize**（与 VCMI `isPCX` 一致）：`fSize==w*h` 为 8bpp、`fSize==w*h*3` 为 24bpp。
 /// H3bitmap.lod 里的城镇背景（TBCSBACK.PCX 等）即是 **24bpp BGR888**（非标准 PCX，无 0x0A 魔数，
-/// 也不能用 `decode_pcx`），原版英雄头像（HPL000KN.PCX）则是 8bpp。透明色为**洋红 (0,255,255)**，
-/// 不是索引 0（否则会误把背景填色变透明）。
+/// 也不能用 `decode_pcx`），原版英雄头像（HPL000KN.PCX）则是 8bpp。
+///
+/// 8bpp 的透明口径见 [`IndexedPalette`]（VCMI `BitmapHandler::loadBitmapFromDir`）；
+/// **24bpp 一律不透明**（VCMI 会额外把纯青设为色键，但那类图（城镇幕布等）在百科里是
+/// “最终画布”，抠洞只会露出卡片底色，故此处有意不抠 —— 已取证的偏离，见 `encode_webp` 注释）。
 pub(crate) fn decode_h3_pcx(buf: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
     if buf.len() < 12 {
         return None;
@@ -24,20 +27,18 @@ pub(crate) fn decode_h3_pcx(buf: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
     // 8bpp：12 头 + w*h 索引 + 768 调色板（fSize==w*h 与 VCMI 同款判定，避免 24bpp 文件误入此分支）
     if fsize == px && buf.len() >= 12 + px + 768 {
         let pal = buf.len() - 768;
+        let rule = IndexedPalette::new(&buf[pal..]);
         let mut rgba = Vec::with_capacity(px * 4);
         for i in 0..px {
-            let v = buf[12 + i] as usize;
-            let o = pal + v * 3;
-            let r = buf[o];
-            let g = buf[o + 1];
-            let b = buf[o + 2];
-            // VCMI：调色板为洋红 (0,255,255) 的像素透明
-            let a = if r == 0 && g == 255 && b == 255 {
-                0u8
-            } else {
-                255u8
-            };
-            rgba.extend_from_slice(&[r, g, b, a]);
+            let idx = buf[12 + i];
+            let o = pal + (idx as usize) * 3;
+            let (r, g, b) = (buf[o], buf[o + 1], buf[o + 2]);
+            match rule.alpha(idx) {
+                // 透明像素保留原 RGB（后续 `hd` 的透明区色膨胀靠它，勿清零）
+                Some(0) => rgba.extend_from_slice(&[r, g, b, 0]),
+                Some(a) => rgba.extend_from_slice(&[0, 0, 0, a]),
+                None => rgba.extend_from_slice(&[r, g, b, 255]),
+            }
         }
         return Some((w, h, rgba));
     }
@@ -57,6 +58,9 @@ pub(crate) fn decode_h3_pcx(buf: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
 }
 
 /// 标准 PCX 解码：8bpp 单平面 + RLE + 尾部 768B 调色板（image crate 0.25 未内置 PCX）。
+///
+/// 透明口径与 [`decode_h3_pcx`] 一致，见 [`IndexedPalette`]（旧实现无条件抠索引 0，
+/// 与 VCMI 不符：VCMI 只在“调色板 0 号是洋红”或“调色板里含纯青”时才设色键）。
 pub(crate) fn decode_pcx(buf: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
     if buf.len() < 128 + 768 || buf[0] != 0x0A || buf[3] != 8 || buf[65] != 1 {
         return None;
@@ -93,23 +97,79 @@ pub(crate) fn decode_pcx(buf: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
         }
     }
     let mut rgba = Vec::with_capacity((w * h * 4) as usize);
+    let rule = IndexedPalette::new(&buf[pal_start..]);
     for y in 0..h as usize {
         for x in 0..w as usize {
-            let v = idx.get(y * bpl + x).copied().unwrap_or(0) as usize;
-            let o = pal_start + v * 3;
+            let idx = idx.get(y * bpl + x).copied().unwrap_or(0);
+            let o = pal_start + (idx as usize) * 3;
             if o + 2 < buf.len() {
-                // H3 头像以调色板 0 号色为透明（与 VCMI 一致）
-                let a = if v == 0 { 0u8 } else { 255u8 };
-                rgba.push(buf[o]);
-                rgba.push(buf[o + 1]);
-                rgba.push(buf[o + 2]);
-                rgba.push(a);
+                let (r, g, b) = (buf[o], buf[o + 1], buf[o + 2]);
+                match rule.alpha(idx) {
+                    Some(0) => rgba.extend_from_slice(&[r, g, b, 0]),
+                    Some(a) => rgba.extend_from_slice(&[0, 0, 0, a]),
+                    None => rgba.extend_from_slice(&[r, g, b, 255]),
+                }
             } else {
                 rgba.extend_from_slice(&[0, 0, 0, 0]);
             }
         }
     }
     Some((w, h, rgba))
+}
+
+/// 8bpp 索引图的**色键与阴影**判定，逐字对齐 VCMI
+/// `BitmapHandler::loadBitmapFromDir`（clientsdl2/render/CBitmapHandler.cpp:163-184）。
+///
+/// VCMI 对带调色板的位图只走两条分支：
+/// 1. **调色板 0 号 == 洋红 (255,0,255)** —— H3「带阴影」约定：色键 = 0 号索引，
+///    且 1 号色变黑 12.5%、4 号色变黑 50%（`setColorKey` + 调色板改写）；
+/// 2. 其余 —— `setDefaultColorKeyPresize`：只有调色板里**恰好存在纯青 (0,255,255)** 时，
+///    才把该索引设为色键；找不到就整图不透明（例如原版战斗背景，它本来就没有透明色）。
+///
+/// ⚠️ 容差恒为 0：SDL 色键是精确像素值，VCMI 里不存在“相近色也算背景”的判定。
+pub(crate) struct IndexedPalette {
+    /// 命中即透明的索引；`None` = 整图不透明。
+    key: Option<u8>,
+    /// 调色板 0 号是洋红 ⇒ 索引 1/4 是阴影档位。
+    shadow: bool,
+}
+
+impl IndexedPalette {
+    fn new(palette: &[u8]) -> Self {
+        let at = |i: usize| -> [u8; 3] {
+            [
+                palette.get(i * 3).copied().unwrap_or(0),
+                palette.get(i * 3 + 1).copied().unwrap_or(0),
+                palette.get(i * 3 + 2).copied().unwrap_or(0),
+            ]
+        };
+        if at(0) == [255, 0, 255] {
+            return Self {
+                key: Some(0),
+                shadow: true,
+            };
+        }
+        Self {
+            key: (0..=255u8).find(|i| at(*i as usize) == H3_COLOR_KEY),
+            shadow: false,
+        }
+    }
+
+    /// `None` = 普通像素（调色板原色 + 不透明）；`Some(a)` = 特殊像素：
+    /// `0` 为透明（RGB 由调用方保留），其余为阴影黑半透明。
+    fn alpha(&self, idx: u8) -> Option<u8> {
+        if self.key == Some(idx) {
+            return Some(0);
+        }
+        if self.shadow {
+            match idx {
+                1 => return Some(32),
+                4 => return Some(128),
+                _ => {}
+            }
+        }
+        None
+    }
 }
 
 /// 图标类小图的最大边长：不超过则走 libwebp 有损。
@@ -202,17 +262,21 @@ pub(crate) fn encode_webp_lossy_q(rgba: &[u8], w: u32, h: u32, q: f32) -> Option
 
 /// H3 系素材的**位图色键**色：纯青 `(0,255,255)`。
 ///
-/// 与既有两条解码路径同款：`decode_h3_pcx`（调色板洋青像素透明）、
-/// `infra::def` 的 `palette[0]` 色键。BMP/PNG 这类**没有 alpha 通道**的位图
-/// 没有调色板可依，只能沿用这个约定色表达透明。
+/// 即 VCMI 的 `Colors::DEFAULT_KEY_COLOR`（client/render/Colors.cpp:26）——
+/// 真彩无 alpha 的位图由 `CSDL_Ext::setDefaultColorKey` 无条件设成这个值作色键，
+/// 8bpp 位图则由 `setDefaultColorKeyPresize` 在调色板里找它。
+/// **容差恒为 0**：SDL 色键是精确像素值，VCMI 不存在“相近色也算背景”的判定。
 const H3_COLOR_KEY: [u8; 3] = [0x00, 0xFF, 0xFF];
 
 /// 位图解码为 RGBA，并对**无 alpha 通道**的位图套用 H3 色键（纯青 → 透明）。
 ///
+/// 这是 VCMI `BitmapHandler::loadBitmapFromDir` 最后两个分支的等价物：
+/// 带 alpha → 用 alpha（`SDL_SetSurfaceBlendMode(BLEND)`）；无 alpha → 色键 = 纯青。
+///
 /// ## 触发条件（两条都要满足）
 ///
 /// - **没有 alpha 通道**（`DynamicImage::has_alpha()` 为假）：带 alpha 的图"透明与否"已由
-///   alpha 明确表达，再抠色键只会误伤真实的青色像素（不同 mod 的色键色并不统一）；
+///   alpha 明确表达，再抠色键只会误伤真实的青色像素；
 /// - 且图中**确实存在**该色：否则原样返回 `None`，调用方零额外开销（不重编码）。
 ///
 /// ## 为什么要有它
@@ -225,6 +289,9 @@ const H3_COLOR_KEY: [u8; 3] = [0x00, 0xFF, 0xFF];
 ///
 /// ⚠️ **不适用于幕布底图**：底图是最终画布（VCMI 亦原样渲染），抠洞只会露出卡片底色，
 /// 因此 [`encode_webp`] 保持不变 —— 只对"要贴到别的东西上面的图"（结构帧 / 图标）生效。
+///
+/// ⚠️ **不得扩张成“相近色也算”**（2026-10-24 回归）：曾经的“四角取色 + 容差 48”
+/// 把 58×64 的头像/生物大图抠成麻点。VCMI 只认精确纯青，这里也一样。
 pub(crate) fn keyed_rgba(img: image::DynamicImage) -> image::RgbaImage {
     let has_alpha = img.has_alpha();
     let mut rgba = img.to_rgba8();
@@ -324,6 +391,10 @@ pub(crate) fn decode_anim_frame(buf: &[u8]) -> Option<image::RgbaImage> {
 ///
 /// 供"先判断要不要处理、再决定要不要重编码"的调用点使用（如 [`crate::modcache::assets`]
 /// 的图标落盘），避免为每张图都白做一次编码。
+///
+/// 这是**真彩无 alpha 位图唯一合法的透明来源**（VCMI `setDefaultColorKey` = 精确纯青）。
+/// 调用方不得再叠任何“按内容猜背景色”的二次抠图：
+/// 实测 58×64 的头像 / 生物大图标源图全不透明、四角是画面内容，容差抠色会把它们抠成麻点。
 pub(crate) fn strip_color_key_rgba(buf: &[u8]) -> Option<image::RgbaImage> {
     let img = image::load_from_memory(buf).ok()?;
     let has_alpha = img.has_alpha();
@@ -382,7 +453,84 @@ pub(crate) fn encode_webp_from_bgra(bgra: &[u8], w: u32, h: u32) -> Option<Vec<u
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_paletted_png, h3_index_rgba};
+    use super::{decode_paletted_png, h3_index_rgba, strip_color_key_rgba, IndexedPalette};
+
+    /// 造 768 字节调色板，只填给定索引。
+    fn palette_with(entries: &[(usize, [u8; 3])]) -> Vec<u8> {
+        let mut p = vec![0u8; 768];
+        for &(i, c) in entries {
+            p[i * 3..i * 3 + 3].copy_from_slice(&c);
+        }
+        p
+    }
+
+    /// 8bpp 色键判定必须与 VCMI `BitmapHandler::loadBitmapFromDir` 同口径（容差 0）。
+    #[test]
+    fn 索引图色键只看洋红分支与纯青项() {
+        // ① 调色板 0 号是洋红 → 键索引 0，且 1/4 是阴影档位（H3 带阴影约定）
+        let magenta = IndexedPalette::new(&palette_with(&[
+            (0, [255, 0, 255]),
+            (1, [255, 150, 255]),
+            (4, [255, 0, 255]),
+        ]));
+        assert_eq!(magenta.alpha(0), Some(0), "洋红调色板：索引 0 透明");
+        assert_eq!(magenta.alpha(1), Some(32), "索引 1 = 黑 12.5%");
+        assert_eq!(magenta.alpha(4), Some(128), "索引 4 = 黑 50%");
+        assert_eq!(magenta.alpha(2), None, "2/3 号色不强行当阴影（VCMI 要颜色相符才算）");
+
+        // ② 非洋红调色板：只有「恰好等于纯青」的索引才设色键
+        let cyan = IndexedPalette::new(&palette_with(&[(0, [0, 0, 0]), (7, [0, 255, 255])]));
+        assert_eq!(cyan.alpha(7), Some(0), "调色板含纯青 → 键该索引");
+        assert_eq!(cyan.alpha(0), None, "0 号色不是色键就不透明（旧实现无条件抠 0）");
+        // 相近色不键（容差被压到 0）：这是 58×64 画像被抠成麻点的根源
+        let near = IndexedPalette::new(&palette_with(&[(0, [0, 0, 0]), (7, [2, 240, 245])]));
+        assert_eq!(near.alpha(7), None, "近似青不属于色键");
+
+        // ③ 无洋红也无纯青 → 整图不透明（如原版战斗背景，本就无透明色）
+        let none = IndexedPalette::new(&palette_with(&[(0, [12, 34, 56])]));
+        assert_eq!(none.alpha(0), None);
+        assert_eq!(none.alpha(200), None);
+    }
+
+    /// 真彩无 alpha 且不含纯青的图（头像 / 生物大图标的典型形态）→ **不得抠任何像素**。
+    #[test]
+    fn 无alpha且无纯青的真彩图不抠色() {
+        // 4×1 RGB：四角暖色（画面内容），不含纯青
+        let mut out = Vec::new();
+        {
+            let mut enc = png::Encoder::new(&mut out, 4, 1);
+            enc.set_color(png::ColorType::Rgb);
+            enc.set_depth(png::BitDepth::Eight);
+            let mut w = enc.write_header().expect("写 PNG 头");
+            w.write_image_data(&[166, 27, 26, 195, 175, 130, 153, 90, 64, 89, 47, 42])
+                .expect("写像素");
+            w.finish().expect("收尾");
+        }
+        assert!(
+            strip_color_key_rgba(&out).is_none(),
+            "全不透明且无纯青的位图不得被抠色（曾因四角容差被抠成麻点）"
+        );
+    }
+
+    /// 真彩无 alpha 且含**精确纯青** → 只抠这些像素，RGB 保留、相近色不动。
+    #[test]
+    fn 真彩图只抠精确纯青() {
+        let mut out = Vec::new();
+        {
+            let mut enc = png::Encoder::new(&mut out, 3, 1);
+            enc.set_color(png::ColorType::Rgb);
+            enc.set_depth(png::BitDepth::Eight);
+            let mut w = enc.write_header().expect("写 PNG 头");
+            // 纯青 / 近似青（2,240,245）/ 普通色
+            w.write_image_data(&[0, 255, 255, 2, 240, 245, 10, 20, 30])
+                .expect("写像素");
+            w.finish().expect("收尾");
+        }
+        let img = strip_color_key_rgba(&out).expect("含纯青应命中");
+        assert_eq!(img.get_pixel(0, 0).0, [0, 255, 255, 0], "精确纯青透明，RGB 保留");
+        assert_eq!(img.get_pixel(1, 0).0[3], 255, "近似青不抠（容差 0）");
+        assert_eq!(img.get_pixel(2, 0).0[3], 255, "普通色不抠");
+    }
 
     /// 索引语义：0 与 5–7 全透明，1–4 是半透明黑阴影，其余是普通颜色。
     #[test]

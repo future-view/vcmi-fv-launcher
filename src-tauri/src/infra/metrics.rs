@@ -7,7 +7,6 @@
 //! - `res.zip_read`：从 `content.zip` 解压单个条目；
 //! - `def.decode`：DEF 动画解码（含逐帧像素还原）；
 //! - `img.encode` / `img.rgba`：webp 编码（有损小图 / 无损大图）；
-//! - `img.matte`：小图标四角取色抠图（逐像素）；
 //! - `town.preview`：城镇预览图合成；
 //! - `cfg.*` / `ent.*`：单 mod 构建的配置解析与实体构建阶段；
 //! - `io.write`：`cache.json` / `raw.json` 落盘。

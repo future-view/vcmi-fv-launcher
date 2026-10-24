@@ -11,15 +11,22 @@
 
 const SSPRITE_DEF_SIZE: usize = 32;
 
-/// 色键规则（对齐 VCMI CSDL_Ext::setColorKey(palette->colors[0])）：
-/// **调色板第 0 项的颜色** 即色键——帧内 RGB 与该色相同的像素全部透明。
-/// 旧实现误把索引 0–7 全抠（H3 调色板 1–7 是常用色，会破坏主体）。
-fn palette_color_key(palette: &[u8]) -> (u8, u8, u8) {
-    (
-        *palette.first().unwrap_or(&0),
-        *palette.get(1).unwrap_or(&0),
-        *palette.get(2).unwrap_or(&0),
-    )
+/// DEF 帧的透明判定：**只有索引 0 透明，其余索引一律不透明**。
+///
+/// 对齐 VCMI `SDLImageLoader::~SDLImageLoader`（clientsdl2/render/SDLImageLoader.cpp:68-72）：
+/// DEF 帧是 8bpp 索引表面，加载结束时 `SDL_SetColorKey(surface, SDL_TRUE, 0)` ——
+/// 色键是**像素值（索引）0**，与调色板 0 号项的颜色无关。
+///
+/// ⚠️ 不能按「调色板颜色」判定（旧实现）：H3 调色板里常有别的索引与 0 号色同值，
+/// 按颜色比对会把正文里的同色像素一起抠掉；VCMI 不会。
+/// 阴影档位（索引 1–4）由绘制期 `ScalableImageParameters::setShadowTransparency`
+/// 按 blit mode 施加，静态产物按 OPAQUE 口径烘焙，此处不掺阴影。
+fn def_frame_alpha(idx: u8) -> u8 {
+    if idx == 0 {
+        0
+    } else {
+        255
+    }
 }
 
 #[derive(Debug, Default)]
@@ -470,8 +477,9 @@ impl<'a> DefReader<'a> {
     /// 动画专用：与 [`Self::decode_frame_at`] 同一解码，但按**特殊调色板索引**渲染 ——
     /// H3 DEF 约定索引 0=透明、1-4=阴影（半透明黑）、5-7=选择高亮（不显示）。
     ///
-    /// 战斗生物 DEF 普遍用索引 1-4 画阴影；静态图标提取不走本函数
-    /// （沿用 [`render_bgra`] 的历史口径，避免影响既有产物）。
+    /// 战斗生物 DEF 普遍用索引 1-4 画阴影，VCMI 也只在 `WITH_SHADOW*` 类 blit mode 下
+    /// 才施加阴影（`ScalableImageParameters::setShadowTransparency`），而战斗动画正是这类；
+    /// 静态图标（百科/城镇界面）按 OPAQUE 烘焙，因此仍走 [`render_bgra`]（只有索引 0 透明）。
     /// 与前端 `lib/def/decoder.ts::renderBgra` 的 `SPECIAL_ALPHA` 同口径。
     pub fn decode_frame_at_anim(
         &self,
@@ -639,6 +647,8 @@ impl<'a> DefReader<'a> {
 }
 
 /// 将索引像素 + 调色板渲染为 32bpp BGRA BMP。
+///
+/// 透明口径见 [`def_frame_alpha`]：只有索引 0 透明。
 fn render_bmp(rows: &[Vec<u8>], palette: &[u8]) -> Vec<u8> {
     let h = rows.len();
     let w = if h > 0 { rows[0].len() } else { 0 };
@@ -677,14 +687,13 @@ fn render_bmp(rows: &[Vec<u8>], palette: &[u8]) -> Vec<u8> {
             )
         })
         .collect();
-    let key = palette_color_key(palette);
 
     for y in (0..h).rev() {
         let row = &rows[y];
         for x in 0..w {
-            let idx = *row.get(x).unwrap_or(&0) as usize;
-            let (r, g, b) = pal[idx.min(255)];
-            let alpha = if (r, g, b) == key { 0 } else { 255 };
+            let idx = *row.get(x).unwrap_or(&0);
+            let (r, g, b) = pal[idx as usize];
+            let alpha = def_frame_alpha(idx);
             out.push(b);
             out.push(g);
             out.push(r);
@@ -698,6 +707,8 @@ fn render_bmp(rows: &[Vec<u8>], palette: &[u8]) -> Vec<u8> {
 }
 
 /// 将索引像素 + 调色板渲染为**顶向下** 32bpp BGRA（供 webp 编码，无对齐/无头）。
+///
+/// 透明口径见 [`def_frame_alpha`]：只有索引 0 透明（VCMI `SDL_SetColorKey(...,0)`）。
 fn render_bgra(rows: &[Vec<u8>], palette: &[u8]) -> Vec<u8> {
     let h = rows.len();
     let w = if h > 0 { rows[0].len() } else { 0 };
@@ -711,25 +722,23 @@ fn render_bgra(rows: &[Vec<u8>], palette: &[u8]) -> Vec<u8> {
             )
         })
         .collect();
-    let key = palette_color_key(palette);
     let mut out = Vec::with_capacity(w * h * 4);
     for y in 0..h {
         let row = &rows[y];
         for x in 0..w {
-            let idx = *row.get(x).unwrap_or(&0) as usize;
-            let (r, g, b) = pal[idx.min(255)];
-            let alpha = if (r, g, b) == key { 0 } else { 255 };
+            let idx = *row.get(x).unwrap_or(&0);
+            let (r, g, b) = pal[idx as usize];
             out.push(b);
             out.push(g);
             out.push(r);
-            out.push(alpha);
+            out.push(def_frame_alpha(idx));
         }
     }
     out
 }
 
-/// 动画专用渲染：在 [`render_bgra`] 的色键之外，额外处理 **H3 特殊调色板索引**
-/// （0=透明、1-4=阴影 → 半透明黑、5-7=选择高亮 → 不显示）。
+/// 动画专用渲染：在 [`render_bgra`] 的「索引 0 透明」之外，额外处理 **H3 特殊调色板索引**
+/// （1-4=阴影 → 半透明黑、5-7=选择高亮 → 不显示）。
 ///
 /// 口径与前端 `lib/def/decoder.ts::renderBgra` 的 `SPECIAL_ALPHA` 完全一致 ——
 /// 缺了它，生物战斗帧的阴影（索引 1-4）会被画成调色板里的洋红/金色实体色。
@@ -749,22 +758,20 @@ fn render_bgra_anim(rows: &[Vec<u8>], palette: &[u8]) -> Vec<u8> {
             )
         })
         .collect();
-    let key = palette_color_key(palette);
     let mut out = Vec::with_capacity(w * h * 4);
     for y in 0..h {
         let row = &rows[y];
         for x in 0..w {
-            let idx = (*row.get(x).unwrap_or(&0)).min(255) as usize;
-            if let Some(special) = crate::infra::image::h3_index_rgba(idx as u8) {
+            let idx = *row.get(x).unwrap_or(&0);
+            if let Some(special) = crate::infra::image::h3_index_rgba(idx) {
                 out.extend_from_slice(&special);
                 continue;
             }
-            let (r, g, b) = pal[idx];
-            let alpha = if (r, g, b) == key { 0 } else { 255 };
+            let (r, g, b) = pal[idx as usize];
             out.push(b);
             out.push(g);
             out.push(r);
-            out.push(alpha);
+            out.push(255);
         }
     }
     out
@@ -870,5 +877,62 @@ mod tests {
             1,
             "单帧 DEF 必须解出正好 1 帧（旧逻辑会误判 0 帧：16/20 误检 + 784+768 门槛）"
         );
+    }
+
+    /// 造一张 768 字节（256 色）调色板，只填给定索引，其余全 0。
+    fn palette_with(entries: &[(usize, (u8, u8, u8))]) -> Vec<u8> {
+        let mut p = vec![0u8; 768];
+        for &(i, (r, g, b)) in entries {
+            p[i * 3..i * 3 + 3].copy_from_slice(&[r, g, b]);
+        }
+        p
+    }
+
+    /// **DEF 帧的透明只看索引 0**（VCMI `SDL_SetColorKey(surface, TRUE, 0)`）。
+    ///
+    /// 回归背景（2026-10-24）：旧实现按「调色板 0 号项的颜色」抠图，H3 调色板里
+    /// 常存在与 0 号色同值的其它索引 → 正文里的同色像素被一起抠成透明。
+    /// VCMI 不会：色键是像素值 0，与颜色无关。
+    #[test]
+    fn def_frame_keys_index_zero_only() {
+        let magenta = (255u8, 0u8, 255u8);
+        let palette = palette_with(&[
+            (0, magenta),
+            (1, (0, 0, 0)),
+            (8, (10, 20, 30)),
+            (200, magenta), // 与 0 号同色：必须保持不透明
+        ]);
+        let rows = vec![vec![0u8, 200, 8, 1]];
+
+        let bgra = render_bgra(&rows, &palette);
+        assert_eq!(bgra[3], 0, "索引 0 必须透明");
+        assert_eq!(
+            &bgra[4..8],
+            &[255, 0, 255, 255],
+            "索引 200 的颜色与 0 号同值，但索引不是 0 → 不透明（旧实现会误抠）"
+        );
+        assert_eq!(&bgra[8..12], &[30, 20, 10, 255], "索引 8 保持原色不透明");
+        assert_eq!(
+            bgra[15], 255,
+            "索引 1 在静态（OPAQUE）口径下不掺阴影，保持不透明"
+        );
+    }
+
+    /// 动画口径不变：索引 1-4 是阴影（黑 25%/50%），5-7 不显示（对齐
+    /// `ScalableImageParameters::setShadowTransparency`）。
+    #[test]
+    fn def_animation_keeps_shadow_indices() {
+        let palette = palette_with(&[
+            (0, (0, 255, 255)),
+            (1, (255, 150, 255)),
+            (4, (255, 0, 255)),
+            (9, (1, 2, 3)),
+        ]);
+        let rows = vec![vec![0u8, 1, 4, 9]];
+        let bgra = render_bgra_anim(&rows, &palette);
+        assert_eq!(&bgra[0..4], &[0, 0, 0, 0], "索引 0 透明");
+        assert_eq!(&bgra[4..8], &[0, 0, 0, 64], "索引 1 = 黑 25%");
+        assert_eq!(&bgra[8..12], &[0, 0, 0, 128], "索引 4 = 黑 50%");
+        assert_eq!(&bgra[12..16], &[3, 2, 1, 255], "普通索引保持原色");
     }
 }
