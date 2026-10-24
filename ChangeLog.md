@@ -63,3 +63,25 @@ See [How to write this file](docs/guides/release.zh-CN.md#changelog-syntax) for 
 **修复**：
   - 修复第三方模组`英雄`没有显示英雄特长
   - 运行游戏前清理`persistentStorage.json`过时的配置避免导致游戏奔溃
+
+## v0.2.1
+
+### english
+
+**Fixes:**
+- Fixed the issue where the color loss of cached images in the module was caused by incorrect image cropping
+- Fixed the logic for reading town names in multiple languages
+- Fixed the issue where war machines (crossbow carts, first aid tents, supply carts) in the "Initial Troops" section of heroes were mistakenly placed in the initial troop grid
+- Fixed the animation display of War Machine in the Encyclopedia
+- Fixed the issue of some creature animations causing the screen to flicker
+- Compatible with the configuration methods of some town mods
+
+### chinese
+
+**修复：**
+- 修复模组缓存图片被错误抠图导致图片丢失色彩
+- 修复城镇名称多语言的读取逻辑
+- 修复英雄「初始部队」里的战争机器（弩车 / 急救帐篷 / 补给车）被错分到初始部队格子里
+- 修复百科里战争机器动画显示
+- 修复一些生物动画幕布跳动
+- 兼容一些城镇模组的配置方式
