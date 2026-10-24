@@ -75,6 +75,7 @@ See [How to write this file](docs/guides/release.zh-CN.md#changelog-syntax) for 
 - Fixed the animation display of War Machine in the Encyclopedia
 - Fixed the issue of some creature animations causing the screen to flicker
 - Fixed the issue where the software download window would freeze due to high traffic
+- Fix the issue where some background music for the faction parade cannot be played
 - Compatible with the configuration methods of some town mods
 
 ### chinese
@@ -86,4 +87,5 @@ See [How to write this file](docs/guides/release.zh-CN.md#changelog-syntax) for 
 - 修复百科里战争机器动画显示
 - 修复一些生物动画幕布跳动
 - 修复软件下载窗口繁忙卡死
+- 修复阵营巡礼某些阵营背景音乐无法播放
 - 兼容一些城镇模组的配置方式

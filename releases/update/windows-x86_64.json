@@ -6,14 +6,14 @@
   "versions": [
     {
       "version": "0.2.1",
-      "download": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.2.1/portable_0.2.1_20261024-21_windows-x86_64.zip",
-      "sha256": "b1635efb34f2f57133690a368d0e29cd7ae733baded1226891dcab9a7ef7508c",
-      "size": 10427835,
+      "download": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.2.1/portable_0.2.1_20261025-01_windows-x86_64.zip",
+      "sha256": "6d32517b1ba5adda63d2511d748e2fc7c6719d8d777b88e8656e1a570311ecfc",
+      "size": 10521322,
       "format": "zip",
       "kind": "full",
       "updateMode": "inplace",
       "critical": false,
-      "publishedAt": "2026-10-24",
+      "publishedAt": "2026-10-25",
       "notes": {
         "english": [
           "Fixed the issue where the color loss of cached images in the module was caused by incorrect image cropping",
@@ -22,6 +22,7 @@
           "Fixed the animation display of War Machine in the Encyclopedia",
           "Fixed the issue of some creature animations causing the screen to flicker",
           "Fixed the issue where the software download window would freeze due to high traffic",
+          "Fix the issue where some background music for the faction parade cannot be played",
           "Compatible with the configuration methods of some town mods"
         ],
         "chinese": [
@@ -31,12 +32,13 @@
           "修复百科里战争机器动画显示",
           "修复一些生物动画幕布跳动",
           "修复软件下载窗口繁忙卡死",
+          "修复阵营巡礼某些阵营背景音乐无法播放",
           "兼容一些城镇模组的配置方式"
         ]
       },
       "notesMd": {
-        "english": "**Fixes:**\n- Fixed the issue where the color loss of cached images in the module was caused by incorrect image cropping\n- Fixed the logic for reading town names in multiple languages\n- Fixed the issue where war machines (crossbow carts, first aid tents, supply carts) in the \"Initial Troops\" section of heroes were mistakenly placed in the initial troop grid\n- Fixed the animation display of War Machine in the Encyclopedia\n- Fixed the issue of some creature animations causing the screen to flicker\n- Fixed the issue where the software download window would freeze due to high traffic\n- Compatible with the configuration methods of some town mods",
-        "chinese": "**修复：**\n- 修复模组缓存图片被错误抠图导致图片丢失色彩\n- 修复城镇名称多语言的读取逻辑\n- 修复英雄「初始部队」里的战争机器（弩车 / 急救帐篷 / 补给车）被错分到初始部队格子里\n- 修复百科里战争机器动画显示\n- 修复一些生物动画幕布跳动\n- 修复软件下载窗口繁忙卡死\n- 兼容一些城镇模组的配置方式"
+        "english": "**Fixes:**\n- Fixed the issue where the color loss of cached images in the module was caused by incorrect image cropping\n- Fixed the logic for reading town names in multiple languages\n- Fixed the issue where war machines (crossbow carts, first aid tents, supply carts) in the \"Initial Troops\" section of heroes were mistakenly placed in the initial troop grid\n- Fixed the animation display of War Machine in the Encyclopedia\n- Fixed the issue of some creature animations causing the screen to flicker\n- Fixed the issue where the software download window would freeze due to high traffic\n- Fix the issue where some background music for the faction parade cannot be played\n- Compatible with the configuration methods of some town mods",
+        "chinese": "**修复：**\n- 修复模组缓存图片被错误抠图导致图片丢失色彩\n- 修复城镇名称多语言的读取逻辑\n- 修复英雄「初始部队」里的战争机器（弩车 / 急救帐篷 / 补给车）被错分到初始部队格子里\n- 修复百科里战争机器动画显示\n- 修复一些生物动画幕布跳动\n- 修复软件下载窗口繁忙卡死\n- 修复阵营巡礼某些阵营背景音乐无法播放\n- 兼容一些城镇模组的配置方式"
       }
     },
     {

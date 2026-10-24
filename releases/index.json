@@ -48,11 +48,11 @@
       "title": "VCMI-FV-Launcher 0.2.1",
       "tag": "v0.2.1",
       "target": "main",
-      "commit": "2c21517c238d7dce17e64881fa9d139f35ea3d9d",
+      "commit": "3eb69a59565ef912cc1dd44030b1a0f9dfb31286",
       "page": "https://github.com/future-view/vcmi-fv-launcher/releases/tag/v0.2.1",
       "updateVersion": "0.2.1",
       "prerelease": false,
-      "publishedAt": "2026-10-24",
+      "publishedAt": "2026-10-25",
       "critical": false,
       "notesSource": "changelog",
       "notes": {
@@ -63,6 +63,7 @@
           "Fixed the animation display of War Machine in the Encyclopedia",
           "Fixed the issue of some creature animations causing the screen to flicker",
           "Fixed the issue where the software download window would freeze due to high traffic",
+          "Fix the issue where some background music for the faction parade cannot be played",
           "Compatible with the configuration methods of some town mods"
         ],
         "chinese": [
@@ -72,29 +73,30 @@
           "修复百科里战争机器动画显示",
           "修复一些生物动画幕布跳动",
           "修复软件下载窗口繁忙卡死",
+          "修复阵营巡礼某些阵营背景音乐无法播放",
           "兼容一些城镇模组的配置方式"
         ]
       },
       "notesMd": {
-        "english": "**Fixes:**\n- Fixed the issue where the color loss of cached images in the module was caused by incorrect image cropping\n- Fixed the logic for reading town names in multiple languages\n- Fixed the issue where war machines (crossbow carts, first aid tents, supply carts) in the \"Initial Troops\" section of heroes were mistakenly placed in the initial troop grid\n- Fixed the animation display of War Machine in the Encyclopedia\n- Fixed the issue of some creature animations causing the screen to flicker\n- Fixed the issue where the software download window would freeze due to high traffic\n- Compatible with the configuration methods of some town mods",
-        "chinese": "**修复：**\n- 修复模组缓存图片被错误抠图导致图片丢失色彩\n- 修复城镇名称多语言的读取逻辑\n- 修复英雄「初始部队」里的战争机器（弩车 / 急救帐篷 / 补给车）被错分到初始部队格子里\n- 修复百科里战争机器动画显示\n- 修复一些生物动画幕布跳动\n- 修复软件下载窗口繁忙卡死\n- 兼容一些城镇模组的配置方式"
+        "english": "**Fixes:**\n- Fixed the issue where the color loss of cached images in the module was caused by incorrect image cropping\n- Fixed the logic for reading town names in multiple languages\n- Fixed the issue where war machines (crossbow carts, first aid tents, supply carts) in the \"Initial Troops\" section of heroes were mistakenly placed in the initial troop grid\n- Fixed the animation display of War Machine in the Encyclopedia\n- Fixed the issue of some creature animations causing the screen to flicker\n- Fixed the issue where the software download window would freeze due to high traffic\n- Fix the issue where some background music for the faction parade cannot be played\n- Compatible with the configuration methods of some town mods",
+        "chinese": "**修复：**\n- 修复模组缓存图片被错误抠图导致图片丢失色彩\n- 修复城镇名称多语言的读取逻辑\n- 修复英雄「初始部队」里的战争机器（弩车 / 急救帐篷 / 补给车）被错分到初始部队格子里\n- 修复百科里战争机器动画显示\n- 修复一些生物动画幕布跳动\n- 修复软件下载窗口繁忙卡死\n- 修复阵营巡礼某些阵营背景音乐无法播放\n- 兼容一些城镇模组的配置方式"
       },
       "assets": [
         {
-          "name": "portable_0.2.1_20261024-21_windows-x86_64.zip",
+          "name": "portable_0.2.1_20261025-01_windows-x86_64.zip",
           "role": "update",
-          "path": "download/v0.2.1/portable_0.2.1_20261024-21_windows-x86_64.zip",
-          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.2.1/portable_0.2.1_20261024-21_windows-x86_64.zip",
-          "size": 10427835,
-          "sha256": "b1635efb34f2f57133690a368d0e29cd7ae733baded1226891dcab9a7ef7508c"
+          "path": "download/v0.2.1/portable_0.2.1_20261025-01_windows-x86_64.zip",
+          "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.2.1/portable_0.2.1_20261025-01_windows-x86_64.zip",
+          "size": 10521322,
+          "sha256": "6d32517b1ba5adda63d2511d748e2fc7c6719d8d777b88e8656e1a570311ecfc"
         },
         {
           "name": "vcmi-fv-launcher.exe",
           "role": "binary",
           "path": "download/v0.2.1/vcmi-fv-launcher.exe",
           "url": "https://github.com/future-view/vcmi-fv-launcher/releases/download/v0.2.1/vcmi-fv-launcher.exe",
-          "size": 26524672,
-          "sha256": "60b8e699e711b0da1b41622f7150f95d18e108039a2bea6f3b91001afdc14cc4"
+          "size": 26988032,
+          "sha256": "c15f8f3751f5b5f299b4052c4e39f1b26ae83c76509ea39de929f885dd5e0846"
         }
       ],
       "preset": {
@@ -102,10 +104,10 @@
         "sha256": "61c8c268bff1dde1d1c8d2119ce3c142fd0741f8a272d471f222e3b159864683"
       },
       "pack": {
-        "dir": "0.2.1_20261024-21_windows-x86_64",
+        "dir": "0.2.1_20261025-01_windows-x86_64",
         "profile": "release",
         "flavor": null,
-        "builtAt": "2026-10-24T13:32:36.626Z"
+        "builtAt": "2026-10-24T17:45:12.344Z"
       }
     },
     {
